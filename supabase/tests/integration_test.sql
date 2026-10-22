@@ -242,12 +242,16 @@ do $$ declare v_o uuid := (select v from t.ids where k='order1'); begin
   perform t.reset();
 end $$;
 
-\echo 'T13 cancelling an order restores stock'
+\echo 'T13 cancelling an order (customer request approved by staff) restores stock'
 do $$ declare v_before int; begin
   select stock_quantity into v_before from public.products where sku='CBL-C2L';
   perform t.act('00000000-0000-0000-0000-00000000000b');
-  perform public.customer_cancel_order((select v from t.ids where k='order_b'));
+  perform public.customer_request_cancel('order', (select v from t.ids where k='order_b'), 'غيرت رأيي');
+  if (select status from public.orders where id = (select v from t.ids where k='order_b')) = 'cancelled' then raise exception 'T13 cancelled without approval'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  perform public.staff_decide_cancel((select id from public.cancel_requests where order_id = (select v from t.ids where k='order_b')), true);
   perform t.reset();
+  if (select status from public.orders where id = (select v from t.ids where k='order_b')) <> 'cancelled' then raise exception 'T13 not cancelled'; end if;
   if (select stock_quantity from public.products where sku='CBL-C2L') <> v_before + 1 then raise exception 'T13 restock'; end if;
 end $$;
 
@@ -534,6 +538,37 @@ do $$ declare v_o uuid := (select v from t.ids where k='order1'); v_st public.or
     raise exception 'T30 no timeline entry';
   end if;
   if (select count(*) from public.notifications) <> v_n + 1 then raise exception 'T30 not notified'; end if;
+  perform t.reset();
+end $$;
+
+\echo 'T31 cancel requests: reason required, one open request, rejection keeps the repair, approval cancels; staff only'
+do $$ declare v_rep uuid; v_cust uuid; v_req uuid; v_st public.repair_status; begin
+  v_cust := '00000000-0000-0000-0000-00000000000a';
+  perform t.act(v_cust);
+  v_rep := (public.request_repair('repair-key-cancel', 'Samsung', 'A52', null, 'البطارية بتفصل بسرعة',
+            'Customer A', '+201011111111', null, (select id from public.branches limit 1), null, true)->>'repair_id')::uuid;
+  select status into v_st from public.repair_requests where id = v_rep;
+  perform t.act(v_cust);
+  begin perform public.customer_request_cancel('repair', v_rep, ' '); raise exception 'T31 no reason allowed';
+  exception when raise_exception then if sqlerrm <> 'CANCEL_REASON_REQUIRED' then raise; end if; end;
+  v_req := public.customer_request_cancel('repair', v_rep, 'لقيت حد أرخص');
+  begin perform public.customer_request_cancel('repair', v_rep, 'تاني'); raise exception 'T31 duplicate allowed';
+  exception when raise_exception then if sqlerrm <> 'CANCEL_ALREADY_REQUESTED' then raise; end if; end;
+  begin perform public.staff_decide_cancel(v_req, true); raise exception 'T31 customer approved own request';
+  exception when insufficient_privilege then null; end;
+  if (select count(*) from public.cancel_requests where repair_id = v_rep) <> 1 then raise exception 'T31 customer cannot see own request'; end if;
+  perform t.act('00000000-0000-0000-0000-00000000000b');
+  if exists (select 1 from public.cancel_requests where repair_id = v_rep) then raise exception 'T31 leak'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  perform public.staff_decide_cancel(v_req, false, 'كلمناك واتفقنا نكمّل');
+  if (select status from public.repair_requests where id = v_rep) <> v_st then raise exception 'T31 rejected but changed'; end if;
+  begin perform public.staff_decide_cancel(v_req, true); raise exception 'T31 decided twice';
+  exception when raise_exception then if sqlerrm <> 'ALREADY_DECIDED' then raise; end if; end;
+  perform t.act(v_cust);
+  v_req := public.customer_request_cancel('repair', v_rep, 'مش محتاجه خلاص');
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  perform public.staff_decide_cancel(v_req, true);
+  if (select status from public.repair_requests where id = v_rep) <> 'cancelled' then raise exception 'T31 not cancelled'; end if;
   perform t.reset();
 end $$;
 

@@ -78,11 +78,12 @@ do $$ declare j jsonb; v_o uuid := (select v from t.ids where k='online_order');
   if j->>'result' <> 'saved' then raise exception 'P04 token: %', j; end if;
 end $$;
 
-\echo 'P05 paid online order cannot be self-cancelled; B cannot see A payment'
+\echo 'P05 paid online order cannot be self-cancelled (request only); B cannot see A payment'
 do $$ declare v_o uuid := (select v from t.ids where k='online_order'); begin
   perform t.act('00000000-0000-0000-0000-00000000000a');
-  begin perform public.customer_cancel_order(v_o); raise exception 'P05 cancelled paid';
-  exception when raise_exception then if sqlerrm <> 'CANNOT_CANCEL_PAID' then raise; end if; end;
+  perform public.customer_cancel_order(v_o);  -- files a request only; staff decide (and refund)
+  if (select status from public.orders where id = v_o) = 'cancelled' then raise exception 'P05 cancelled paid'; end if;
+  if not exists (select 1 from public.cancel_requests where order_id = v_o and status = 'pending') then raise exception 'P05 no request'; end if;
   perform t.act('00000000-0000-0000-0000-00000000000b');
   if exists (select 1 from public.payments where order_id = v_o) then raise exception 'P05 leak'; end if;
   perform t.reset();
