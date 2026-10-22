@@ -248,6 +248,8 @@ class _Overview extends ConsumerWidget {
                   () => go(2, () => ref.read(_repairFilterProvider.notifier).state = 'ready_for_pickup')),
               tile(_t(context, 'مخزون قليل', 'Low stock'), n('low_stock'), Icons.inventory_rounded, BrandColors.error,
                   () => go(3, () => ref.read(_lowStockOnlyProvider.notifier).state = true)),
+              tile(_t(context, 'عمليات مغلقة', 'Closed'), n('closed_operations'), Icons.lock_rounded, BrandColors.gray,
+                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'closed')),
               tile(_t(context, 'طلبات اتسلّمت', 'Delivered'), n('completed_orders'), Icons.local_shipping_rounded, BrandColors.success,
                   () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'delivered')),
               tile(_t(context, 'المبيعات', 'Sales'), formatEgp((s['total_sales_minor'] as num?)?.toInt() ?? 0, context.lang), Icons.payments_rounded, BrandColors.navy,
@@ -293,6 +295,15 @@ class _OrdersTab extends ConsumerWidget {
               padding: const EdgeInsetsDirectional.only(start: 8),
               child: ChoiceChip(label: Text(context.tr('os_$s')), selected: filter == s, onSelected: (_) => ref.read(_orderFilterProvider.notifier).state = s),
             ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 8),
+            child: ChoiceChip(
+              avatar: const Icon(Icons.lock_rounded, size: 16, color: BrandColors.gray),
+              label: Text(_t(context, 'مغلقة', 'Closed')),
+              selected: filter == 'closed',
+              onSelected: (_) => ref.read(_orderFilterProvider.notifier).state = 'closed',
+            ),
+          ),
         ]),
       ),
       Expanded(
@@ -320,7 +331,7 @@ class _OrdersTab extends ConsumerWidget {
                           trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                             Text(formatEgp((o['total_minor'] as num).toInt(), context.lang), style: const TextStyle(fontWeight: FontWeight.w800)),
                             const SizedBox(height: 4),
-                            StatusChip(label: context.tr('os_${o['status']}'), color: _orderColor(o['status'] as String)),
+                            _orderChip(context, o),
                           ]),
                         ),
                       );
@@ -350,9 +361,10 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
       builder: (_, sc) => ListView(controller: sc, padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), children: [
         Row(children: [
           Expanded(child: Text(o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
-          StatusChip(label: context.tr('os_${o['status']}'), color: _orderColor(o['status'] as String)),
+          _orderChip(context, o),
         ]),
-        if (_openCancel(o) != null)
+        if (o['closed_at'] != null) _ClosedCard(row: o, kind: 'order'),
+        if (o['closed_at'] == null && _openCancel(o) != null)
           _CancelRequestCard(
             request: _openCancel(o)!,
             warning: o['payment_status'] == 'paid' ? _t(context, 'العميل دافع أونلاين — لو وافقت لازم ترجّعله فلوسه.', 'Paid online — approving means a refund.') : null,
@@ -385,6 +397,7 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           Text(formatEgp((o['total_minor'] as num).toInt(), context.lang), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
         ]),
         const SizedBox(height: 16),
+        if (o['closed_at'] == null) ...[
         _StatusUpdate(
           current: o['status'] as String,
           options: next,
@@ -395,6 +408,17 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           presets: o['fulfillment'] == 'pickup' ? _orderPickupPresets : _orderDeliveryPresets,
           onSubmit: (to, msg) => _changeOrder(ctx, ref, o['id'] as String, to, msg),
         ),
+        const Divider(height: 36),
+        _CloseOperationButton(
+          kind: 'order',
+          id: o['id'] as String,
+          onDone: () {
+            ref.invalidate(_ordersProvider);
+            ref.invalidate(_statsProvider);
+            ref.invalidate(_cancelCountProvider);
+          },
+        ),
+        ],
       ]),
     ),
   );
@@ -468,6 +492,7 @@ class _RepairsTab extends ConsumerWidget {
           chip('waiting_for_parts', repairLabel(context, labels, 'waiting_for_parts')),
           chip('ready_for_pickup', repairLabel(context, labels, 'ready_for_pickup')),
           chip('all', _t(context, 'الكل', 'All')),
+          chip('closed', _t(context, 'مغلقة', 'Closed')),
         ]),
       ),
       Expanded(child: RefreshIndicator(
@@ -493,7 +518,7 @@ class _RepairsTab extends ConsumerWidget {
                         if (_openCancel(r) != null) const _CancelBadge(),
                       ]),
                       isThreeLine: true,
-                      trailing: StatusChip(label: repairLabel(context, labels, st), color: repairStatusColor(st)),
+                      trailing: _repairChip(context, labels, r),
                     ),
                   );
                 },
@@ -508,7 +533,8 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
   final next = await repo.nextRepairStatuses(r['status'] as String);
   final labels = ref.read(repairLabelsProvider).valueOrNull;
   if (!context.mounted) return;
-  final canQuote = ['initial_inspection', 'diagnosis_completed', 'received_at_branch', 'device_collected'].contains(r['status']);
+  final closed = r['closed_at'] != null;
+  final canQuote = !closed && ['initial_inspection', 'diagnosis_completed', 'received_at_branch', 'device_collected'].contains(r['status']);
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -522,7 +548,8 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
           Expanded(child: Text(r['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
           StatusChip(label: repairLabel(context, labels, r['status'] as String), color: repairStatusColor(r['status'] as String)),
         ]),
-        if (_openCancel(r) != null)
+        if (r['closed_at'] != null) _ClosedCard(row: r, kind: 'repair'),
+        if (r['closed_at'] == null && _openCancel(r) != null)
           _CancelRequestCard(
             request: _openCancel(r)!,
             onDone: () {
@@ -568,6 +595,7 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
               },
             ),
           ),
+        if (!closed) ...[
         _StatusUpdate(
           current: r['status'] as String,
           options: next,
@@ -579,6 +607,17 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
           presets: _repairPresets,
           onSubmit: (to, msg) => _changeRepair(ctx, ref, r['id'] as String, to, msg),
         ),
+        const Divider(height: 36),
+        _CloseOperationButton(
+          kind: 'repair',
+          id: r['id'] as String,
+          onDone: () {
+            ref.invalidate(_repairsProvider);
+            ref.invalidate(_statsProvider);
+            ref.invalidate(_cancelCountProvider);
+          },
+        ),
+        ],
       ]),
     ),
   );
@@ -1334,7 +1373,7 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
                                 _result(
                                   title: o['reference'] as String,
                                   subtitle: '${o['customer_name']} • ${o['customer_phone']}\n${fmtDate(context, o['created_at'] as String)} • ${formatEgp((o['total_minor'] as num).toInt(), context.lang)}',
-                                  chip: StatusChip(label: context.tr('os_${o['status']}'), color: _orderColor(o['status'] as String)),
+                                  chip: _orderChip(context, o),
                                   cancel: _openCancel(o) != null,
                                   onTap: () => Navigator.pop(context, ('order', o)),
                                 ),
@@ -1346,7 +1385,7 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
                                 _result(
                                   title: x['reference'] as String,
                                   subtitle: '${x['device_brand']} ${x['device_model']} • ${x['contact_name']}\n${fmtDate(context, x['created_at'] as String)}',
-                                  chip: StatusChip(label: repairLabel(context, labels, x['status'] as String), color: repairStatusColor(x['status'] as String)),
+                                  chip: _repairChip(context, labels, x),
                                   cancel: _openCancel(x) != null,
                                   onTap: () => Navigator.pop(context, ('repair', x)),
                                 ),
@@ -1380,6 +1419,166 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
           trailing: chip,
         ),
       );
+}
+
+// =====================================================================================
+// Close the operation (final): hidden from the customer, kept here with the reason
+// =====================================================================================
+const _closeReasons = {
+  'order': ['cancelled_by_customer', 'purchased'],
+  'repair': ['cancelled_by_customer', 'repaired', 'unrepairable'],
+};
+
+String _closeReasonLabel(BuildContext c, String? r) => switch (r) {
+      'cancelled_by_customer' => _t(c, 'ملغي من العميل', 'Cancelled by customer'),
+      'purchased' => _t(c, 'تم الشراء', 'Purchased'),
+      'repaired' => _t(c, 'تم الإصلاح', 'Repaired'),
+      'unrepairable' => _t(c, 'مش هينفع يتصلح', 'Cannot be repaired'),
+      _ => _t(c, 'مغلق', 'Closed'),
+    };
+
+IconData _closeReasonIcon(String r) => switch (r) {
+      'cancelled_by_customer' => Icons.cancel_rounded,
+      'purchased' => Icons.shopping_bag_rounded,
+      'repaired' => Icons.build_circle_rounded,
+      _ => Icons.report_rounded,
+    };
+
+Color _closeReasonColor(String? r) => switch (r) {
+      'purchased' || 'repaired' => BrandColors.success,
+      'cancelled_by_customer' => BrandColors.error,
+      'unrepairable' => BrandColors.warning,
+      _ => BrandColors.gray,
+    };
+
+Widget _orderChip(BuildContext context, Map<String, dynamic> o) => o['closed_at'] != null
+    ? StatusChip(label: '🔒 ${_closeReasonLabel(context, o['close_reason'] as String?)}', color: _closeReasonColor(o['close_reason'] as String?))
+    : StatusChip(label: context.tr('os_${o['status']}'), color: _orderColor(o['status'] as String));
+
+Widget _repairChip(BuildContext context, Map<String, Map<String, dynamic>>? labels, Map<String, dynamic> r) => r['closed_at'] != null
+    ? StatusChip(label: '🔒 ${_closeReasonLabel(context, r['close_reason'] as String?)}', color: _closeReasonColor(r['close_reason'] as String?))
+    : StatusChip(label: repairLabel(context, labels, r['status'] as String), color: repairStatusColor(r['status'] as String));
+
+class _ClosedCard extends StatelessWidget {
+  const _ClosedCard({required this.row, required this.kind});
+  final Map<String, dynamic> row;
+  final String kind;
+  @override
+  Widget build(BuildContext context) {
+    final reason = row['close_reason'] as String?;
+    final color = _closeReasonColor(reason);
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(children: [
+        Icon(Icons.lock_rounded, color: color),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${_t(context, 'تم إغلاق العملية', 'Operation closed')} — ${_closeReasonLabel(context, reason)}',
+                style: TextStyle(fontWeight: FontWeight.w800, color: color)),
+            const SizedBox(height: 2),
+            Text(fmtDate(context, row['closed_at'] as String), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+            const SizedBox(height: 2),
+            Text(_t(context, 'مش ظاهرة للعميل في التطبيق.', 'No longer visible to the customer.'), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _CloseOperationButton extends ConsumerWidget {
+  const _CloseOperationButton({required this.kind, required this.id, required this.onDone});
+  final String kind;
+  final String id;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(foregroundColor: BrandColors.navy, side: const BorderSide(color: BrandColors.navy)),
+        icon: const Icon(Icons.lock_outline_rounded),
+        label: Text(_t(context, 'إغلاق العملية', 'Close operation')),
+        onPressed: () async {
+          final reason = await showModalBottomSheet<String>(
+            context: context,
+            showDragHandle: true,
+            builder: (_) => _CloseReasonSheet(kind: kind),
+          );
+          if (reason == null || !context.mounted) return;
+          try {
+            await ref.read(adminRepoProvider).closeOperation(kind, id, reason);
+            onDone();
+            if (context.mounted) {
+              Navigator.of(context).pop();
+              showSnack(context, _t(context, 'اتقفلت العملية واختفت من عند العميل', 'Closed — hidden from the customer'));
+            }
+          } catch (e) {
+            if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
+          }
+        },
+      );
+}
+
+class _CloseReasonSheet extends StatefulWidget {
+  const _CloseReasonSheet({required this.kind});
+  final String kind;
+  @override
+  State<_CloseReasonSheet> createState() => _CloseReasonSheetState();
+}
+
+class _CloseReasonSheetState extends State<_CloseReasonSheet> {
+  String? _sel;
+  @override
+  Widget build(BuildContext context) {
+    final reasons = _closeReasons[widget.kind]!;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(_t(context, 'إغلاق العملية', 'Close operation'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(
+            _t(context, 'خطوة نهائية: الطلب هيختفي من عند العميل نهائيًا، ويفضل عندك هنا مقفول بالسبب.',
+                'Final step: it disappears from the customer\'s app for good and stays here as closed with the reason.'),
+            style: const TextStyle(color: BrandColors.gray, height: 1.5),
+          ),
+          const SizedBox(height: 14),
+          Material(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: [
+              for (var i = 0; i < reasons.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                ListTile(
+                  onTap: () => setState(() => _sel = reasons[i]),
+                  selected: _sel == reasons[i],
+                  selectedTileColor: _closeReasonColor(reasons[i]).withValues(alpha: 0.07),
+                  leading: Icon(_sel == reasons[i] ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      color: _sel == reasons[i] ? _closeReasonColor(reasons[i]) : BrandColors.gray),
+                  title: Text(_closeReasonLabel(context, reasons[i]), style: TextStyle(fontWeight: _sel == reasons[i] ? FontWeight.w800 : FontWeight.w500)),
+                  trailing: Icon(_closeReasonIcon(reasons[i]), color: _closeReasonColor(reasons[i])),
+                ),
+              ],
+            ]),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: BrandColors.navy),
+            icon: const Icon(Icons.lock_rounded),
+            label: Text(_t(context, 'إغلاق نهائي', 'Close for good')),
+            onPressed: _sel == null ? null : () => Navigator.pop(context, _sel),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 /// Overview tile: tap feedback (ripple + slight press-in) and a chevron so it reads as a button.

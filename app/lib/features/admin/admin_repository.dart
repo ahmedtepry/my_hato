@@ -21,9 +21,9 @@ class AdminRepository {
 
   // ---------------- orders
   static const _orderCols =
-      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
+      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, closed_at, close_reason, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
   static const _repairCols =
-      'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at';
+      'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at, closed_at, close_reason';
 
   /// Find orders and repairs by their number (full or part, any case, Arabic digits OK).
   Future<({List<Map<String, dynamic>> orders, List<Map<String, dynamic>> repairs})> searchByReference(String input) async {
@@ -45,10 +45,15 @@ class AdminRepository {
   Future<List<Map<String, dynamic>>> orders({String? status}) async {
     final cr = status == 'cancel_requests' ? 'cancel_requests!inner' : 'cancel_requests';
     var q = _db.from('orders').select('$_orderCols, $cr(id, reason, status, created_at)');
-    if (status == 'cancel_requests') {
-      q = q.eq('cancel_requests.status', 'pending');
-    } else if (status != null) {
-      q = q.eq('status', status);
+    if (status == 'closed') {
+      q = q.not('closed_at', 'is', null);
+    } else {
+      q = q.isFilter('closed_at', null);
+      if (status == 'cancel_requests') {
+        q = q.eq('cancel_requests.status', 'pending');
+      } else if (status != null) {
+        q = q.eq('status', status);
+      }
     }
     return List<Map<String, dynamic>>.from(await q.order('created_at', ascending: false).limit(200));
   }
@@ -75,7 +80,14 @@ class AdminRepository {
   Future<List<Map<String, dynamic>>> repairs({String? status}) async {
     final cr = status == 'cancel_requests' ? 'cancel_requests!inner' : 'cancel_requests';
     var q = _db.from('repair_requests').select('$_repairCols, $cr(id, reason, status, created_at)');
-    if (status == 'cancel_requests') {
+    if (status == 'closed') {
+      q = q.not('closed_at', 'is', null);
+    } else {
+      q = q.isFilter('closed_at', null);
+    }
+    if (status == 'closed' || status == 'all') {
+      // no status filter
+    } else if (status == 'cancel_requests') {
       q = q.eq('cancel_requests.status', 'pending');
     } else if (status == null) {
       q = q.not('status', 'in', '(delivered,cancelled,unrepairable)');
@@ -99,6 +111,10 @@ class AdminRepository {
 
   Future<void> postRepairUpdate(String id, String message) =>
       _db.rpc('staff_post_repair_update', params: {'p_repair_id': id, 'p_message_ar': message});
+
+  /// Final close: the order/repair disappears from the customer's app for good (kept here as closed).
+  Future<void> closeOperation(String kind, String id, String reason) =>
+      _db.rpc('staff_close', params: {'p_kind': kind, 'p_id': id, 'p_reason': reason});
 
   // ---------------- cancellation requests
   Future<int> pendingCancelCount() async {
