@@ -17,13 +17,25 @@ class NotificationsRepository {
   final SupabaseClient _db;
 
   Future<List<Map<String, dynamic>>> list() async {
-    if (_db.auth.currentUser == null) return [];
-    return List<Map<String, dynamic>>.from(
-        await _db.from('notifications').select().isFilter('cleared_at', null).order('created_at', ascending: false).limit(100));
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return [];
+    // always the signed-in person's own notifications — staff accounts may read other customers'
+    // rows through RLS, but they must never show up in their own inbox
+    return List<Map<String, dynamic>>.from(await _db
+        .from('notifications')
+        .select()
+        .eq('user_id', uid)
+        .isFilter('cleared_at', null)
+        .order('created_at', ascending: false)
+        .limit(100));
   }
 
-  Future<void> markRead(String id) =>
-      _db.from('notifications').update({'read_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  Future<void> markRead(String id) => _db
+      .from('notifications')
+      .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+      .eq('id', id)
+      .eq('user_id', _db.auth.currentUser?.id ?? '')
+      .isFilter('read_at', null);
 
   /// Hides one notification (id) or all of them (null) for this customer.
   Future<void> clear([String? id]) => _db.rpc('customer_clear_notifications', params: {'p_id': id});
@@ -88,6 +100,35 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   final _hidden = <String>{};
   bool _allHidden = false;
 
+  /// Shown as read right away (before the server round-trip).
+  final _read = <String>{};
+  bool _autoReadDone = false;
+
+  Future<void> _markAllRead(List<Map<String, dynamic>> list) async {
+    final ids = [for (final n in list) if (n['read_at'] == null && !_read.contains(n['id'])) n['id'] as String];
+    if (ids.isEmpty) return;
+    setState(() => _read.addAll(ids));
+    try {
+      await ref.read(notificationsRepoProvider).markAllRead();
+      ref.invalidate(notificationsProvider);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _read.removeAll(ids));
+        showSnack(context, friendlyError(context, e), error: true);
+      }
+    }
+  }
+
+  /// Opening the inbox counts as seeing the messages: after a short moment they all turn "read"
+  /// (the highlight fades out), and the bell badge clears.
+  void _autoRead(List<Map<String, dynamic>> list) {
+    if (_autoReadDone || list.every((n) => n['read_at'] != null)) return;
+    _autoReadDone = true;
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) _markAllRead(list);
+    });
+  }
+
   Future<void> _clearAll(List<Map<String, dynamic>> list) async {
     if (list.isEmpty) return;
     final ok = await showDialog<bool>(
@@ -110,6 +151,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     try {
       await ref.read(notificationsRepoProvider).clear();
       ref.invalidate(notificationsProvider);
+      if (mounted) setState(() => _allHidden = false); // fresh list from the server (empty)
     } catch (e) {
       if (mounted) {
         setState(() => _allHidden = false);
@@ -122,6 +164,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     setState(() => _hidden.add(id));
     try {
       await ref.read(notificationsRepoProvider).clear(id);
+      ref.invalidate(notificationsProvider);
     } catch (e) {
       if (mounted) {
         setState(() => _hidden.remove(id));
@@ -135,6 +178,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final data = ref.watch(notificationsProvider);
     final repo = ref.read(notificationsRepoProvider);
     final visible = _allHidden ? <Map<String, dynamic>>[] : [for (final n in data.valueOrNull ?? const <Map<String, dynamic>>[]) if (!_hidden.contains(n['id'])) n];
+    if (data.hasValue) _autoRead(visible);
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('notifications')), actions: [
         IconButton(
@@ -142,7 +186,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           icon: const Icon(Icons.delete_sweep_outlined),
           onPressed: visible.isEmpty ? null : () => _clearAll(visible),
         ),
-        IconButton(tooltip: context.isAr ? 'قراءة الكل' : 'Mark all read', icon: const Icon(Icons.done_all_rounded), onPressed: repo.markAllRead),
+        IconButton(
+          tooltip: context.isAr ? 'قراءة الكل' : 'Mark all read',
+          icon: const Icon(Icons.done_all_rounded),
+          onPressed: visible.any((n) => n['read_at'] == null && !_read.contains(n['id'])) ? () => _markAllRead(visible) : null,
+        ),
       ]),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -155,7 +203,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {
                   final n = visible[i];
-                  final unread = n['read_at'] == null;
+                  final unread = n['read_at'] == null && !_read.contains(n['id']);
                   return Dismissible(
                     key: ValueKey(n['id']),
                     onDismissed: (_) => _clearOne(n['id'] as String),
@@ -171,8 +219,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       decoration: BoxDecoration(color: BrandColors.error.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
                       child: const Icon(Icons.delete_outline_rounded, color: BrandColors.error),
                     ),
-                    child: Card(
-                    color: unread ? BrandColors.electric.withOpacity(0.06) : null,
+                    child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOut,
+                    decoration: BoxDecoration(
+                      color: unread ? const Color(0xFFEAF6FF) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: unread ? BrandColors.electric.withValues(alpha: 0.35) : BrandColors.border),
+                    ),
+                    child: Material(
+                    type: MaterialType.transparency,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
                     child: ListTile(
                       leading: Icon(
                           n['entity_type'] == 'repair' ? Icons.build_rounded : n['entity_type'] == 'order' ? Icons.receipt_long_rounded : Icons.campaign_outlined,
@@ -184,12 +242,19 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         Text(DateFormat.yMMMd(context.lang).add_jm().format(DateTime.parse(n['created_at'] as String).toLocal()),
                             style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
                       ]),
+                      trailing: unread
+                          ? Container(width: 9, height: 9, decoration: const BoxDecoration(color: BrandColors.electric, shape: BoxShape.circle))
+                          : null,
                       onTap: () {
-                        repo.markRead(n['id'] as String);
+                        if (unread) {
+                          setState(() => _read.add(n['id'] as String));
+                          repo.markRead(n['id'] as String).then((_) => ref.invalidate(notificationsProvider), onError: (_) {});
+                        }
                         final link = n['deep_link'] as String?;
                         if (link != null) context.push(link);
                       },
                     ),
+                  ),
                   ),
                   );
                 },
