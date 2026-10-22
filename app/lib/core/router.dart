@@ -28,7 +28,7 @@ import 'supabase_providers.dart';
 
 /// Routes that need a signed-in user. The DB enforces access anyway (RLS);
 /// this only gives a friendly redirect to the login screen.
-const _protected = ['/checkout', '/order-confirmed', '/orders/', '/repairs/new', '/account/', '/notifications', '/pay/', '/payments'];
+const _protected = ['/checkout', '/order-confirmed', '/repair-confirmed', '/orders/', '/repairs/new', '/account/', '/notifications', '/pay/', '/payments'];
 const _publicAccountRoutes = ['/account/settings', '/account/help', '/account/legal'];
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -102,6 +102,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/order-confirmed',
         builder: (_, s) => OrderConfirmationScreen(orderId: s.uri.queryParameters['id'] ?? '', reference: s.uri.queryParameters['ref'] ?? ''),
+      ),
+      GoRoute(
+        path: '/repair-confirmed',
+        builder: (_, s) => OrderConfirmationScreen(orderId: s.uri.queryParameters['id'] ?? '', reference: s.uri.queryParameters['ref'] ?? '', isRepair: true),
       ),
       GoRoute(path: '/orders/:id', builder: (_, s) => OrderDetailsScreen(id: s.pathParameters['id']!)),
       GoRoute(path: '/repairs/new', builder: (_, __) => const RepairRequestScreen()),

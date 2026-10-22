@@ -119,20 +119,7 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
       }
       ref.invalidate(myRepairsProvider);
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (c) => AlertDialog(
-          icon: const Icon(Icons.check_circle_rounded, color: BrandColors.success, size: 48),
-          title: Text(context.tr('repair_submitted')),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(context.tr('repair_ref')),
-            const SizedBox(height: 6),
-            SelectableText(res['reference'] as String, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: BrandColors.electric)),
-          ]),
-          actions: [FilledButton(onPressed: () => Navigator.pop(c), child: Text(context.tr('confirm')))],
-        ),
-      );
-      if (mounted) context.go('/repairs/$id');
+      context.go(Uri(path: '/repair-confirmed', queryParameters: {'id': id, 'ref': res['reference'] as String}).toString());
     } catch (e) {
       if (mounted) showSnack(context, friendlyError(context, e), error: true);
     } finally {

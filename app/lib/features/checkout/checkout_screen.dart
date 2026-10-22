@@ -305,11 +305,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       );
 }
 
-/// Animated My Hatō "M" confirmation, shown only after the server confirmed the order.
+/// Animated My Hatō "M" confirmation, shown only after the server saved the order or repair request.
 class OrderConfirmationScreen extends StatefulWidget {
-  const OrderConfirmationScreen({super.key, required this.orderId, required this.reference});
+  const OrderConfirmationScreen({super.key, required this.orderId, required this.reference, this.isRepair = false});
   final String orderId;
   final String reference;
+  final bool isRepair;
   @override
   State<OrderConfirmationScreen> createState() => _OrderConfirmationScreenState();
 }
@@ -358,16 +359,19 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
                           const Icon(Icons.check_circle_rounded, color: BrandColors.success, size: 40),
                           const SizedBox(height: 16),
                           // Exact required message (Arabic), English translation in EN mode
-                          Text(context.tr('order_sent_msg'),
+                          Text(context.tr(widget.isRepair ? 'repair_sent_msg' : 'order_sent_msg'),
                               textAlign: TextAlign.center,
                               style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.6)),
                           const SizedBox(height: 18),
-                          Text(context.tr('order_number'), style: const TextStyle(color: Colors.white60)),
+                          Text(context.tr(widget.isRepair ? 'repair_number' : 'order_number'), style: const TextStyle(color: Colors.white60)),
                           const SizedBox(height: 4),
                           SelectableText(widget.reference,
                               style: const TextStyle(color: BrandColors.electric, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1)),
                           const SizedBox(height: 36),
-                          FilledButton(onPressed: () => context.go('/orders/${widget.orderId}'), child: Text(context.tr('view_order'))),
+                          FilledButton(
+                            onPressed: () => context.go(widget.isRepair ? '/repairs/${widget.orderId}' : '/orders/${widget.orderId}'),
+                            child: Text(context.tr(widget.isRepair ? 'view_repair' : 'view_order')),
+                          ),
                           const SizedBox(height: 12),
                           OutlinedButton(
                             style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white30)),
