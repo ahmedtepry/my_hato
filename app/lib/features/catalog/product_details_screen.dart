@@ -218,6 +218,7 @@ class _Gallery extends StatefulWidget {
 
 class _GalleryState extends State<_Gallery> {
   final _pc = PageController();
+  bool _galleryOpen = false;
   int _i = 0;
   // A true 360° view is offered only when a real frame sequence was uploaded.
   bool get _has360 => widget.frames.length >= 12;
@@ -254,13 +255,19 @@ class _GalleryState extends State<_Gallery> {
                   itemBuilder: (_, i) {
                     final img = NetImage(path: imgs[i]['storage_path'] as String, fit: BoxFit.cover);
                     return GestureDetector(
-                      onTap: () => Navigator.of(context).push(PageRouteBuilder(
+                      onTap: () {
+                        if (_galleryOpen) return; // a double tap must not stack two gallery routes
+                        _galleryOpen = true;
+                        Navigator.of(context)
+                            .push(PageRouteBuilder(
                         opaque: false,
                         transitionDuration: const Duration(milliseconds: 380),
                         reverseTransitionDuration: const Duration(milliseconds: 300),
                         pageBuilder: (_, __, ___) => _FullscreenGallery(images: imgs, initial: i),
                         transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut), child: child),
-                      )),
+                      ))
+                            .whenComplete(() => _galleryOpen = false);
+                      },
                       child: SmoothPage(
                         controller: _pc,
                         index: i,

@@ -11,6 +11,7 @@
 
     <application
         android:label="My Hatō"
+        android:enableOnBackInvokedCallback="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

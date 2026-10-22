@@ -19,6 +19,12 @@ class AppTheme {
   static ThemeData light(Locale locale) {
     final base = ThemeData(
       useMaterial3: true,
+      // Fixed slide transition on every platform. Android's default (predictive-back / fade-forward)
+      // can leave a page frozen half-faded when a back swipe is cancelled.
+      pageTransitionsTheme: const PageTransitionsTheme(builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      }),
       colorScheme: ColorScheme.fromSeed(
         seedColor: BrandColors.navy,
         primary: BrandColors.navy,
