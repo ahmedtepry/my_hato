@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 
+import '../features/admin/admin_screens.dart';
 import '../features/auth/auth_repository.dart';
 import '../features/auth/email_otp_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -74,6 +75,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/auth/new-password', builder: (_, __) => const NewPasswordScreen()),
+      GoRoute(path: '/hato-console', builder: (_, __) => const AdminGateScreen()),
       GoRoute(
         path: '/auth/phone',
         builder: (_, s) => PhoneOtpScreen(mode: s.uri.queryParameters['mode'] ?? 'signin', redirect: s.uri.queryParameters['redirect']),

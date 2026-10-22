@@ -65,6 +65,7 @@ class HomeScreen extends ConsumerWidget {
                 child: Row(children: [
                   HomeLogoButton(
                     size: 22,
+                    onTripleTap: () => context.push('/hato-console'),
                     onAlreadyHome: () {
                       if (homeScrollController.hasClients) {
                         homeScrollController.animateTo(0, duration: const Duration(milliseconds: 650), curve: Curves.easeOutCubic);

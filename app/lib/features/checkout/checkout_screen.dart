@@ -8,6 +8,7 @@ import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/states.dart';
+import '../../shared/support_contact.dart';
 import '../auth/auth_repository.dart';
 import '../cart/cart_repository.dart';
 import '../orders/orders_repository.dart';
@@ -111,13 +112,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             trailing: verified
                 ? StatusChip(label: context.tr('verified'), color: BrandColors.success)
                 : TextButton(
-                    onPressed: () => context.push('/auth/verify-email?${Uri(queryParameters: {
-                          'email': (p?['email'] as String?) ?? '',
-                          'purpose': 'signup',
-                          'send': '1',
-                          'redirect': '/checkout',
-                        }).query}'),
-                    child: Text(context.tr('verify')),
+                    onPressed: () => showSupportSheet(context,
+                        title: context.tr('account_pending_title'), body: context.tr('account_pending_body'), whatsappMessage: context.tr('account_pending_wa')),
+                    child: Text(context.tr('help')),
                   ),
           ),
         ),

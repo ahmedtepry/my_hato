@@ -95,7 +95,14 @@ class AuthRepository {
     );
     if (res.session != null) return SignUpResult.signedIn;
     if (res.user != null && (res.user!.identities?.isEmpty ?? false)) return SignUpResult.alreadyRegistered;
-    return SignUpResult.codeSent;
+    // No verification codes: accounts are confirmed on creation (Supabase "Confirm email" off).
+    // If the project still asks for confirmation, try signing in; otherwise support activates it.
+    try {
+      await signInWithEmail(email, password);
+      return SignUpResult.signedIn;
+    } on AuthException {
+      return SignUpResult.codeSent;
+    }
   }
 
   /// Sends (or re-sends) the code for [purpose]. Each new code invalidates the previous one.

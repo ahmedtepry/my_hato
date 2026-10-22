@@ -10,7 +10,7 @@ import '../../shared/brand_logo.dart';
 import '../../shared/states.dart';
 import '../../shared/support_contact.dart';
 import 'auth_repository.dart';
-import 'email_otp_screen.dart';
+import 'email_otp_screen.dart' show isValidEmail, passwordError;
 
 /// Sign in with email, mobile number or username + password.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -40,17 +40,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
     setState(() => _busy = true);
-    String? email = _id.text.contains('@') ? AuthRepository.normalizeEmail(_id.text) : null;
     try {
-      email = await ref.read(authRepoProvider).signInWithIdentifier(_id.text, _password.text);
+      await ref.read(authRepoProvider).signInWithIdentifier(_id.text, _password.text);
       if (mounted) context.go(_redirect);
     } on AuthException catch (e) {
       if (!mounted) return;
-      if (isEmailNotConfirmed(e) && email != null) {
-        // password was right but the account was never verified: send a fresh code and ask for it
-        showSnack(context, context.tr('email_not_confirmed'));
-        final q = Uri(queryParameters: {'email': email, 'purpose': EmailCodePurpose.signup.name, 'send': '1', 'redirect': _redirect}).query;
-        context.push('/auth/verify-email?$q');
+      if (isEmailNotConfirmed(e)) {
+        // no verification codes: support activates the account
+        showSupportSheet(context,
+            title: context.tr('account_pending_title'), body: context.tr('account_pending_body'), whatsappMessage: context.tr('account_pending_wa'));
       } else {
         showSnack(context, friendlyError(context, e), error: true);
       }
@@ -199,12 +197,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         case SignUpResult.signedIn:
           context.go(redirect);
         case SignUpResult.codeSent:
-          final q = Uri(queryParameters: {
-            'email': AuthRepository.normalizeEmail(_email.text),
-            'purpose': EmailCodePurpose.signup.name,
-            'redirect': redirect,
-          }).query;
-          context.go('/auth/verify-email?$q');
+          // account created but the project still requires confirmation: support activates it
+          context.go('/auth/login');
+          showSupportSheet(context,
+              title: context.tr('account_pending_title'), body: context.tr('account_pending_body'), whatsappMessage: context.tr('account_pending_wa'));
         case SignUpResult.alreadyRegistered:
           showSnack(context, context.tr('email_already_registered'), error: true);
       }

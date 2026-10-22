@@ -107,8 +107,11 @@ class BrandWordmark extends StatelessWidget {
 /// Tappable logo for the top of the app: a quick flip-and-pulse of the M mark with a light
 /// haptic, then it takes the customer to the home screen (or scrolls home back to the top).
 class HomeLogoButton extends StatefulWidget {
-  const HomeLogoButton({super.key, this.size = 22, this.onAlreadyHome});
+  const HomeLogoButton({super.key, this.size = 22, this.onAlreadyHome, this.onTripleTap});
   final double size;
+
+  /// Three quick taps (within ~1.2 s).
+  final VoidCallback? onTripleTap;
 
   /// Called instead of navigating when the home screen is already showing.
   final VoidCallback? onAlreadyHome;
@@ -132,7 +135,20 @@ class _HomeLogoButtonState extends State<HomeLogoButton> with SingleTickerProvid
     super.dispose();
   }
 
+  final _taps = <DateTime>[];
+
   Future<void> _tap() async {
+    final now = DateTime.now();
+    _taps
+      ..add(now)
+      ..removeWhere((t) => now.difference(t) > const Duration(milliseconds: 1200));
+    if (_taps.length >= 3 && widget.onTripleTap != null) {
+      _taps.clear();
+      HapticFeedback.mediumImpact();
+      _c.forward(from: 0);
+      widget.onTripleTap!();
+      return;
+    }
     HapticFeedback.lightImpact();
     _c.forward(from: 0);
     await Future<void>.delayed(const Duration(milliseconds: 260));

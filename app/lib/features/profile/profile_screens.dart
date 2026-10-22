@@ -50,7 +50,6 @@ class ProfileScreen extends ConsumerWidget {
         data: (p) {
           final created = DateTime.parse((p?['created_at'] ?? user.createdAt) as String).toLocal();
           final verified = isAccountVerified(p);
-          final emailVerified = p?['email_verified'] == true;
           final phone = reachablePhone(p) ?? (p?['phone'] as String?);
           final customer = ref.watch(customerProvider).valueOrNull;
           final avatar = ref.watch(_avatarUrlProvider).valueOrNull;
@@ -91,20 +90,6 @@ class ProfileScreen extends ConsumerWidget {
                 ]),
               ),
             ),
-            if (!verified && !emailVerified && p?['email'] != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.mark_email_read_outlined),
-                  label: Text(context.tr('verify_email_title')),
-                  onPressed: () => context.push('/auth/verify-email?${Uri(queryParameters: {
-                        'email': p!['email'] as String,
-                        'purpose': 'signup',
-                        'send': '1',
-                        'redirect': '/account',
-                      }).query}'),
-                ),
-              ),
             if (phone == null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
