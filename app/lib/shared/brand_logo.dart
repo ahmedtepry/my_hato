@@ -107,8 +107,9 @@ class BrandWordmark extends StatelessWidget {
 /// Tappable logo for the top of the app: a quick flip-and-pulse of the M mark with a light
 /// haptic, then it takes the customer to the home screen (or scrolls home back to the top).
 class HomeLogoButton extends StatefulWidget {
-  const HomeLogoButton({super.key, this.size = 22, this.onAlreadyHome, this.onTripleTap});
+  const HomeLogoButton({super.key, this.size = 22, this.onAlreadyHome, this.onTripleTap, this.onDark = false});
   final double size;
+  final bool onDark;
 
   /// Three quick taps (within ~1.2 s).
   final VoidCallback? onTripleTap;
@@ -185,7 +186,7 @@ class _HomeLogoButtonState extends State<HomeLogoButton> with SingleTickerProvid
                     transform: Matrix4.identity()
                       ..setEntry(3, 2, 0.0015)
                       ..rotateY(_flip.value * 2 * math.pi),
-                    child: BrandMark(size: size * 1.25),
+                    child: BrandMark(size: size * 1.25, onDark: widget.onDark),
                   ),
                   SizedBox(width: size * 0.3),
                   ShaderMask(
@@ -196,9 +197,9 @@ class _HomeLogoButtonState extends State<HomeLogoButton> with SingleTickerProvid
                     ).createShader(r),
                     blendMode: _c.isAnimating ? BlendMode.srcATop : BlendMode.dst,
                     child: Text.rich(
-                      const TextSpan(children: [
-                        TextSpan(text: 'My', style: TextStyle(color: BrandColors.navy)),
-                        TextSpan(text: 'Hatō', style: TextStyle(color: BrandColors.electric)),
+                      TextSpan(children: [
+                        TextSpan(text: 'My', style: TextStyle(color: widget.onDark ? Colors.white : BrandColors.navy)),
+                        const TextSpan(text: 'Hatō', style: TextStyle(color: BrandColors.electric)),
                       ]),
                       style: TextStyle(fontSize: size, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                     ),

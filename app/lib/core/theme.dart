@@ -38,9 +38,8 @@ class AppTheme {
       splashFactory: InkSparkle.splashFactory,
       highlightColor: BrandColors.electric.withValues(alpha: 0.04),
     );
-    final text = locale.languageCode == 'ar'
-        ? GoogleFonts.cairoTextTheme(base.textTheme)
-        : GoogleFonts.poppinsTextTheme(base.textTheme);
+    // Readex Pro: one modern rounded family for Arabic and English
+    final text = GoogleFonts.readexProTextTheme(base.textTheme);
     return base.copyWith(
       textTheme: text.apply(bodyColor: BrandColors.navy, displayColor: BrandColors.navy),
       appBarTheme: AppBarTheme(

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../features/cart/cart_repository.dart';
 import 'cart_toast.dart';
+import 'motion.dart';
 import 'press_scale.dart';
 
 import '../core/l10n.dart';
@@ -248,7 +249,7 @@ class HorizontalProducts extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           itemCount: items.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
-          itemBuilder: (_, i) => SizedBox(width: 158, child: ProductCard(p: items[i])),
+          itemBuilder: (_, i) => FadeSlideIn(delay: FadeSlideIn.stagger(i, stepMs: 70), offset: 24, child: SizedBox(width: 158, child: ProductCard(p: items[i]))),
         ),
       );
 }
