@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -177,6 +178,11 @@ class AdminHomeScreen extends ConsumerWidget {
             leading: IconButton(icon: const Icon(Icons.home_rounded), onPressed: () => context.go('/')),
             title: Text(_t(context, 'لوحة المسؤول', 'Admin console')),
             actions: [
+              IconButton(
+                tooltip: _t(context, 'بحث برقم الطلب', 'Search by number'),
+                icon: const Icon(Icons.search_rounded),
+                onPressed: () => _openSearch(context, ref),
+              ),
               IconButton(
                 tooltip: _t(context, 'خروج', 'Sign out'),
                 icon: const Icon(Icons.logout_rounded),
@@ -1202,6 +1208,177 @@ class _CancelRequestCardState extends ConsumerState<_CancelRequestCard> {
             ),
           ]),
         ]),
+      );
+}
+
+// =====================================================================================
+// Search by order / repair number
+// =====================================================================================
+Future<void> _openSearch(BuildContext context, WidgetRef ref) async {
+  final picked = await showModalBottomSheet<(String, Map<String, dynamic>)>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => const _SearchSheet(),
+  );
+  if (picked == null || !context.mounted) return;
+  if (picked.$1 == 'order') {
+    await _orderSheet(context, ref, picked.$2);
+  } else {
+    await _repairSheet(context, ref, picked.$2);
+  }
+}
+
+class _SearchSheet extends ConsumerStatefulWidget {
+  const _SearchSheet();
+  @override
+  ConsumerState<_SearchSheet> createState() => _SearchSheetState();
+}
+
+class _SearchSheetState extends ConsumerState<_SearchSheet> {
+  final _q = TextEditingController();
+  Timer? _debounce;
+  bool _loading = false;
+  String? _error;
+  ({List<Map<String, dynamic>> orders, List<Map<String, dynamic>> repairs})? _res;
+  int _seq = 0;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _q.dispose();
+    super.dispose();
+  }
+
+  void _changed(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _run(v));
+  }
+
+  Future<void> _run(String v) async {
+    final seq = ++_seq;
+    if (v.trim().length < 3) {
+      setState(() {
+        _res = null;
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final r = await ref.read(adminRepoProvider).searchByReference(v);
+      if (mounted && seq == _seq) setState(() => _res = r);
+    } catch (e) {
+      if (mounted && seq == _seq) setState(() => _error = friendlyError(context, e));
+    } finally {
+      if (mounted && seq == _seq) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = ref.watch(repairLabelsProvider).valueOrNull;
+    final r = _res;
+    final empty = r != null && r.orders.isEmpty && r.repairs.isEmpty;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.8,
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              controller: _q,
+              autofocus: true,
+              textDirection: TextDirection.ltr,
+              textCapitalization: TextCapitalization.characters,
+              onChanged: _changed,
+              onSubmitted: _run,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search_rounded),
+                hintText: _t(context, 'رقم الطلب أو الصيانة — مثلاً 1003 أو MY-HATO75', 'Order or repair number — e.g. 1003 or MY-HATO75'),
+                suffixIcon: _loading
+                    ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2)))
+                    : (_q.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              _q.clear();
+                              _run('');
+                            })),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _error != null
+                ? Center(child: Text(_error!, style: const TextStyle(color: BrandColors.error)))
+                : r == null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(_t(context, 'اكتب 3 حروف أو أرقام على الأقل من رقم الطلب', 'Type at least 3 characters of the number'),
+                              textAlign: TextAlign.center, style: const TextStyle(color: BrandColors.gray)),
+                        ),
+                      )
+                    : empty
+                        ? Center(child: Text(_t(context, 'مفيش طلب بالرقم ده', 'No order or repair with this number'), style: const TextStyle(color: BrandColors.gray)))
+                        : ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
+                            if (r.orders.isNotEmpty) ...[
+                              _header(_t(context, 'طلبات المبيعات', 'Sales orders'), Icons.receipt_long_rounded, r.orders.length),
+                              for (final o in r.orders)
+                                _result(
+                                  title: o['reference'] as String,
+                                  subtitle: '${o['customer_name']} • ${o['customer_phone']}\n${fmtDate(context, o['created_at'] as String)} • ${formatEgp((o['total_minor'] as num).toInt(), context.lang)}',
+                                  chip: StatusChip(label: context.tr('os_${o['status']}'), color: _orderColor(o['status'] as String)),
+                                  cancel: _openCancel(o) != null,
+                                  onTap: () => Navigator.pop(context, ('order', o)),
+                                ),
+                            ],
+                            if (r.repairs.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              _header(_t(context, 'طلبات الصيانة', 'Repairs'), Icons.build_rounded, r.repairs.length),
+                              for (final x in r.repairs)
+                                _result(
+                                  title: x['reference'] as String,
+                                  subtitle: '${x['device_brand']} ${x['device_model']} • ${x['contact_name']}\n${fmtDate(context, x['created_at'] as String)}',
+                                  chip: StatusChip(label: repairLabel(context, labels, x['status'] as String), color: repairStatusColor(x['status'] as String)),
+                                  cancel: _openCancel(x) != null,
+                                  onTap: () => Navigator.pop(context, ('repair', x)),
+                                ),
+                            ],
+                          ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _header(String text, IconData icon, int n) => Padding(
+        padding: const EdgeInsets.only(bottom: 6, top: 4),
+        child: Row(children: [
+          Icon(icon, size: 18, color: BrandColors.navy),
+          const SizedBox(width: 6),
+          Text('$text ($n)', style: const TextStyle(fontWeight: FontWeight.w800)),
+        ]),
+      );
+
+  Widget _result({required String title, required String subtitle, required Widget chip, required bool cancel, required VoidCallback onTap}) => Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          onTap: onTap,
+          title: Directionality(textDirection: TextDirection.ltr, child: Text(title, textAlign: TextAlign.start, style: const TextStyle(fontWeight: FontWeight.w800))),
+          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(subtitle),
+            if (cancel) const _CancelBadge(),
+          ]),
+          isThreeLine: true,
+          trailing: chip,
+        ),
       );
 }
 

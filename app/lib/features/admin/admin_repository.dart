@@ -20,11 +20,31 @@ class AdminRepository {
   Future<Map<String, dynamic>> stats() async => Map<String, dynamic>.from(await _db.rpc('staff_dashboard_stats') as Map);
 
   // ---------------- orders
+  static const _orderCols =
+      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
+  static const _repairCols =
+      'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at';
+
+  /// Find orders and repairs by their number (full or part, any case, Arabic digits OK).
+  Future<({List<Map<String, dynamic>> orders, List<Map<String, dynamic>> repairs})> searchByReference(String input) async {
+    const ar = '٠١٢٣٤٥٦٧٨٩';
+    var q = input.trim().toUpperCase();
+    for (var i = 0; i < 10; i++) {
+      q = q.replaceAll(ar[i], '$i');
+    }
+    q = q.replaceAll(RegExp(r'[^A-Z0-9-]'), '');
+    if (q.length < 3) return (orders: <Map<String, dynamic>>[], repairs: <Map<String, dynamic>>[]);
+    final res = await Future.wait([
+      _db.from('orders').select('$_orderCols, cancel_requests(id, reason, status, created_at)').ilike('reference', '%$q%').order('created_at', ascending: false).limit(20),
+      _db.from('repair_requests').select('$_repairCols, cancel_requests(id, reason, status, created_at)').ilike('reference', '%$q%').order('created_at', ascending: false).limit(20),
+    ]);
+    return (orders: List<Map<String, dynamic>>.from(res[0]), repairs: List<Map<String, dynamic>>.from(res[1]));
+  }
+
   /// status: null = all, 'cancel_requests' = orders with an open cancellation request.
   Future<List<Map<String, dynamic>>> orders({String? status}) async {
     final cr = status == 'cancel_requests' ? 'cancel_requests!inner' : 'cancel_requests';
-    var q = _db.from('orders').select(
-        'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor), $cr(id, reason, status, created_at)');
+    var q = _db.from('orders').select('$_orderCols, $cr(id, reason, status, created_at)');
     if (status == 'cancel_requests') {
       q = q.eq('cancel_requests.status', 'pending');
     } else if (status != null) {
@@ -54,8 +74,7 @@ class AdminRepository {
   /// requests, otherwise that status only.
   Future<List<Map<String, dynamic>>> repairs({String? status}) async {
     final cr = status == 'cancel_requests' ? 'cancel_requests!inner' : 'cancel_requests';
-    var q = _db.from('repair_requests').select(
-        'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at, $cr(id, reason, status, created_at)');
+    var q = _db.from('repair_requests').select('$_repairCols, $cr(id, reason, status, created_at)');
     if (status == 'cancel_requests') {
       q = q.eq('cancel_requests.status', 'pending');
     } else if (status == null) {
