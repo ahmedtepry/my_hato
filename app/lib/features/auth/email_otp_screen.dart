@@ -13,7 +13,7 @@ import 'auth_repository.dart';
 
 /// Enter the 6-digit code that Supabase Auth emailed.
 ///
-/// The countdowns are UX only: Supabase enforces expiry ("Email OTP Expiration", set to 600 s),
+/// The countdowns are UX only: Supabase enforces expiry ("Email OTP Expiration", set to 180 s),
 /// one-time use, the resend interval and rate limits. A wrong or expired code is rejected server-side.
 class EmailOtpScreen extends ConsumerStatefulWidget {
   const EmailOtpScreen({super.key, required this.email, required this.purpose, this.alreadySent = true, this.redirect});
@@ -30,7 +30,7 @@ class EmailOtpScreen extends ConsumerStatefulWidget {
 
 class _EmailOtpScreenState extends ConsumerState<EmailOtpScreen> {
   static const codeLength = 6;
-  static const codeLifetime = Duration(minutes: 10);
+  static const codeLifetime = Duration(minutes: 3);
   static const resendCooldown = Duration(seconds: 60);
 
   final _code = TextEditingController();

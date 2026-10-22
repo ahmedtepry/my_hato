@@ -20,7 +20,7 @@ Google and Facebook accounts arrive with a confirmed email, so they are verified
 1. **Authentication → Sign In / Providers → Email**
    - *Enable Email provider*: on
    - *Confirm email*: **on**
-   - *Email OTP Expiration*: **600** seconds (the app shows a 10-minute countdown)
+   - *Email OTP Expiration*: **180** seconds (the app shows a 3-minute countdown)
    - *Email OTP Length*: **6**
    - *Secure email change*: on
 2. **Authentication → Emails → Templates**: paste each file from `supabase/templates/` into its template and set the subject.
@@ -53,7 +53,7 @@ Recommended: **Resend** (also used for the order and repair emails).
 5. Put the same key in Edge Function secrets as `RESEND_API_KEY` (order/repair emails).
 
 ## Security notes
-- Codes are single-use, expire after 10 minutes, and each resend invalidates the previous code (Supabase Auth).
+- Codes are single-use, expire after 3 minutes, and each resend invalidates the previous code (Supabase Auth).
 - Resend is limited to once every 60 seconds per email (Supabase default; the app shows the countdown).
 - "Sign in with a code" never creates an account (`shouldCreateUser: false`).
 - Messages never reveal whether an email is registered (password reset always shows the same text).
@@ -62,7 +62,7 @@ Recommended: **Resend** (also used for the order and repair emails).
 ## Test checklist
 1. Create an account with your team email → the email shows a 6-digit code → enter it → «تم توثيق حسابك بنجاح» and you are signed in.
 2. Enter a wrong code → «الكود غلط أو انتهت صلاحيته»; resend → old code rejected, new code works.
-3. Wait 10 minutes → code rejected.
+3. Wait 3 minutes → code rejected.
 4. Sign out → «الدخول بكود على الإيميل» → code → signed in.
 5. «نسيت كلمة المرور؟» → code → new password → sign in with it.
 6. Profile shows «حساب موثّق»; checkout asks for a mobile number if none is saved (pickup orders).

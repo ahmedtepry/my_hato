@@ -115,7 +115,7 @@ const Map<String, Map<String, String>> _strings = {
   'email_code_login_body': {'ar': 'بعتنالك كود دخول من 6 أرقام على:', 'en': 'We sent a 6-digit sign-in code to:'},
   'reset_code_title': {'ar': 'استعادة كلمة المرور', 'en': 'Reset your password'},
   'reset_code_body': {'ar': 'لو الإيميل مسجّل عندنا، هيوصلك كود من 6 أرقام على:', 'en': 'If this email is registered, a 6-digit code was sent to:'},
-  'email_code_tip': {'ar': 'الكود صالح لمدة 10 دقايق ولمرة واحدة بس. لو مش لاقيه، شوف فولدر Spam أو Promotions. ماتشاركش الكود مع حد، فريق My Hatō عمره ما هيطلبه منك.', 'en': 'The code is valid for 10 minutes and works once. Check Spam or Promotions if you cannot find it. Never share it — My Hatō will never ask for it.'},
+  'email_code_tip': {'ar': 'الكود صالح لمدة 3 دقايق ولمرة واحدة بس. لو مش لاقيه، شوف فولدر Spam أو Promotions. ماتشاركش الكود مع حد، فريق My Hatō عمره ما هيطلبه منك.', 'en': 'The code is valid for 3 minutes and works once. Check Spam or Promotions if you cannot find it. Never share it — My Hatō will never ask for it.'},
   'wrong_email': {'ar': 'الإيميل غلط؟ ارجع وعدّله', 'en': 'Wrong email? Go back and change it'},
   'code_resent': {'ar': 'بعتنا كود جديد. الكود القديم مابقاش شغال.', 'en': 'A new code was sent. The previous code no longer works.'},
   'email_verified_ok': {'ar': 'تم توثيق حسابك بنجاح ✓', 'en': 'Your account is verified ✓'},
