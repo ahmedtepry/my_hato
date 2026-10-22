@@ -11,7 +11,7 @@ class ProfileRepository {
   String get _uid => _db.auth.currentUser!.id;
 
   /// Only columns customers are granted UPDATE on (see migration 0006).
-  Future<void> update({String? fullName, String? contactPhone, String? locale, bool? notifyOrders, bool? notifyRepairs, bool? notifyPromotions, String? avatarPath}) async {
+  Future<void> update({String? fullName, String? contactPhone, String? locale, bool? notifyOrders, bool? notifyRepairs, bool? notifyPromotions, String? avatarPath, String? avatarId}) async {
     final data = <String, dynamic>{
       if (fullName != null) 'full_name': fullName.trim(),
       if (contactPhone != null) 'contact_phone': contactPhone.isEmpty ? null : contactPhone,
@@ -20,6 +20,7 @@ class ProfileRepository {
       if (notifyRepairs != null) 'notify_repairs': notifyRepairs,
       if (notifyPromotions != null) 'notify_promotions': notifyPromotions,
       if (avatarPath != null) 'avatar_path': avatarPath,
+      if (avatarId != null) 'avatar_id': avatarId,
     };
     if (data.isEmpty) return;
     await _db.from('profiles').update(data).eq('id', _uid);

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,12 +13,63 @@ import '../../shared/product_card.dart';
 import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
+import '../../shared/avatars.dart';
 import 'profile_repository.dart';
 
 final _avatarUrlProvider = FutureProvider<String?>((ref) async {
   final p = await ref.watch(profileProvider.future);
   return ref.read(profileRepoProvider).avatarUrl(p?['avatar_path'] as String?);
 });
+
+Future<void> _pickAvatar(BuildContext context, WidgetRef ref, String? current) async {
+  final id = await showAvatarPicker(context, current: current);
+  if (id == null) return;
+  try {
+    await ref.read(profileRepoProvider).update(avatarId: id);
+    ref.invalidate(profileProvider);
+    if (context.mounted) showSnack(context, context.isAr ? 'اتغيّر الأفاتار' : 'Avatar updated');
+  } catch (e) {
+    if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
+  }
+}
+
+/// Profile picture: the chosen cartoon avatar (or an older uploaded photo), with a small edit badge.
+class _AvatarButton extends StatelessWidget {
+  const _AvatarButton({required this.avatarId, required this.photoUrl, required this.onPick, this.size = 68});
+  final String? avatarId;
+  final String? photoUrl;
+  final VoidCallback onPick;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onPick,
+        child: Stack(clipBehavior: Clip.none, children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (c, a) => ScaleTransition(scale: CurvedAnimation(parent: a, curve: Curves.easeOutBack), child: c),
+            child: isAvatarId(avatarId)
+                ? HatoAvatar(key: ValueKey(avatarId), id: avatarId!, size: size)
+                : CircleAvatar(
+                    key: const ValueKey('none'),
+                    radius: size / 2,
+                    backgroundColor: BrandColors.navy,
+                    backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
+                    child: photoUrl == null ? Icon(Icons.person_rounded, color: Colors.white, size: size / 2) : null,
+                  ),
+          ),
+          PositionedDirectional(
+            end: -2,
+            bottom: -2,
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(color: BrandColors.electric, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+              child: Icon(isAvatarId(avatarId) ? Icons.edit_rounded : Icons.add_rounded, size: size * 0.2, color: Colors.white),
+            ),
+          ),
+        ]),
+      );
+}
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -58,11 +108,10 @@ class ProfileScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(children: [
-                  CircleAvatar(
-                    radius: 34,
-                    backgroundColor: BrandColors.navy,
-                    backgroundImage: avatar != null ? NetworkImage(avatar) : null,
-                    child: avatar == null ? const Icon(Icons.person_rounded, color: Colors.white, size: 34) : null,
+                  _AvatarButton(
+                    avatarId: p?['avatar_id'] as String?,
+                    photoUrl: avatar,
+                    onPick: () => _pickAvatar(context, ref, p?['avatar_id'] as String?),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -198,22 +247,19 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         appBar: AppBar(title: Text(context.tr('edit_profile'))),
         body: ListView(padding: const EdgeInsets.all(16), children: [
           Center(
-            child: TextButton.icon(
-              icon: const Icon(Icons.photo_camera_outlined),
-              label: Text(context.tr('add_photo')),
-              onPressed: () async {
-                final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 600);
-                if (x == null) return;
-                try {
-                  await ref.read(profileRepoProvider).uploadAvatar(await x.readAsBytes());
-                  ref.invalidate(profileProvider);
-                  if (context.mounted) showSnack(context, context.tr('saved'));
-                } catch (e) {
-                  if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
-                }
-              },
-            ),
+            child: Builder(builder: (context) {
+              final id = ref.watch(profileProvider).valueOrNull?['avatar_id'] as String?;
+              return Column(children: [
+                _AvatarButton(avatarId: id, photoUrl: null, size: 96, onPick: () => _pickAvatar(context, ref, id)),
+                TextButton.icon(
+                  icon: const Icon(Icons.face_retouching_natural_rounded),
+                  label: Text(context.isAr ? 'اختار الأفاتار' : 'Choose avatar'),
+                  onPressed: () => _pickAvatar(context, ref, id),
+                ),
+              ]);
+            }),
           ),
+          const SizedBox(height: 8),
           TextField(controller: _name, decoration: InputDecoration(labelText: context.tr('full_name'))),
           const SizedBox(height: 12),
           TextField(

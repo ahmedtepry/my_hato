@@ -23,6 +23,7 @@ import '../features/payments/payment_flow.dart';
 import '../features/payments/payments_screens.dart';
 import '../features/profile/profile_screens.dart';
 import '../features/repairs/repairs_screens.dart';
+import '../shared/avatars.dart';
 import 'l10n.dart';
 import 'supabase_providers.dart';
 
@@ -138,6 +139,7 @@ class _Shell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartCount = ref.watch(cartProvider).valueOrNull?.count ?? 0;
+    final avatarId = ref.watch(profileProvider).valueOrNull?['avatar_id'] as String?;
     // keep realtime notifications alive while the shell is mounted
     ref.watch(notificationsProvider);
     return Scaffold(
@@ -154,7 +156,16 @@ class _Shell extends ConsumerWidget {
             label: context.tr('nav_cart'),
           ),
           NavigationDestination(icon: const Icon(Icons.receipt_long_outlined), selectedIcon: const Icon(Icons.receipt_long_rounded), label: context.tr('nav_orders')),
-          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person_rounded), label: context.tr('nav_account')),
+          NavigationDestination(
+            icon: isAvatarId(avatarId) ? HatoAvatar(id: avatarId!, size: 28, animate: false) : const Icon(Icons.person_outline),
+            selectedIcon: isAvatarId(avatarId)
+                ? DecoratedBox(
+                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2)),
+                    child: Padding(padding: const EdgeInsets.all(1.5), child: HatoAvatar(id: avatarId!, size: 26, animate: false)),
+                  )
+                : const Icon(Icons.person_rounded),
+            label: context.tr('nav_account'),
+          ),
         ],
       ),
     );
