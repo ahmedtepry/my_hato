@@ -250,7 +250,7 @@ class _AvatarPainter extends CustomPainter {
       case _Hair.long:
         final bangs = Path()
           ..moveTo(27 * u, 50 * u)
-          ..cubicTo(24 * u, 20 * u, 76 * u, 20 * u, 73 * u, 50 * u)
+          ..cubicTo(23 * u, 15 * u, 77 * u, 15 * u, 73 * u, 50 * u)
           ..quadraticBezierTo(66 * u, 34 * u, 46 * u, 33 * u)
           ..quadraticBezierTo(34 * u, 36 * u, 27 * u, 50 * u)
           ..close();
@@ -273,7 +273,7 @@ class _AvatarPainter extends CustomPainter {
       case _Hair.bob:
         final bangs = Path()
           ..moveTo(27 * u, 46 * u)
-          ..cubicTo(25 * u, 21 * u, 75 * u, 21 * u, 73 * u, 46 * u)
+          ..cubicTo(24 * u, 14 * u, 76 * u, 14 * u, 73 * u, 46 * u)
           ..lineTo(73 * u, 39 * u)
           ..lineTo(27 * u, 39 * u)
           ..close();
