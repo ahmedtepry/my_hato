@@ -94,6 +94,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         'phones' => context.tr('sec_phones'),
         'accessories' => context.tr('sec_accessories'),
         'used' => context.tr('sec_used'),
+        'electronics' => context.tr('sec_electronics'),
         _ => context.tr('all'),
       };
 

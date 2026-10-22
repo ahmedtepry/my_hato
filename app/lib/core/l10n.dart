@@ -51,6 +51,7 @@ const Map<String, Map<String, String>> _strings = {
   'sec_phones': {'ar': 'هواتف', 'en': 'Phones'},
   'sec_accessories': {'ar': 'إكسسوارات', 'en': 'Accessories'},
   'sec_used': {'ar': 'مستعمل', 'en': 'Used'},
+  'sec_electronics': {'ar': 'إلكترونيات', 'en': 'Electronics'},
   'sec_repair': {'ar': 'صيانة', 'en': 'Repair'},
   'sec_warranty': {'ar': 'الضمان', 'en': 'Warranty'},
   'soon': {'ar': 'قريبًا', 'en': 'Soon'},

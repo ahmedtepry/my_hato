@@ -13,7 +13,6 @@ import '../features/cart/cart_screen.dart';
 import '../features/catalog/catalog_repository.dart';
 import '../features/catalog/catalog_screen.dart';
 import '../features/catalog/product_details_screen.dart';
-import '../features/catalog/used_screen.dart';
 import '../features/checkout/checkout_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/onboarding_screens.dart';
@@ -96,7 +95,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/search', builder: (_, __) => const CatalogScreen(searchMode: true)),
       GoRoute(path: '/catalog/all', builder: (_, s) => CatalogScreen(initial: s.extra as CatalogQuery?)),
       GoRoute(path: '/catalog/:kind', builder: (_, s) => CatalogScreen(kind: s.pathParameters['kind'])),
-      GoRoute(path: '/used', builder: (_, __) => const UsedScreen()),
+      GoRoute(path: '/used', redirect: (_, __) => '/catalog/electronics'),
       GoRoute(path: '/product/:id', builder: (_, s) => ProductDetailsScreen(id: s.pathParameters['id']!)),
       GoRoute(path: '/checkout', builder: (_, __) => const CheckoutScreen()),
       GoRoute(
@@ -168,6 +167,7 @@ class CategoriesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final phones = ref.watch(categoriesProvider('phones')).valueOrNull ?? const [];
     final acc = ref.watch(categoriesProvider('accessories')).valueOrNull ?? const [];
+    final elec = ref.watch(categoriesProvider('electronics')).valueOrNull ?? const [];
     final usedOn = ref.watch(usedEnabledProvider).valueOrNull ?? false;
     Widget group(String title, List<Map<String, dynamic>> cats) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(padding: const EdgeInsets.fromLTRB(16, 20, 16, 8), child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
@@ -208,6 +208,7 @@ class CategoriesScreen extends ConsumerWidget {
         ),
         if (phones.isNotEmpty) group(context.tr('sec_phones'), phones),
         if (acc.isNotEmpty) group(context.tr('sec_accessories'), acc),
+        if (elec.isNotEmpty) group(context.tr('sec_electronics'), elec),
         const SizedBox(height: 24),
       ]),
     );

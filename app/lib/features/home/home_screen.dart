@@ -32,7 +32,7 @@ class MainSection {
 const mainSections = [
   MainSection('sec_phones', Icons.smartphone_rounded, '/catalog/phones'),
   MainSection('sec_accessories', Icons.headphones_rounded, '/catalog/accessories'),
-  MainSection('sec_used', Icons.recycling_rounded, '/used', comingSoon: true),
+  MainSection('sec_electronics', Icons.devices_other_rounded, '/catalog/electronics'),
   MainSection('sec_repair', Icons.build_rounded, '/repairs/new'),
 ];
 
@@ -127,7 +127,7 @@ class HomeScreen extends ConsumerWidget {
 const _sectionColors = <String, List<Color>>{
   'sec_phones': [Color(0xFF2F6BFF), Color(0xFF00A3FF)],
   'sec_accessories': [Color(0xFFFF6A88), Color(0xFFFF9A5A)],
-  'sec_used': [Color(0xFF16B89A), Color(0xFF7BE0C3)],
+  'sec_electronics': [Color(0xFF16B89A), Color(0xFF7BE0C3)],
   'sec_repair': [Color(0xFF7B5CFF), Color(0xFFB79CFF)],
 };
 
