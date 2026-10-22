@@ -20,10 +20,16 @@ class AdminRepository {
   Future<Map<String, dynamic>> stats() async => Map<String, dynamic>.from(await _db.rpc('staff_dashboard_stats') as Map);
 
   // ---------------- orders
+  /// status: null = all, 'cancel_requests' = orders with an open cancellation request.
   Future<List<Map<String, dynamic>>> orders({String? status}) async {
+    final cr = status == 'cancel_requests' ? 'cancel_requests!inner' : 'cancel_requests';
     var q = _db.from('orders').select(
-        'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)');
-    if (status != null) q = q.eq('status', status);
+        'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor), $cr(id, reason, status, created_at)');
+    if (status == 'cancel_requests') {
+      q = q.eq('cancel_requests.status', 'pending');
+    } else if (status != null) {
+      q = q.eq('status', status);
+    }
     return List<Map<String, dynamic>>.from(await q.order('created_at', ascending: false).limit(200));
   }
 
@@ -43,11 +49,15 @@ class AdminRepository {
       _db.rpc('staff_post_order_update', params: {'p_order_id': id, 'p_message': message});
 
   // ---------------- repairs
-  /// status: null = all active repairs, 'all' = everything, otherwise that status only.
+  /// status: null = all active repairs, 'all' = everything, 'cancel_requests' = open cancellation
+  /// requests, otherwise that status only.
   Future<List<Map<String, dynamic>>> repairs({String? status}) async {
+    final cr = status == 'cancel_requests' ? 'cancel_requests!inner' : 'cancel_requests';
     var q = _db.from('repair_requests').select(
-        'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at');
-    if (status == null) {
+        'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at, $cr(id, reason, status, created_at)');
+    if (status == 'cancel_requests') {
+      q = q.eq('cancel_requests.status', 'pending');
+    } else if (status == null) {
       q = q.not('status', 'in', '(delivered,cancelled,unrepairable)');
     } else if (status != 'all') {
       q = q.eq('status', status);
@@ -69,6 +79,15 @@ class AdminRepository {
 
   Future<void> postRepairUpdate(String id, String message) =>
       _db.rpc('staff_post_repair_update', params: {'p_repair_id': id, 'p_message_ar': message});
+
+  // ---------------- cancellation requests
+  Future<int> pendingCancelCount() async {
+    final rows = await _db.from('cancel_requests').select('id').eq('status', 'pending');
+    return (rows as List).length;
+  }
+
+  Future<void> decideCancel(String requestId, bool approve, {String? note}) =>
+      _db.rpc('staff_decide_cancel', params: {'p_request_id': requestId, 'p_approve': approve, 'p_note': note});
 
   // ---------------- products
   Future<List<Map<String, dynamic>>> products({String? search, bool lowStockOnly = false}) async {

@@ -45,11 +45,13 @@ class OrdersRepository {
 
   Future<Map<String, dynamic>> order(String id) async => await _db
       .from('orders')
-      .select('*, order_items(*), order_status_history(*), branches(*)')
+      .select('*, order_items(*), order_status_history(*), branches(*), cancel_requests(*)')
       .eq('id', id)
       .single();
 
-  Future<void> cancel(String id) => _db.rpc('customer_cancel_order', params: {'p_order_id': id});
+  /// kind: 'order' | 'repair'. Staff approve or reject the request.
+  Future<void> requestCancel(String kind, String id, String reason) =>
+      _db.rpc('customer_request_cancel', params: {'p_kind': kind, 'p_id': id, 'p_reason': reason});
 }
 
 final ordersRepoProvider = Provider((ref) => OrdersRepository(ref.watch(supabaseProvider)));

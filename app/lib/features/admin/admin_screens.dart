@@ -164,6 +164,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
 // Console home
 // =====================================================================================
 final _statsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).stats());
+final _cancelCountProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).pendingCancelCount());
 
 class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
@@ -204,7 +205,10 @@ class _Overview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(_statsProvider);
     return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(_statsProvider),
+      onRefresh: () async {
+        ref.invalidate(_statsProvider);
+        ref.invalidate(_cancelCountProvider);
+      },
       child: stats.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(_statsProvider)),
@@ -224,6 +228,8 @@ class _Overview extends ConsumerWidget {
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             children: [
+              tile(_t(context, 'طلبات إلغاء', 'Cancel requests'), '${ref.watch(_cancelCountProvider).valueOrNull ?? 0}', Icons.cancel_outlined, BrandColors.error,
+                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'cancel_requests')),
               tile(_t(context, 'طلبات جديدة', 'New orders'), n('pending_orders'), Icons.fiber_new_rounded, BrandColors.warning,
                   () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'pending_confirmation')),
               tile(_t(context, 'طلبات النهارده', 'Orders today'), n('new_orders_today'), Icons.today_rounded, BrandColors.electric,
@@ -267,6 +273,15 @@ class _OrdersTab extends ConsumerWidget {
         height: 54,
         child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), children: [
           ChoiceChip(label: Text(_t(context, 'الكل', 'All')), selected: filter == null, onSelected: (_) => ref.read(_orderFilterProvider.notifier).state = null),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 8),
+            child: ChoiceChip(
+              avatar: const Icon(Icons.cancel_outlined, size: 18, color: BrandColors.error),
+              label: Text(_t(context, 'طلبات إلغاء', 'Cancel requests')),
+              selected: filter == 'cancel_requests',
+              onSelected: (_) => ref.read(_orderFilterProvider.notifier).state = 'cancel_requests',
+            ),
+          ),
           for (final s in statuses)
             Padding(
               padding: const EdgeInsetsDirectional.only(start: 8),
@@ -292,7 +307,10 @@ class _OrdersTab extends ConsumerWidget {
                         child: ListTile(
                           onTap: () => _orderSheet(context, ref, o),
                           title: Text(o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w800)),
-                          subtitle: Text('${o['customer_name']} • ${fmtDate(context, o['created_at'] as String)}'),
+                          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('${o['customer_name']} • ${fmtDate(context, o['created_at'] as String)}'),
+                            if (_openCancel(o) != null) const _CancelBadge(),
+                          ]),
                           trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                             Text(formatEgp((o['total_minor'] as num).toInt(), context.lang), style: const TextStyle(fontWeight: FontWeight.w800)),
                             const SizedBox(height: 4),
@@ -328,6 +346,16 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           Expanded(child: Text(o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
           StatusChip(label: context.tr('os_${o['status']}'), color: _orderColor(o['status'] as String)),
         ]),
+        if (_openCancel(o) != null)
+          _CancelRequestCard(
+            request: _openCancel(o)!,
+            warning: o['payment_status'] == 'paid' ? _t(context, 'العميل دافع أونلاين — لو وافقت لازم ترجّعله فلوسه.', 'Paid online — approving means a refund.') : null,
+            onDone: () {
+              ref.invalidate(_ordersProvider);
+              ref.invalidate(_statsProvider);
+              ref.invalidate(_cancelCountProvider);
+            },
+          ),
         const SizedBox(height: 8),
         Text('${o['customer_name']}'),
         SelectableText('${o['customer_phone']}', style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -430,6 +458,7 @@ class _RepairsTab extends ConsumerWidget {
         height: 54,
         child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), children: [
           chip(null, _t(context, 'الشغالة', 'Active')),
+          chip('cancel_requests', _t(context, 'طلبات إلغاء', 'Cancel requests')),
           chip('awaiting_approval', repairLabel(context, labels, 'awaiting_approval')),
           chip('waiting_for_parts', repairLabel(context, labels, 'waiting_for_parts')),
           chip('ready_for_pickup', repairLabel(context, labels, 'ready_for_pickup')),
@@ -454,7 +483,10 @@ class _RepairsTab extends ConsumerWidget {
                     child: ListTile(
                       onTap: () => _repairSheet(context, ref, r),
                       title: Text('${r['reference']} • ${r['device_brand']} ${r['device_model']}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text('${r['contact_name']} • ${r['contact_phone']}\n${r['problem_description']}', maxLines: 3, overflow: TextOverflow.ellipsis),
+                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('${r['contact_name']} • ${r['contact_phone']}\n${r['problem_description']}', maxLines: 3, overflow: TextOverflow.ellipsis),
+                        if (_openCancel(r) != null) const _CancelBadge(),
+                      ]),
                       isThreeLine: true,
                       trailing: StatusChip(label: repairLabel(context, labels, st), color: repairStatusColor(st)),
                     ),
@@ -485,6 +517,15 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
           Expanded(child: Text(r['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
           StatusChip(label: repairLabel(context, labels, r['status'] as String), color: repairStatusColor(r['status'] as String)),
         ]),
+        if (_openCancel(r) != null)
+          _CancelRequestCard(
+            request: _openCancel(r)!,
+            onDone: () {
+              ref.invalidate(_repairsProvider);
+              ref.invalidate(_statsProvider);
+              ref.invalidate(_cancelCountProvider);
+            },
+          ),
         const SizedBox(height: 8),
         Text('${r['device_brand']} ${r['device_model']}', style: const TextStyle(fontWeight: FontWeight.w700)),
         Text('${r['contact_name']}'),
@@ -1054,6 +1095,130 @@ class _QuickUpdatesState extends ConsumerState<_QuickUpdates> {
           onPressed: (_busy || (_selected == null && _custom.text.trim().isEmpty)) ? null : _send,
         ),
       ]);
+}
+
+Map<String, dynamic>? _openCancel(Map<String, dynamic> row) => List<Map<String, dynamic>>.from(row['cancel_requests'] as List? ?? const [])
+    .where((c) => c['status'] == 'pending')
+    .firstOrNull;
+
+class _CancelBadge extends StatelessWidget {
+  const _CancelBadge();
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: BrandColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.cancel_outlined, size: 14, color: BrandColors.error),
+            const SizedBox(width: 4),
+            Text(_t(context, 'العميل طالب إلغاء', 'Customer wants to cancel'),
+                style: const TextStyle(color: BrandColors.error, fontSize: 12, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      );
+}
+
+/// Open cancellation request: reason + approve / reject (staff may call the customer first).
+class _CancelRequestCard extends ConsumerStatefulWidget {
+  const _CancelRequestCard({required this.request, required this.onDone, this.warning});
+  final Map<String, dynamic> request;
+  final VoidCallback onDone;
+  final String? warning;
+  @override
+  ConsumerState<_CancelRequestCard> createState() => _CancelRequestCardState();
+}
+
+class _CancelRequestCardState extends ConsumerState<_CancelRequestCard> {
+  bool _busy = false;
+
+  Future<void> _decide(bool approve) async {
+    String? note;
+    if (approve) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: Text(_t(context, 'توافق على الإلغاء؟', 'Approve cancellation?')),
+          content: Text(widget.warning ?? _t(context, 'هيتلغي الطلب والعميل هيوصله إشعار.', 'It will be cancelled and the customer notified.')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d, false), child: Text(context.tr('cancel'))),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: BrandColors.error),
+              onPressed: () => Navigator.pop(d, true),
+              child: Text(_t(context, 'موافق، إلغاء', 'Approve')),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    } else {
+      note = await _askText(context, _t(context, 'سبب الرفض (هيوصل للعميل)', 'Reason for rejecting (sent to the customer)'),
+          hint: _t(context, 'مثلاً: كلمناك واتفقنا نكمّل الطلب', 'e.g. we called and agreed to continue'));
+      if (note == null) return;
+    }
+    if (!mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(adminRepoProvider).decideCancel(widget.request['id'] as String, approve, note: note);
+      widget.onDone();
+      if (mounted) {
+        Navigator.of(context).pop();
+        showSnack(context, approve ? _t(context, 'اتلغى، والعميل وصله إشعار', 'Cancelled — the customer was notified')
+            : _t(context, 'اترفض طلب الإلغاء، والعميل وصله الرد', 'Request rejected — the customer was notified'));
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: BrandColors.error.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: BrandColors.error.withValues(alpha: 0.3)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            const Icon(Icons.cancel_outlined, color: BrandColors.error),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_t(context, 'العميل طالب إلغاء', 'Cancellation requested'), style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.error))),
+            Text(fmtDate(context, widget.request['created_at'] as String), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+          ]),
+          const SizedBox(height: 8),
+          Text('${_t(context, 'السبب', 'Reason')}: ${widget.request['reason']}', style: const TextStyle(fontWeight: FontWeight.w600, height: 1.5)),
+          if (widget.warning != null) ...[
+            const SizedBox(height: 6),
+            Text(widget.warning!, style: const TextStyle(color: BrandColors.warning, fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+          const SizedBox(height: 4),
+          Text(_t(context, 'تقدر تكلّم العميل الأول وبعدين تقرر.', 'You can call the customer first, then decide.'),
+              style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _busy ? null : () => _decide(false),
+                child: Text(_t(context, 'رفض', 'Reject')),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: BrandColors.error),
+                onPressed: _busy ? null : () => _decide(true),
+                child: _busy
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                    : Text(_t(context, 'موافقة وإلغاء', 'Approve & cancel')),
+              ),
+            ),
+          ]),
+        ]),
+      );
 }
 
 /// Overview tile: tap feedback (ripple + slight press-in) and a chevron so it reads as a button.

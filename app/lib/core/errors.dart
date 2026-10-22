@@ -40,6 +40,10 @@ String friendlyError(BuildContext context, Object error) {
     'ALREADY_PAID': 'pay_already_paid',
     'CANNOT_CANCEL_PAID': 'cannot_cancel_paid',
     'ORDER_CANCELLED': 'err_unavailable',
+    'CANCEL_ALREADY_REQUESTED': 'err_cancel_already_requested',
+    'CANCEL_REASON_REQUIRED': 'err_cancel_reason',
+    'ALREADY_DECIDED': 'err_already_decided',
+    'CANNOT_CANCEL': 'err_cannot_cancel',
   };
   for (final e in map.entries) {
     if (msg.contains(e.key)) return context.tr(e.value);

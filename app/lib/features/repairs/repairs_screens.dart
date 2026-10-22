@@ -11,6 +11,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/cancel_request.dart';
 import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
 import '../orders/orders_repository.dart';
@@ -477,6 +478,17 @@ class _RepairDetailsScreenState extends ConsumerState<RepairDetailsScreen> {
                       ),
                   ]),
                 ),
+              ),
+              const SizedBox(height: 16),
+              CancelRequestBlock(
+                requests: List<Map<String, dynamic>>.from(r['cancel_requests'] ?? const []),
+                canRequest: const ['pickup_requested', 'pickup_scheduled', 'device_collected', 'received_at_branch', 'initial_inspection',
+                  'diagnosis_completed', 'awaiting_approval', 'repair_approved', 'waiting_for_parts'].contains(st),
+                repair: true,
+                submit: (reason) async {
+                  await ref.read(ordersRepoProvider).requestCancel('repair', widget.id, reason);
+                  ref.invalidate(repairProvider(widget.id));
+                },
               ),
             ]),
           );

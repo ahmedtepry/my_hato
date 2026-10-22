@@ -64,8 +64,10 @@ class RepairsRepository {
       _db.from('repair_status_history').select().eq('repair_id', id).order('created_at'),
       _db.from('repair_quotes').select().eq('repair_id', id).order('created_at', ascending: false),
       _db.from('repair_attachments').select().eq('repair_id', id).eq('is_internal', false),
+      _db.from('cancel_requests').select().eq('repair_id', id).order('created_at', ascending: false),
     ]);
     r['history'] = results[0];
+    r['cancel_requests'] = results[3];
     r['quotes'] = results[1];
     final photos = <String>[];
     for (final a in results[2]) {

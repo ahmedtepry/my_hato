@@ -9,6 +9,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/cancel_request.dart';
 import '../../shared/states.dart';
 import '../repairs/repairs_screens.dart';
 import 'orders_repository.dart';
@@ -227,33 +228,16 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                   ]),
                 ),
               ),
-              if (status == 'pending_confirmation') ...[
-                const SizedBox(height: 16),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(foregroundColor: BrandColors.error),
-                  onPressed: () async {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (c) => AlertDialog(
-                        content: Text(context.tr('cancel_confirm')),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(context.tr('cancel'))),
-                          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(context.tr('confirm'))),
-                        ],
-                      ),
-                    );
-                    if (ok != true) return;
-                    try {
-                      await ref.read(ordersRepoProvider).cancel(widget.id);
-                      ref.invalidate(orderProvider(widget.id));
-                      ref.invalidate(myOrdersProvider);
-                    } catch (e) {
-                      if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
-                    }
-                  },
-                  child: Text(context.tr('cancel_order')),
-                ),
-              ],
+              const SizedBox(height: 16),
+              CancelRequestBlock(
+                requests: List<Map<String, dynamic>>.from(o['cancel_requests'] ?? const []),
+                canRequest: const ['pending_confirmation', 'confirmed', 'preparing'].contains(status),
+                repair: false,
+                submit: (reason) async {
+                  await ref.read(ordersRepoProvider).requestCancel('order', widget.id, reason);
+                  ref.invalidate(orderProvider(widget.id));
+                },
+              ),
             ]),
           );
         },
