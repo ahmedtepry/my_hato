@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/product_card.dart';
+import '../../shared/cart_toast.dart';
 import '../../shared/smooth_pages.dart';
 import '../../shared/states.dart';
 import '../cart/cart_repository.dart';
@@ -166,8 +167,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     try {
                       await ref.read(cartProvider.notifier).add(p['id'] as String, _variantId, _qty);
                       if (!context.mounted) return;
-                      showSnack(context, context.tr('added_to_cart'),
-                          action: SnackBarAction(label: context.tr('nav_cart'), textColor: BrandColors.electric, onPressed: () => context.go('/cart')));
+                      showAddedToCart(context);
                     } catch (e) {
                       if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
                     } finally {

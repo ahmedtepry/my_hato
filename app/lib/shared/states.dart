@@ -101,6 +101,9 @@ void showSnack(BuildContext context, String msg, {bool error = false, SnackBarAc
       backgroundColor: error ? BrandColors.error : BrandColors.navy,
       behavior: SnackBarBehavior.floating,
       action: action,
+      // messages with a button (e.g. Undo) also disappear on their own instead of staying on screen
+      duration: Duration(seconds: action != null ? 4 : 3),
+      persist: false,
     ));
 }
 
