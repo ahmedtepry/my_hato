@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/product_card.dart';
+import '../../shared/smooth_pages.dart';
 import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
@@ -216,8 +219,23 @@ class _BannerCarousel extends ConsumerStatefulWidget {
 
 class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
   final _pc = PageController(viewportFraction: 0.92);
+  Timer? _auto;
+
+  @override
+  void initState() {
+    super.initState();
+    // gentle auto-play; any swipe by the user simply continues from where they are
+    _auto = Timer.periodic(const Duration(seconds: 5), (_) {
+      final n = ref.read(bannersProvider).valueOrNull?.length ?? 0;
+      if (n < 2 || !_pc.hasClients || !_pc.position.haveDimensions) return;
+      final next = ((_pc.page ?? 0).round() + 1) % n;
+      _pc.animateToPage(next, duration: const Duration(milliseconds: 700), curve: Curves.easeInOutCubic);
+    });
+  }
+
   @override
   void dispose() {
+    _auto?.cancel();
     _pc.dispose();
     super.dispose();
   }
@@ -235,7 +253,7 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
                 itemCount: list.length,
                 itemBuilder: (_, i) {
                   final b = list[i];
-                  return Padding(
+                  return SmoothPage(controller: _pc, index: i, maxScaleDrop: 0.06, maxFade: 0.3, parallax: 0.3, child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(18),
@@ -265,7 +283,7 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
                         ]),
                       ),
                     ),
-                  );
+                  ));
                 },
               ),
             ),

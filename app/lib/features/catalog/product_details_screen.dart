@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/product_card.dart';
+import '../../shared/smooth_pages.dart';
 import '../../shared/states.dart';
 import '../cart/cart_repository.dart';
 import 'catalog_repository.dart';
@@ -216,9 +217,18 @@ class _Gallery extends StatefulWidget {
 }
 
 class _GalleryState extends State<_Gallery> {
+  final _pc = PageController();
   int _i = 0;
   // A true 360° view is offered only when a real frame sequence was uploaded.
   bool get _has360 => widget.frames.length >= 12;
+
+  @override
+  void dispose() {
+    _pc.dispose();
+    super.dispose();
+  }
+
+  void _goTo(int i) => _pc.animateToPage(i, duration: smoothPageDuration, curve: smoothPageCurve);
 
   @override
   Widget build(BuildContext context) {
@@ -226,32 +236,80 @@ class _GalleryState extends State<_Gallery> {
     return Column(children: [
       AspectRatio(
         aspectRatio: 1,
-        child: imgs.isEmpty
-            ? const NetImage(path: null)
-            : PageView.builder(
-                itemCount: imgs.length,
-                onPageChanged: (i) => setState(() => _i = i),
-                itemBuilder: (_, i) => GestureDetector(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    fullscreenDialog: true,
-                    builder: (_) => _FullscreenGallery(images: imgs, initial: i),
-                  )),
-                  child: i == 0
-                      ? Hero(tag: 'p-${widget.productId}', child: NetImage(path: imgs[i]['storage_path'] as String, fit: BoxFit.contain))
-                      : NetImage(path: imgs[i]['storage_path'] as String, fit: BoxFit.contain),
-                ),
-              ),
-      ),
-      const SizedBox(height: 8),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        for (var i = 0; i < imgs.length; i++)
-          Container(
-            margin: const EdgeInsets.all(3),
-            width: i == _i ? 18 : 7,
-            height: 7,
-            decoration: BoxDecoration(color: i == _i ? BrandColors.electric : BrandColors.border, borderRadius: BorderRadius.circular(6)),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.white, BrandColors.offWhite]),
+            boxShadow: [BoxShadow(color: BrandColors.navy.withValues(alpha: 0.06), blurRadius: 18, offset: const Offset(0, 8))],
           ),
-      ]),
+          clipBehavior: Clip.antiAlias,
+          child: imgs.isEmpty
+              ? const NetImage(path: null)
+              : PageView.builder(
+                  controller: _pc,
+                  itemCount: imgs.length,
+                  physics: const BouncingScrollPhysics(),
+                  onPageChanged: (i) => setState(() => _i = i),
+                  itemBuilder: (_, i) {
+                    final img = NetImage(path: imgs[i]['storage_path'] as String, fit: BoxFit.cover);
+                    return GestureDetector(
+                      onTap: () => Navigator.of(context).push(PageRouteBuilder(
+                        opaque: false,
+                        transitionDuration: const Duration(milliseconds: 380),
+                        reverseTransitionDuration: const Duration(milliseconds: 300),
+                        pageBuilder: (_, __, ___) => _FullscreenGallery(images: imgs, initial: i),
+                        transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut), child: child),
+                      )),
+                      child: SmoothPage(
+                        controller: _pc,
+                        index: i,
+                        child: i == 0 ? Hero(tag: 'p-${widget.productId}', child: img) : img,
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
+      if (imgs.length > 1) ...[
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 62,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: imgs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, i) {
+              final active = i == _i;
+              return GestureDetector(
+                onTap: () => _goTo(i),
+                child: AnimatedScale(
+                  scale: active ? 1 : 0.9,
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutBack,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    width: 62,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: active ? BrandColors.electric : BrandColors.border, width: active ? 2.2 : 1),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: AnimatedOpacity(
+                      opacity: active ? 1 : 0.6,
+                      duration: const Duration(milliseconds: 260),
+                      child: NetImage(path: imgs[i]['storage_path'] as String),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        PageDots(count: imgs.length, index: _i, activeColor: BrandColors.electric, inactiveColor: BrandColors.border),
+      ],
       if (_has360)
         TextButton.icon(
           icon: const Icon(Icons.threesixty_rounded),
@@ -262,23 +320,63 @@ class _GalleryState extends State<_Gallery> {
   }
 }
 
-class _FullscreenGallery extends StatelessWidget {
+class _FullscreenGallery extends StatefulWidget {
   const _FullscreenGallery({required this.images, required this.initial});
   final List<Map<String, dynamic>> images;
   final int initial;
   @override
+  State<_FullscreenGallery> createState() => _FullscreenGalleryState();
+}
+
+class _FullscreenGalleryState extends State<_FullscreenGallery> {
+  late final _pc = PageController(initialPage: widget.initial);
+  late int _i = widget.initial;
+
+  @override
+  void dispose() {
+    _pc.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: Colors.black,
-        appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
-        body: PageView.builder(
-          controller: PageController(initialPage: initial),
-          itemCount: images.length,
-          itemBuilder: (_, i) => InteractiveViewer(
-            minScale: 1,
-            maxScale: 5,
-            child: Center(child: NetImage(path: images[i]['storage_path'] as String, fit: BoxFit.contain)),
-          ),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          title: widget.images.length > 1
+              ? AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: Text('${_i + 1} / ${widget.images.length}', key: ValueKey(_i), style: const TextStyle(color: Colors.white70, fontSize: 15)),
+                )
+              : null,
+          centerTitle: true,
         ),
+        body: Column(children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _pc,
+              itemCount: widget.images.length,
+              onPageChanged: (i) => setState(() => _i = i),
+              itemBuilder: (_, i) => SmoothPage(
+                controller: _pc,
+                index: i,
+                maxFade: 0.6,
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 5,
+                  child: Center(child: NetImage(path: widget.images[i]['storage_path'] as String, fit: BoxFit.contain)),
+                ),
+              ),
+            ),
+          ),
+          if (widget.images.length > 1)
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: 16, top: 8),
+              child: PageDots(count: widget.images.length, index: _i, activeColor: Colors.white, inactiveColor: Colors.white24),
+            ),
+        ]),
       );
 }
 
