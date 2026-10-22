@@ -379,42 +379,41 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           Text(formatEgp((o['total_minor'] as num).toInt(), context.lang), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
         ]),
         const SizedBox(height: 16),
-        _StatusPicker(
+        _StatusUpdate(
           current: o['status'] as String,
           options: next,
+          flow: _OrdersTab.statuses,
           label: (s) => context.tr('os_$s'),
           color: _orderColor,
           isNegative: (s) => s == 'cancelled',
-          onConfirm: (s) => _changeOrder(ctx, ref, o['id'] as String, s, askNote: s == 'cancelled'),
+          presets: o['fulfillment'] == 'pickup' ? _orderPickupPresets : _orderDeliveryPresets,
+          onSubmit: (to, msg) => _changeOrder(ctx, ref, o['id'] as String, to, msg),
         ),
-        if (o['status'] != 'delivered' && o['status'] != 'cancelled') ...[
-          const SizedBox(height: 24),
-          _QuickUpdates(
-            presets: o['fulfillment'] == 'pickup' ? _orderPickupPresets : _orderDeliveryPresets,
-            send: (msg) async {
-              await repo.postOrderUpdate(o['id'] as String, msg);
-              ref.invalidate(_ordersProvider);
-            },
-          ),
-        ],
       ]),
     ),
   );
 }
 
-Future<void> _changeOrder(BuildContext ctx, WidgetRef ref, String id, String to, {bool askNote = false}) async {
+/// to == null: message only. Cancelling needs a reason (the message counts as one).
+Future<void> _changeOrder(BuildContext ctx, WidgetRef ref, String id, String? to, String? message) async {
   String? note;
-  if (askNote) {
-    note = await _askText(ctx, _t(ctx, 'سبب الإلغاء', 'Cancellation reason'));
+  if (to == 'cancelled') {
+    note = message ?? await _askText(ctx, _t(ctx, 'سبب الإلغاء', 'Cancellation reason'));
     if (note == null) return;
   }
   try {
-    await ref.read(adminRepoProvider).setOrderStatus(id, to, note: note);
+    final repo = ref.read(adminRepoProvider);
+    if (to == null) {
+      await repo.postOrderUpdate(id, message!);
+    } else {
+      await repo.setOrderStatus(id, to, note: note, message: message);
+    }
     ref.invalidate(_ordersProvider);
     ref.invalidate(_statsProvider);
     if (ctx.mounted) {
       Navigator.of(ctx).pop();
-      showSnack(ctx, _t(ctx, 'اتحدّثت الحالة والعميل وصله إشعار', 'Status updated — the customer was notified'));
+      showSnack(ctx, to == null ? _t(ctx, 'الرسالة وصلت للعميل', 'Message sent to the customer')
+          : _t(ctx, 'اتحدّثت الحالة والعميل وصله إشعار', 'Status updated — the customer was notified'));
     }
   } catch (e) {
     if (ctx.mounted) showSnack(ctx, friendlyError(ctx, e), error: true);
@@ -563,35 +562,48 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
               },
             ),
           ),
-        _StatusPicker(
+        _StatusUpdate(
           current: r['status'] as String,
           options: next,
+          flow: _repairFlow,
           label: (s) => repairLabel(context, labels, s),
           color: repairStatusColor,
           isNegative: (s) => s == 'cancelled' || s == 'unrepairable',
           message: (s) => labels?[s] == null ? null : (context.isAr ? labels![s]!['message_ar'] : labels![s]!['message_en']) as String?,
-          onConfirm: (s) => _changeRepair(ctx, ref, r['id'] as String, s, askNote: s == 'cancelled' || s == 'unrepairable'),
+          presets: _repairPresets,
+          onSubmit: (to, msg) => _changeRepair(ctx, ref, r['id'] as String, to, msg),
         ),
-        const Divider(height: 32),
-        _QuickUpdates(presets: _repairPresets, send: (msg) => ref.read(adminRepoProvider).postRepairUpdate(r['id'] as String, msg)),
       ]),
     ),
   );
 }
 
-Future<void> _changeRepair(BuildContext ctx, WidgetRef ref, String id, String to, {bool askNote = false}) async {
-  String? note;
-  if (askNote) {
+const _repairFlow = [
+  'pickup_requested', 'pickup_scheduled', 'device_collected', 'received_at_branch', 'initial_inspection', 'diagnosis_completed',
+  'awaiting_approval', 'repair_approved', 'repair_in_progress', 'waiting_for_parts', 'quality_testing', 'repair_completed',
+  'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled', 'unrepairable',
+];
+
+/// to == null: message only. The message rides on the status notification; cancel / unrepairable need one.
+Future<void> _changeRepair(BuildContext ctx, WidgetRef ref, String id, String? to, String? message) async {
+  var note = message;
+  if ((to == 'cancelled' || to == 'unrepairable') && note == null) {
     note = await _askText(ctx, _t(ctx, 'السبب (هيوصل للعميل)', 'Reason (sent to the customer)'));
     if (note == null) return;
   }
   try {
-    await ref.read(adminRepoProvider).setRepairStatus(id, to, note: note);
+    final repo = ref.read(adminRepoProvider);
+    if (to == null) {
+      await repo.postRepairUpdate(id, message!);
+    } else {
+      await repo.setRepairStatus(id, to, note: note);
+    }
     ref.invalidate(_repairsProvider);
     ref.invalidate(_statsProvider);
     if (ctx.mounted) {
       Navigator.of(ctx).pop();
-      showSnack(ctx, _t(ctx, 'اتحدّثت الحالة والعميل وصله إشعار', 'Status updated — the customer was notified'));
+      showSnack(ctx, to == null ? _t(ctx, 'الرسالة وصلت للعميل', 'Message sent to the customer')
+          : _t(ctx, 'اتحدّثت الحالة والعميل وصله إشعار', 'Status updated — the customer was notified'));
     }
   } catch (e) {
     if (ctx.mounted) showSnack(ctx, friendlyError(ctx, e), error: true);
@@ -877,99 +889,162 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   }
 }
 
-/// Status change as a choice list: the current status on top, the allowed next statuses as
-/// radio options, and one confirm button.
-class _StatusPicker extends StatefulWidget {
-  const _StatusPicker({
+/// One step for status + customer message: pick the new status (or keep the current one), pick a
+/// ready-made message (or write one), then one button applies both — the customer gets a single
+/// notification with the status and the message.
+class _StatusUpdate extends StatefulWidget {
+  const _StatusUpdate({
     required this.current,
     required this.options,
+    required this.flow,
     required this.label,
     required this.color,
     required this.isNegative,
-    required this.onConfirm,
+    required this.presets,
+    required this.onSubmit,
     this.message,
   });
-  final String? Function(String)? message;
   final String current;
   final List<String> options;
+
+  /// All statuses in their natural order (options are shown in this order).
+  final List<String> flow;
   final String Function(String) label;
   final Color Function(String) color;
   final bool Function(String) isNegative;
-  final Future<void> Function(String) onConfirm;
+  final String? Function(String)? message;
+  final List<String> presets;
+
+  /// to == null: keep the status, only send the message.
+  final Future<void> Function(String? to, String? message) onSubmit;
 
   @override
-  State<_StatusPicker> createState() => _StatusPickerState();
+  State<_StatusUpdate> createState() => _StatusUpdateState();
 }
 
-class _StatusPickerState extends State<_StatusPicker> {
-  String? _selected;
+class _StatusUpdateState extends State<_StatusUpdate> {
+  String? _to;
+  String? _preset;
+  final _custom = TextEditingController();
   bool _busy = false;
 
   @override
-  Widget build(BuildContext context) {
-    if (widget.options.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text(_t(context, 'الحالة دي نهائية — مفيش خطوات بعدها.', 'This is a final status — no further steps.'),
-            style: const TextStyle(color: BrandColors.gray)),
+  void dispose() {
+    _custom.dispose();
+    super.dispose();
+  }
+
+  String? get _message => _custom.text.trim().isNotEmpty ? _custom.text.trim() : _preset;
+
+  Widget _radio(bool sel, {bool negative = false}) => AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        child: Icon(sel ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            key: ValueKey(sel), color: sel ? (negative ? BrandColors.error : BrandColors.electric) : BrandColors.gray),
       );
-    }
-    final ordered = [...widget.options.where((s) => !widget.isNegative(s)), ...widget.options.where(widget.isNegative)];
+
+  @override
+  Widget build(BuildContext context) {
+    final finalStatus = widget.options.isEmpty;
+    final idx = {for (var i = 0; i < widget.flow.length; i++) widget.flow[i]: i};
+    final ordered = [...widget.options.where((s) => !widget.isNegative(s)), ...widget.options.where(widget.isNegative)]
+      ..sort((x, y) {
+        final nx = widget.isNegative(x), ny = widget.isNegative(y);
+        if (nx != ny) return nx ? 1 : -1;
+        return (idx[x] ?? 99).compareTo(idx[y] ?? 99);
+      });
+    final msg = _message;
+    final ready = !_busy && (_to != null || msg != null);
+    final negative = _to != null && widget.isNegative(_to!);
+    final buttonLabel = _to == null
+        ? _t(context, 'ابعت الرسالة للعميل', 'Send message')
+        : (msg == null ? _t(context, 'تأكيد تغيير الحالة', 'Confirm status change') : _t(context, 'غيّر الحالة وابعت الرسالة', 'Change status & send message'));
+
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text(_t(context, 'اختار الحالة الجديدة', 'Choose the new status'), style: const TextStyle(fontWeight: FontWeight.w800)),
+      Text(_t(context, 'الحالة', 'Status'), style: const TextStyle(fontWeight: FontWeight.w800)),
       const SizedBox(height: 8),
-      Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
-        clipBehavior: Clip.antiAlias,
-        child: Column(children: [
+      Material(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: [
           ListTile(
-            dense: true,
-            enabled: false,
-            leading: Icon(Icons.radio_button_checked, color: widget.color(widget.current).withValues(alpha: 0.5)),
-            title: Text(widget.label(widget.current)),
-            trailing: Text(_t(context, 'الحالية', 'Current'), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+            onTap: _busy ? null : () => setState(() => _to = null),
+            selected: _to == null,
+            selectedTileColor: BrandColors.electric.withValues(alpha: 0.04),
+            leading: _radio(_to == null),
+            title: Text(widget.label(widget.current), style: TextStyle(fontWeight: _to == null ? FontWeight.w700 : FontWeight.w500)),
+            trailing: Text(finalStatus ? _t(context, 'نهائية', 'Final') : _t(context, 'الحالية — من غير تغيير', 'Current — keep'),
+                style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
           ),
           for (final s in ordered) ...[
             const Divider(height: 1),
             ListTile(
-              onTap: _busy ? null : () => setState(() => _selected = s),
-              leading: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: Icon(
-                  _selected == s ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                  key: ValueKey(_selected == s),
-                  color: _selected == s ? (widget.isNegative(s) ? BrandColors.error : BrandColors.electric) : BrandColors.gray,
-                ),
-              ),
-              title: Text(
-                widget.label(s),
-                style: TextStyle(
-                  fontWeight: _selected == s ? FontWeight.w800 : FontWeight.w500,
-                  color: widget.isNegative(s) ? BrandColors.error : null,
-                ),
-              ),
-              subtitle: widget.message?.call(s) == null ? null : Text('💬 ${widget.message!(s)}', style: const TextStyle(fontSize: 12)),
-              selected: _selected == s,
+              onTap: _busy ? null : () => setState(() => _to = s),
+              selected: _to == s,
               selectedTileColor: (widget.isNegative(s) ? BrandColors.error : BrandColors.electric).withValues(alpha: 0.06),
+              leading: _radio(_to == s, negative: widget.isNegative(s)),
+              title: Text(widget.label(s),
+                  style: TextStyle(fontWeight: _to == s ? FontWeight.w800 : FontWeight.w500, color: widget.isNegative(s) ? BrandColors.error : null)),
+              subtitle: widget.message?.call(s) == null ? null : Text('💬 ${widget.message!(s)}', style: const TextStyle(fontSize: 12)),
             ),
           ],
         ]),
       ),
+      if (!finalStatus) ...[
+        const SizedBox(height: 18),
+        Text(_t(context, 'رسالة للعميل (اختياري)', 'Message to the customer (optional)'), style: const TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Material(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: [
+            for (var i = 0; i < widget.presets.length; i++) ...[
+              if (i > 0) const Divider(height: 1),
+              ListTile(
+                onTap: _busy
+                    ? null
+                    : () => setState(() {
+                          _preset = _preset == widget.presets[i] ? null : widget.presets[i];
+                          if (_preset != null) _custom.clear();
+                        }),
+                selected: _preset == widget.presets[i],
+                selectedTileColor: BrandColors.electric.withValues(alpha: 0.06),
+                leading: _radio(_preset == widget.presets[i]),
+                title: Text(widget.presets[i],
+                    style: TextStyle(fontWeight: _preset == widget.presets[i] ? FontWeight.w700 : FontWeight.w500, height: 1.4)),
+              ),
+            ],
+          ]),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _custom,
+          maxLines: 2,
+          maxLength: 500,
+          onChanged: (_) => setState(() => _preset = null),
+          decoration: InputDecoration(hintText: _t(context, 'أو اكتب رسالة من عندك…', 'Or write your own message…'), counterText: ''),
+        ),
+      ],
       const SizedBox(height: 14),
-      FilledButton.icon(
-        style: _selected != null && widget.isNegative(_selected!) ? FilledButton.styleFrom(backgroundColor: BrandColors.error) : null,
-        icon: _busy
-            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
-            : const Icon(Icons.check_rounded),
-        label: Text(_t(context, 'تأكيد التغيير', 'Confirm change')),
-        onPressed: (_selected == null || _busy)
-            ? null
-            : () async {
-                setState(() => _busy = true);
-                await widget.onConfirm(_selected!);
-                if (mounted) setState(() => _busy = false);
-              },
-      ),
+      if (!finalStatus || msg != null)
+        FilledButton.icon(
+          style: negative ? FilledButton.styleFrom(backgroundColor: BrandColors.error) : null,
+          icon: _busy
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+              : Icon(_to == null ? Icons.send_rounded : Icons.check_rounded),
+          label: Text(buttonLabel),
+          onPressed: !ready
+              ? null
+              : () async {
+                  setState(() => _busy = true);
+                  try {
+                    await widget.onSubmit(_to, msg);
+                  } finally {
+                    if (mounted) setState(() => _busy = false);
+                  }
+                },
+        ),
     ]);
   }
 }
@@ -1005,97 +1080,6 @@ const _repairPresets = [
   'اتصلح وجاهز تستلمه من الفرع.',
   'الجهاز خارج للتوصيل وهيوصلك النهارده.',
 ];
-
-/// Send the customer an update without changing the status: ready-made messages or a custom one.
-class _QuickUpdates extends ConsumerStatefulWidget {
-  const _QuickUpdates({required this.presets, required this.send});
-  final List<String> presets;
-  final Future<void> Function(String message) send;
-  @override
-  ConsumerState<_QuickUpdates> createState() => _QuickUpdatesState();
-}
-
-class _QuickUpdatesState extends ConsumerState<_QuickUpdates> {
-  List<String> get presets => widget.presets;
-  String? _selected;
-  final _custom = TextEditingController();
-  bool _busy = false;
-
-  @override
-  void dispose() {
-    _custom.dispose();
-    super.dispose();
-  }
-
-  Future<void> _send() async {
-    final msg = _custom.text.trim().isNotEmpty ? _custom.text.trim() : _selected;
-    if (msg == null) return;
-    setState(() => _busy = true);
-    try {
-      await widget.send(msg);
-      if (mounted) {
-        Navigator.of(context).pop();
-        showSnack(context, _t(context, 'الرسالة وصلت للعميل', 'Update sent to the customer'));
-      }
-    } catch (e) {
-      if (mounted) showSnack(context, friendlyError(context, e), error: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(_t(context, 'ابعت تحديث للعميل (من غير ما تغيّر الحالة)', 'Send the customer an update (status unchanged)'),
-            style: const TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
-          clipBehavior: Clip.antiAlias,
-          child: Column(children: [
-            for (var i = 0; i < presets.length; i++) ...[
-              if (i > 0) const Divider(height: 1),
-              ListTile(
-                onTap: _busy
-                    ? null
-                    : () => setState(() {
-                          _selected = _selected == presets[i] ? null : presets[i];
-                          if (_selected != null) _custom.clear();
-                        }),
-                selected: _selected == presets[i],
-                selectedTileColor: BrandColors.electric.withValues(alpha: 0.06),
-                leading: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  child: Icon(
-                    _selected == presets[i] ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    key: ValueKey(_selected == presets[i]),
-                    color: _selected == presets[i] ? BrandColors.electric : BrandColors.gray,
-                  ),
-                ),
-                title: Text(
-                  presets[i],
-                  style: TextStyle(fontWeight: _selected == presets[i] ? FontWeight.w700 : FontWeight.w500, height: 1.4),
-                ),
-              ),
-            ],
-          ]),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _custom,
-          maxLines: 2,
-          maxLength: 500,
-          onChanged: (_) => setState(() => _selected = null),
-          decoration: InputDecoration(hintText: _t(context, 'أو اكتب رسالة من عندك…', 'Or write your own message…'), counterText: ''),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2)) : const Icon(Icons.send_rounded),
-          label: Text(_t(context, 'ابعت التحديث', 'Send update')),
-          onPressed: (_busy || (_selected == null && _custom.text.trim().isEmpty)) ? null : _send,
-        ),
-      ]);
-}
 
 Map<String, dynamic>? _openCancel(Map<String, dynamic> row) => List<Map<String, dynamic>>.from(row['cancel_requests'] as List? ?? const [])
     .where((c) => c['status'] == 'pending')

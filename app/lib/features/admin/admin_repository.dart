@@ -41,8 +41,9 @@ class AdminRepository {
     ];
   }
 
-  Future<void> setOrderStatus(String id, String to, {String? note}) =>
-      _db.rpc('staff_update_order_status', params: {'p_order_id': id, 'p_to': to, 'p_note': note});
+  /// Status change; an optional message goes on the same timeline entry and notification.
+  Future<void> setOrderStatus(String id, String to, {String? note, String? message}) =>
+      _db.rpc('staff_set_order_status', params: {'p_order_id': id, 'p_to': to, 'p_note': note, 'p_message': message});
 
   /// Message to the customer without changing the status (timeline + notification).
   Future<void> postOrderUpdate(String id, String message) =>

@@ -165,8 +165,9 @@ class _CancelReasonSheetState extends State<CancelReasonSheet> {
           Text(_t(context, 'هنراجع طلب الإلغاء وممكن نكلمك قبل ما نرد عليك.', 'We will review the request and may call you before replying.'),
               style: const TextStyle(color: BrandColors.gray, height: 1.5)),
           const SizedBox(height: 14),
-          Container(
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
+          Material(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
             clipBehavior: Clip.antiAlias,
             child: Column(children: [
               for (var i = 0; i < options.length; i++) ...[
