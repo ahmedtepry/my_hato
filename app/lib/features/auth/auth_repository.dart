@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -133,3 +136,28 @@ String? normalizeEgyptMobile(String input) {
   if (d.startsWith('01') && d.length == 11) d = '2$d';
   return RegExp(r'^201[0125]\d{8}$').hasMatch(d) ? '+$d' : null;
 }
+
+/// Sign-in methods switched on in Supabase Auth (public `/auth/v1/settings`). The login screen only
+/// shows buttons for enabled methods, so customers never land on a "provider is not enabled" page.
+/// Enabling Google/Facebook/phone in the Supabase dashboard makes the button appear without an update.
+class AuthProviders {
+  const AuthProviders({this.google = false, this.facebook = false, this.phone = false});
+  final bool google, facebook, phone;
+}
+
+final authProvidersProvider = FutureProvider<AuthProviders>((ref) async {
+  final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+  try {
+    final req = await client.getUrl(Uri.parse('${AppConfig.supabaseUrl}/auth/v1/settings'));
+    req.headers.set('apikey', AppConfig.supabaseAnonKey);
+    final res = await req.close().timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) return const AuthProviders();
+    final body = jsonDecode(await res.transform(utf8.decoder).join()) as Map<String, dynamic>;
+    final ext = (body['external'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return AuthProviders(google: ext['google'] == true, facebook: ext['facebook'] == true, phone: ext['phone'] == true);
+  } catch (_) {
+    return const AuthProviders(); // offline / unknown: show email sign-in only
+  } finally {
+    client.close(force: true);
+  }
+});
