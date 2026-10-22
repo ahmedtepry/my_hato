@@ -632,4 +632,20 @@ do $$ declare v_o uuid; v_rep uuid; v_ref text; v_phone text; begin
   perform t.reset();
 end $$;
 
+\echo 'T34 notifications: customer clears one or all (hidden, not deleted); others untouched'
+do $$ declare v_n int; v_one uuid; begin
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  select count(*) into v_n from public.notifications where user_id = auth.uid();
+  if v_n < 2 then raise exception 'T34 needs notifications (%)', v_n; end if;
+  select id into v_one from public.notifications where user_id = auth.uid() limit 1;
+  if public.customer_clear_notifications(v_one) <> 1 then raise exception 'T34 clear one'; end if;
+  if exists (select 1 from public.notifications where id = v_one) then raise exception 'T34 cleared still visible'; end if;
+  perform public.customer_clear_notifications();
+  if exists (select 1 from public.notifications where user_id = auth.uid()) then raise exception 'T34 clear all'; end if;
+  perform t.reset();
+  if (select count(*) from public.notifications where user_id = '00000000-0000-0000-0000-00000000000a') < v_n then raise exception 'T34 rows deleted'; end if;
+  if exists (select 1 from public.notifications where user_id <> '00000000-0000-0000-0000-00000000000a' and cleared_at is not null) then raise exception 'T34 touched others'; end if;
+  if not exists (select 1 from public.notifications where body_ar like '%لفريق المبيعات%') then raise exception 'T34 sales team text'; end if;
+end $$;
+
 \echo 'ALL BACKEND TESTS PASSED'
