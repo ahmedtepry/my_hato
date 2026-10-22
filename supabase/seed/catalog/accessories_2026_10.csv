@@ -1,0 +1,38 @@
+﻿sku,category,name_ar,name_en,price_egp,initial_stock,featured,photo_url
+MH-CASE-001,cases,جراب سيليكون ببطانة مخملية,Silicone case with soft velvet lining,79,500,,https://images.unsplash.com/photo-1535157412991-2ef801c1748b?auto=format&fit=crop&w=900&h=900&q=80
+MH-CASE-002,cases,جراب شفاف مقوّى ضد الصدمات,Clear shockproof case,99,300,,https://images.unsplash.com/photo-1697008230027-5c6ebaf24801?auto=format&fit=crop&w=900&h=900&q=80
+MH-CASE-003,cases,جراب شفاف بحلقة ماج سيف,Clear MagSafe case,99,150,yes,https://images.unsplash.com/photo-1697008230028-bce2fce98dfe?auto=format&fit=crop&w=900&h=900&q=80
+MH-CASE-004,cases,جراب منفوخ / ملمس جلد,Puffer / leather-look case,99,200,,https://images.unsplash.com/photo-1764855310912-15dee3625bf2?auto=format&fit=crop&w=900&h=900&q=80
+MH-CASE-005,cases,جراب بجيب للكروت,Card holder case,59,100,,https://images.unsplash.com/photo-1620786963525-4a74f1697a46?auto=format&fit=crop&w=900&h=900&q=80
+MH-CASE-006,cases,جراب حماية من المية بتعليقة,Waterproof phone pouch with lanyard,49,80,,https://images.unsplash.com/photo-1551679630-2eed87aefae6?auto=format&fit=crop&w=900&h=900&q=80
+MH-PROT-001,screen-protectors,إسكرينة زجاج كاملة 9D / 11D / 21D,Full-cover tempered glass 9D/11D/21D,49,200,,https://images.unsplash.com/photo-1567428486597-8c5328fd3816?auto=format&fit=crop&w=900&h=900&q=80
+MH-PROT-002,screen-protectors,إسكرينة خصوصية (Privacy),Privacy screen protector,49,100,,https://images.unsplash.com/photo-1618986919459-5f3fe5650c7e?auto=format&fit=crop&w=900&h=900&q=80
+MH-PROT-003,screen-protectors,إسكرينة مات للألعاب ضد البصمات,Matte anti-fingerprint gaming protector,49,100,,https://images.unsplash.com/photo-1544228865-7d73678c0f28?auto=format&fit=crop&w=900&h=900&q=80
+MH-PROT-004,screen-protectors,إسكرينة هيدروجيل مرنة,Flexible hydrogel screen protector,49,300,,https://images.unsplash.com/photo-1784986717521-1171550e9208?auto=format&fit=crop&w=900&h=900&q=80
+MH-PROT-005,screen-protectors,حماية عدسات الكاميرا المعدنية,Metal camera lens protector rings,49,150,,https://images.unsplash.com/photo-1763650287512-da3c19dd0129?auto=format&fit=crop&w=900&h=900&q=80
+MH-CABL-001,cables,كابل قماش مضفّر قوي (Type-C / Lightning),Braided charging cable (Type-C / Lightning),59,120,,https://images.unsplash.com/photo-1572721546624-05bf65ad7679?auto=format&fit=crop&w=900&h=900&q=80
+MH-CABL-002,cables,كابل سيليكون ناعم مقاوم للتآكل,Soft silicone cable,59,120,,https://images.unsplash.com/photo-1619459072761-496c0812331b?auto=format&fit=crop&w=900&h=900&q=80
+MH-CABL-003,cables,كابل 3 في 1 (Type-C + Micro + Lightning),3-in-1 cable (Type-C + Micro USB + Lightning),79,80,,https://images.unsplash.com/photo-1573868388390-2739872961e6?auto=format&fit=crop&w=900&h=900&q=80
+MH-CABL-004,cables,كابل بشاشة عرض قدرة الشحن,Cable with digital wattage display,99,40,,https://images.unsplash.com/photo-1607125516845-fa8a14db083a?auto=format&fit=crop&w=900&h=900&q=80
+MH-CABL-005,cables,وصلة Type-C / Lightning إلى AUX 3.5mm,Type-C / Lightning to 3.5mm AUX adapter,59,50,,https://images.unsplash.com/photo-1630955539632-7463e7d65b5b?auto=format&fit=crop&w=900&h=900&q=80
+MH-CABL-006,cables,محوّلات ووصلات صغيرة (OTG),OTG adapters,49,60,,https://images.unsplash.com/photo-1709660850064-0ec82e1a6b5d?auto=format&fit=crop&w=900&h=900&q=80
+MH-CHRG-001,chargers,شاحن GaN سريع 20W / 30W PD,GaN fast charger 20W / 30W PD,149,120,yes,https://images.unsplash.com/photo-1770417999831-1c070eb628e6?auto=format&fit=crop&w=900&h=900&q=80
+MH-CHRG-002,chargers,شاحن اقتصادي بمنفذين USB,Budget dual-USB charger,79,60,,https://images.unsplash.com/photo-1770418000074-fa16c0a53e82?auto=format&fit=crop&w=900&h=900&q=80
+MH-CHRG-003,chargers,شاحن سيارة معدني بمنفذين (سريع),Metal dual-port fast car charger,90,40,,https://images.unsplash.com/photo-1752552050371-8360f9c78086?auto=format&fit=crop&w=900&h=900&q=80
+MH-CHRG-004,chargers,مشترك كهرباء ذكي بمنافذ USB,Smart power strip with USB ports,240,20,,https://images.unsplash.com/photo-1581558775369-0fe7925f0035?auto=format&fit=crop&w=900&h=900&q=80
+MH-AUDI-001,headphones,سماعة سلك كلاسيك (3.5mm / Type-C),Classic wired earphones (3.5mm / Type-C),40,100,,https://images.unsplash.com/photo-1728583938892-9f45df2d4986?auto=format&fit=crop&w=900&h=900&q=80
+MH-AUDI-002,headphones,سماعة بلوتوث TWS بشاشة لعرض البطارية,TWS Bluetooth earbuds with battery display,250,50,yes,https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?auto=format&fit=crop&w=900&h=900&q=80
+MH-AUDI-003,headphones,سماعة رقبة رياضية بلوتوث,Sports Bluetooth neckband,180,60,,https://images.unsplash.com/photo-1606220945770-b5b6c2c55bf1?auto=format&fit=crop&w=900&h=900&q=80
+MH-AUDI-004,speakers,سماعة بلوتوث صغيرة (Mini Speaker),Mini Bluetooth speaker,190,30,,https://images.unsplash.com/photo-1547052178-7f2c5a20c332?auto=format&fit=crop&w=900&h=900&q=80
+MH-HOLD-001,holders,حامل سيارة مغناطيسي (تابلوه / تكييف),Magnetic car mount (dashboard / vent),60,60,,https://images.unsplash.com/photo-1771227241320-8fc5388259c7?auto=format&fit=crop&w=900&h=900&q=80
+MH-HOLD-002,holders,حامل سيارة أوتوماتيك بشاحن لاسلكي,Auto-clamping car mount with wireless charger,280,15,yes,https://images.unsplash.com/photo-1788580210830-dd1644bbc57c?auto=format&fit=crop&w=900&h=900&q=80
+MH-HOLD-003,holders,مسكة موبايل خلفية دائرية (PopSocket / Ring),Phone grip ring / PopSocket,15,150,,https://images.unsplash.com/photo-1698336953291-f16c1df744f1?auto=format&fit=crop&w=900&h=900&q=80
+MH-HOLD-004,holders,ستاند مكتب ألومنيوم قابل للطي,Foldable aluminium desk stand,110,30,,https://images.unsplash.com/photo-1780802369931-d6eee63ea4c2?auto=format&fit=crop&w=900&h=900&q=80
+MH-GAME-001,gaming,جوانتي أصابع للألعاب (زوج),Gaming finger sleeves (pair),15,200,,https://images.unsplash.com/photo-1564049489314-60d154ff107d?auto=format&fit=crop&w=900&h=900&q=80
+MH-GAME-002,gaming,مروحة تبريد للموبايل RGB,RGB phone cooler fan,220,20,,https://images.unsplash.com/photo-1762769152062-9581ad081c4c?auto=format&fit=crop&w=900&h=900&q=80
+MH-WATC-001,watch-accessories,سير ساعة (سيليكون / أوشن / قماش),Watch strap (silicone / ocean / nylon),60,100,,https://images.unsplash.com/photo-1713056878930-c5604da9acfd?auto=format&fit=crop&w=900&h=900&q=80
+MH-WATC-002,watch-accessories,جراب وحماية كاملة للساعة الذكية,Full-cover smartwatch case,45,70,,https://images.unsplash.com/photo-1616679063640-603332e632cc?auto=format&fit=crop&w=900&h=900&q=80
+MH-MISC-001,other-accessories,سلسلة / تعليقة موبايل للرقبة واليد,Phone lanyard (neck / wrist),30,80,,https://images.unsplash.com/photo-1756802137435-cfcd2ce56a83?auto=format&fit=crop&w=900&h=900&q=80
+MH-MISC-002,other-accessories,ميدالية تتبّع بلوتوث,Bluetooth tracker tag,110,30,,https://images.unsplash.com/photo-1567525884238-30bade6e1482?auto=format&fit=crop&w=900&h=900&q=80
+MH-MISC-003,other-accessories,طقم تنظيف الشاشات والسماعات,Screen & earbuds cleaning kit,40,40,,https://images.unsplash.com/photo-1692645214212-ea7fdb37ca6d?auto=format&fit=crop&w=900&h=900&q=80
+MH-BNDL-001,bundles,باكدج حماية متكامل (جراب + إسكرينة + حماية كاميرا + شاحن),Full protection bundle (case + screen + camera protector + charger),320,25,yes,https://images.unsplash.com/photo-1758218096054-ef3c7b56582c?auto=format&fit=crop&w=900&h=900&q=80
