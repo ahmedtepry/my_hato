@@ -22,8 +22,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     super.initState();
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
-      final done = ref.read(sharedPrefsProvider).getBool(onboardingDoneKey) ?? false;
-      context.go(done ? '/' : '/onboarding');
+      // no intro slides: straight to the store (language can be changed from My account)
+      context.go('/');
     });
   }
 

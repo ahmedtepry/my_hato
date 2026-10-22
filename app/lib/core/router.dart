@@ -62,7 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Paymob checkout returns here; the real result comes from the server, not from these URL params.
       GoRoute(path: '/payment-return', redirect: (_, __) => PendingPayment.returnRoute),
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
-      GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
+      GoRoute(path: '/onboarding', redirect: (_, __) => '/'),
       GoRoute(path: '/auth/login', builder: (_, s) => LoginScreen(redirect: s.uri.queryParameters['redirect'])),
       GoRoute(path: '/auth/register', builder: (_, s) => RegisterScreen(redirect: s.uri.queryParameters['redirect'])),
       GoRoute(
