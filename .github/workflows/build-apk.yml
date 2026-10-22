@@ -51,6 +51,7 @@ jobs:
         run: |
           mkdir -p /tmp/logs && (cp build.log /tmp/logs/build.log 2>/dev/null || echo "no log" > /tmp/logs/build.log)
           echo "run=${{ github.run_number }} sha=${{ github.sha }} result=${{ job.status }}" > /tmp/logs/meta.txt
+          cp app/test/goldens/*.png /tmp/logs/ 2>/dev/null || true
           git config user.name "ci-bot"; git config user.email "ci-bot@users.noreply.github.com"
           git checkout --orphan ci-logs
           git rm -rf --cached . -q
