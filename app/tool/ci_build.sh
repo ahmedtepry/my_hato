@@ -35,7 +35,7 @@ step "flutter pub get"; flutter pub get || exit 1
 step "launcher icons"; dart run flutter_launcher_icons || echo "WARN: icons step failed (non-fatal)"
 step "splash"; dart run flutter_native_splash:create || echo "WARN: splash step failed (non-fatal)"
 step "flutter analyze"; flutter analyze --no-fatal-infos --no-fatal-warnings; echo "analyze exit=$?"
-step "avatar preview"; flutter test --update-goldens test/avatars_golden_test.dart; echo "golden exit=$?"
+step "avatar preview"; flutter test --update-goldens test/avatars_golden_test.dart test/product_grid_golden_test.dart; echo "golden exit=$?"
 step "flutter test"; flutter test; echo "test exit=$?"
 step "flutter build apk --release"
 build_apk() {

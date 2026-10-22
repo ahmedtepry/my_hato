@@ -42,7 +42,7 @@ class ProductGridSkeleton extends StatelessWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.62),
+            crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.84),
         itemCount: count,
         itemBuilder: (_, __) => const Skeleton(height: double.infinity, radius: 16),
       );

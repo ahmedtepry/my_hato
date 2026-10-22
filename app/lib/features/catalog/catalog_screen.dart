@@ -198,7 +198,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 padding: const EdgeInsets.all(16),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 220, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.62),
+                      maxCrossAxisExtent: 220, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.84),
                   delegate: SliverChildBuilderDelegate((_, i) => ProductCard(p: _items[i]), childCount: _items.length),
                 ),
               ),

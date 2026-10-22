@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:flutter/services.dart';
+
+import '../features/cart/cart_repository.dart';
+import 'cart_toast.dart';
 import 'press_scale.dart';
 
 import '../core/l10n.dart';
@@ -50,6 +54,8 @@ class PriceBlock extends StatelessWidget {
   }
 }
 
+/// Product tile: edge-to-edge photo with discount badge and a quick "add to cart" button,
+/// compact name and price underneath — about 6 tiles fit on a phone screen.
 class ProductCard extends StatelessWidget {
   const ProductCard({super.key, required this.p, this.listStyle = false});
   final Map<String, dynamic> p;
@@ -59,52 +65,175 @@ class ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final discount = (p['discount_percent'] as num?)?.toInt() ?? 0;
     final inStock = p['in_stock'] == true;
-    final image = ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Stack(fit: StackFit.expand, children: [
-        Hero(tag: 'p-${p['id']}', child: NetImage(path: p['thumb_path'] as String?)),
-        if (discount > 0)
-          PositionedDirectional(
-            top: 8,
-            start: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: BrandColors.electric, borderRadius: BorderRadius.circular(8)),
-              child: Text('-$discount%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
-            ),
-          ),
-        if (!inStock)
-          Container(
-            color: Colors.white.withOpacity(0.6),
-            alignment: Alignment.center,
-            child: Text(context.tr('out_of_stock'), style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.error)),
-          ),
-      ]),
-    );
-    final info = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-      Text(context.pick(p, 'name'), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.3)),
-      const SizedBox(height: 6),
-      PriceBlock(price: (p['price_minor'] as num).toInt(), compareAt: (p['compare_at_price_minor'] as num?)?.toInt()),
-    ]);
-    return PressScale(
-      child: Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.push('/product/${p['id']}'),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: listStyle
-              ? Row(children: [SizedBox(width: 96, height: 96, child: image), const SizedBox(width: 12), Expanded(child: info)])
-              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  AspectRatio(aspectRatio: 1, child: image),
-                  const SizedBox(height: 10),
-                  info,
-                ]),
+    final price = (p['price_minor'] as num).toInt();
+    final compare = (p['compare_at_price_minor'] as num?)?.toInt();
+    final name = Text(context.pick(p, 'name'),
+        maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, height: 1.3));
+    final priceRow = Row(children: [
+      Flexible(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerStart,
+          child: Text(formatEgp(price, context.lang), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5, color: BrandColors.navy)),
         ),
       ),
-    ),
+      if (compare != null && compare > price) ...[
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(formatEgp(compare, context.lang),
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+              style: const TextStyle(decoration: TextDecoration.lineThrough, color: BrandColors.gray, fontSize: 11.5)),
+        ),
+      ],
+    ]);
+
+    final photo = Stack(fit: StackFit.expand, children: [
+      Container(
+        decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF4F7FB), Color(0xFFE9EEF6)])),
+      ),
+      Hero(tag: 'p-${p['id']}', child: NetImage(path: p['thumb_path'] as String?)),
+      if (discount > 0)
+        PositionedDirectional(
+          top: 8,
+          start: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFFFF5B5B), Color(0xFFFF8A3D)]),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text('-$discount%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11.5)),
+          ),
+        ),
+      if (!inStock)
+        Container(
+          color: Colors.white.withValues(alpha: 0.65),
+          alignment: Alignment.center,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: BrandColors.navy, borderRadius: BorderRadius.circular(20)),
+            child: Text(context.tr('out_of_stock'), style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 12)),
+          ),
+        ),
+      if (inStock) PositionedDirectional(end: 8, bottom: 8, child: _QuickAdd(productId: p['id'] as String)),
+    ]);
+
+    void open() => context.push('/product/${p['id']}');
+
+    if (listStyle) {
+      return PressScale(
+        child: _Shell(
+          onTap: open,
+          child: Row(children: [
+            SizedBox(width: 108, height: 108, child: photo),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [name, const SizedBox(height: 8), priceRow]),
+              ),
+            ),
+          ]),
+        ),
+      );
+    }
+    return PressScale(
+      child: _Shell(
+        onTap: open,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(child: photo),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              SizedBox(height: 36, child: Align(alignment: AlignmentDirectional.topStart, child: name)),
+              const SizedBox(height: 4),
+              priceRow,
+            ]),
+          ),
+        ]),
+      ),
     );
   }
+}
+
+/// White rounded tile with a soft shadow instead of a flat grey border.
+class _Shell extends StatelessWidget {
+  const _Shell({required this.child, required this.onTap});
+  final Widget child;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(color: BrandColors.navy.withValues(alpha: 0.07), blurRadius: 14, offset: const Offset(0, 5)),
+            BoxShadow(color: BrandColors.navy.withValues(alpha: 0.03), blurRadius: 2, offset: const Offset(0, 1)),
+          ],
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(onTap: onTap, child: child),
+        ),
+      );
+}
+
+/// Round "+" on the photo: adds one to the cart without opening the product (works for guests too).
+class _QuickAdd extends ConsumerStatefulWidget {
+  const _QuickAdd({required this.productId});
+  final String productId;
+  @override
+  ConsumerState<_QuickAdd> createState() => _QuickAddState();
+}
+
+class _QuickAddState extends ConsumerState<_QuickAdd> {
+  bool _busy = false;
+  bool _done = false;
+
+  Future<void> _add() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(cartProvider.notifier).add(widget.productId, null, 1);
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      showAddedToCart(context);
+      setState(() => _done = true);
+      await Future.delayed(const Duration(milliseconds: 1400));
+      if (mounted) setState(() => _done = false);
+    } catch (e) {
+      // products with options (colour / storage) are added from their page
+      if (mounted) context.push('/product/${widget.productId}');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: _done ? BrandColors.success : BrandColors.navy,
+        shape: const CircleBorder(),
+        elevation: 3,
+        shadowColor: Colors.black38,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _add,
+          child: SizedBox.square(
+            dimension: 34,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+              child: _busy
+                  ? const Padding(
+                      key: ValueKey('busy'), padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Icon(_done ? Icons.check_rounded : Icons.add_rounded, key: ValueKey(_done), color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+      );
 }
 
 class HorizontalProducts extends StatelessWidget {
@@ -112,13 +241,14 @@ class HorizontalProducts extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: 268,
+        height: 236,
         child: ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          clipBehavior: Clip.none,
           scrollDirection: Axis.horizontal,
           itemCount: items.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
-          itemBuilder: (_, i) => SizedBox(width: 165, child: ProductCard(p: items[i])),
+          itemBuilder: (_, i) => SizedBox(width: 158, child: ProductCard(p: items[i])),
         ),
       );
 }

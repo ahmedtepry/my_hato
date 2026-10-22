@@ -518,7 +518,7 @@ class FavoritesScreen extends ConsumerWidget {
             ? EmptyState(icon: Icons.favorite_border, title: context.tr('favorites'), action: context.tr('continue_shopping'), onAction: () => context.go('/'))
             : GridView.builder(
                 padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 220, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.62),
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 220, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.84),
                 itemCount: list.length,
                 itemBuilder: (_, i) => ProductCard(p: list[i]),
               ),
