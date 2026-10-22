@@ -1,6 +1,7 @@
 // Admin dashboard strings — Arabic (RTL) and English (LTR).
 export const STR = {
   ar: {
+    customerCode: "رقم العميل", username: "اسم المستخدم", customerSearch: "ابحث برقم العميل أو الاسم أو اسم المستخدم أو الموبايل أو الإيميل", unverified: "غير موثّق", resetPassword: "كلمة سر جديدة", resetPasswordNote: "استخدمها لما العميل يتواصل مع الدعم ويثبت إنه صاحب الحساب. ابعتله كلمة السر الجديدة وانصحه يغيّرها.", newPassword: "كلمة السر الجديدة", passwordRules: "8 حروف على الأقل وفيها حرف ورقم", passwordResetDone: "تم تعيين كلمة السر الجديدة",
     login: "تسجيل الدخول", email: "البريد الإلكتروني", password: "كلمة المرور", logout: "خروج", notStaff: "الحساب ده مش عنده صلاحيات موظف.",
     dashboard: "الرئيسية", orders: "الطلبات", repairs: "الصيانة", products: "المنتجات", categories: "الأقسام والماركات", banners: "البانرات",
     branches: "الفروع والتوصيل", customers: "العملاء", staff: "الموظفين", settings: "الإعدادات", emails: "الإيميلات", audit: "سجل العمليات",
@@ -48,6 +49,7 @@ export const STR = {
     method: "الوسيلة", txId: "رقم العملية", confirmCard: "حفظ البطاقة", apiKeyValid: "مفتاح API صالح", company: "الشركة", integrations: "Integration IDs (وسائل الدفع)", adminCardIntegration: "Integration بطاقة المسؤول",
   },
   en: {
+    customerCode: "Customer ID", username: "Username", customerSearch: "Search by customer ID, name, username, mobile or email", unverified: "Not verified", resetPassword: "New password", resetPasswordNote: "Use when the customer contacts support and proves the account is theirs. Send them the new password and advise them to change it.", newPassword: "New password", passwordRules: "At least 8 characters with a letter and a number", passwordResetDone: "New password set",
     login: "Sign in", email: "Email", password: "Password", logout: "Sign out", notStaff: "This account has no staff permissions.",
     dashboard: "Dashboard", orders: "Orders", repairs: "Repairs", products: "Products", categories: "Categories & brands", banners: "Banners",
     branches: "Branches & delivery", customers: "Customers", staff: "Staff", settings: "Settings", emails: "Emails", audit: "Audit log",

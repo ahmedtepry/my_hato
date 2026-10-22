@@ -700,18 +700,44 @@ async function pageBranches() {
 }
 
 async function pageCustomers() {
-  const q = (hashParams().get("q") ?? "").replace(/[^\w\s@.+\-؀-ۿ]/g, "");
-  let query = db.from("profiles").select("id, full_name, phone, phone_verified, email, created_at, deletion_requested_at").order("created_at", { ascending: false }).limit(200);
-  if (q) query = query.or(`full_name.ilike.*${q}*,phone.ilike.*${q}*,email.ilike.*${q}*`);
+  const q = (hashParams().get("q") ?? "").replace(/[^\w\s@.+\-؀-ۿ]/g, "").trim();
+  let query = db.from("customers").select("customer_code, user_id, username, full_name, email, phone, email_verified, created_at").order("created_at", { ascending: false }).limit(500);
+  if (q) {
+    const digits = q.replace(/\D/g, "");
+    const phoneQ = digits.startsWith("0") ? digits.slice(1) : digits;
+    query = query.or([`customer_code.ilike.*${q}*`, `username.ilike.*${q.toLowerCase()}*`, `full_name.ilike.*${q}*`, `email.ilike.*${q.toLowerCase()}*`, ...(phoneQ.length >= 4 ? [`phone.ilike.*${phoneQ}*`] : [])].join(","));
+  }
   const [{ data, error }, support] = await Promise.all([query, can("support.manage") ? db.from("customer_support_requests").select("*").order("created_at", { ascending: false }).limit(50) : { data: [] }]);
   if (error) throw error;
+  const localPhone = (p) => (p && p.startsWith("+20") ? "0" + p.slice(3) : p ?? "—");
+  const canReset = can("support.manage");
   shell(t("customers"), `
-    <div class="card"><form class="row" id="flt"><input name="q" value="${esc(q)}" placeholder="${t("search")}" style="max-width:300px" /><button class="btn">🔍</button></form>
-    <div class="table-wrap"><table><thead><tr><th>${t("name")}</th><th>${t("phone")}</th><th>${t("email")}</th><th>${t("date")}</th></tr></thead><tbody>
-    ${(data ?? []).map((c) => `<tr><td>${esc(c.full_name ?? "—")}${c.deletion_requested_at ? " " + chip(t("deletionRequests"), "bad") : ""}</td><td class="ltr">${esc(c.phone ?? "—")} ${c.phone_verified ? "✅" : ""}</td><td>${esc(c.email ?? "—")}</td><td>${fmtDate(c.created_at)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">${t("noData")}</td></tr>`}
+    <div class="card"><form class="row" id="flt"><input name="q" value="${esc(q)}" placeholder="${t("customerSearch")}" style="max-width:340px" /><button class="btn">🔍</button><span class="spacer"></span><button type="button" class="btn" id="csv">⬇ CSV</button></form>
+    <p class="muted"><small>${(data ?? []).length} ${t("customers")}</small></p>
+    <div class="table-wrap"><table><thead><tr><th>${t("customerCode")}</th><th>${t("name")}</th><th>${t("username")}</th><th>${t("phone")}</th><th>${t("email")}</th><th>${t("date")}</th><th></th></tr></thead><tbody>
+    ${(data ?? []).map((c) => `<tr><td><b class="ltr">${esc(c.customer_code)}</b></td><td>${esc(c.full_name ?? "—")}</td><td class="ltr">${c.username ? "@" + esc(c.username) : "—"}</td>
+      <td class="ltr">${esc(localPhone(c.phone))}</td><td class="ltr">${esc(c.email ?? "—")} ${c.email_verified ? chip("✓", "ok") : chip(t("unverified"), "warn")}</td><td>${fmtDate(c.created_at)}</td>
+      <td>${canReset ? `<button class="btn sm" data-reset="${c.user_id}" data-code="${esc(c.customer_code)}">🔑 ${t("resetPassword")}</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">${t("noData")}</td></tr>`}
     </tbody></table></div></div>
     ${can("support.manage") ? `<div class="card" style="margin-top:14px"><h3>${t("support_requests")}</h3><table>${(support.data ?? []).map((s) => `<tr><td><b>${esc(s.subject)}</b><br>${esc(s.message)}</td><td>${chip(s.status, s.status === "closed" ? "muted" : "warn")}</td><td><small>${fmtDate(s.created_at)}</small></td><td>${s.status !== "closed" ? `<button class="btn sm" data-close-sr="${s.id}">✔</button>` : ""}</td></tr>`).join("") || `<tr><td class="muted">${t("noData")}</td></tr>`}</table></div>` : ""}`);
   $("#flt").addEventListener("submit", (e) => { e.preventDefault(); location.hash = `#/customers?q=${encodeURIComponent(new FormData(e.target).get("q"))}`; });
+  $("#csv").onclick = () => {
+    const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [["customer_code", "full_name", "username", "phone", "email", "email_verified", "created_at"],
+      ...(data ?? []).map((c) => [c.customer_code, c.full_name, c.username, localPhone(c.phone), c.email, c.email_verified ? "yes" : "no", c.created_at])];
+    const blob = new Blob(["﻿" + rows.map((r) => r.map(cell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `myhato-customers-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  on("[data-reset]", "click", async (e) => {
+    const { reset, code } = e.currentTarget.dataset;
+    const r = await modal(`<form><h3>🔑 ${t("resetPassword")} — <span class="ltr">${esc(code)}</span></h3><p class="muted"><small>${t("resetPasswordNote")}</small></p>
+      <label>${t("newPassword")}</label><input name="password" class="ltr" minlength="8" maxlength="72" required autocomplete="new-password" />
+      <p class="row"><span class="spacer"></span><button type="button" class="btn" data-close>${t("cancel")}</button><button class="btn primary">${t("confirm")}</button></p></form>`);
+    if (!r) return;
+    if (!/^(?=.*[A-Za-z؀-ۿ])(?=.*\d).{8,72}$/.test(r.password)) return toast(t("passwordRules"), true);
+    await run(() => invokeFn("admin-customer", { action: "reset_password", user_id: reset, password: r.password }), t("passwordResetDone"));
+  });
   on("[data-close-sr]", "click", async (e) => { await run(() => db.from("customer_support_requests").update({ status: "closed" }).eq("id", e.currentTarget.dataset.closeSr).then(({ error }) => { if (error) throw error; })); render(); });
 }
 
