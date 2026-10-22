@@ -389,7 +389,8 @@ class _RepairDetailsScreenState extends ConsumerState<RepairDetailsScreen> {
     final labels = ref.watch(repairLabelsProvider).valueOrNull;
     final lang = context.lang;
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('repair_request'))),
+      appBar: AppBar(leading: const BackOrHomeButton(), title: Text(context.tr('repair_request'))),
+      bottomNavigationBar: const BackHomeBar(),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(repairProvider(widget.id))),

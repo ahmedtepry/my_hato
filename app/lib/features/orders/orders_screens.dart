@@ -134,7 +134,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     final data = ref.watch(orderProvider(widget.id));
     final lang = context.lang;
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('view_order'))),
+      appBar: AppBar(leading: const BackOrHomeButton(), title: Text(context.tr('view_order'))),
+      bottomNavigationBar: const BackHomeBar(),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(orderProvider(widget.id))),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/errors.dart';
 import '../core/l10n.dart';
@@ -112,5 +113,30 @@ class StatusChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
         child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
+      );
+}
+
+
+/// AppBar leading button: back when there is a previous page, otherwise a home button
+/// (e.g. right after submitting a repair or placing an order, where the stack was replaced).
+class BackOrHomeButton extends StatelessWidget {
+  const BackOrHomeButton({super.key});
+  @override
+  Widget build(BuildContext context) => context.canPop()
+      ? const BackButton()
+      : IconButton(icon: const Icon(Icons.home_rounded), tooltip: context.tr('back_home'), onPressed: () => context.go('/'));
+}
+
+/// "Back to home" button pinned to the bottom of detail screens.
+class BackHomeBar extends StatelessWidget {
+  const BackHomeBar({super.key});
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: OutlinedButton.icon(
+          onPressed: () => context.go('/'),
+          icon: const Icon(Icons.home_rounded),
+          label: Text(context.tr('back_home')),
+        ),
       );
 }
