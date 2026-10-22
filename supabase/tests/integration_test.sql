@@ -238,7 +238,7 @@ do $$ declare v_o uuid := (select v from t.ids where k='order1'); begin
   perform t.act('00000000-0000-0000-0000-00000000000a');
   if (select status from public.orders where id = v_o) <> 'ready_for_pickup' then raise exception 'T12 customer status'; end if;
   if (select count(*) from public.order_status_history where order_id = v_o) <> 4 then raise exception 'T12 history'; end if;
-  if not exists (select 1 from public.notifications where entity_id = v_o and body_ar like '%جاهز للاستلام%') then raise exception 'T12 notification'; end if;
+  if not exists (select 1 from public.notifications where entity_id = v_o and body_ar like '%جاهز تستلمه%') then raise exception 'T12 notification'; end if;
   perform t.reset();
 end $$;
 
@@ -511,6 +511,29 @@ do $$ declare v_ref text; v_phone text; r jsonb; i int; begin
   -- 6 tries per repair number per 15 minutes (3 used above)
   for i in 1..3 loop perform public.guest_repair_lookup(v_ref, '01099999999'); end loop;
   if public.guest_repair_lookup(v_ref, v_phone)->>'error' is distinct from 'RATE_LIMITED' then raise exception 'T29 no limit'; end if;
+  perform t.reset();
+end $$;
+
+\echo 'T30 order tracking: shipped step for delivery only; staff update reaches the customer without a status change'
+do $$ declare v_o uuid := (select v from t.ids where k='order1'); v_st public.order_status; v_n int; begin
+  if not exists (select 1 from public.order_transitions where from_status='preparing' and to_status='shipped' and fulfillment='delivery')
+     or exists (select 1 from public.order_transitions where to_status='shipped' and fulfillment is distinct from 'delivery') then
+    raise exception 'T30 shipped transitions';
+  end if;
+  select status into v_st from public.orders where id = v_o;
+  select count(*) into v_n from public.notifications;
+  perform t.act('00000000-0000-0000-0000-0000000000c1');
+  begin perform public.staff_post_order_update(v_o, 'x'); raise exception 'T30 tech allowed';
+  exception when insufficient_privilege then null; end;
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  begin perform public.staff_post_order_update(v_o, '   '); raise exception 'T30 empty allowed';
+  exception when raise_exception then if sqlerrm <> 'INVALID_INPUT' then raise; end if; end;
+  perform public.staff_post_order_update(v_o, 'هيوصلك مع المندوب بكرة');
+  if (select status from public.orders where id = v_o) <> v_st then raise exception 'T30 status changed'; end if;
+  if not exists (select 1 from public.order_status_history where order_id = v_o and customer_message = 'هيوصلك مع المندوب بكرة') then
+    raise exception 'T30 no timeline entry';
+  end if;
+  if (select count(*) from public.notifications) <> v_n + 1 then raise exception 'T30 not notified'; end if;
   perform t.reset();
 end $$;
 
