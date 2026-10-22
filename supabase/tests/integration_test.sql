@@ -107,7 +107,7 @@ do $$ declare v_total bigint; begin
   perform t.reset();
 end $$;
 
-\echo 'T07 unverified phone cannot place order'
+\echo 'T07 unverified account (no confirmed email or phone) cannot place order'
 do $$ begin
   perform t.act('00000000-0000-0000-0000-0000000000c3');
   perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 1);
@@ -115,8 +115,49 @@ do $$ begin
     perform public.place_order('unverified-key-1', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null);
     raise exception 'T07 failed';
   exception when raise_exception then
-    if sqlerrm <> 'PHONE_NOT_VERIFIED' then raise; end if;
+    if sqlerrm <> 'ACCOUNT_NOT_VERIFIED' then raise; end if;
   end;
+  perform t.reset();
+end $$;
+
+\echo 'T07b email OTP verification: flag synced from auth, not client-writable; contact phone rules'
+do $$ begin
+  insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000e1', 'mail@test.local', '{"full_name":"Mail User"}');
+  if (select email_verified from public.profiles where id = '00000000-0000-0000-0000-0000000000e1') then raise exception 'T07b: verified before OTP'; end if;
+  update auth.users set email_confirmed_at = now() where id = '00000000-0000-0000-0000-0000000000e1';  -- Supabase Auth after a correct code
+  if not (select email_verified from public.profiles where id = '00000000-0000-0000-0000-0000000000e1') then raise exception 'T07b: confirm not synced'; end if;
+
+  perform t.act('00000000-0000-0000-0000-0000000000c3');
+  begin
+    update public.profiles set email_verified = true where id = auth.uid();
+    raise exception 'T07b failed: client set email_verified';
+  exception when insufficient_privilege then null; end;
+  begin
+    update public.profiles set contact_phone = '0101' where id = auth.uid();
+    raise exception 'T07b failed: bad phone accepted';
+  exception when check_violation then null; end;
+  perform t.reset();
+
+  -- email-verified account without any phone: pickup needs a contact phone first
+  perform t.act('00000000-0000-0000-0000-0000000000e1');
+  perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 1);
+  begin
+    perform public.place_order('email-user-key-1', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null);
+    raise exception 'T07b failed: order without phone';
+  exception when raise_exception then
+    if sqlerrm <> 'PHONE_REQUIRED' then raise; end if;
+  end;
+  update public.profiles set contact_phone = '+201044444444' where id = auth.uid();
+  begin  -- succeeds, then roll the order back so later stock assertions are unaffected
+    if (select customer_phone from public.orders where id = (public.place_order('email-user-key-2', 'pickup', 'pay_at_branch',
+          (select id from public.branches limit 1), null, null) ->> 'order_id')::uuid) <> '+201044444444' then
+      raise exception 'T07b failed: wrong order phone';
+    end if;
+    raise exception 'T07B_ROLLBACK';
+  exception when raise_exception then
+    if sqlerrm <> 'T07B_ROLLBACK' then raise; end if;
+  end;
+  perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 0);
   perform t.reset();
 end $$;
 
