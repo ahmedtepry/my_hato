@@ -49,7 +49,9 @@ class ProfileScreen extends ConsumerWidget {
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(profileProvider)),
         data: (p) {
           final created = DateTime.parse((p?['created_at'] ?? user.createdAt) as String).toLocal();
-          final verified = p?['phone_verified'] == true;
+          final verified = isAccountVerified(p);
+          final emailVerified = p?['email_verified'] == true;
+          final phone = reachablePhone(p) ?? (p?['phone'] as String?);
           final avatar = ref.watch(_avatarUrlProvider).valueOrNull;
           return ListView(padding: const EdgeInsets.all(16), children: [
             Card(
@@ -67,12 +69,14 @@ class ProfileScreen extends ConsumerWidget {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text((p?['full_name'] as String?)?.isNotEmpty == true ? p!['full_name'] as String : '—',
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-                      if (p?['email'] != null) Text(p!['email'] as String, style: const TextStyle(color: BrandColors.gray)),
-                      Row(children: [
-                        Directionality(textDirection: TextDirection.ltr, child: Text((p?['phone'] as String?) ?? '—')),
-                        const SizedBox(width: 6),
-                        StatusChip(label: verified ? context.tr('verified') : context.tr('not_verified'), color: verified ? BrandColors.success : BrandColors.warning),
-                      ]),
+                      if (p?['email'] != null)
+                        Directionality(textDirection: TextDirection.ltr, child: Text(p!['email'] as String, style: const TextStyle(color: BrandColors.gray))),
+                      if (phone != null) Directionality(textDirection: TextDirection.ltr, child: Text(phone)),
+                      const SizedBox(height: 4),
+                      StatusChip(
+                        label: verified ? context.tr('account_verified') : context.tr('account_not_verified'),
+                        color: verified ? BrandColors.success : BrandColors.warning,
+                      ),
                       Text(context.tr('member_since', {'date': DateFormat.yMMMd(context.lang).format(created)}),
                           style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
                     ]),
@@ -80,13 +84,27 @@ class ProfileScreen extends ConsumerWidget {
                 ]),
               ),
             ),
-            if (!verified)
+            if (!verified && !emailVerified && p?['email'] != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: FilledButton.icon(
-                  icon: const Icon(Icons.verified_user_outlined),
-                  label: Text(context.tr('verify_phone_title')),
-                  onPressed: () => context.push('/auth/phone?mode=verify&redirect=%2Faccount'),
+                  icon: const Icon(Icons.mark_email_read_outlined),
+                  label: Text(context.tr('verify_email_title')),
+                  onPressed: () => context.push('/auth/verify-email?${Uri(queryParameters: {
+                        'email': p!['email'] as String,
+                        'purpose': 'signup',
+                        'send': '1',
+                        'redirect': '/account',
+                      }).query}'),
+                ),
+              ),
+            if (phone == null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.phone_outlined),
+                  label: Text(context.tr('add_contact_phone')),
+                  onPressed: () => context.push('/account/edit'),
                 ),
               ),
             const SizedBox(height: 12),
@@ -170,10 +188,16 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final _name = TextEditingController(text: (ref.read(profileProvider).valueOrNull?['full_name'] as String?) ?? '');
+  late final _phone = TextEditingController(text: _localPhone(ref.read(profileProvider).valueOrNull?['contact_phone'] as String?));
   bool _busy = false;
+  String? _phoneError;
+
+  static String _localPhone(String? e164) => (e164 != null && e164.startsWith('+20')) ? '0${e164.substring(3)}' : (e164 ?? '');
+
   @override
   void dispose() {
     _name.dispose();
+    _phone.dispose();
     super.dispose();
   }
 
@@ -199,15 +223,37 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             ),
           ),
           TextField(controller: _name, decoration: InputDecoration(labelText: context.tr('full_name'))),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _phone,
+            keyboardType: TextInputType.phone,
+            textDirection: TextDirection.ltr,
+            decoration: InputDecoration(
+              labelText: context.tr('contact_phone'),
+              hintText: '01XXXXXXXXX',
+              helperText: context.tr('contact_phone_help'),
+              errorText: _phoneError,
+              prefixIcon: const Icon(Icons.phone_outlined),
+            ),
+          ),
           const SizedBox(height: 20),
           FilledButton(
             onPressed: _busy
                 ? null
                 : () async {
                     if (_name.text.trim().length < 2) return;
-                    setState(() => _busy = true);
+                    final raw = _phone.text.trim();
+                    final phone = raw.isEmpty ? '' : normalizeEgyptMobile(raw);
+                    if (phone == null) {
+                      setState(() => _phoneError = context.tr('invalid_phone'));
+                      return;
+                    }
+                    setState(() {
+                      _phoneError = null;
+                      _busy = true;
+                    });
                     try {
-                      await ref.read(profileRepoProvider).update(fullName: _name.text);
+                      await ref.read(profileRepoProvider).update(fullName: _name.text, contactPhone: phone);
                       ref.invalidate(profileProvider);
                       if (context.mounted) {
                         showSnack(context, context.tr('saved'));

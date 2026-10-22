@@ -86,10 +86,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final addresses = ref.watch(addressesProvider);
     final p = profile.valueOrNull;
     final onlineEnabled = ref.watch(onlinePaymentsEnabledProvider).valueOrNull ?? false;
-    final phoneVerified = p?['phone_verified'] == true;
+    final verified = isAccountVerified(p);
+    final phone = reachablePhone(p);
+    final hasPhone = phone != null || _fulfillment == 'delivery';
     final subtotal = cart?.subtotal ?? 0;
     final fee = _fulfillment == 'delivery' ? (_deliveryFee ?? 0) : 0;
-    final ready = phoneVerified &&
+    final ready = verified &&
+        hasPhone &&
         (cart?.lines.isNotEmpty ?? false) &&
         ((_fulfillment == 'pickup' && _branchId != null) || (_fulfillment == 'delivery' && _addressId != null && _deliveryFee != null));
 
@@ -101,17 +104,33 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           child: ListTile(
             leading: const Icon(Icons.person_outline),
             title: Text((p?['full_name'] as String?) ?? '—'),
-            subtitle: Directionality(textDirection: TextDirection.ltr, child: Text((p?['phone'] as String?) ?? '—', textAlign: context.isAr ? TextAlign.end : TextAlign.start)),
-            trailing: phoneVerified
+            subtitle: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Text(phone ?? (p?['email'] as String?) ?? '—', textAlign: context.isAr ? TextAlign.end : TextAlign.start),
+            ),
+            trailing: verified
                 ? StatusChip(label: context.tr('verified'), color: BrandColors.success)
                 : TextButton(
-                    onPressed: () => context.push('/auth/phone?mode=verify&redirect=%2Fcheckout'),
+                    onPressed: () => context.push('/auth/verify-email?${Uri(queryParameters: {
+                          'email': (p?['email'] as String?) ?? '',
+                          'purpose': 'signup',
+                          'send': '1',
+                          'redirect': '/checkout',
+                        }).query}'),
                     child: Text(context.tr('verify')),
                   ),
           ),
         ),
-        if (!phoneVerified)
-          Padding(padding: const EdgeInsets.only(top: 6), child: Text(context.tr('err_phone_not_verified'), style: const TextStyle(color: BrandColors.error))),
+        if (!verified)
+          Padding(padding: const EdgeInsets.only(top: 6), child: Text(context.tr('err_account_not_verified'), style: const TextStyle(color: BrandColors.error))),
+        if (verified && !hasPhone)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(children: [
+              Expanded(child: Text(context.tr('err_phone_required'), style: const TextStyle(color: BrandColors.error))),
+              TextButton(onPressed: () => context.push('/account/edit'), child: Text(context.tr('add_contact_phone'))),
+            ]),
+          ),
         _h(context.tr('fulfillment')),
         SegmentedButton<String>(
           segments: [
