@@ -458,7 +458,7 @@ async function pageProduct(id) {
     const r = await db.from("products").select("*, product_images(*), product_360_assets(*), product_specifications(*), product_variants(*)").eq("id", id).single();
     if (r.error) throw r.error; p = r.data;
   }
-  const imgUrl = (b, path) => db.storage.from(b).getPublicUrl(path).data.publicUrl;
+  const imgUrl = (b, path) => (/^https:\/\//.test(path) ? path : db.storage.from(b).getPublicUrl(path).data.publicUrl);
   const sel = (list, cur) => (list ?? []).map((x) => `<option value="${x.id}" ${x.id === cur ? "selected" : ""}>${pick(x, "name")}${x.kind ? ` (${t(x.kind)})` : ""}</option>`).join("");
   shell(isNew ? t("newProduct") : pick(p, "name"), `
     <form id="pf" class="card">
@@ -568,7 +568,10 @@ async function pageProduct(id) {
   on("[data-delimg]", "click", async (e) => {
     const { delimg, path } = e.currentTarget.dataset;
     if (!(await confirmBox(t("confirmQ")))) return;
-    await run(async () => { await db.storage.from("product-images").remove([path]); const { error } = await db.from("product_images").delete().eq("id", delimg); if (error) throw error; });
+    await run(async () => {
+      if (!/^https:\/\//.test(path)) await db.storage.from("product-images").remove([path]); // linked photos have no stored file
+      const { error } = await db.from("product_images").delete().eq("id", delimg); if (error) throw error;
+    });
     render();
   });
   $("#spf").addEventListener("submit", async (e) => {
@@ -657,7 +660,7 @@ async function pageCategories() {
 async function pageBanners() {
   const { data } = await db.from("banners").select("*").order("sort_order");
   const fields = [["title_ar", t("titleAr")], ["title_en", t("titleEn")], ["image", t("upload"), "file"], ["link_type", t("link"), "select", [["", "—"], ["product", "product"], ["category", "category"], ["repair", "repair"]]], ["link_value", "ID"], ["sort_order", t("order"), "number"], ["is_active", t("active"), "check"]];
-  const url = (p) => db.storage.from("banners").getPublicUrl(p).data.publicUrl;
+  const url = (p) => (/^https:\/\//.test(p ?? "") ? p : db.storage.from("banners").getPublicUrl(p).data.publicUrl);
   shell(t("banners"), `<div class="card">${crudTable(data ?? [], [["image_path", "", (r) => `<img src="${esc(url(r.image_path))}" style="width:140px;height:60px;object-fit:cover;border-radius:8px" alt="">`], ["title_ar", t("name"), (r) => pick(r, "title")], ["is_active", t("active"), (r) => (r.is_active ? "✅" : "—")]], "bn")}</div>`, `<button class="btn primary" id="add">＋ ${t("add")}</button>`);
   const save = async (row) => {
     const v = await editRow("banners", row, fields); if (!v) return;
