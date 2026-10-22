@@ -168,10 +168,7 @@ class _Shell extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(color: BrandColors.navy.withValues(alpha: 0.07), blurRadius: 14, offset: const Offset(0, 5)),
-            BoxShadow(color: BrandColors.navy.withValues(alpha: 0.03), blurRadius: 2, offset: const Offset(0, 1)),
-          ],
+          boxShadow: [BoxShadow(color: BrandColors.navy.withValues(alpha: 0.07), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -249,7 +246,7 @@ class HorizontalProducts extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           itemCount: items.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
-          itemBuilder: (_, i) => FadeSlideIn(delay: FadeSlideIn.stagger(i, stepMs: 70), offset: 24, child: SizedBox(width: 158, child: ProductCard(p: items[i]))),
+          itemBuilder: (_, i) => FadeSlideIn(id: 'h-${items[i]['id']}', delay: FadeSlideIn.stagger(i), child: SizedBox(width: 158, child: ProductCard(p: items[i]))),
         ),
       );
 }

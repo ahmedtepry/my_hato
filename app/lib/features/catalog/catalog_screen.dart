@@ -200,7 +200,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 220, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.84),
-                  delegate: SliverChildBuilderDelegate((_, i) => FadeSlideIn(delay: FadeSlideIn.stagger(i % 8), child: ProductCard(p: _items[i])), childCount: _items.length),
+                  delegate: SliverChildBuilderDelegate((_, i) => FadeSlideIn(id: 'g-${_items[i]['id']}', delay: FadeSlideIn.stagger(i % 8), child: ProductCard(p: _items[i])), childCount: _items.length),
                 ),
               ),
               SliverToBoxAdapter(child: footer),
@@ -210,7 +210,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               padding: const EdgeInsets.all(16),
               itemCount: _items.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => i == _items.length ? footer : FadeSlideIn(delay: FadeSlideIn.stagger(i % 8), child: ProductCard(p: _items[i], listStyle: true)),
+              itemBuilder: (_, i) => i == _items.length ? footer : FadeSlideIn(id: 'l-${_items[i]['id']}', delay: FadeSlideIn.stagger(i % 8), child: ProductCard(p: _items[i], listStyle: true)),
             ),
     );
   }

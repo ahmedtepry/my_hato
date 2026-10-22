@@ -31,6 +31,15 @@ printf "storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$KS" "$S
 python3 tool/patch_signing.py || exit 1
 grep -nE "applicationId|minSdk|signingConfig" "$G"
 
+step "bundle fonts"
+mkdir -p assets/google_fonts
+for w in Regular Medium Bold ExtraBold Black; do
+  curl -sSfL "https://github.com/google/fonts/raw/main/ofl/tajawal/Tajawal-$w.ttf" -o "assets/google_fonts/Tajawal-$w.ttf" || echo "WARN: Tajawal-$w download failed"
+done
+for w in Regular Medium SemiBold Bold ExtraBold Black; do
+  curl -sSfL "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-$w.ttf" -o "assets/google_fonts/Poppins-$w.ttf" || echo "WARN: Poppins-$w download failed"
+done
+ls -la assets/google_fonts
 step "flutter pub get"; flutter pub get || exit 1
 step "launcher icons"; dart run flutter_launcher_icons || echo "WARN: icons step failed (non-fatal)"
 step "splash"; dart run flutter_native_splash:create || echo "WARN: splash step failed (non-fatal)"

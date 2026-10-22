@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -45,7 +46,7 @@ const _looks = <String, _Look>{
   'f4': _Look(bg: [Color(0xFF14B8A6), Color(0xFF99F6E4)], skin: Color(0xFFE8B48F), hair: _Hair.hijab, hairColor: Color(0xFF7C3AED), shirt: Color(0xFF7C3AED), accent: Color(0xFFFFFFFF), female: true),
 };
 
-/// One avatar. [animate] adds blinking and a soft breathing bob (off in tiny places like the nav bar).
+/// One avatar. [animate] adds an occasional blink (off in tiny places).
 class HatoAvatar extends StatefulWidget {
   const HatoAvatar({super.key, required this.id, this.size = 64, this.animate = true});
   final String id;
@@ -57,24 +58,38 @@ class HatoAvatar extends StatefulWidget {
 }
 
 class _HatoAvatarState extends State<HatoAvatar> with SingleTickerProviderStateMixin {
-  // blink offset per avatar so a grid of them doesn't blink in sync
-  late final _c = AnimationController(vsync: this, duration: Duration(milliseconds: 3600 + 300 * avatarIds.indexOf(widget.id).clamp(0, 7)));
+  // A 0.22 s blink fired by a timer every few seconds: the avatar is a still picture in between,
+  // so it costs nothing while idle (no per-frame repaint).
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
+  Timer? _timer;
+
+  void _sync() {
+    if (widget.animate && _timer == null) {
+      final every = Duration(milliseconds: 3800 + 350 * avatarIds.indexOf(widget.id).clamp(0, 7));
+      _timer = Timer.periodic(every, (_) {
+        if (mounted) _c.forward(from: 0);
+      });
+    } else if (!widget.animate && _timer != null) {
+      _timer!.cancel();
+      _timer = null;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    if (widget.animate) _c.repeat();
+    _sync();
   }
 
   @override
   void didUpdateWidget(covariant HatoAvatar old) {
     super.didUpdateWidget(old);
-    if (widget.animate && !_c.isAnimating) _c.repeat();
-    if (!widget.animate && _c.isAnimating) _c.stop();
+    _sync();
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _c.dispose();
     super.dispose();
   }
@@ -89,10 +104,8 @@ class _HatoAvatarState extends State<HatoAvatar> with SingleTickerProviderStateM
           animation: _c,
           builder: (_, __) {
             final t = _c.value;
-            // quick blink near the end of each cycle
-            final b = t < 0.94 ? 1.0 : (1 - math.sin((t - 0.94) / 0.06 * math.pi)).clamp(0.08, 1.0);
-            final bob = widget.animate ? math.sin(t * 2 * math.pi) : 0.0;
-            return CustomPaint(painter: _AvatarPainter(look, blink: b, bob: bob));
+            final b = (_c.isAnimating ? 1 - math.sin(t * math.pi) : 1.0).clamp(0.08, 1.0).toDouble();
+            return CustomPaint(painter: _AvatarPainter(look, blink: b, bob: 0));
           },
         ),
       ),

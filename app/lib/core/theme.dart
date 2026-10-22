@@ -34,12 +34,14 @@ class AppTheme {
         error: BrandColors.error,
       ),
       scaffoldBackgroundColor: BrandColors.offWhite,
-      // soft "sparkle" touch ripple and a quick, gentle highlight on every tappable surface
-      splashFactory: InkSparkle.splashFactory,
+      // light ripple (InkSparkle needs a shader warm-up that stutters on some Android phones)
+      splashFactory: InkRipple.splashFactory,
       highlightColor: BrandColors.electric.withValues(alpha: 0.04),
     );
-    // Readex Pro: one modern rounded family for Arabic and English
-    final text = GoogleFonts.readexProTextTheme(base.textTheme);
+    // Tajawal for Arabic, Poppins for English — bundled in the APK (assets/google_fonts), no download wait
+    final text = locale.languageCode == 'ar'
+        ? GoogleFonts.tajawalTextTheme(base.textTheme)
+        : GoogleFonts.poppinsTextTheme(base.textTheme);
     return base.copyWith(
       textTheme: text.apply(bodyColor: BrandColors.navy, displayColor: BrandColors.navy),
       appBarTheme: AppBarTheme(
