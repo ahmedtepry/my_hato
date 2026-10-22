@@ -36,6 +36,16 @@ jobs:
           name: myhato-release-apk
           path: dist/myhato-release.apk
           if-no-files-found: ignore
+      - name: Publish APK as a GitHub release (direct download on the phone)
+        if: success()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          VER=$(grep -m1 '^version:' app/pubspec.yaml | awk '{print $2}')
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" dist/myhato-release.apk --target "${{ github.sha }}" \
+            --title "My Hatō ${VER} (build ${{ github.run_number }})" \
+            --notes "Release APK built from ${{ github.sha }}. Install on Android: download myhato-release.apk and open it (allow installing from this source)." \
+            --latest
       - name: Publish build log to ci-logs branch
         if: always()
         run: |
@@ -45,5 +55,6 @@ jobs:
           git checkout --orphan ci-logs
           git rm -rf --cached . -q
           rm -rf logs && cp -r /tmp/logs logs
-          git add -f logs && git commit -qm "build log #${{ github.run_number }}"
+          [ -f dist/myhato-release.apk ] && mkdir -p apk && cp dist/myhato-release.apk apk/
+          git add -f logs $( [ -d apk ] && echo apk ) && git commit -qm "build log #${{ github.run_number }}"
           git push -f origin ci-logs
