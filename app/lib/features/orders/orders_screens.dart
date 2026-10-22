@@ -153,8 +153,13 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Flexible(child: CopyCode(code: o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
-                      const Spacer(),
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: CopyCode(code: o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       StatusChip(label: context.tr('os_$status'), color: orderStatusColor(status)),
                     ]),
                     const SizedBox(height: 8),

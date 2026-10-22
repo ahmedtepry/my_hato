@@ -42,7 +42,14 @@ class _CopyCodeState extends State<CopyCode> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Directionality(textDirection: TextDirection.ltr, child: Text(widget.code, style: widget.style)),
+            // shrinks to fit narrow spaces instead of running out of its card
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.centerStart,
+                child: Directionality(textDirection: TextDirection.ltr, child: Text(widget.code, style: widget.style, maxLines: 1)),
+              ),
+            ),
             const SizedBox(width: 8),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
