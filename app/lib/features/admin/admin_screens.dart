@@ -355,24 +355,14 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           Text(formatEgp((o['total_minor'] as num).toInt(), context.lang), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
         ]),
         const SizedBox(height: 16),
-        if (next.isNotEmpty) Text(_t(context, 'غيّر الحالة إلى', 'Move to'), style: const TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        for (final s in next)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: s == 'cancelled'
-                ? OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(foregroundColor: BrandColors.error),
-                    icon: const Icon(Icons.cancel_outlined),
-                    label: Text(context.tr('os_$s')),
-                    onPressed: () => _changeOrder(ctx, ref, o['id'] as String, s, askNote: true),
-                  )
-                : FilledButton.icon(
-                    icon: const Icon(Icons.arrow_forward_rounded),
-                    label: Text(context.tr('os_$s')),
-                    onPressed: () => _changeOrder(ctx, ref, o['id'] as String, s),
-                  ),
-          ),
+        _StatusPicker(
+          current: o['status'] as String,
+          options: next,
+          label: (s) => context.tr('os_$s'),
+          color: _orderColor,
+          isNegative: (s) => s == 'cancelled',
+          onConfirm: (s) => _changeOrder(ctx, ref, o['id'] as String, s, askNote: s == 'cancelled'),
+        ),
       ]),
     ),
   );
@@ -509,22 +499,14 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
               },
             ),
           ),
-        if (next.isNotEmpty) Text(_t(context, 'غيّر الحالة إلى', 'Move to'), style: const TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        for (final s in next)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: (s == 'cancelled' || s == 'unrepairable')
-                ? OutlinedButton(
-                    style: OutlinedButton.styleFrom(foregroundColor: BrandColors.error),
-                    onPressed: () => _changeRepair(ctx, ref, r['id'] as String, s, askNote: true),
-                    child: Text(repairLabel(context, labels, s)),
-                  )
-                : FilledButton(
-                    onPressed: () => _changeRepair(ctx, ref, r['id'] as String, s),
-                    child: Text(repairLabel(context, labels, s)),
-                  ),
-          ),
+        _StatusPicker(
+          current: r['status'] as String,
+          options: next,
+          label: (s) => repairLabel(context, labels, s),
+          color: repairStatusColor,
+          isNegative: (s) => s == 'cancelled' || s == 'unrepairable',
+          onConfirm: (s) => _changeRepair(ctx, ref, r['id'] as String, s, askNote: s == 'cancelled' || s == 'unrepairable'),
+        ),
       ]),
     ),
   );
@@ -811,5 +793,99 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
         ),
       ),
     );
+  }
+}
+
+/// Status change as a choice list: the current status on top, the allowed next statuses as
+/// radio options, and one confirm button.
+class _StatusPicker extends StatefulWidget {
+  const _StatusPicker({
+    required this.current,
+    required this.options,
+    required this.label,
+    required this.color,
+    required this.isNegative,
+    required this.onConfirm,
+  });
+  final String current;
+  final List<String> options;
+  final String Function(String) label;
+  final Color Function(String) color;
+  final bool Function(String) isNegative;
+  final Future<void> Function(String) onConfirm;
+
+  @override
+  State<_StatusPicker> createState() => _StatusPickerState();
+}
+
+class _StatusPickerState extends State<_StatusPicker> {
+  String? _selected;
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.options.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(_t(context, 'الحالة دي نهائية — مفيش خطوات بعدها.', 'This is a final status — no further steps.'),
+            style: const TextStyle(color: BrandColors.gray)),
+      );
+    }
+    final ordered = [...widget.options.where((s) => !widget.isNegative(s)), ...widget.options.where(widget.isNegative)];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(_t(context, 'اختار الحالة الجديدة', 'Choose the new status'), style: const TextStyle(fontWeight: FontWeight.w800)),
+      const SizedBox(height: 8),
+      Container(
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: [
+          ListTile(
+            dense: true,
+            enabled: false,
+            leading: Icon(Icons.radio_button_checked, color: widget.color(widget.current).withValues(alpha: 0.5)),
+            title: Text(widget.label(widget.current)),
+            trailing: Text(_t(context, 'الحالية', 'Current'), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+          ),
+          for (final s in ordered) ...[
+            const Divider(height: 1),
+            ListTile(
+              onTap: _busy ? null : () => setState(() => _selected = s),
+              leading: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: Icon(
+                  _selected == s ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  key: ValueKey(_selected == s),
+                  color: _selected == s ? (widget.isNegative(s) ? BrandColors.error : BrandColors.electric) : BrandColors.gray,
+                ),
+              ),
+              title: Text(
+                widget.label(s),
+                style: TextStyle(
+                  fontWeight: _selected == s ? FontWeight.w800 : FontWeight.w500,
+                  color: widget.isNegative(s) ? BrandColors.error : null,
+                ),
+              ),
+              selected: _selected == s,
+              selectedTileColor: (widget.isNegative(s) ? BrandColors.error : BrandColors.electric).withValues(alpha: 0.06),
+            ),
+          ],
+        ]),
+      ),
+      const SizedBox(height: 14),
+      FilledButton.icon(
+        style: _selected != null && widget.isNegative(_selected!) ? FilledButton.styleFrom(backgroundColor: BrandColors.error) : null,
+        icon: _busy
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+            : const Icon(Icons.check_rounded),
+        label: Text(_t(context, 'تأكيد التغيير', 'Confirm change')),
+        onPressed: (_selected == null || _busy)
+            ? null
+            : () async {
+                setState(() => _busy = true);
+                await widget.onConfirm(_selected!);
+                if (mounted) setState(() => _busy = false);
+              },
+      ),
+    ]);
   }
 }
