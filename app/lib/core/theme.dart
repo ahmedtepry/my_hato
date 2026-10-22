@@ -34,6 +34,9 @@ class AppTheme {
         error: BrandColors.error,
       ),
       scaffoldBackgroundColor: BrandColors.offWhite,
+      // soft "sparkle" touch ripple and a quick, gentle highlight on every tappable surface
+      splashFactory: InkSparkle.splashFactory,
+      highlightColor: BrandColors.electric.withValues(alpha: 0.04),
     );
     final text = locale.languageCode == 'ar'
         ? GoogleFonts.cairoTextTheme(base.textTheme)

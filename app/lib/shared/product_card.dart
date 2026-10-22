@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'press_scale.dart';
+
 import '../core/l10n.dart';
 import '../core/money.dart';
 import '../core/supabase_providers.dart';
@@ -84,7 +86,8 @@ class ProductCard extends StatelessWidget {
       const SizedBox(height: 6),
       PriceBlock(price: (p['price_minor'] as num).toInt(), compareAt: (p['compare_at_price_minor'] as num?)?.toInt()),
     ]);
-    return Card(
+    return PressScale(
+      child: Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => context.push('/product/${p['id']}'),
@@ -99,6 +102,7 @@ class ProductCard extends StatelessWidget {
                 ]),
         ),
       ),
+    ),
     );
   }
 }

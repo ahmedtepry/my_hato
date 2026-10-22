@@ -11,6 +11,7 @@ import '../../shared/avatars.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/product_card.dart';
 import '../../shared/smooth_pages.dart';
+import '../../shared/press_scale.dart';
 import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
@@ -153,7 +154,8 @@ class _SectionsBar extends ConsumerWidget {
         itemBuilder: (_, i) {
           final s = mainSections[i];
           final soon = s.comingSoon && !usedEnabled;
-          return InkWell(
+          return PressScale(
+            child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () => context.push(s.route),
             child: Container(
@@ -183,6 +185,7 @@ class _SectionsBar extends ConsumerWidget {
                   ),
               ]),
             ),
+          ),
           );
         },
       ),
@@ -275,7 +278,7 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
                   final b = list[i];
                   return SmoothPage(controller: _pc, index: i, maxScaleDrop: 0.06, maxFade: 0.3, parallax: 0.3, child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                    child: InkWell(
+                    child: PressScale(scale: 0.98, child: InkWell(
                       borderRadius: BorderRadius.circular(18),
                       onTap: () {
                         final v = b['link_value'] as String?;
@@ -302,7 +305,7 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
                           ),
                         ]),
                       ),
-                    ),
+                    )),
                   ));
                 },
               ),
