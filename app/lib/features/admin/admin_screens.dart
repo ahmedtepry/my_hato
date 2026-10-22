@@ -209,25 +209,13 @@ class _Overview extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(_statsProvider)),
         data: (s) {
-          Widget tile(String label, String value, IconData icon, Color color) => Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
-                child: Row(children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-                    child: Icon(icon, color: color),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-                      Text(label, style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
-                    ]),
-                  ),
-                ]),
-              );
+          Widget tile(String label, String value, IconData icon, Color color, VoidCallback onTap) => _StatTile(
+                label: label, value: value, icon: icon, color: color, onTap: onTap);
+          void go(int tab, void Function() setFilter) {
+            setFilter();
+            DefaultTabController.of(context).animateTo(tab);
+          }
+
           final n = (String k) => '${s[k] ?? 0}';
           return GridView.count(
             padding: const EdgeInsets.all(16),
@@ -236,14 +224,22 @@ class _Overview extends ConsumerWidget {
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             children: [
-              tile(_t(context, 'طلبات جديدة', 'New orders'), n('pending_orders'), Icons.fiber_new_rounded, BrandColors.warning),
-              tile(_t(context, 'طلبات النهارده', 'Orders today'), n('new_orders_today'), Icons.today_rounded, BrandColors.electric),
-              tile(_t(context, 'صيانة شغالة', 'Active repairs'), n('active_repairs'), Icons.build_rounded, BrandColors.navy),
-              tile(_t(context, 'مستني موافقة', 'Awaiting approval'), n('repairs_awaiting_approval'), Icons.hourglass_top_rounded, BrandColors.warning),
-              tile(_t(context, 'جاهز للتسليم', 'Ready'), n('repairs_ready'), Icons.check_circle_rounded, BrandColors.success),
-              tile(_t(context, 'مخزون قليل', 'Low stock'), n('low_stock'), Icons.inventory_rounded, BrandColors.error),
-              tile(_t(context, 'طلبات اتسلّمت', 'Delivered'), n('completed_orders'), Icons.local_shipping_rounded, BrandColors.success),
-              tile(_t(context, 'المبيعات', 'Sales'), formatEgp((s['total_sales_minor'] as num?)?.toInt() ?? 0, context.lang), Icons.payments_rounded, BrandColors.navy),
+              tile(_t(context, 'طلبات جديدة', 'New orders'), n('pending_orders'), Icons.fiber_new_rounded, BrandColors.warning,
+                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'pending_confirmation')),
+              tile(_t(context, 'طلبات النهارده', 'Orders today'), n('new_orders_today'), Icons.today_rounded, BrandColors.electric,
+                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = null)),
+              tile(_t(context, 'صيانة شغالة', 'Active repairs'), n('active_repairs'), Icons.build_rounded, BrandColors.navy,
+                  () => go(2, () => ref.read(_repairFilterProvider.notifier).state = null)),
+              tile(_t(context, 'مستني موافقة', 'Awaiting approval'), n('repairs_awaiting_approval'), Icons.hourglass_top_rounded, BrandColors.warning,
+                  () => go(2, () => ref.read(_repairFilterProvider.notifier).state = 'awaiting_approval')),
+              tile(_t(context, 'جاهز للتسليم', 'Ready'), n('repairs_ready'), Icons.check_circle_rounded, BrandColors.success,
+                  () => go(2, () => ref.read(_repairFilterProvider.notifier).state = 'ready_for_pickup')),
+              tile(_t(context, 'مخزون قليل', 'Low stock'), n('low_stock'), Icons.inventory_rounded, BrandColors.error,
+                  () => go(3, () => ref.read(_lowStockOnlyProvider.notifier).state = true)),
+              tile(_t(context, 'طلبات اتسلّمت', 'Delivered'), n('completed_orders'), Icons.local_shipping_rounded, BrandColors.success,
+                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'delivered')),
+              tile(_t(context, 'المبيعات', 'Sales'), formatEgp((s['total_sales_minor'] as num?)?.toInt() ?? 0, context.lang), Icons.payments_rounded, BrandColors.navy,
+                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'delivered')),
             ],
           );
         },
@@ -255,7 +251,7 @@ class _Overview extends ConsumerWidget {
 // =====================================================================================
 // Orders
 // =====================================================================================
-final _orderFilterProvider = StateProvider.autoDispose<String?>((_) => 'pending_confirmation');
+final _orderFilterProvider = StateProvider<String?>((_) => 'pending_confirmation');
 final _ordersProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).orders(status: ref.watch(_orderFilterProvider)));
 
 class _OrdersTab extends ConsumerWidget {
@@ -405,7 +401,8 @@ Future<String?> _askText(BuildContext context, String title, {String? hint, Text
 // =====================================================================================
 // Repairs
 // =====================================================================================
-final _repairsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).repairs());
+final _repairFilterProvider = StateProvider<String?>((_) => null);
+final _repairsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).repairs(status: ref.watch(_repairFilterProvider)));
 
 class _RepairsTab extends ConsumerWidget {
   const _RepairsTab();
@@ -413,7 +410,23 @@ class _RepairsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final repairs = ref.watch(_repairsProvider);
     final labels = ref.watch(repairLabelsProvider).valueOrNull;
-    return RefreshIndicator(
+    final filter = ref.watch(_repairFilterProvider);
+    Widget chip(String? value, String label) => Padding(
+          padding: const EdgeInsetsDirectional.only(end: 8),
+          child: ChoiceChip(label: Text(label), selected: filter == value, onSelected: (_) => ref.read(_repairFilterProvider.notifier).state = value),
+        );
+    return Column(children: [
+      SizedBox(
+        height: 54,
+        child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), children: [
+          chip(null, _t(context, 'الشغالة', 'Active')),
+          chip('awaiting_approval', repairLabel(context, labels, 'awaiting_approval')),
+          chip('waiting_for_parts', repairLabel(context, labels, 'waiting_for_parts')),
+          chip('ready_for_pickup', repairLabel(context, labels, 'ready_for_pickup')),
+          chip('all', _t(context, 'الكل', 'All')),
+        ]),
+      ),
+      Expanded(child: RefreshIndicator(
       onRefresh: () async => ref.invalidate(_repairsProvider),
       child: repairs.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -439,7 +452,7 @@ class _RepairsTab extends ConsumerWidget {
                 },
               ),
       ),
-    );
+    ))]);
   }
 }
 
@@ -538,7 +551,9 @@ Future<void> _changeRepair(BuildContext ctx, WidgetRef ref, String id, String to
 // Products
 // =====================================================================================
 final _productSearchProvider = StateProvider.autoDispose<String>((_) => '');
-final _productsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).products(search: ref.watch(_productSearchProvider)));
+final _lowStockOnlyProvider = StateProvider<bool>((_) => false);
+final _productsProvider = FutureProvider.autoDispose(
+    (ref) => ref.watch(adminRepoProvider).products(search: ref.watch(_productSearchProvider), lowStockOnly: ref.watch(_lowStockOnlyProvider)));
 final _categoriesProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).categories());
 
 class _ProductsTab extends ConsumerWidget {
@@ -558,6 +573,18 @@ class _ProductsTab extends ConsumerWidget {
           child: TextField(
             decoration: InputDecoration(hintText: _t(context, 'ابحث باسم المنتج أو الكود', 'Search name or SKU'), prefixIcon: const Icon(Icons.search)),
             onSubmitted: (v) => ref.read(_productSearchProvider.notifier).state = v,
+          ),
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: FilterChip(
+              avatar: const Icon(Icons.inventory_rounded, size: 18, color: BrandColors.error),
+              label: Text(_t(context, 'مخزون قليل بس', 'Low stock only')),
+              selected: ref.watch(_lowStockOnlyProvider),
+              onSelected: (v) => ref.read(_lowStockOnlyProvider.notifier).state = v,
+            ),
           ),
         ),
         Expanded(
@@ -975,4 +1002,57 @@ class _QuickUpdatesState extends ConsumerState<_QuickUpdates> {
           onPressed: (_busy || (_selected == null && _custom.text.trim().isEmpty)) ? null : _send,
         ),
       ]);
+}
+
+/// Overview tile: tap feedback (ripple + slight press-in) and a chevron so it reads as a button.
+class _StatTile extends StatefulWidget {
+  const _StatTile({required this.label, required this.value, required this.icon, required this.color, required this.onTap});
+  final String label, value;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  @override
+  State<_StatTile> createState() => _StatTileState();
+}
+
+class _StatTileState extends State<_StatTile> {
+  bool _down = false;
+  @override
+  Widget build(BuildContext context) => AnimatedScale(
+        scale: _down ? 0.96 : 1,
+        duration: const Duration(milliseconds: 120),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: widget.onTap,
+            onHighlightChanged: (v) => setState(() => _down = v),
+            child: Ink(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
+              child: Row(children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(widget.icon, color: widget.color),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(widget.value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+                    ),
+                    Text(widget.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+                  ]),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: BrandColors.gray, size: 20),
+              ]),
+            ),
+          ),
+        ),
+      );
 }

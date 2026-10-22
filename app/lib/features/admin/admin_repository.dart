@@ -39,10 +39,15 @@ class AdminRepository {
       _db.rpc('staff_update_order_status', params: {'p_order_id': id, 'p_to': to, 'p_note': note});
 
   // ---------------- repairs
-  Future<List<Map<String, dynamic>>> repairs({bool activeOnly = true}) async {
+  /// status: null = all active repairs, 'all' = everything, otherwise that status only.
+  Future<List<Map<String, dynamic>>> repairs({String? status}) async {
     var q = _db.from('repair_requests').select(
         'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at');
-    if (activeOnly) q = q.not('status', 'in', '(delivered,cancelled,unrepairable)');
+    if (status == null) {
+      q = q.not('status', 'in', '(delivered,cancelled,unrepairable)');
+    } else if (status != 'all') {
+      q = q.eq('status', status);
+    }
     return List<Map<String, dynamic>>.from(await q.order('created_at', ascending: false).limit(200));
   }
 
@@ -62,13 +67,14 @@ class AdminRepository {
       _db.rpc('staff_post_repair_update', params: {'p_repair_id': id, 'p_message_ar': message});
 
   // ---------------- products
-  Future<List<Map<String, dynamic>>> products({String? search}) async {
+  Future<List<Map<String, dynamic>>> products({String? search, bool lowStockOnly = false}) async {
     var q = _db.from('products').select(
         'id, sku, name_ar, name_en, price_minor, compare_at_price_minor, stock_quantity, status, is_featured, category_id, product_images(storage_path, sort_order)');
     if (search != null && search.trim().isNotEmpty) {
       final s = search.trim().replaceAll(RegExp(r'[,()%*]'), ' ');
       q = q.or('name_ar.ilike.*$s*,name_en.ilike.*$s*,sku.ilike.*$s*');
     }
+    if (lowStockOnly) q = q.lte('stock_quantity', 5).eq('status', 'published');
     return List<Map<String, dynamic>>.from(await q.neq('status', 'archived').order('created_at', ascending: false).limit(300));
   }
 
