@@ -976,17 +976,37 @@ class _QuickUpdatesState extends ConsumerState<_QuickUpdates> {
         Text(_t(context, 'ابعت تحديث للعميل (من غير ما تغيّر الحالة)', 'Send the customer an update (status unchanged)'),
             style: const TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final m in presets)
-            ChoiceChip(
-              label: Text(m, style: const TextStyle(fontSize: 12.5)),
-              selected: _selected == m,
-              onSelected: (v) => setState(() {
-                _selected = v ? m : null;
-                if (v) _custom.clear();
-              }),
-            ),
-        ]),
+        Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
+          clipBehavior: Clip.antiAlias,
+          child: Column(children: [
+            for (var i = 0; i < presets.length; i++) ...[
+              if (i > 0) const Divider(height: 1),
+              ListTile(
+                onTap: _busy
+                    ? null
+                    : () => setState(() {
+                          _selected = _selected == presets[i] ? null : presets[i];
+                          if (_selected != null) _custom.clear();
+                        }),
+                selected: _selected == presets[i],
+                selectedTileColor: BrandColors.electric.withValues(alpha: 0.06),
+                leading: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    _selected == presets[i] ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    key: ValueKey(_selected == presets[i]),
+                    color: _selected == presets[i] ? BrandColors.electric : BrandColors.gray,
+                  ),
+                ),
+                title: Text(
+                  presets[i],
+                  style: TextStyle(fontWeight: _selected == presets[i] ? FontWeight.w700 : FontWeight.w500, height: 1.4),
+                ),
+              ),
+            ],
+          ]),
+        ),
         const SizedBox(height: 10),
         TextField(
           controller: _custom,
