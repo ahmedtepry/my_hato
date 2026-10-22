@@ -38,6 +38,10 @@ class AdminRepository {
   Future<void> setOrderStatus(String id, String to, {String? note}) =>
       _db.rpc('staff_update_order_status', params: {'p_order_id': id, 'p_to': to, 'p_note': note});
 
+  /// Message to the customer without changing the status (timeline + notification).
+  Future<void> postOrderUpdate(String id, String message) =>
+      _db.rpc('staff_post_order_update', params: {'p_order_id': id, 'p_message': message});
+
   // ---------------- repairs
   /// status: null = all active repairs, 'all' = everything, otherwise that status only.
   Future<List<Map<String, dynamic>>> repairs({String? status}) async {

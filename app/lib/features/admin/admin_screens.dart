@@ -256,7 +256,7 @@ final _ordersProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoP
 
 class _OrdersTab extends ConsumerWidget {
   const _OrdersTab();
-  static const statuses = ['pending_confirmation', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled'];
+  static const statuses = ['pending_confirmation', 'confirmed', 'preparing', 'shipped', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled'];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -359,6 +359,16 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           isNegative: (s) => s == 'cancelled',
           onConfirm: (s) => _changeOrder(ctx, ref, o['id'] as String, s, askNote: s == 'cancelled'),
         ),
+        if (o['status'] != 'delivered' && o['status'] != 'cancelled') ...[
+          const SizedBox(height: 24),
+          _QuickUpdates(
+            presets: o['fulfillment'] == 'pickup' ? _orderPickupPresets : _orderDeliveryPresets,
+            send: (msg) async {
+              await repo.postOrderUpdate(o['id'] as String, msg);
+              ref.invalidate(_ordersProvider);
+            },
+          ),
+        ],
       ]),
     ),
   );
@@ -522,7 +532,7 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
           onConfirm: (s) => _changeRepair(ctx, ref, r['id'] as String, s, askNote: s == 'cancelled' || s == 'unrepairable'),
         ),
         const Divider(height: 32),
-        _QuickUpdates(repairId: r['id'] as String),
+        _QuickUpdates(presets: _repairPresets, send: (msg) => ref.read(adminRepoProvider).postRepairUpdate(r['id'] as String, msg)),
       ]),
     ),
   );
@@ -923,27 +933,49 @@ class _StatusPickerState extends State<_StatusPicker> {
   }
 }
 
+const _orderDeliveryPresets = [
+  'بنجهّز طلبك وهيخرج النهارده.',
+  'طلبك هيوصلك مع المندوب بكرة إن شاء الله.',
+  'طلبك هيوصلك مع المندوب خلال يومين.',
+  'طلبك اتشحن، والمندوب هيكلمك قبل ما يوصل.',
+  'المندوب في الطريق وهيكلمك خلال ساعة.',
+  'حاولنا نوصلك ومحدش ردّ، ياريت تكلمنا علشان نحدد ميعاد تاني.',
+  'محتاجين نأكد العنوان معاك، ياريت ترد على تليفوننا.',
+  'في منتج من طلبك خلص مؤقتًا، هنكلمك نتفق على بديل.',
+];
+
+const _orderPickupPresets = [
+  'بنجهّز طلبك وهيبقى جاهز في الفرع النهارده.',
+  'طلبك هيبقى جاهز في الفرع بكرة إن شاء الله.',
+  'طلبك جاهز في الفرع، تقدر تستلمه في أي وقت في مواعيد العمل.',
+  'لسه مستنيينك تستلم طلبك من الفرع.',
+  'في منتج من طلبك خلص مؤقتًا، هنكلمك نتفق على بديل.',
+];
+
+const _repairPresets = [
+  'استلمنا جهازك في الفرع وبيتفحص دلوقتي.',
+  'بنحدد تكلفة الإصلاح وهنبلغك بالسعر قريب.',
+  'بنفحص الجهاز كويس علشان نحدد كل العيوب، وهنبلغك بالتفاصيل.',
+  'لقينا عيب إضافي في الجهاز، هنكلمك نوضحلك قبل ما نكمّل.',
+  'محتاجين نكلمك بخصوص جهازك، ياريت ترد على تليفوننا.',
+  'قطعة الغيار اتطلبت وهتوصل خلال يوم أو اتنين.',
+  'الإصلاح ماشي كويس، وهنبلغك أول ما يخلص.',
+  'الجهاز تحت اختبار الجودة للتأكد إن كل حاجة شغالة.',
+  'اتصلح وجاهز تستلمه من الفرع.',
+  'الجهاز خارج للتوصيل وهيوصلك النهارده.',
+];
+
 /// Send the customer an update without changing the status: ready-made messages or a custom one.
 class _QuickUpdates extends ConsumerStatefulWidget {
-  const _QuickUpdates({required this.repairId});
-  final String repairId;
+  const _QuickUpdates({required this.presets, required this.send});
+  final List<String> presets;
+  final Future<void> Function(String message) send;
   @override
   ConsumerState<_QuickUpdates> createState() => _QuickUpdatesState();
 }
 
 class _QuickUpdatesState extends ConsumerState<_QuickUpdates> {
-  static const presets = [
-    'استلمنا جهازك في الفرع وبيتفحص دلوقتي.',
-    'بنحدد تكلفة الإصلاح وهنبلغك بالسعر قريب.',
-    'بنفحص الجهاز كويس علشان نحدد كل العيوب، وهنبلغك بالتفاصيل.',
-    'لقينا عيب إضافي في الجهاز، هنكلمك نوضحلك قبل ما نكمّل.',
-    'محتاجين نكلمك بخصوص جهازك، ياريت ترد على تليفوننا.',
-    'قطعة الغيار اتطلبت وهتوصل خلال يوم أو اتنين.',
-    'الإصلاح ماشي كويس، وهنبلغك أول ما يخلص.',
-    'الجهاز تحت اختبار الجودة للتأكد إن كل حاجة شغالة.',
-    'اتصلح وجاهز تستلمه من الفرع.',
-    'الجهاز خارج للتوصيل وهيوصلك النهارده.',
-  ];
+  List<String> get presets => widget.presets;
   String? _selected;
   final _custom = TextEditingController();
   bool _busy = false;
@@ -959,7 +991,7 @@ class _QuickUpdatesState extends ConsumerState<_QuickUpdates> {
     if (msg == null) return;
     setState(() => _busy = true);
     try {
-      await ref.read(adminRepoProvider).postRepairUpdate(widget.repairId, msg);
+      await widget.send(msg);
       if (mounted) {
         Navigator.of(context).pop();
         showSnack(context, _t(context, 'الرسالة وصلت للعميل', 'Update sent to the customer'));

@@ -189,7 +189,13 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Timeline(entries: [
                     for (final h in history)
-                      TimelineEntry(title: context.tr('os_${h['to_status']}'), subtitle: fmtDate(context, h['created_at'] as String)),
+                      TimelineEntry(
+                        title: (h['customer_message'] != null && h['from_status'] == h['to_status'])
+                            ? context.tr('order_update')
+                            : context.tr('os_${h['to_status']}'),
+                        subtitle: fmtDate(context, h['created_at'] as String),
+                        body: h['customer_message'] as String?,
+                      ),
                   ]),
                 ),
               ),
