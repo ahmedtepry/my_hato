@@ -37,10 +37,21 @@ step "splash"; dart run flutter_native_splash:create || echo "WARN: splash step 
 step "flutter analyze"; flutter analyze --no-fatal-infos --no-fatal-warnings; echo "analyze exit=$?"
 step "flutter test"; flutter test; echo "test exit=$?"
 step "flutter build apk --release"
-flutter build apk --release --obfuscate --split-debug-info=build/symbols \
-  --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg \
-  || exit 1
+build_apk() {
+  flutter build apk --release --obfuscate --split-debug-info=build/symbols \
+    --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
+    --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
+}
+if ! build_apk; then
+  # transient SDK/NDK download failures ("Error on ZipFile unknown archive") leave a half-installed
+  # package behind: remove partial downloads and try once more
+  echo "WARN: build failed — cleaning partial Android SDK downloads and retrying once"
+  SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+  rm -rf "$SDK"/ndk/*.temp "$SDK"/.temp "$SDK"/temp 2>/dev/null || true
+  for d in "$SDK"/ndk/*/; do [ -f "$d/source.properties" ] || rm -rf "$d"; done
+  sleep 20
+  build_apk || exit 1
+fi
 mkdir -p ../dist && cp build/app/outputs/flutter-apk/app-release.apk ../dist/myhato-release.apk
 keytool -printcert -jarfile ../dist/myhato-release.apk 2>/dev/null | head -8 || true
 ls -la ../dist
