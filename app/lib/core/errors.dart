@@ -19,6 +19,11 @@ String friendlyError(BuildContext context, Object error) {
     'PHONE_NOT_VERIFIED': 'err_phone_not_verified',
     'ACCOUNT_NOT_VERIFIED': 'err_account_not_verified',
     'PHONE_REQUIRED': 'err_phone_required',
+    'RATE_LIMITED': 'err_rate_limited',
+    'USERNAME_TAKEN': 'err_username_taken',
+    'PHONE_TAKEN': 'err_phone_taken',
+    'INVALID_USERNAME': 'username_rules',
+    'INVALID_PHONE': 'invalid_phone',
     'INVALID_ADDRESS': 'err_invalid_address',
     'INVALID_BRANCH': 'err_invalid_branch',
     'QUOTE_NOT_PENDING': 'err_quote_not_pending',
@@ -62,6 +67,7 @@ String authErrorKey(AuthException e) {
   if (has('email_address_invalid') || m.contains('invalid format')) return 'invalid_email';
   if (has('email_address_not_authorized') || m.contains('not authorized') || m.contains('error sending')) return 'err_email_send_failed';
   if (has('same_password')) return 'err_same_password';
+  if (m.contains('database error saving new user') || code == 'unexpected_failure') return 'err_signup_conflict';
   return 'auth_error';
 }
 

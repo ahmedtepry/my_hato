@@ -52,6 +52,7 @@ class ProfileScreen extends ConsumerWidget {
           final verified = isAccountVerified(p);
           final emailVerified = p?['email_verified'] == true;
           final phone = reachablePhone(p) ?? (p?['phone'] as String?);
+          final customer = ref.watch(customerProvider).valueOrNull;
           final avatar = ref.watch(_avatarUrlProvider).valueOrNull;
           return ListView(padding: const EdgeInsets.all(16), children: [
             Card(
@@ -69,14 +70,20 @@ class ProfileScreen extends ConsumerWidget {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text((p?['full_name'] as String?)?.isNotEmpty == true ? p!['full_name'] as String : '—',
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                      if (customer?['username'] != null)
+                        Directionality(textDirection: TextDirection.ltr, child: Text('@${customer!['username']}', style: const TextStyle(color: BrandColors.electric, fontWeight: FontWeight.w700))),
                       if (p?['email'] != null)
                         Directionality(textDirection: TextDirection.ltr, child: Text(p!['email'] as String, style: const TextStyle(color: BrandColors.gray))),
                       if (phone != null) Directionality(textDirection: TextDirection.ltr, child: Text(phone)),
                       const SizedBox(height: 4),
-                      StatusChip(
-                        label: verified ? context.tr('account_verified') : context.tr('account_not_verified'),
-                        color: verified ? BrandColors.success : BrandColors.warning,
-                      ),
+                      Wrap(spacing: 6, runSpacing: 6, children: [
+                        StatusChip(
+                          label: verified ? context.tr('account_verified') : context.tr('account_not_verified'),
+                          color: verified ? BrandColors.success : BrandColors.warning,
+                        ),
+                        if (customer?['customer_code'] != null)
+                          StatusChip(label: '${context.tr('customer_code')}: ${customer!['customer_code']}', color: BrandColors.navy),
+                      ]),
                       Text(context.tr('member_since', {'date': DateFormat.yMMMd(context.lang).format(created)}),
                           style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
                     ]),

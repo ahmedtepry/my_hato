@@ -10,8 +10,8 @@ class AppConfig {
   static const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
   static const oauthRedirect = 'com.myhato.app://login-callback';
   static const guestLookupFunction = 'secure-guest-repair-lookup';
-  static const supportPhone = String.fromEnvironment('SUPPORT_PHONE', defaultValue: '');
-  static const supportWhatsapp = String.fromEnvironment('SUPPORT_WHATSAPP', defaultValue: '');
+  static const supportPhone = String.fromEnvironment('SUPPORT_PHONE', defaultValue: '+201118819464');
+  static const supportWhatsapp = String.fromEnvironment('SUPPORT_WHATSAPP', defaultValue: '201118819464');
 
   static bool get isConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

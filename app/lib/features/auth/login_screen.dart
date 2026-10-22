@@ -8,9 +8,11 @@ import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/states.dart';
+import '../../shared/support_contact.dart';
 import 'auth_repository.dart';
 import 'email_otp_screen.dart';
 
+/// Sign in with email, mobile number or username + password.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key, this.redirect});
   final String? redirect;
@@ -20,65 +22,38 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _form = GlobalKey<FormState>();
-  final _email = TextEditingController();
+  final _id = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
   bool _obscure = true;
 
   @override
   void dispose() {
-    _email.dispose();
+    _id.dispose();
     _password.dispose();
     super.dispose();
   }
 
   String get _redirect => widget.redirect ?? '/';
 
-  void _goToCode(EmailCodePurpose purpose, {bool alreadySent = true}) {
-    final q = Uri(queryParameters: {
-      'email': AuthRepository.normalizeEmail(_email.text),
-      'purpose': purpose.name,
-      if (!alreadySent) 'send': '1',
-      'redirect': _redirect,
-    }).query;
-    context.push('/auth/verify-email?$q');
-  }
-
-  /// Email must be typed first for code sign-in and password reset.
-  bool _requireEmail() {
-    if (isValidEmail(_email.text)) return true;
-    showSnack(context, context.tr('enter_email_first'), error: true);
-    return false;
-  }
-
   Future<void> _signIn() async {
     if (!_form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     setState(() => _busy = true);
+    String? email = _id.text.contains('@') ? AuthRepository.normalizeEmail(_id.text) : null;
     try {
-      await ref.read(authRepoProvider).signInWithEmail(_email.text, _password.text);
+      email = await ref.read(authRepoProvider).signInWithIdentifier(_id.text, _password.text);
       if (mounted) context.go(_redirect);
     } on AuthException catch (e) {
       if (!mounted) return;
-      if (isEmailNotConfirmed(e)) {
-        // account exists but the email was never confirmed: send a fresh code and ask for it
+      if (isEmailNotConfirmed(e) && email != null) {
+        // password was right but the account was never verified: send a fresh code and ask for it
         showSnack(context, context.tr('email_not_confirmed'));
-        _goToCode(EmailCodePurpose.signup, alreadySent: false);
+        final q = Uri(queryParameters: {'email': email, 'purpose': EmailCodePurpose.signup.name, 'send': '1', 'redirect': _redirect}).query;
+        context.push('/auth/verify-email?$q');
       } else {
         showSnack(context, friendlyError(context, e), error: true);
       }
-    } catch (e) {
-      if (mounted) showSnack(context, friendlyError(context, e), error: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _sendCode(EmailCodePurpose purpose) async {
-    if (!_requireEmail()) return;
-    setState(() => _busy = true);
-    try {
-      await ref.read(authRepoProvider).sendEmailCode(_email.text, purpose);
-      if (mounted) _goToCode(purpose);
     } catch (e) {
       if (mounted) showSnack(context, friendlyError(context, e), error: true);
     } finally {
@@ -103,13 +78,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 key: _form,
                 child: Column(children: [
                   TextFormField(
-                    controller: _email,
+                    controller: _id,
                     keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
+                    autofillHints: const [AutofillHints.username, AutofillHints.email],
                     textDirection: TextDirection.ltr,
                     textInputAction: TextInputAction.next,
-                    decoration: InputDecoration(labelText: context.tr('email'), prefixIcon: const Icon(Icons.mail_outline)),
-                    validator: (v) => isValidEmail(v) ? null : context.tr('invalid_email'),
+                    autocorrect: false,
+                    decoration: InputDecoration(
+                      labelText: context.tr('login_identifier'),
+                      helperText: context.tr('login_identifier_help'),
+                      prefixIcon: const Icon(Icons.person_outline),
+                    ),
+                    validator: (v) => (v == null || v.trim().length < 3) ? context.tr('required') : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -131,7 +111,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               Align(
                 alignment: AlignmentDirectional.centerEnd,
-                child: TextButton(onPressed: () => _sendCode(EmailCodePurpose.recovery), child: Text(context.tr('forgot_password'))),
+                child: TextButton(
+                  onPressed: () => showSupportSheet(
+                    context,
+                    title: context.tr('forgot_password_title'),
+                    body: context.tr('forgot_password_body'),
+                    whatsappMessage: context.tr('forgot_password_wa'),
+                  ),
+                  child: Text(context.tr('forgot_password')),
+                ),
               ),
               FilledButton(
                 onPressed: _signIn,
@@ -152,6 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
+/// New account: name, username, email, mobile number and password; the email is then verified by code.
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key, this.redirect});
   final String? redirect;
@@ -162,32 +151,49 @@ class RegisterScreen extends ConsumerStatefulWidget {
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
+  final _username = TextEditingController();
   final _email = TextEditingController();
+  final _phone = TextEditingController();
   final _password = TextEditingController();
   final _password2 = TextEditingController();
   bool _busy = false;
   bool _obscure = true;
   bool _accepted = false;
+  String? _usernameError;
+  String? _phoneError;
 
   @override
   void dispose() {
-    _name.dispose();
-    _email.dispose();
-    _password.dispose();
-    _password2.dispose();
+    for (final c in [_name, _username, _email, _phone, _password, _password2]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _submit() async {
+    _usernameError = null;
+    _phoneError = null;
     if (!_form.currentState!.validate()) return;
     if (!_accepted) {
       showSnack(context, context.tr('accept_terms_required'), error: true);
       return;
     }
+    FocusScope.of(context).unfocus();
     setState(() => _busy = true);
     final redirect = widget.redirect ?? '/';
+    final repo = ref.read(authRepoProvider);
     try {
-      final result = await ref.read(authRepoProvider).signUpWithEmail(_email.text, _password.text, _name.text);
+      final check = await repo.checkSignup(_username.text, _phone.text);
+      if (!mounted) return;
+      if (!check.usernameAvailable || !check.phoneAvailable) {
+        setState(() {
+          if (!check.usernameAvailable) _usernameError = context.tr(check.usernameValid ? 'err_username_taken' : 'username_rules');
+          if (!check.phoneAvailable) _phoneError = context.tr(check.phoneValid ? 'err_phone_taken' : 'invalid_phone');
+        });
+        _form.currentState!.validate();
+        return;
+      }
+      final result = await repo.signUpWithEmail(_email.text, _password.text, _name.text, username: _username.text, phone: check.phone);
       if (!mounted) return;
       switch (result) {
         case SignUpResult.signedIn:
@@ -224,8 +230,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _name,
                   autofillHints: const [AutofillHints.name],
                   textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(labelText: context.tr('full_name'), prefixIcon: const Icon(Icons.person_outline)),
+                  decoration: InputDecoration(labelText: context.tr('full_name'), prefixIcon: const Icon(Icons.badge_outlined)),
                   validator: (v) => (v == null || v.trim().length < 2) ? context.tr('required') : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _username,
+                  autofillHints: const [AutofillHints.newUsername],
+                  textDirection: TextDirection.ltr,
+                  textInputAction: TextInputAction.next,
+                  autocorrect: false,
+                  onChanged: (_) => _usernameError == null ? null : setState(() => _usernameError = null),
+                  decoration: InputDecoration(
+                    labelText: context.tr('username'),
+                    helperText: context.tr('username_rules'),
+                    prefixIcon: const Icon(Icons.alternate_email),
+                  ),
+                  // server-side result (taken) wins over the local format check
+                  validator: (v) => _usernameError ?? (isValidUsername(v) ? null : context.tr('username_rules')),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -234,8 +256,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   autofillHints: const [AutofillHints.email],
                   textDirection: TextDirection.ltr,
                   textInputAction: TextInputAction.next,
+                  autocorrect: false,
                   decoration: InputDecoration(labelText: context.tr('email'), prefixIcon: const Icon(Icons.mail_outline)),
                   validator: (v) => isValidEmail(v) ? null : context.tr('invalid_email'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _phone,
+                  keyboardType: TextInputType.phone,
+                  autofillHints: const [AutofillHints.telephoneNumber],
+                  textDirection: TextDirection.ltr,
+                  textInputAction: TextInputAction.next,
+                  onChanged: (_) => _phoneError == null ? null : setState(() => _phoneError = null),
+                  decoration: InputDecoration(
+                    labelText: context.tr('phone'),
+                    hintText: '01XXXXXXXXX',
+                    prefixIcon: const Icon(Icons.phone_iphone_rounded),
+                  ),
+                  validator: (v) => _phoneError ?? (normalizeEgyptMobile(v ?? '') == null ? context.tr('invalid_phone') : null),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

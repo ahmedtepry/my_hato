@@ -29,6 +29,12 @@ enum EmailCodePurpose {
       };
 }
 
+class SignupCheck {
+  const SignupCheck({required this.usernameValid, required this.usernameAvailable, required this.phoneValid, required this.phoneAvailable, this.phone});
+  final bool usernameValid, usernameAvailable, phoneValid, phoneAvailable;
+  final String? phone;
+}
+
 /// Result of a sign-up attempt.
 enum SignUpResult { signedIn, codeSent, alreadyRegistered }
 
@@ -45,14 +51,46 @@ class AuthRepository {
   Future<void> signInWithEmail(String email, String password) =>
       _auth.signInWithPassword(email: normalizeEmail(email), password: password);
 
+  /// Sign in with email, mobile number or username + password. For a mobile number or username the
+  /// database checks the password and returns the account email only when it is correct
+  /// (login_email_for); the session itself always comes from Supabase Auth. Returns the email used.
+  Future<String> signInWithIdentifier(String identifier, String password) async {
+    final id = identifier.trim();
+    if (id.contains('@')) {
+      await signInWithEmail(id, password);
+      return normalizeEmail(id);
+    }
+    final email = await _db.rpc('login_email_for', params: {'p_identifier': id, 'p_password': password}) as String?;
+    if (email == null) throw const AuthException('Invalid login credentials', code: 'invalid_credentials');
+    await signInWithEmail(email, password);
+    return normalizeEmail(email);
+  }
+
+  /// Username / mobile availability before creating the account.
+  Future<SignupCheck> checkSignup(String username, String phone) async {
+    final r = Map<String, dynamic>.from(await _db.rpc('signup_check', params: {'p_username': username, 'p_phone': phone}) as Map);
+    return SignupCheck(
+      usernameValid: r['username_valid'] == true,
+      usernameAvailable: r['username_available'] == true,
+      phoneValid: r['phone_valid'] == true,
+      phoneAvailable: r['phone_available'] == true,
+      phone: r['phone'] as String?,
+    );
+  }
+
   /// Creates the account. With "Confirm email" on (production), Supabase emails a 6-digit code and
   /// no session exists until it is verified. Supabase does not reveal whether an email is already
   /// registered: for a confirmed address it returns a user with no identities and sends nothing.
-  Future<SignUpResult> signUpWithEmail(String email, String password, String fullName) async {
+  Future<SignUpResult> signUpWithEmail(String email, String password, String fullName, {String? username, String? phone}) async {
     final res = await _auth.signUp(
       email: normalizeEmail(email),
       password: password,
-      data: {'full_name': fullName.trim()},
+      // username + phone are stored in the customer register by the database (migration 0014)
+      data: {
+        'full_name': fullName.trim(),
+        if (username != null) 'username': username.trim().toLowerCase(),
+        if (phone != null) 'phone': phone,
+      },
       emailRedirectTo: AppConfig.oauthRedirect,
     );
     if (res.session != null) return SignUpResult.signedIn;
@@ -161,3 +199,13 @@ final authProvidersProvider = FutureProvider<AuthProviders>((ref) async {
     client.close(force: true);
   }
 });
+
+/// The signed-in customer's register row (customer ID, username, phone).
+final customerProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return null;
+  return ref.watch(supabaseProvider).from('customers').select('customer_code, username, phone, email').eq('user_id', user.id).maybeSingle();
+});
+
+/// 3–20 characters: English lowercase letters, digits, _ and .
+bool isValidUsername(String? v) => v != null && RegExp(r'^[a-z0-9_.]{3,20}$').hasMatch(v.trim().toLowerCase());
