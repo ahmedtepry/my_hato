@@ -32,6 +32,9 @@ const mainSections = [
   MainSection('sec_repair', Icons.build_rounded, '/repairs/new'),
 ];
 
+/// Shared by the home list and the logo button (tap the logo on home -> smooth scroll to top).
+final homeScrollController = ScrollController();
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -55,12 +58,19 @@ class HomeScreen extends ConsumerWidget {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: refresh,
-          child: CustomScrollView(slivers: [
+          child: CustomScrollView(controller: homeScrollController, slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Row(children: [
-                  const BrandWordmark(size: 22),
+                  HomeLogoButton(
+                    size: 22,
+                    onAlreadyHome: () {
+                      if (homeScrollController.hasClients) {
+                        homeScrollController.animateTo(0, duration: const Duration(milliseconds: 650), curve: Curves.easeOutCubic);
+                      }
+                    },
+                  ),
                   const Spacer(),
                   const _NotificationsBell(),
                   const SizedBox(width: 4),

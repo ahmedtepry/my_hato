@@ -1,3 +1,6 @@
+import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
@@ -95,6 +98,100 @@ class BrandWordmark extends StatelessWidget {
                 style: TextStyle(fontSize: size * 0.32, letterSpacing: size * 0.12, color: color, fontWeight: FontWeight.w600)),
           ],
         ],
+      ),
+    );
+  }
+}
+
+
+/// Tappable logo for the top of the app: a quick flip-and-pulse of the M mark with a light
+/// haptic, then it takes the customer to the home screen (or scrolls home back to the top).
+class HomeLogoButton extends StatefulWidget {
+  const HomeLogoButton({super.key, this.size = 22, this.onAlreadyHome});
+  final double size;
+
+  /// Called instead of navigating when the home screen is already showing.
+  final VoidCallback? onAlreadyHome;
+
+  @override
+  State<HomeLogoButton> createState() => _HomeLogoButtonState();
+}
+
+class _HomeLogoButtonState extends State<HomeLogoButton> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+  late final _flip = CurvedAnimation(parent: _c, curve: const Interval(0, 0.75, curve: Curves.easeInOutCubic));
+  late final _pulse = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.88).chain(CurveTween(curve: Curves.easeOut)), weight: 20),
+    TweenSequenceItem(tween: Tween(begin: 0.88, end: 1.08).chain(CurveTween(curve: Curves.easeOut)), weight: 40),
+    TweenSequenceItem(tween: Tween(begin: 1.08, end: 1.0).chain(CurveTween(curve: Curves.elasticOut)), weight: 40),
+  ]).animate(_c);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  Future<void> _tap() async {
+    HapticFeedback.lightImpact();
+    _c.forward(from: 0);
+    await Future<void>.delayed(const Duration(milliseconds: 260));
+    if (!mounted) return;
+    final router = GoRouter.of(context);
+    final atHome = router.routerDelegate.currentConfiguration.uri.path == '/';
+    if (atHome) {
+      widget.onAlreadyHome?.call();
+    } else {
+      router.go('/');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.size;
+    return Semantics(
+      button: true,
+      label: 'My Hatō',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _tap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) => Transform.scale(
+              scale: _pulse.value,
+              child: Directionality(
+                textDirection: TextDirection.ltr,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, 0.0015)
+                      ..rotateY(_flip.value * 2 * math.pi),
+                    child: BrandMark(size: size * 1.25),
+                  ),
+                  SizedBox(width: size * 0.3),
+                  ShaderMask(
+                    // a soft light sweep across the name while animating
+                    shaderCallback: (r) => LinearGradient(
+                      colors: const [Colors.transparent, Colors.white54, Colors.transparent],
+                      stops: [(_c.value * 1.4 - 0.3).clamp(0.0, 1.0), (_c.value * 1.4 - 0.15).clamp(0.0, 1.0), (_c.value * 1.4).clamp(0.0, 1.0)],
+                    ).createShader(r),
+                    blendMode: _c.isAnimating ? BlendMode.srcATop : BlendMode.dst,
+                    child: Text.rich(
+                      const TextSpan(children: [
+                        TextSpan(text: 'My', style: TextStyle(color: BrandColors.navy)),
+                        TextSpan(text: 'Hatō', style: TextStyle(color: BrandColors.electric)),
+                      ]),
+                      style: TextStyle(fontSize: size, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

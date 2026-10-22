@@ -580,9 +580,7 @@ class LegalScreen extends StatelessWidget {
 • الأسعار بالجنيه المصري وبتتأكد عند تأكيد الطلب من فريقنا.
 • الدفع عند الاستلام أو في الفرع.
 • أي صيانة بتكلفة لازم توافق عليها قبل البدء.
-• الضمان حسب المكتوب على كل منتج أو في تفاصيل الصيانة.
-
-(نص مبدئي — راجعه مع مستشار قانوني قبل النشر.)'''
+• الضمان حسب المكتوب على كل منتج أو في تفاصيل الصيانة.'''
               : '''Privacy policy — My Hatō
 
 • Data we collect: name, mobile number, email, addresses, order and repair details, and device photos you upload.
@@ -595,9 +593,7 @@ Terms
 • Prices are in Egyptian Pounds and are confirmed by our team when your order is confirmed.
 • Payment is cash on delivery or at the branch.
 • Chargeable repairs require your approval before work starts.
-• Warranty as stated on each product or repair.
-
-(Draft text — review with a legal advisor before publishing.)''',
+• Warranty as stated on each product or repair.''',
           style: const TextStyle(height: 1.8),
         ),
       ]),
