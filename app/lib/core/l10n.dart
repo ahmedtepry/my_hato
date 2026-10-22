@@ -155,6 +155,8 @@ const Map<String, Map<String, String>> _strings = {
   'account_pending_title': {'ar': 'حسابك لسه متفعّلش', 'en': 'Your account is not active yet'},
   'account_pending_body': {'ar': 'تواصل مع خدمة العملاء على واتساب وهنفعّلهولك فورًا.', 'en': 'Contact customer support on WhatsApp and we will activate it right away.'},
   'account_pending_wa': {'ar': 'أهلاً My Hatō، عملت حساب جديد ومحتاج تفعيله.', 'en': 'Hello My Hatō, I created an account and need it activated.'},
+  'checkout_no_branch': {'ar': 'مفيش فرع متاح للاستلام دلوقتي. اختار التوصيل للبيت أو كلّم خدمة العملاء.', 'en': 'No branch is available for pickup right now. Choose home delivery or contact support.'},
+  'checkout_add_address': {'ar': 'ضيف عنوان التوصيل علشان تكمّل الطلب.', 'en': 'Add a delivery address to continue.'},
   'auth_error': {'ar': 'حصلت مشكلة. حاول تاني بعد شوية.', 'en': 'Something went wrong. Please try again shortly.'},
   'login_required': {'ar': 'سجّل دخولك الأول', 'en': 'Please sign in first'},
   'logout': {'ar': 'تسجيل الخروج', 'en': 'Sign out'},

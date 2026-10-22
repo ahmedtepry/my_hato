@@ -92,10 +92,32 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final hasPhone = phone != null || _fulfillment == 'delivery';
     final subtotal = cart?.subtotal ?? 0;
     final fee = _fulfillment == 'delivery' ? (_deliveryFee ?? 0) : 0;
+    // pick sensible defaults so the customer is never stuck on a greyed-out button
+    final branchList = branches.valueOrNull ?? const <Map<String, dynamic>>[];
+    if (_branchId == null && branchList.isNotEmpty) _branchId = branchList.first['id'] as String;
+    final addressList = addresses.valueOrNull ?? const <Map<String, dynamic>>[];
+    if (_fulfillment == 'delivery' && _addressId == null && addressList.isNotEmpty) {
+      _addressId = addressList.first['id'] as String;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshFee(addressList, subtotal);
+      });
+    }
     final ready = verified &&
         hasPhone &&
         (cart?.lines.isNotEmpty ?? false) &&
         ((_fulfillment == 'pickup' && _branchId != null) || (_fulfillment == 'delivery' && _addressId != null && _deliveryFee != null));
+    // tell the customer exactly what is missing instead of a silent disabled button
+    final String? missing = !verified
+        ? context.tr('err_account_not_verified')
+        : !hasPhone
+            ? context.tr('err_phone_required')
+            : (cart?.lines.isEmpty ?? true)
+                ? context.tr('err_cart_empty')
+                : _fulfillment == 'pickup' && _branchId == null
+                    ? (branches.isLoading ? null : context.tr('checkout_no_branch'))
+                    : _fulfillment == 'delivery' && _addressId == null
+                        ? context.tr('checkout_add_address')
+                        : null;
 
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('checkout'))),
@@ -146,6 +168,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             loading: () => const Skeleton(height: 80),
             error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(branchesProvider)),
             data: (list) => Column(children: [
+              if (list.isEmpty)
+                Card(child: ListTile(leading: const Icon(Icons.store_mall_directory_outlined), title: Text(context.tr('checkout_no_branch')))),
               for (final b in list)
                 Card(
                   child: RadioListTile<String>(
@@ -247,12 +271,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: FilledButton(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (missing != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  const Icon(Icons.info_outline, size: 18, color: BrandColors.warning),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(missing, style: const TextStyle(color: BrandColors.warning, fontWeight: FontWeight.w600))),
+                ]),
+              ),
+            FilledButton(
             onPressed: (!ready || _submitting) ? null : _submit,
             child: _submitting
                 ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
                 : Text('${context.tr(_payment == 'online' ? 'place_and_pay' : 'place_order')} • ${formatEgp(subtotal + fee, lang)}'),
           ),
+          ]),
         ),
       ),
     );
