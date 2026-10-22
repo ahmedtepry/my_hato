@@ -405,4 +405,92 @@ do $$ begin
   perform t.reset();
 end $$;
 
+\echo 'T25 sign-up creates a customer ID linking username, phone and email; duplicates and bad input rejected'
+do $$ declare v_code text; begin
+  insert into auth.users(id, email, raw_user_meta_data) values
+    ('00000000-0000-0000-0000-0000000000f1', 'Sara@Test.local', '{"full_name":"Sara","username":"Sara_99","phone":"01055555555"}');
+  select customer_code into v_code from public.customers where user_id = '00000000-0000-0000-0000-0000000000f1';
+  if v_code !~ '^MHC-[0-9]{6}$' then raise exception 'T25 code %', v_code; end if;
+  if (select username || '|' || phone || '|' || email from public.customers where customer_code = v_code)
+     <> 'sara_99|+201055555555|sara@test.local' then raise exception 'T25 fields'; end if;
+  if (select contact_phone from public.profiles where id = '00000000-0000-0000-0000-0000000000f1') <> '+201055555555' then raise exception 'T25 profile phone'; end if;
+  begin
+    insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000f2', 'x@test.local', '{"username":"sara_99"}');
+    raise exception 'T25 dup username';
+  exception when raise_exception then if sqlerrm <> 'USERNAME_TAKEN' then raise; end if; end;
+  begin
+    insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000f2', 'x@test.local', '{"username":"newone","phone":"+20 105 555 5555"}');
+    raise exception 'T25 dup phone';
+  exception when raise_exception then if sqlerrm <> 'PHONE_TAKEN' then raise; end if; end;
+  begin
+    insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000f2', 'x@test.local', '{"username":"a b"}');
+    raise exception 'T25 bad username';
+  exception when raise_exception then if sqlerrm <> 'INVALID_USERNAME' then raise; end if; end;
+  -- existing accounts were given IDs too
+  if exists (select 1 from public.profiles p where not exists (select 1 from public.customers c where c.user_id = p.id)) then raise exception 'T25 backfill'; end if;
+end $$;
+
+\echo 'T26 signup_check reports availability; stale unconfirmed sign-ups release their username/phone'
+do $$ declare r jsonb; begin
+  perform t.act(null);
+  r := public.signup_check('SARA_99', '01055555555');
+  if (r->>'username_available')::boolean or (r->>'phone_available')::boolean then raise exception 'T26 taken %', r; end if;
+  r := public.signup_check('free_name', '01266666666');
+  if not ((r->>'username_available')::boolean and (r->>'phone_available')::boolean) or r->>'phone' <> '+201266666666' then raise exception 'T26 free %', r; end if;
+  r := public.signup_check('x', '123');
+  if (r->>'username_valid')::boolean or (r->>'phone_valid')::boolean then raise exception 'T26 invalid %', r; end if;
+  perform t.reset();
+  insert into auth.users(id, email, created_at, raw_user_meta_data) values
+    ('00000000-0000-0000-0000-0000000000f3', 'old@test.local', now() - interval '2 days', '{"username":"oldname","phone":"01177777777"}');
+  perform t.act(null);
+  if not (public.signup_check('oldname', '01177777777')->>'username_available')::boolean then raise exception 'T26 stale not free'; end if;
+  perform t.reset();
+  insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000f4', 'new@test.local', '{"username":"oldname","phone":"01177777777"}');
+  if (select username from public.customers where user_id = '00000000-0000-0000-0000-0000000000f4') <> 'oldname'
+     or (select username from public.customers where user_id = '00000000-0000-0000-0000-0000000000f3') is not null then raise exception 'T26 release'; end if;
+end $$;
+
+\echo 'T27 sign in with email, mobile or username + password; wrong password and throttling'
+do $$ declare i int; begin
+  update auth.users set encrypted_password = extensions.crypt('Secret123', extensions.gen_salt('bf', 6)), email_confirmed_at = now()
+   where id = '00000000-0000-0000-0000-0000000000f1';
+  perform t.act(null);
+  if public.login_email_for('sara_99', 'Secret123') is distinct from 'Sara@Test.local' then raise exception 'T27 username'; end if;
+  if public.login_email_for(' SARA_99 ', 'Secret123') is distinct from 'Sara@Test.local' then raise exception 'T27 username case'; end if;
+  if public.login_email_for('01055555555', 'Secret123') is distinct from 'Sara@Test.local' then raise exception 'T27 phone'; end if;
+  if public.login_email_for('+201055555555', 'Secret123') is distinct from 'Sara@Test.local' then raise exception 'T27 phone e164'; end if;
+  if public.login_email_for('sara@test.local', 'Secret123') is distinct from 'Sara@Test.local' then raise exception 'T27 email'; end if;
+  if public.login_email_for('sara_99', 'wrong') is not null then raise exception 'T27 wrong pw'; end if;
+  if public.login_email_for('nobody_here', 'Secret123') is not null then raise exception 'T27 unknown'; end if;
+  for i in 1..7 loop perform public.login_email_for('sara_99', 'wrong'); end loop;  -- 8 failures in total
+  begin
+    perform public.login_email_for('sara_99', 'Secret123');
+    raise exception 'T27 no throttle';
+  exception when raise_exception then if sqlerrm <> 'RATE_LIMITED' then raise; end if; end;
+  perform t.reset();
+end $$;
+
+\echo 'T28 customer register is private: own row only, staff with customers.view see all, no client writes'
+do $$ begin
+  perform t.act('00000000-0000-0000-0000-0000000000f1');
+  if (select count(*) from public.customers) <> 1 then raise exception 'T28 own only'; end if;
+  begin
+    update public.customers set username = 'hacker' where user_id = auth.uid();
+    raise exception 'T28 client write';
+  exception when insufficient_privilege then null; end;
+  begin
+    update public.profiles set contact_phone = '+201011111111' where id = auth.uid();  -- belongs to customer A? (A has verified phone, not contact)
+  exception when raise_exception then null; end;
+  perform t.reset();
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  if (select count(*) from public.customers) < 5 then raise exception 'T28 owner sees all'; end if;
+  perform t.reset();
+  perform t.act(null);
+  begin
+    perform 1 from public.customers;
+    raise exception 'T28 anon read';
+  exception when insufficient_privilege then null; end;
+  perform t.reset();
+end $$;
+
 \echo 'ALL BACKEND TESTS PASSED'
