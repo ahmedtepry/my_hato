@@ -1,0 +1,336 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/errors.dart';
+import '../../core/l10n.dart';
+import '../../core/money.dart';
+import '../../core/theme.dart';
+import '../../shared/brand_logo.dart';
+import '../../shared/states.dart';
+import '../auth/auth_repository.dart';
+import '../cart/cart_repository.dart';
+import '../orders/orders_repository.dart';
+import '../payments/payment_flow.dart';
+import '../payments/payments_repository.dart';
+import '../profile/profile_repository.dart';
+
+class CheckoutScreen extends ConsumerStatefulWidget {
+  const CheckoutScreen({super.key});
+  @override
+  ConsumerState<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
+  String _fulfillment = 'pickup';
+  String? _branchId;
+  String? _addressId;
+  String _payment = 'pay_at_branch';
+  bool _saveCard = false; // explicit opt-in, unchecked by default
+  final _notes = TextEditingController();
+  int? _deliveryFee;
+  bool _submitting = false;
+  // stable across retries of THIS checkout => server never creates duplicates
+  final String _idempotencyKey = OrdersRepository.newIdempotencyKey();
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshFee(List<Map<String, dynamic>> addresses, int subtotal) async {
+    final a = addresses.where((x) => x['id'] == _addressId).firstOrNull;
+    if (a == null) {
+      setState(() => _deliveryFee = null);
+      return;
+    }
+    final fee = await ref.read(ordersRepoProvider).deliveryFee(a['governorate'] as String, subtotal);
+    if (mounted) setState(() => _deliveryFee = fee);
+  }
+
+  Future<void> _submit() async {
+    setState(() => _submitting = true);
+    try {
+      final res = await ref.read(ordersRepoProvider).placeOrder(
+            idempotencyKey: _idempotencyKey,
+            fulfillment: _fulfillment,
+            paymentMethod: _payment,
+            branchId: _fulfillment == 'pickup' ? _branchId : null,
+            addressId: _fulfillment == 'delivery' ? _addressId : null,
+            notes: _notes.text,
+          );
+      ref.invalidate(cartProvider);
+      ref.invalidate(myOrdersProvider);
+      if (!mounted) return;
+      if (_payment == 'online') {
+        // order is saved (unpaid); now collect payment securely. Paid status comes only from the server.
+        await startOnlinePayment(context, ref, orderId: res['order_id'] as String, saveCard: _saveCard);
+        return;
+      }
+      // The confirmation animation is shown ONLY after the backend confirmed creation.
+      context.go('/order-confirmed?id=${res['order_id']}&ref=${Uri.encodeComponent(res['reference'] as String)}');
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lang = context.lang;
+    final cart = ref.watch(cartProvider).valueOrNull;
+    final profile = ref.watch(profileProvider);
+    final branches = ref.watch(branchesProvider);
+    final addresses = ref.watch(addressesProvider);
+    final p = profile.valueOrNull;
+    final onlineEnabled = ref.watch(onlinePaymentsEnabledProvider).valueOrNull ?? false;
+    final phoneVerified = p?['phone_verified'] == true;
+    final subtotal = cart?.subtotal ?? 0;
+    final fee = _fulfillment == 'delivery' ? (_deliveryFee ?? 0) : 0;
+    final ready = phoneVerified &&
+        (cart?.lines.isNotEmpty ?? false) &&
+        ((_fulfillment == 'pickup' && _branchId != null) || (_fulfillment == 'delivery' && _addressId != null && _deliveryFee != null));
+
+    return Scaffold(
+      appBar: AppBar(title: Text(context.tr('checkout'))),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        _h(context.tr('contact_info')),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: Text((p?['full_name'] as String?) ?? '—'),
+            subtitle: Directionality(textDirection: TextDirection.ltr, child: Text((p?['phone'] as String?) ?? '—', textAlign: context.isAr ? TextAlign.end : TextAlign.start)),
+            trailing: phoneVerified
+                ? StatusChip(label: context.tr('verified'), color: BrandColors.success)
+                : TextButton(
+                    onPressed: () => context.push('/auth/phone?mode=verify&redirect=%2Fcheckout'),
+                    child: Text(context.tr('verify')),
+                  ),
+          ),
+        ),
+        if (!phoneVerified)
+          Padding(padding: const EdgeInsets.only(top: 6), child: Text(context.tr('err_phone_not_verified'), style: const TextStyle(color: BrandColors.error))),
+        _h(context.tr('fulfillment')),
+        SegmentedButton<String>(
+          segments: [
+            ButtonSegment(value: 'pickup', icon: const Icon(Icons.storefront_outlined), label: Text(context.tr('branch_pickup'))),
+            ButtonSegment(value: 'delivery', icon: const Icon(Icons.local_shipping_outlined), label: Text(context.tr('home_delivery'))),
+          ],
+          selected: {_fulfillment},
+          onSelectionChanged: (s) => setState(() {
+            _fulfillment = s.first;
+            if (_payment != 'online') _payment = _fulfillment == 'pickup' ? 'pay_at_branch' : 'cash_on_delivery';
+          }),
+        ),
+        const SizedBox(height: 12),
+        if (_fulfillment == 'pickup')
+          branches.when(
+            loading: () => const Skeleton(height: 80),
+            error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(branchesProvider)),
+            data: (list) => Column(children: [
+              for (final b in list)
+                Card(
+                  child: RadioListTile<String>(
+                    value: b['id'] as String,
+                    groupValue: _branchId,
+                    onChanged: (v) => setState(() => _branchId = v),
+                    title: Text(context.pick(b, 'name'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text([context.pick(b, 'address'), b['phone'] ?? '', context.pick(b, 'hours')].where((s) => s.toString().isNotEmpty).join('\n')),
+                  ),
+                ),
+            ]),
+          )
+        else
+          addresses.when(
+            loading: () => const Skeleton(height: 80),
+            error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(addressesProvider)),
+            data: (list) => Column(children: [
+              for (final a in list)
+                Card(
+                  child: RadioListTile<String>(
+                    value: a['id'] as String,
+                    groupValue: _addressId,
+                    onChanged: (v) {
+                      setState(() => _addressId = v);
+                      _refreshFee(list, subtotal);
+                    },
+                    title: Text('${a['label'] ?? a['recipient_name']}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text('${a['governorate']} — ${a['city']} — ${a['street']}'),
+                  ),
+                ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.add_location_alt_outlined),
+                label: Text(context.tr('add_address')),
+                onPressed: () async {
+                  await context.push('/account/addresses/new');
+                  ref.invalidate(addressesProvider);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(controller: _notes, maxLength: 500, maxLines: 2, decoration: InputDecoration(labelText: context.tr('delivery_notes'))),
+            ]),
+          ),
+        _h(context.tr('payment_method')),
+        Card(
+          child: Column(children: [
+            if (_fulfillment == 'delivery')
+              RadioListTile<String>(value: 'cash_on_delivery', groupValue: _payment, onChanged: (v) => setState(() => _payment = v!), title: Text(context.tr('cod'))),
+            if (_fulfillment == 'pickup')
+              RadioListTile<String>(value: 'pay_at_branch', groupValue: _payment, onChanged: (v) => setState(() => _payment = v!), title: Text(context.tr('pay_branch'))),
+            if (onlineEnabled) ...[
+              RadioListTile<String>(
+                value: 'online',
+                groupValue: _payment,
+                onChanged: (v) => setState(() => _payment = v!),
+                title: Text(context.tr('pay_online')),
+                subtitle: Text(context.tr('pay_online_sub'), style: const TextStyle(fontSize: 12)),
+                secondary: const Icon(Icons.credit_card_rounded, color: BrandColors.electric),
+              ),
+              if (_payment == 'online')
+                CheckboxListTile(
+                  value: _saveCard,
+                  onChanged: (v) => setState(() => _saveCard = v ?? false),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(context.tr('save_card')),
+                  subtitle: Text(context.tr('save_card_sub'), style: const TextStyle(fontSize: 12)),
+                ),
+            ] else
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.credit_card_off_outlined, color: BrandColors.gray),
+                title: Text(context.tr('online_payment_soon'), style: const TextStyle(color: BrandColors.gray)),
+              ),
+          ]),
+        ),
+        _h(context.tr('items')),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(children: [
+              for (final l in cart?.lines ?? const <CartLine>[])
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(children: [
+                    Expanded(child: Text('${lang == 'ar' ? l.nameAr : l.nameEn} × ${l.quantity}', maxLines: 2)),
+                    Text(formatEgp(l.lineTotal, lang), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ]),
+                ),
+              const Divider(height: 20),
+              _sum(context.tr('subtotal'), formatEgp(cart?.listTotal ?? 0, lang)),
+              if ((cart?.discount ?? 0) > 0) _sum(context.tr('discount'), '- ${formatEgp(cart!.discount, lang)}'),
+              _sum(context.tr('delivery_fee'), _fulfillment == 'pickup' ? formatEgp(0, lang) : (_deliveryFee == null ? '—' : formatEgp(_deliveryFee, lang))),
+              const Divider(height: 20),
+              _sum(context.tr('total'), formatEgp(subtotal + fee, lang), bold: true),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 100),
+      ]),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: FilledButton(
+            onPressed: (!ready || _submitting) ? null : _submit,
+            child: _submitting
+                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                : Text('${context.tr(_payment == 'online' ? 'place_and_pay' : 'place_order')} • ${formatEgp(subtotal + fee, lang)}'),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _h(String t) => Padding(padding: const EdgeInsets.fromLTRB(4, 20, 4, 8), child: Text(t, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)));
+
+  Widget _sum(String k, String v, {bool bold = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(children: [
+          Text(k, style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w500)),
+          const Spacer(),
+          Text(v, style: TextStyle(fontWeight: bold ? FontWeight.w900 : FontWeight.w600, fontSize: bold ? 18 : 14, color: bold ? BrandColors.electric : null)),
+        ]),
+      );
+}
+
+/// Animated My Hatō "M" confirmation, shown only after the server confirmed the order.
+class OrderConfirmationScreen extends StatefulWidget {
+  const OrderConfirmationScreen({super.key, required this.orderId, required this.reference});
+  final String orderId;
+  final String reference;
+  @override
+  State<OrderConfirmationScreen> createState() => _OrderConfirmationScreenState();
+}
+
+class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+        canPop: false,
+        child: Scaffold(
+          backgroundColor: BrandColors.navy,
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: AnimatedBuilder(
+                animation: _c,
+                builder: (_, __) {
+                  final draw = Curves.easeInOut.transform((_c.value / 0.65).clamp(0.0, 1.0));
+                  final reveal = Curves.easeOut.transform(((_c.value - 0.55) / 0.45).clamp(0.0, 1.0));
+                  return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Transform.scale(
+                      scale: 0.8 + 0.2 * draw,
+                      child: Container(
+                        padding: const EdgeInsets.all(30),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.06),
+                          boxShadow: [BoxShadow(color: BrandColors.electric.withOpacity(0.45 * draw), blurRadius: 50, spreadRadius: 4)],
+                        ),
+                        child: BrandMark(size: 110, onDark: true, progress: draw),
+                      ),
+                    ),
+                    const SizedBox(height: 36),
+                    Opacity(
+                      opacity: reveal,
+                      child: Transform.translate(
+                        offset: Offset(0, 20 * (1 - reveal)),
+                        child: Column(children: [
+                          const Icon(Icons.check_circle_rounded, color: BrandColors.success, size: 40),
+                          const SizedBox(height: 16),
+                          // Exact required message (Arabic), English translation in EN mode
+                          Text(context.tr('order_sent_msg'),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.6)),
+                          const SizedBox(height: 18),
+                          Text(context.tr('order_number'), style: const TextStyle(color: Colors.white60)),
+                          const SizedBox(height: 4),
+                          SelectableText(widget.reference,
+                              style: const TextStyle(color: BrandColors.electric, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                          const SizedBox(height: 36),
+                          FilledButton(onPressed: () => context.go('/orders/${widget.orderId}'), child: Text(context.tr('view_order'))),
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white30)),
+                            onPressed: () => context.go('/'),
+                            child: Text(context.tr('back_home')),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ]);
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+}
