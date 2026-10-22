@@ -44,6 +44,8 @@ String friendlyError(BuildContext context, Object error) {
     'CANCEL_REASON_REQUIRED': 'err_cancel_reason',
     'ALREADY_DECIDED': 'err_already_decided',
     'CANNOT_CANCEL': 'err_cannot_cancel',
+    'SKU_TAKEN': 'err_sku_taken',
+    'products_sku_key': 'err_sku_taken',
   };
   for (final e in map.entries) {
     if (msg.contains(e.key)) return context.tr(e.value);

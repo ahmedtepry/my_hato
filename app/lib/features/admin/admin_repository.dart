@@ -140,6 +140,13 @@ class AdminRepository {
   Future<List<Map<String, dynamic>>> categories() async =>
       List<Map<String, dynamic>>.from(await _db.from('categories').select('id, name_ar, name_en, kind').order('kind').order('sort_order'));
 
+  /// True when another product (archived ones included) already uses this SKU / barcode.
+  Future<bool> skuTaken(String sku, {String? exceptId}) async {
+    var q = _db.from('products').select('id').eq('sku', sku.trim());
+    if (exceptId != null) q = q.neq('id', exceptId);
+    return (await q.limit(1) as List).isNotEmpty;
+  }
+
   Future<void> updateProduct(String id, Map<String, dynamic> fields) async {
     if (fields.isEmpty) return;
     await _db.from('products').update(fields).eq('id', id);
@@ -166,13 +173,15 @@ class AdminRepository {
     required int stock,
     Uint8List? imageBytes,
     String? imageUrl,
+    String? sku,
   }) async {
-    final sku = 'MH-${DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase()}';
+    final code = (sku == null || sku.trim().isEmpty) ? 'MH-${DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase()}' : sku.trim();
+    if (await skuTaken(code)) throw Exception('SKU_TAKEN');
     final row = await _db
         .from('products')
         .insert({
-          'sku': sku,
-          'slug': sku.toLowerCase(),
+          'sku': code,
+          'slug': 'p-${code.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}',
           'category_id': categoryId,
           'name_ar': nameAr.trim(),
           'name_en': nameEn.trim().isEmpty ? nameAr.trim() : nameEn.trim(),

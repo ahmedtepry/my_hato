@@ -11,6 +11,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/barcode_scanner.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/product_card.dart';
 import '../../shared/states.dart';
@@ -678,10 +679,7 @@ class _ProductsTab extends ConsumerWidget {
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          child: TextField(
-            decoration: InputDecoration(hintText: _t(context, 'ابحث باسم المنتج أو الكود', 'Search name or SKU'), prefixIcon: const Icon(Icons.search)),
-            onSubmitted: (v) => ref.read(_productSearchProvider.notifier).state = v,
-          ),
+          child: _ProductSearchField(onSearch: (v) => ref.read(_productSearchProvider.notifier).state = v),
         ),
         Align(
           alignment: AlignmentDirectional.centerStart,
@@ -749,6 +747,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   late final _compare = TextEditingController(text: p?['compare_at_price_minor'] == null ? '' : '${(p!['compare_at_price_minor'] as num) ~/ 100}');
   late final _stock = TextEditingController(text: p == null ? '' : '${p!['stock_quantity']}');
   late final _desc = TextEditingController();
+  late final _sku = TextEditingController(text: p?['sku'] as String? ?? '');
   late String? _categoryId = p?['category_id'] as String?;
   late bool _published = (p?['status'] ?? 'published') == 'published';
   late bool _featured = p?['is_featured'] == true;
@@ -757,7 +756,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
 
   @override
   void dispose() {
-    for (final c in [_nameAr, _nameEn, _price, _compare, _stock, _desc]) {
+    for (final c in [_nameAr, _nameEn, _price, _compare, _stock, _desc, _sku]) {
       c.dispose();
     }
     super.dispose();
@@ -782,9 +781,13 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
           priceMinor: price,
           stock: stock,
           imageBytes: _image,
+          sku: _sku.text,
         );
       } else {
+        final sku = _sku.text.trim();
+        if (sku.isNotEmpty && sku != p!['sku'] && await repo.skuTaken(sku, exceptId: p!['id'] as String)) throw Exception('SKU_TAKEN');
         await repo.updateProduct(p!['id'] as String, {
+          if (sku.isNotEmpty && sku != p!['sku']) 'sku': sku,
           'name_ar': _nameAr.text.trim(),
           'name_en': _nameEn.text.trim().isEmpty ? _nameAr.text.trim() : _nameEn.text.trim(),
           'price_minor': price,
@@ -855,6 +858,32 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
             TextFormField(controller: _nameAr, decoration: InputDecoration(labelText: _t(context, 'الاسم بالعربي', 'Arabic name')), validator: need),
             const SizedBox(height: 12),
             TextFormField(controller: _nameEn, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: _t(context, 'الاسم بالإنجليزي (اختياري)', 'English name (optional)'))),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _sku,
+              textDirection: TextDirection.ltr,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                labelText: _t(context, 'كود المنتج SKU / باركود', 'SKU / barcode'),
+                hintText: p == null ? _t(context, 'اكتبه أو امسحه — لو سبته فاضي هيتعمل تلقائي', 'Type or scan — left empty, one is generated') : null,
+                prefixIcon: const Icon(Icons.qr_code_2_rounded),
+                suffixIcon: IconButton(
+                  tooltip: _t(context, 'امسح بالكاميرا', 'Scan with camera'),
+                  icon: const Icon(Icons.qr_code_scanner_rounded, color: BrandColors.electric),
+                  onPressed: () async {
+                    final code = await scanBarcode(context);
+                    if (code != null && mounted) setState(() => _sku.text = code);
+                  },
+                ),
+              ),
+              validator: (v) {
+                final t = (v ?? '').trim();
+                if (t.isEmpty) return p == null ? null : context.tr('required');
+                return RegExp(r'^[A-Za-z0-9._\-]{3,64}$').hasMatch(t)
+                    ? null
+                    : _t(context, 'من 3 لـ 64 حرف إنجليزي أو رقم (مسموح . _ -)', '3–64 letters/digits (. _ - allowed)');
+              },
+            ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: cats.any((c) => c['id'] == _categoryId) ? _categoryId : null,
@@ -1579,6 +1608,43 @@ class _CloseReasonSheetState extends State<_CloseReasonSheet> {
       ),
     );
   }
+}
+
+/// Product search: type a name / SKU, or scan a barcode to find the product.
+class _ProductSearchField extends StatefulWidget {
+  const _ProductSearchField({required this.onSearch});
+  final ValueChanged<String> onSearch;
+  @override
+  State<_ProductSearchField> createState() => _ProductSearchFieldState();
+}
+
+class _ProductSearchFieldState extends State<_ProductSearchField> {
+  final _c = TextEditingController();
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => TextField(
+        controller: _c,
+        decoration: InputDecoration(
+          hintText: _t(context, 'ابحث باسم المنتج أو الكود', 'Search name or SKU'),
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: IconButton(
+            tooltip: _t(context, 'امسح باركود', 'Scan barcode'),
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: BrandColors.electric),
+            onPressed: () async {
+              final code = await scanBarcode(context);
+              if (code == null) return;
+              _c.text = code;
+              widget.onSearch(code);
+            },
+          ),
+        ),
+        onSubmitted: widget.onSearch,
+      );
 }
 
 /// Overview tile: tap feedback (ripple + slight press-in) and a chevron so it reads as a button.
