@@ -1,0 +1,48 @@
+# Builds a signed RELEASE APK on every push to main (or manually from the Actions tab).
+# Download: Actions → latest run → Artifacts → myhato-release-apk.
+# Optional secrets for a permanent signing key: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+# The full build log is pushed to the `ci-logs` branch (logs/build.log).
+name: Build release APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/build-apk.yml"]
+permissions:
+  contents: write
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - name: Build release APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bash app/tool/ci_build.sh 2>&1 | tee build.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: myhato-release-apk
+          path: dist/myhato-release.apk
+          if-no-files-found: ignore
+      - name: Publish build log to ci-logs branch
+        if: always()
+        run: |
+          mkdir -p /tmp/logs && (cp build.log /tmp/logs/build.log 2>/dev/null || echo "no log" > /tmp/logs/build.log)
+          echo "run=${{ github.run_number }} sha=${{ github.sha }} result=${{ job.status }}" > /tmp/logs/meta.txt
+          git config user.name "ci-bot"; git config user.email "ci-bot@users.noreply.github.com"
+          git checkout --orphan ci-logs
+          git rm -rf --cached . -q
+          rm -rf logs && cp -r /tmp/logs logs
+          git add -f logs && git commit -qm "build log #${{ github.run_number }}"
+          git push -f origin ci-logs
