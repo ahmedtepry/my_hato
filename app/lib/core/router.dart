@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 
 import '../features/auth/auth_repository.dart';
 import '../features/auth/email_otp_screen.dart';
@@ -124,3 +125,89 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
   return router;
 });
+
+class _Shell extends ConsumerWidget {
+  const _Shell({required this.shell});
+  final StatefulNavigationShell shell;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cartCount = ref.watch(cartProvider).valueOrNull?.count ?? 0;
+    // keep realtime notifications alive while the shell is mounted
+    ref.watch(notificationsProvider);
+    return Scaffold(
+      body: shell,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: shell.currentIndex,
+        onDestinationSelected: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: context.tr('nav_home')),
+          NavigationDestination(icon: const Icon(Icons.grid_view_outlined), selectedIcon: const Icon(Icons.grid_view_rounded), label: context.tr('nav_categories')),
+          NavigationDestination(
+            icon: Badge(isLabelVisible: cartCount > 0, label: Text('$cartCount'), child: const Icon(Icons.shopping_bag_outlined)),
+            selectedIcon: const Icon(Icons.shopping_bag_rounded),
+            label: context.tr('nav_cart'),
+          ),
+          NavigationDestination(icon: const Icon(Icons.receipt_long_outlined), selectedIcon: const Icon(Icons.receipt_long_rounded), label: context.tr('nav_orders')),
+          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person_rounded), label: context.tr('nav_account')),
+        ],
+      ),
+    );
+  }
+}
+
+/// Categories tab: the same four top sections + every admin-managed category.
+class CategoriesScreen extends ConsumerWidget {
+  const CategoriesScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final phones = ref.watch(categoriesProvider('phones')).valueOrNull ?? const [];
+    final acc = ref.watch(categoriesProvider('accessories')).valueOrNull ?? const [];
+    final usedOn = ref.watch(usedEnabledProvider).valueOrNull ?? false;
+    Widget group(String title, List<Map<String, dynamic>> cats) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.fromLTRB(16, 20, 16, 8), child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final c in cats)
+              ActionChip(
+                label: Text(context.pick(c, 'name')),
+                onPressed: () => context.push('/catalog/all', extra: CatalogQuery(categoryId: c['id'] as String)),
+              ),
+          ]).paddingH(16),
+        ]);
+    return Scaffold(
+      appBar: AppBar(title: Text(context.tr('nav_categories'))),
+      body: ListView(children: [
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.6,
+          children: [
+            for (final s in mainSections)
+              Card(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => context.push(s.route),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(s.icon, size: 32),
+                    const SizedBox(height: 6),
+                    Text(context.tr(s.key), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    if (s.comingSoon && !usedOn) Text(context.tr('used_coming_soon'), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  ]),
+                ),
+              ),
+          ],
+        ),
+        if (phones.isNotEmpty) group(context.tr('sec_phones'), phones),
+        if (acc.isNotEmpty) group(context.tr('sec_accessories'), acc),
+        const SizedBox(height: 24),
+      ]),
+    );
+  }
+}
+
+extension on Widget {
+  Widget paddingH(double h) => Padding(padding: EdgeInsets.symmetric(horizontal: h), child: this);
+}
