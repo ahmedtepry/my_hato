@@ -45,6 +45,7 @@ String friendlyError(BuildContext context, Object error) {
     'ALREADY_DECIDED': 'err_already_decided',
     'CANNOT_CANCEL': 'err_cannot_cancel',
     'SKU_TAKEN': 'err_sku_taken',
+    'NOT_FOUND': 'err_not_found',
     'products_sku_key': 'err_sku_taken',
   };
   for (final e in map.entries) {

@@ -37,7 +37,7 @@ class ProfileRepository {
       path == null ? null : _db.storage.from('avatars').createSignedUrl(path, 3600);
 
   Future<List<Map<String, dynamic>>> addresses() async => List<Map<String, dynamic>>.from(
-      await _db.from('customer_addresses').select().order('is_default', ascending: false).order('created_at'));
+      await _db.from('customer_addresses').select().eq('user_id', _uid).order('is_default', ascending: false).order('created_at'));
 
   Future<String> saveAddress(Map<String, dynamic> a, {String? id}) async {
     final data = {...a, 'user_id': _uid};

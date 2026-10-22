@@ -37,17 +37,29 @@ class OrdersRepository {
     return Map<String, dynamic>.from(res as Map);
   }
 
+  String get _uid => _db.auth.currentUser?.id ?? '';
+
+  /// The signed-in person's own open orders. Filtered explicitly: staff accounts can read every
+  /// customer's orders through RLS, and closed operations must never show in a customer's list.
   Future<List<Map<String, dynamic>>> myOrders() async => List<Map<String, dynamic>>.from(await _db
       .from('orders')
       .select('id, reference, status, total_minor, fulfillment, payment_status, created_at, order_items(name_ar, name_en, quantity)')
+      .eq('customer_id', _uid)
+      .isFilter('closed_at', null)
       .order('created_at', ascending: false)
       .limit(100));
 
-  Future<Map<String, dynamic>> order(String id) async => await _db
-      .from('orders')
-      .select('*, order_items(*), order_status_history(*), branches(*), cancel_requests(*)')
-      .eq('id', id)
-      .single();
+  Future<Map<String, dynamic>> order(String id) async {
+    final row = await _db
+        .from('orders')
+        .select('*, order_items(*), order_status_history(*), branches(*), cancel_requests(*)')
+        .eq('id', id)
+        .eq('customer_id', _uid)
+        .isFilter('closed_at', null)
+        .maybeSingle();
+    if (row == null) throw Exception('NOT_FOUND');
+    return row;
+  }
 
   /// kind: 'order' | 'repair'. Staff approve or reject the request.
   Future<void> requestCancel(String kind, String id, String reason) =>

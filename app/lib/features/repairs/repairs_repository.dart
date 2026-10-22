@@ -54,11 +54,21 @@ class RepairsRepository {
     await _db.rpc('add_repair_attachment', params: {'p_repair_id': repairId, 'p_storage_path': path});
   }
 
-  Future<List<Map<String, dynamic>>> myRepairs() async => List<Map<String, dynamic>>.from(
-      await _db.from('repair_requests').select(_cols).order('created_at', ascending: false).limit(100));
+  String get _me => _db.auth.currentUser?.id ?? '';
+
+  /// Own open repairs only (staff can read all repairs through RLS; closed ones are hidden).
+  Future<List<Map<String, dynamic>>> myRepairs() async => List<Map<String, dynamic>>.from(await _db
+      .from('repair_requests')
+      .select(_cols)
+      .eq('customer_id', _me)
+      .isFilter('closed_at', null)
+      .order('created_at', ascending: false)
+      .limit(100));
 
   Future<Map<String, dynamic>> repair(String id) async {
-    final r = Map<String, dynamic>.from(await _db.from('repair_requests').select(_cols).eq('id', id).single());
+    final row = await _db.from('repair_requests').select(_cols).eq('id', id).eq('customer_id', _me).isFilter('closed_at', null).maybeSingle();
+    if (row == null) throw Exception('NOT_FOUND');
+    final r = Map<String, dynamic>.from(row);
     final results = await Future.wait([
       _db.from('repair_status_history').select().eq('repair_id', id).order('created_at'),
       _db.from('repair_quotes').select().eq('repair_id', id).order('created_at', ascending: false),
