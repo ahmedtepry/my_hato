@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/avatars.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/product_card.dart';
 import '../../shared/smooth_pages.dart';
@@ -196,15 +197,23 @@ class _ProfileAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileProvider).valueOrNull;
     final name = (profile?['full_name'] as String?) ?? '';
+    final avatarId = profile?['avatar_id'] as String?;
     return InkWell(
       customBorder: const CircleBorder(),
       onTap: () => context.go(signedIn ? '/account' : '/auth/login'),
-      child: CircleAvatar(
-        radius: 20,
-        backgroundColor: BrandColors.navy,
-        child: name.isNotEmpty
-            ? Text(name.characters.first.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))
-            : const Icon(Icons.person_rounded, color: Colors.white),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (c, a) => ScaleTransition(scale: CurvedAnimation(parent: a, curve: Curves.easeOutBack), child: c),
+        child: isAvatarId(avatarId)
+            ? HatoAvatar(key: ValueKey(avatarId), id: avatarId!, size: 42)
+            : CircleAvatar(
+                key: const ValueKey('letter'),
+                radius: 21,
+                backgroundColor: BrandColors.navy,
+                child: name.isNotEmpty
+                    ? Text(name.characters.first.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))
+                    : const Icon(Icons.person_rounded, color: Colors.white),
+              ),
       ),
     );
   }
