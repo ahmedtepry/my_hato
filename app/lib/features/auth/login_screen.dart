@@ -86,20 +86,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _oauth(Future<void> Function() action) async {
-    setState(() => _busy = true);
-    try {
-      await action();
-    } catch (e) {
-      if (mounted) showSnack(context, friendlyError(context, e), error: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final auth = ref.read(authRepoProvider);
     return Scaffold(
       appBar: AppBar(leading: CloseButton(onPressed: () => context.canPop() ? context.pop() : context.go('/'))),
       body: SafeArea(
@@ -151,50 +139,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
                     : Text(context.tr('login')),
               ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.pin_outlined),
-                label: Text(context.tr('login_with_email_code')),
-                onPressed: () => _sendCode(EmailCodePurpose.login),
-              ),
-              Builder(builder: (context) {
-                final providers = ref.watch(authProvidersProvider).valueOrNull ?? const AuthProviders();
-                if (!providers.google && !providers.facebook && !providers.phone) return const SizedBox.shrink();
-                return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  const SizedBox(height: 20),
-                  Row(children: [
-                    const Expanded(child: Divider()),
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text(context.tr('or'), style: const TextStyle(color: BrandColors.gray))),
-                    const Expanded(child: Divider()),
-                  ]),
-                  // OAuth opens the system browser; the session arrives through the deep link and
-                  // the router redirects automatically once onAuthStateChange fires.
-                  if (providers.google) ...[
-                    const SizedBox(height: 20),
-                    OutlinedButton.icon(
-                      icon: const Text('G', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF4285F4))),
-                      label: Text(context.tr('continue_google')),
-                      onPressed: () => _oauth(auth.signInWithGoogle),
-                    ),
-                  ],
-                  if (providers.facebook) ...[
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.facebook, color: Color(0xFF1877F2)),
-                      label: Text(context.tr('continue_facebook')),
-                      onPressed: () => _oauth(auth.signInWithFacebook),
-                    ),
-                  ],
-                  if (providers.phone) ...[
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.phone_iphone_rounded),
-                      label: Text(context.tr('continue_phone')),
-                      onPressed: () => context.push('/auth/phone?mode=signin&redirect=${Uri.encodeComponent(_redirect)}'),
-                    ),
-                  ],
-                ]);
-              }),
               const SizedBox(height: 24),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text(context.tr('no_account')),
