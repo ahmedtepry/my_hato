@@ -81,16 +81,14 @@ class RepairsRepository {
   Future<List<Map<String, dynamic>>> statusLabels() async =>
       List<Map<String, dynamic>>.from(await _db.from('repair_status_labels').select().order('sort_order'));
 
-  // ---- guest lookup via Edge Function (never exposes private data) ----
-  Future<Map<String, dynamic>> guestStart(String reference) async {
-    final res = await _db.functions.invoke(AppConfig.guestLookupFunction, body: {'action': 'start', 'reference': reference});
-    return Map<String, dynamic>.from(res.data as Map);
-  }
-
-  Future<Map<String, dynamic>> guestVerify(String reference, String code) async {
-    final res = await _db.functions.invoke(AppConfig.guestLookupFunction,
-        body: {'action': 'verify', 'reference': reference, 'code': code});
-    return Map<String, dynamic>.from((res.data as Map)['repair'] as Map);
+  // ---- tracking without an account: repair number + the mobile number on the request ----
+  /// Returns the public status view, or null when the pair does not match (same answer for an
+  /// unknown repair number). Throws 'RATE_LIMITED' / 'INVALID_INPUT'.
+  Future<Map<String, dynamic>?> guestLookup(String reference, String phone) async {
+    final r = Map<String, dynamic>.from(
+        await _db.rpc('guest_repair_lookup', params: {'p_reference': reference, 'p_phone': phone}) as Map);
+    if (r['error'] != null) throw r['error'] as String;
+    return r['found'] == true ? Map<String, dynamic>.from(r['repair'] as Map) : null;
   }
 }
 

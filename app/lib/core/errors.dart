@@ -20,6 +20,7 @@ String friendlyError(BuildContext context, Object error) {
     'ACCOUNT_NOT_VERIFIED': 'err_account_not_verified',
     'PHONE_REQUIRED': 'err_phone_required',
     'RATE_LIMITED': 'err_rate_limited',
+    'INVALID_INPUT': 'invalid',
     'USERNAME_TAKEN': 'err_username_taken',
     'PHONE_TAKEN': 'err_phone_taken',
     'INVALID_USERNAME': 'username_rules',

@@ -515,28 +515,31 @@ class RepairLookupScreen extends ConsumerStatefulWidget {
 }
 
 class _RepairLookupScreenState extends ConsumerState<RepairLookupScreen> {
+  final _form = GlobalKey<FormState>();
   final _ref = TextEditingController();
-  final _code = TextEditingController();
-  bool _codeSent = false;
+  final _phone = TextEditingController();
   bool _busy = false;
+  bool _notFound = false;
   Map<String, dynamic>? _result;
 
   @override
   void dispose() {
     _ref.dispose();
-    _code.dispose();
+    _phone.dispose();
     super.dispose();
   }
 
-  String get _reference => _ref.text.trim().toUpperCase();
-
-  Future<void> _go(Future<void> Function() f) async {
-    setState(() => _busy = true);
+  Future<void> _lookup() async {
+    if (!_form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _busy = true;
+      _notFound = false;
+      _result = null;
+    });
     try {
-      await f();
-    } on FunctionException catch (e) {
-      final code = (e.details is Map ? (e.details as Map)['error'] : null)?.toString() ?? '';
-      if (mounted) showSnack(context, friendlyError(context, code), error: true);
+      final r = await ref.read(repairsRepoProvider).guestLookup(_ref.text, _phone.text);
+      if (mounted) setState(() => r == null ? _notFound = true : _result = r);
     } catch (e) {
       if (mounted) showSnack(context, friendlyError(context, e), error: true);
     } finally {
@@ -561,46 +564,59 @@ class _RepairLookupScreenState extends ConsumerState<RepairLookupScreen> {
             ),
           ),
         const SizedBox(height: 12),
-        TextField(
-          controller: _ref,
-          textDirection: TextDirection.ltr,
-          textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(labelText: context.tr('repair_ref'), hintText: context.tr('lookup_hint')),
+        Text(context.tr('lookup_body'), style: const TextStyle(color: BrandColors.gray, height: 1.6)),
+        const SizedBox(height: 16),
+        Form(
+          key: _form,
+          child: Column(children: [
+            TextFormField(
+              controller: _ref,
+              textDirection: TextDirection.ltr,
+              textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                labelText: context.tr('repair_ref'),
+                hintText: context.tr('lookup_hint'),
+                prefixIcon: const Icon(Icons.confirmation_number_outlined),
+              ),
+              validator: (v) => RegExp(r'\d').hasMatch(v ?? '') ? null : context.tr('required'),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              textDirection: TextDirection.ltr,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _lookup(),
+              decoration: InputDecoration(
+                labelText: context.tr('lookup_phone'),
+                hintText: '01XXXXXXXXX',
+                prefixIcon: const Icon(Icons.phone_iphone_rounded),
+              ),
+              validator: (v) => normalizeEgyptMobile(v ?? '') == null ? context.tr('invalid_phone') : null,
+            ),
+          ]),
         ),
-        const SizedBox(height: 8),
-        Text(context.tr('lookup_body'), style: const TextStyle(color: BrandColors.gray)),
-        const SizedBox(height: 12),
-        if (!_codeSent)
-          FilledButton(
-            onPressed: _busy
-                ? null
-                : () => _go(() async {
-                      if (!RegExp(r'^MY-HATO\d+$').hasMatch(_reference)) throw 'invalid';
-                      await ref.read(repairsRepoProvider).guestStart(_reference);
-                      setState(() => _codeSent = true);
-                    }),
-            child: Text(context.tr('send_code')),
-          )
-        else ...[
-          TextField(
-            controller: _code,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            textAlign: TextAlign.center,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(labelText: context.tr('otp_title'), counterText: ''),
-          ),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: _busy
-                ? null
-                : () => _go(() async {
-                      final r = await ref.read(repairsRepoProvider).guestVerify(_reference, _code.text);
-                      setState(() => _result = r);
-                    }),
-            child: Text(context.tr('verify')),
-          ),
-        ],
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          icon: _busy
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+              : const Icon(Icons.search_rounded),
+          label: Text(context.tr('lookup_btn')),
+          onPressed: _busy ? null : _lookup,
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          child: _notFound
+              ? Container(
+                  key: const ValueKey('nf'),
+                  margin: const EdgeInsets.only(top: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: const Color(0xFFFFFAEB), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFFEDF89))),
+                  child: Text(context.tr('lookup_not_found'), style: const TextStyle(color: Color(0xFF93370D), height: 1.6)),
+                )
+              : const SizedBox.shrink(key: ValueKey('none')),
+        ),
         if (_result != null) ...[
           const SizedBox(height: 20),
           Card(
