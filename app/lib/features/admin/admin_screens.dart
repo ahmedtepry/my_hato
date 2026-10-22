@@ -505,8 +505,11 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
           label: (s) => repairLabel(context, labels, s),
           color: repairStatusColor,
           isNegative: (s) => s == 'cancelled' || s == 'unrepairable',
+          message: (s) => labels?[s] == null ? null : (context.isAr ? labels![s]!['message_ar'] : labels![s]!['message_en']) as String?,
           onConfirm: (s) => _changeRepair(ctx, ref, r['id'] as String, s, askNote: s == 'cancelled' || s == 'unrepairable'),
         ),
+        const Divider(height: 32),
+        _QuickUpdates(repairId: r['id'] as String),
       ]),
     ),
   );
@@ -806,7 +809,9 @@ class _StatusPicker extends StatefulWidget {
     required this.color,
     required this.isNegative,
     required this.onConfirm,
+    this.message,
   });
+  final String? Function(String)? message;
   final String current;
   final List<String> options;
   final String Function(String) label;
@@ -865,6 +870,7 @@ class _StatusPickerState extends State<_StatusPicker> {
                   color: widget.isNegative(s) ? BrandColors.error : null,
                 ),
               ),
+              subtitle: widget.message?.call(s) == null ? null : Text('💬 ${widget.message!(s)}', style: const TextStyle(fontSize: 12)),
               selected: _selected == s,
               selectedTileColor: (widget.isNegative(s) ? BrandColors.error : BrandColors.electric).withValues(alpha: 0.06),
             ),
@@ -888,4 +894,85 @@ class _StatusPickerState extends State<_StatusPicker> {
       ),
     ]);
   }
+}
+
+/// Send the customer an update without changing the status: ready-made messages or a custom one.
+class _QuickUpdates extends ConsumerStatefulWidget {
+  const _QuickUpdates({required this.repairId});
+  final String repairId;
+  @override
+  ConsumerState<_QuickUpdates> createState() => _QuickUpdatesState();
+}
+
+class _QuickUpdatesState extends ConsumerState<_QuickUpdates> {
+  static const presets = [
+    'استلمنا جهازك في الفرع وبيتفحص دلوقتي.',
+    'بنحدد تكلفة الإصلاح وهنبلغك بالسعر قريب.',
+    'بنفحص الجهاز كويس علشان نحدد كل العيوب، وهنبلغك بالتفاصيل.',
+    'لقينا عيب إضافي في الجهاز، هنكلمك نوضحلك قبل ما نكمّل.',
+    'محتاجين نكلمك بخصوص جهازك، ياريت ترد على تليفوننا.',
+    'قطعة الغيار اتطلبت وهتوصل خلال يوم أو اتنين.',
+    'الإصلاح ماشي كويس، وهنبلغك أول ما يخلص.',
+    'الجهاز تحت اختبار الجودة للتأكد إن كل حاجة شغالة.',
+    'اتصلح وجاهز تستلمه من الفرع.',
+    'الجهاز خارج للتوصيل وهيوصلك النهارده.',
+  ];
+  String? _selected;
+  final _custom = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _custom.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final msg = _custom.text.trim().isNotEmpty ? _custom.text.trim() : _selected;
+    if (msg == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(adminRepoProvider).postRepairUpdate(widget.repairId, msg);
+      if (mounted) {
+        Navigator.of(context).pop();
+        showSnack(context, _t(context, 'الرسالة وصلت للعميل', 'Update sent to the customer'));
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(_t(context, 'ابعت تحديث للعميل (من غير ما تغيّر الحالة)', 'Send the customer an update (status unchanged)'),
+            style: const TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final m in presets)
+            ChoiceChip(
+              label: Text(m, style: const TextStyle(fontSize: 12.5)),
+              selected: _selected == m,
+              onSelected: (v) => setState(() {
+                _selected = v ? m : null;
+                if (v) _custom.clear();
+              }),
+            ),
+        ]),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _custom,
+          maxLines: 2,
+          maxLength: 500,
+          onChanged: (_) => setState(() => _selected = null),
+          decoration: InputDecoration(hintText: _t(context, 'أو اكتب رسالة من عندك…', 'Or write your own message…'), counterText: ''),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2)) : const Icon(Icons.send_rounded),
+          label: Text(_t(context, 'ابعت التحديث', 'Send update')),
+          onPressed: (_busy || (_selected == null && _custom.text.trim().isEmpty)) ? null : _send,
+        ),
+      ]);
 }

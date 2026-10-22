@@ -58,6 +58,9 @@ class AdminRepository {
   Future<void> sendQuote(String id, int amountMinor, String description, String? diagnosis) => _db.rpc('staff_create_repair_quote',
       params: {'p_repair_id': id, 'p_amount_minor': amountMinor, 'p_description': description, 'p_diagnosis': diagnosis});
 
+  Future<void> postRepairUpdate(String id, String message) =>
+      _db.rpc('staff_post_repair_update', params: {'p_repair_id': id, 'p_message_ar': message});
+
   // ---------------- products
   Future<List<Map<String, dynamic>>> products({String? search}) async {
     var q = _db.from('products').select(
