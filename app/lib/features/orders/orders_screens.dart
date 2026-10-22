@@ -8,6 +8,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/copy_code.dart';
 import '../../shared/cancel_request.dart';
 import '../../shared/states.dart';
 import '../repairs/repairs_screens.dart';
@@ -152,7 +153,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Text(o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                      Flexible(child: CopyCode(code: o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
                       const Spacer(),
                       StatusChip(label: context.tr('os_$status'), color: orderStatusColor(status)),
                     ]),

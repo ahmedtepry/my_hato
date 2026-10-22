@@ -6,6 +6,7 @@ import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
+import '../../shared/copy_code.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/states.dart';
 import '../../shared/support_contact.dart';
@@ -365,8 +366,12 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
                           const SizedBox(height: 18),
                           Text(context.tr(widget.isRepair ? 'repair_number' : 'order_number'), style: const TextStyle(color: Colors.white60)),
                           const SizedBox(height: 4),
-                          SelectableText(widget.reference,
+                          CopyCode(
+                              code: widget.reference,
                               style: const TextStyle(color: BrandColors.electric, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                          const SizedBox(height: 6),
+                          Text(context.isAr ? 'اضغط على الرقم علشان تنسخه، واستخدمه لو كلمتنا.' : 'Tap the number to copy it — use it when you contact us.',
+                              textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12.5)),
                           const SizedBox(height: 36),
                           FilledButton(
                             onPressed: () => context.go(widget.isRepair ? '/repairs/${widget.orderId}' : '/orders/${widget.orderId}'),

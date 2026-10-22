@@ -11,6 +11,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/copy_code.dart';
 import '../../shared/cancel_request.dart';
 import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
@@ -396,7 +397,7 @@ class _RepairDetailsScreenState extends ConsumerState<RepairDetailsScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(context.tr('repair_ref'), style: const TextStyle(color: BrandColors.gray)),
-                    SelectableText(r['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
+                    CopyCode(code: r['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
                     const SizedBox(height: 8),
                     Text('${r['device_brand']} ${r['device_model']}', style: const TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 12),
