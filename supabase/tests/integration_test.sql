@@ -572,4 +572,31 @@ do $$ declare v_rep uuid; v_cust uuid; v_req uuid; v_st public.repair_status; be
   perform t.reset();
 end $$;
 
+\echo 'T32 status change with a message: one timeline entry and one notification carrying both'
+do $$ declare v_o uuid; v_n int; begin
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 1);
+  v_o := (public.place_order('order-key-t32', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null)->>'order_id')::uuid;
+  select count(*) into v_n from public.notifications;
+  perform t.reset();
+  select count(*) into v_n from public.notifications where entity_id = v_o;
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  perform public.staff_set_order_status(v_o, 'confirmed', null, 'هيوصلك مع المندوب بكرة');
+  if (select status from public.orders where id = v_o) <> 'confirmed' then raise exception 'T32 status'; end if;
+  if not exists (select 1 from public.order_status_history where order_id = v_o and to_status = 'confirmed' and customer_message = 'هيوصلك مع المندوب بكرة') then
+    raise exception 'T32 timeline';
+  end if;
+  perform t.reset();
+  if (select count(*) from public.notifications where entity_id = v_o) <> v_n + 1 then raise exception 'T32 notifications'; end if;
+  if not exists (select 1 from public.notifications where entity_id = v_o and body_ar like '%أكدنا طلبك%هيوصلك مع المندوب بكرة%') then raise exception 'T32 body'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  -- without a message nothing extra leaks into later changes
+  perform public.staff_set_order_status(v_o, 'preparing');
+  if (select customer_message from public.order_status_history where order_id = v_o and to_status = 'preparing') is not null then raise exception 'T32 leak'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c1');
+  begin perform public.staff_set_order_status(v_o, 'cancelled', 'x', 'y'); raise exception 'T32 tech allowed';
+  exception when insufficient_privilege then null; end;
+  perform t.reset();
+end $$;
+
 \echo 'ALL BACKEND TESTS PASSED'
