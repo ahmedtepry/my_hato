@@ -342,8 +342,8 @@ do $$ declare v_r uuid := (select v from t.ids where k='repair1'); begin
   perform t.act('00000000-0000-0000-0000-00000000000a');
   if (select status from public.repair_requests where id = v_r) <> 'ready_for_pickup' then raise exception 'T19 status'; end if;
   if (select approved_cost_minor from public.repair_requests where id = v_r) <> 20000 then raise exception 'T19 approved cost'; end if;
-  if not exists (select 1 from public.notifications where entity_id = v_r and body_ar like '%جهازك جاهز للاستلام%') then raise exception 'T19 notif'; end if;
-  if not exists (select 1 from public.repair_status_history where repair_id = v_r and customer_message_ar like '%جهازك تحت التصليح حاليًا، والتكلفة المعتمدة 200 ج.م.%') then raise exception 'T19 in-progress msg'; end if;
+  if not exists (select 1 from public.notifications where entity_id = v_r and body_ar like '%جاهز تستلمه%') then raise exception 'T19 notif'; end if;
+  if not exists (select 1 from public.repair_status_history where repair_id = v_r and customer_message_ar like '%جهازك بيتصلح دلوقتي، والتكلفة المعتمدة 200 ج.م.%') then raise exception 'T19 in-progress msg'; end if;
   perform t.reset();
   if (select to_email from public.email_outbox where kind='repair_customer_response') <> 'myhatoservice@gmail.com' then raise exception 'T19 email'; end if;
   if (select count(*) from public.audit_logs where entity_id = v_r::text) < 5 then raise exception 'T19 audit'; end if;
