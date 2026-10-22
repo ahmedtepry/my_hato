@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
@@ -236,6 +235,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 submit: (reason) async {
                   await ref.read(ordersRepoProvider).requestCancel('order', widget.id, reason);
                   ref.invalidate(orderProvider(widget.id));
+                  ref.invalidate(myOrdersProvider);
                 },
               ),
             ]),

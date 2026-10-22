@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../core/errors.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
-import 'states.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -24,7 +23,9 @@ const _repairReasons = [
 ];
 
 /// Customer side of cancellation: a request with a reason that staff approve or reject.
-/// Shows "under review" while a request is open, otherwise the request button (when allowed).
+/// Shows "under review" while a request is open (from the server, or right after sending it here),
+/// otherwise the request button (when allowed). The request is sent from inside the reason sheet,
+/// so it never depends on the page behind it staying on screen.
 class CancelRequestBlock extends StatefulWidget {
   const CancelRequestBlock({super.key, required this.requests, required this.canRequest, required this.repair, required this.submit});
   final List<Map<String, dynamic>> requests;
@@ -37,35 +38,30 @@ class CancelRequestBlock extends StatefulWidget {
 }
 
 class _CancelRequestBlockState extends State<CancelRequestBlock> {
-  bool _busy = false;
+  /// Reason just sent from this screen — keeps the button locked until the server copy arrives.
+  String? _sentReason;
 
   Future<void> _open() async {
-    final reason = await showModalBottomSheet<String>(
+    final sent = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      useRootNavigator: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _ReasonSheet(repair: widget.repair),
+      builder: (_) => CancelReasonSheet(repair: widget.repair, submit: widget.submit),
     );
-    if (reason == null || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      await widget.submit(reason);
-      if (mounted) {
-        showSnack(context, _t(context, 'طلب الإلغاء وصلنا، وهنراجعه ونرد عليك قريب', 'Cancellation request sent — we will get back to you soon'));
-      }
-    } catch (e) {
-      if (mounted) showSnack(context, friendlyError(context, e), error: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    if (sent != null && mounted) setState(() => _sentReason = sent);
   }
 
   @override
   Widget build(BuildContext context) {
-    final open = widget.requests.where((r) => r['status'] == 'pending').firstOrNull;
-    if (open != null) {
+    final serverOpen = widget.requests.where((r) => r['status'] == 'pending').firstOrNull;
+    // a decided request from the server replaces the local "just sent" marker
+    final decided = _sentReason != null && widget.requests.any((r) => r['status'] != 'pending' && r['reason'] == _sentReason);
+    final openReason = serverOpen?['reason'] as String? ?? (decided ? null : _sentReason);
+    if (openReason != null) {
       return Container(
+        key: const ValueKey('cancel-under-review'),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: BrandColors.warning.withValues(alpha: 0.08),
@@ -79,9 +75,10 @@ class _CancelRequestBlockState extends State<CancelRequestBlock> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_t(context, 'طلب الإلغاء بيتراجع', 'Cancellation request under review'), style: const TextStyle(fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text('${_t(context, 'السبب', 'Reason')}: ${open['reason']}', style: const TextStyle(color: BrandColors.gray)),
+              Text('${_t(context, 'السبب', 'Reason')}: $openReason', style: const TextStyle(color: BrandColors.gray)),
               const SizedBox(height: 4),
-              Text(_t(context, 'هنراجع طلبك وممكن نكلمك، وهيوصلك إشعار بالرد.', 'We will review it and may call you; you will be notified.'),
+              Text(_t(context, 'مش هتقدر تبعت طلب تاني لحد ما نرد عليك. ممكن نكلمك، وهيوصلك إشعار بالرد.',
+                      'You can send another request after we reply. We may call you; you will be notified.'),
                   style: const TextStyle(fontSize: 13, height: 1.5)),
             ]),
           ),
@@ -90,26 +87,58 @@ class _CancelRequestBlockState extends State<CancelRequestBlock> {
     }
     if (!widget.canRequest) return const SizedBox.shrink();
     return OutlinedButton.icon(
+      key: const ValueKey('cancel-request-button'),
       style: OutlinedButton.styleFrom(foregroundColor: BrandColors.error),
-      icon: _busy
-          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2))
-          : const Icon(Icons.cancel_outlined),
+      icon: const Icon(Icons.cancel_outlined),
       label: Text(widget.repair ? _t(context, 'طلب إلغاء الصيانة', 'Request cancellation') : _t(context, 'طلب إلغاء الطلب', 'Request cancellation')),
-      onPressed: _busy ? null : _open,
+      onPressed: _open,
     );
   }
 }
 
-class _ReasonSheet extends StatefulWidget {
-  const _ReasonSheet({required this.repair});
+/// Reason picker that sends the request itself; pops with the reason once the server saved it.
+class CancelReasonSheet extends StatefulWidget {
+  const CancelReasonSheet({super.key, required this.repair, required this.submit});
   final bool repair;
+  final Future<void> Function(String reason) submit;
   @override
-  State<_ReasonSheet> createState() => _ReasonSheetState();
+  State<CancelReasonSheet> createState() => _CancelReasonSheetState();
 }
 
-class _ReasonSheetState extends State<_ReasonSheet> {
+class _CancelReasonSheetState extends State<CancelReasonSheet> {
   int? _selected; // index in reasons, or -1 = other
   final _other = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _send(String reason) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.submit(reason);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      final done = _t(context, 'طلب الإلغاء وصلنا، وهنراجعه ونرد عليك قريب', 'Cancellation request sent — we will get back to you soon');
+      Navigator.of(context).pop(reason);
+      messenger?.showSnackBar(SnackBar(
+        content: Text(done),
+        duration: const Duration(seconds: 3),
+        persist: false,
+      ));
+    } catch (e) {
+      final msg = friendlyError(context, e);
+      // already requested (e.g. from another device): treat as sent so the page locks the button
+      if (e.toString().contains('CANCEL_ALREADY_REQUESTED') && mounted) {
+        Navigator.of(context).pop(reason);
+        return;
+      }
+      if (mounted) setState(() => _error = msg);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -146,7 +175,7 @@ class _ReasonSheetState extends State<_ReasonSheet> {
                   final idx = i == options.length - 1 ? -1 : i;
                   final sel = _selected == idx;
                   return ListTile(
-                    onTap: () => setState(() => _selected = idx),
+                    onTap: _busy ? null : () => setState(() => _selected = idx),
                     selected: sel,
                     selectedTileColor: BrandColors.electric.withValues(alpha: 0.06),
                     leading: AnimatedSwitcher(
@@ -176,11 +205,18 @@ class _ReasonSheetState extends State<_ReasonSheet> {
                   )
                 : const SizedBox(width: double.infinity),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, key: const ValueKey('cancel-error'), style: const TextStyle(color: BrandColors.error, fontWeight: FontWeight.w600)),
+          ],
           const SizedBox(height: 16),
           FilledButton(
+            key: const ValueKey('cancel-send'),
             style: FilledButton.styleFrom(backgroundColor: BrandColors.error),
-            onPressed: reason == null ? null : () => Navigator.pop(context, reason),
-            child: Text(_t(context, 'ابعت طلب الإلغاء', 'Send cancellation request')),
+            onPressed: (reason == null || _busy) ? null : () => _send(reason),
+            child: _busy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                : Text(_t(context, 'ابعت طلب الإلغاء', 'Send cancellation request')),
           ),
         ]),
       ),

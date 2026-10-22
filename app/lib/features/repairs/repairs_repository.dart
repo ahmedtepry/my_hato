@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/config.dart';
 import '../../core/supabase_providers.dart';
 
 class RepairsRepository {
