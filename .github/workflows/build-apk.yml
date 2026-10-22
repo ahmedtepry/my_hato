@@ -1,0 +1,33 @@
+name: Build review APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip project
+        run: unzip -q myhato.zip -d src
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - name: Generate Android project
+        working-directory: src/myhato/app
+        run: bash tool/setup_android.sh
+      - name: Analyze (report only)
+        working-directory: src/myhato/app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+      - name: Build APK
+        working-directory: src/myhato/app
+        run: >
+          flutter build apk --release
+          --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co
+          --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: myhato-review-apk
+          path: src/myhato/app/build/app/outputs/flutter-apk/app-release.apk
