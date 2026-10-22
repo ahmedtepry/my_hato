@@ -9,6 +9,7 @@ step() { echo; echo "=================== $* ==================="; }
 step "flutter --version"; flutter --version
 step "flutter create (android)"
 flutter create --platforms=android --org com.myhato --project-name myhato . || exit 1
+rm -f test/widget_test.dart   # template test from flutter create (we ship our own tests)
 cp tool/android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 G=android/app/build.gradle; [ -f "$G.kts" ] && G="$G.kts"
 sed -i -E 's/applicationId ?=? ?"[^"]+"/applicationId = "com.myhato.app"/' "$G"

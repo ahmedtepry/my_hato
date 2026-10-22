@@ -40,7 +40,7 @@ class AppTheme {
         centerTitle: true,
         titleTextStyle: text.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: BrandColors.navy),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: BrandColors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),

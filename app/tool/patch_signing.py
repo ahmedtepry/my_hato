@@ -11,7 +11,7 @@ if kts.exists():
     if 'create("release")' not in s:
         block = '''    signingConfigs {
         create("release") {
-            val props = java.util.Properties()
+            val props = Properties()
             props.load(rootProject.file("key.properties").inputStream())
             storeFile = file(props.getProperty("storeFile"))
             storePassword = props.getProperty("storePassword")
@@ -22,6 +22,8 @@ if kts.exists():
 
     buildTypes {'''
         s = s.replace("    buildTypes {", block, 1)
+    if "import java.util.Properties" not in s:
+        s = "import java.util.Properties\n" + s
     s = re.sub(r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)', 'signingConfig = signingConfigs.getByName("release")', s)
 elif groovy.exists():
     p, s = groovy, groovy.read_text()
