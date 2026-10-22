@@ -599,4 +599,37 @@ do $$ declare v_o uuid; v_n int; begin
   perform t.reset();
 end $$;
 
+\echo 'T33 close operation: fixed reasons per kind, hidden from the customer for good, kept for staff'
+do $$ declare v_o uuid; v_rep uuid; v_ref text; v_phone text; begin
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 1);
+  v_o := (public.place_order('order-key-t33', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null)->>'order_id')::uuid;
+  v_rep := (public.request_repair('repair-key-t33', 'Oppo', 'A16', null, 'الشاحن مش بيشحن', 'Customer A', '+201011111111',
+            null, (select id from public.branches limit 1), null, true)->>'repair_id')::uuid;
+  perform public.customer_request_cancel('order', v_o, 'غيرت رأيي');
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  begin perform public.staff_close('order', v_o, 'repaired'); raise exception 'T33 repair reason on order';
+  exception when raise_exception then if sqlerrm <> 'INVALID_INPUT' then raise; end if; end;
+  perform public.staff_close('order', v_o, 'cancelled_by_customer');
+  begin perform public.staff_close('order', v_o, 'purchased'); raise exception 'T33 closed twice';
+  exception when raise_exception then if sqlerrm <> 'ALREADY_CLOSED' then raise; end if; end;
+  if not exists (select 1 from public.orders where id = v_o and close_reason = 'cancelled_by_customer') then raise exception 'T33 staff cannot see closed order'; end if;
+  if exists (select 1 from public.cancel_requests where order_id = v_o and status = 'pending') then raise exception 'T33 request left open'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  begin perform public.staff_close('repair', v_rep, 'purchased'); raise exception 'T33 sale reason on repair';
+  exception when raise_exception then if sqlerrm <> 'INVALID_INPUT' then raise; end if; end;
+  perform public.staff_close('repair', v_rep, 'unrepairable');
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  if exists (select 1 from public.orders where id = v_o) then raise exception 'T33 customer sees closed order'; end if;
+  if exists (select 1 from public.order_items where order_id = v_o) then raise exception 'T33 customer sees closed items'; end if;
+  if exists (select 1 from public.repair_requests where id = v_rep) then raise exception 'T33 customer sees closed repair'; end if;
+  if exists (select 1 from public.repair_status_history where repair_id = v_rep) then raise exception 'T33 customer sees closed history'; end if;
+  if exists (select 1 from public.cancel_requests where order_id = v_o) then raise exception 'T33 customer sees closed request'; end if;
+  perform t.reset();
+  select reference, contact_phone into v_ref, v_phone from public.repair_requests where id = v_rep;
+  perform t.act(null);
+  if (public.guest_repair_lookup(v_ref, v_phone)->>'found')::boolean then raise exception 'T33 guest finds closed repair'; end if;
+  perform t.reset();
+end $$;
+
 \echo 'ALL BACKEND TESTS PASSED'
