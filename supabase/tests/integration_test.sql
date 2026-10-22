@@ -493,4 +493,25 @@ do $$ begin
   perform t.reset();
 end $$;
 
+\echo 'T29 guest repair tracking: repair number + mobile on the request; no data leak; rate limited'
+do $$ declare v_ref text; v_phone text; r jsonb; i int; begin
+  select reference, contact_phone into v_ref, v_phone from public.repair_requests order by created_at limit 1;
+  perform t.act(null);
+  r := public.guest_repair_lookup(v_ref, v_phone);
+  if not (r->>'found')::boolean or r->'repair'->>'reference' <> v_ref then raise exception 'T29 match %', r; end if;
+  if r->'repair' ? 'contact_phone' or r->'repair' ? 'imei' or r->'repair' ? 'pickup_address' or r::text like '%' || v_phone || '%' then
+    raise exception 'T29 leaks private data';
+  end if;
+  -- loose formats: digits only, leading zeros, local mobile format
+  r := public.guest_repair_lookup(regexp_replace(v_ref, '\D', '', 'g'), '0' || substr(public.normalize_eg_mobile(v_phone), 4));
+  if not (r->>'found')::boolean then raise exception 'T29 loose format %', r; end if;
+  -- wrong phone and unknown repair give the same answer
+  if public.guest_repair_lookup(v_ref, '01099999999') <> '{"found": false}'::jsonb then raise exception 'T29 wrong phone'; end if;
+  if public.guest_repair_lookup('MY-HATO999999', v_phone) <> '{"found": false}'::jsonb then raise exception 'T29 unknown'; end if;
+  -- 6 tries per repair number per 15 minutes (3 used above)
+  for i in 1..3 loop perform public.guest_repair_lookup(v_ref, '01099999999'); end loop;
+  if public.guest_repair_lookup(v_ref, v_phone)->>'error' is distinct from 'RATE_LIMITED' then raise exception 'T29 no limit'; end if;
+  perform t.reset();
+end $$;
+
 \echo 'ALL BACKEND TESTS PASSED'
