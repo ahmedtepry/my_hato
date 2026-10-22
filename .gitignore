@@ -1,0 +1,21 @@
+# secrets
+# admin/config.js holds only the publishable key; committed intentionally
+**/key.properties
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+supabase/.env
+# flutter
+app/android/
+app/ios/
+app/.dart_tool/
+app/build/
+app/.flutter-plugins*
+app/pubspec.lock
+# node
+node_modules/
+supabase/tests/node_modules/
+supabase/tests/package*.json
+dist/
