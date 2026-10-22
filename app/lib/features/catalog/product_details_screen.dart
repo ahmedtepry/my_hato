@@ -88,12 +88,26 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (p['brands'] != null)
-              Text(context.pick(p['brands'] as Map<String, dynamic>, 'name'), style: const TextStyle(color: BrandColors.electric, fontWeight: FontWeight.w700)),
+            if (p['brands'] != null || (p['model'] as String?)?.isNotEmpty == true)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.smartphone_rounded, size: 15, color: BrandColors.electric),
+                  const SizedBox(width: 5),
+                  Text(
+                    [
+                      if (p['brands'] != null) context.pick(p['brands'] as Map<String, dynamic>, 'name'),
+                      if ((p['model'] as String?)?.isNotEmpty == true) p['model'] as String,
+                    ].join(' · '),
+                    style: const TextStyle(color: BrandColors.electric, fontWeight: FontWeight.w700),
+                  ),
+                ]),
+              ),
             const SizedBox(height: 4),
             Text(context.pick(p, 'name'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
-            Text('SKU: ${variant?['sku'] ?? p['sku']}${p['model'] != null ? '  •  ${p['model']}' : ''}', style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+            Text('SKU: ${variant?['sku'] ?? p['sku']}', style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
             const SizedBox(height: 12),
             Row(children: [
               PriceBlock(price: price, compareAt: compare, large: true),

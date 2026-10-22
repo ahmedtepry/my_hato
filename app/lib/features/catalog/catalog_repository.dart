@@ -109,9 +109,13 @@ class CatalogRepository {
     if (q.featuredOnly) f = f.eq('is_featured', true);
     final s = sanitizeSearch(q.search);
     if (s.isNotEmpty) {
-      final parts = ['name_ar.ilike.*$s*', 'name_en.ilike.*$s*', 'model.ilike.*$s*', 'sku.ilike.*$s*'];
-      if (!s.contains(' ')) parts.add('keywords.cs.{${s.toLowerCase()}}');
-      f = f.or(parts.join(','));
+      // every word must match somewhere (name, brand, model, SKU): "جراب اوبو A73" finds the Oppo A73 case
+      for (final w in s.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(5)) {
+        f = f.or([
+          'name_ar.ilike.*$w*', 'name_en.ilike.*$w*', 'model.ilike.*$w*', 'sku.ilike.*$w*',
+          'brand_name_ar.ilike.*$w*', 'brand_name_en.ilike.*$w*', 'keywords.cs.{${w.toLowerCase()}}',
+        ].join(','));
+      }
     }
     final from = page * pageSize;
     final ordered = switch (q.sort) {

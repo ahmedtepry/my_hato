@@ -1,7 +1,7 @@
 name: myhato
 description: My Hatō — phones, accessories & phone repair. YOUR PHONE. OUR PRIORITY.
 publish_to: "none"
-version: 1.0.0+36
+version: 1.0.0+37
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

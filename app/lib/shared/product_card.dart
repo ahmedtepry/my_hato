@@ -68,6 +68,9 @@ class ProductCard extends StatelessWidget {
     final inStock = p['in_stock'] == true;
     final price = (p['price_minor'] as num).toInt();
     final compare = (p['compare_at_price_minor'] as num?)?.toInt();
+    final brand = (p['brand_name_${context.lang}'] ?? p['brand_name_ar']) as String?;
+    final model = p['model'] as String?;
+    final fits = [if (brand != null && brand.isNotEmpty) brand, if (model != null && model.isNotEmpty) model].join(' · ');
     final name = Text(context.pick(p, 'name'),
         maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, height: 1.3));
     final priceRow = Row(children: [
@@ -147,7 +150,13 @@ class ProductCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              SizedBox(height: 36, child: Align(alignment: AlignmentDirectional.topStart, child: name)),
+              if (fits.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(fits, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: BrandColors.electric, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                ),
+              SizedBox(height: fits.isNotEmpty ? 18 : 36, child: Align(alignment: AlignmentDirectional.topStart, child: fits.isNotEmpty ? Text(context.pick(p, 'name'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)) : name)),
               const SizedBox(height: 4),
               priceRow,
             ]),

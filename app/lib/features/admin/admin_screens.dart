@@ -664,6 +664,7 @@ final _lowStockOnlyProvider = StateProvider<bool>((_) => false);
 final _productsProvider = FutureProvider.autoDispose(
     (ref) => ref.watch(adminRepoProvider).products(search: ref.watch(_productSearchProvider), lowStockOnly: ref.watch(_lowStockOnlyProvider)));
 final _categoriesProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).categories());
+final _brandsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).brands());
 
 class _ProductsTab extends ConsumerWidget {
   const _ProductsTab();
@@ -748,6 +749,8 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   late final _stock = TextEditingController(text: p == null ? '' : '${p!['stock_quantity']}');
   late final _desc = TextEditingController();
   late final _sku = TextEditingController(text: p?['sku'] as String? ?? '');
+  late final _model = TextEditingController(text: p?['model'] as String? ?? '');
+  late String? _brandId = p?['brand_id'] as String?;
   late String? _categoryId = p?['category_id'] as String?;
   late bool _published = (p?['status'] ?? 'published') == 'published';
   late bool _featured = p?['is_featured'] == true;
@@ -756,7 +759,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
 
   @override
   void dispose() {
-    for (final c in [_nameAr, _nameEn, _price, _compare, _stock, _desc, _sku]) {
+    for (final c in [_nameAr, _nameEn, _price, _compare, _stock, _desc, _sku, _model]) {
       c.dispose();
     }
     super.dispose();
@@ -782,12 +785,16 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
           stock: stock,
           imageBytes: _image,
           sku: _sku.text,
+          brandId: _brandId,
+          model: _model.text,
         );
       } else {
         final sku = _sku.text.trim();
         if (sku.isNotEmpty && sku != p!['sku'] && await repo.skuTaken(sku, exceptId: p!['id'] as String)) throw Exception('SKU_TAKEN');
         await repo.updateProduct(p!['id'] as String, {
           if (sku.isNotEmpty && sku != p!['sku']) 'sku': sku,
+          'brand_id': _brandId,
+          'model': _model.text.trim().isEmpty ? null : _model.text.trim(),
           'name_ar': _nameAr.text.trim(),
           'name_en': _nameEn.text.trim().isEmpty ? _nameAr.text.trim() : _nameEn.text.trim(),
           'price_minor': price,
@@ -808,6 +815,36 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
       if (mounted) showSnack(context, friendlyError(context, e), error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<String?> _newBrand() async {
+    final ar = TextEditingController();
+    final en = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text(_t(context, 'ماركة جديدة', 'New brand')),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: ar, autofocus: true, decoration: InputDecoration(labelText: _t(context, 'الاسم بالعربي', 'Arabic name'))),
+          const SizedBox(height: 10),
+          TextField(controller: en, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: _t(context, 'الاسم بالإنجليزي', 'English name'))),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(context.tr('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(d, ar.text.trim().isNotEmpty), child: Text(_t(context, 'إضافة', 'Add'))),
+        ],
+      ),
+    );
+    if (ok != true) return null;
+    try {
+      final id = await ref.read(adminRepoProvider).createBrand(ar.text, en.text);
+      ref.invalidate(_brandsProvider);
+      await ref.read(_brandsProvider.future);
+      return id;
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+      return null;
     }
   }
 
@@ -844,6 +881,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   @override
   Widget build(BuildContext context) {
     final cats = ref.watch(_categoriesProvider).valueOrNull ?? const [];
+    final brands = ref.watch(_brandsProvider).valueOrNull ?? const [];
     String? need(String? v) => (v == null || v.trim().isEmpty) ? context.tr('required') : null;
     return Scaffold(
       appBar: AppBar(
@@ -892,6 +930,58 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
               items: [for (final c in cats) DropdownMenuItem(value: c['id'] as String, child: Text(context.isAr ? c['name_ar'] as String : c['name_en'] as String))],
               onChanged: (v) => setState(() => _categoryId = v),
               validator: (v) => v == null ? context.tr('required') : null,
+            ),
+            const SizedBox(height: 12),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                flex: 5,
+                child: DropdownButtonFormField<String>(
+                  value: brands.any((b) => b['id'] == _brandId) ? _brandId : null,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: _t(context, 'الماركة', 'Brand'), prefixIcon: const Icon(Icons.sell_outlined)),
+                  items: [
+                    DropdownMenuItem(value: '', child: Text(_t(context, 'بدون ماركة', 'No brand'), style: const TextStyle(color: BrandColors.gray))),
+                    for (final b in brands)
+                      DropdownMenuItem(value: b['id'] as String, child: Text(context.isAr ? b['name_ar'] as String : b['name_en'] as String, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(
+                      value: '__new__',
+                      child: Row(children: [
+                        const Icon(Icons.add_circle_outline, size: 18, color: BrandColors.electric),
+                        const SizedBox(width: 6),
+                        Text(_t(context, 'ماركة جديدة…', 'New brand…'), style: const TextStyle(color: BrandColors.electric, fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
+                  ],
+                  onChanged: (v) async {
+                    if (v == '__new__') {
+                      final id = await _newBrand();
+                      setState(() => _brandId = id ?? _brandId);
+                    } else {
+                      setState(() => _brandId = (v == null || v.isEmpty) ? null : v);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 4,
+                child: TextFormField(
+                  controller: _model,
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(
+                    labelText: _t(context, 'الموديل', 'Model'),
+                    hintText: _t(context, 'مثلاً A73', 'e.g. A73'),
+                  ),
+                ),
+              ),
+            ]),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 4, top: 4),
+              child: Text(
+                _t(context, 'للإكسسوارات: الماركة والموديل اللي المنتج بيركب عليه (جراب أوبو A73 مثلاً).',
+                    'For accessories: the phone brand and model it fits (e.g. an Oppo A73 case).'),
+                style: const TextStyle(color: BrandColors.gray, fontSize: 12),
+              ),
             ),
             const SizedBox(height: 12),
             Row(children: [

@@ -128,13 +128,24 @@ class AdminRepository {
   // ---------------- products
   Future<List<Map<String, dynamic>>> products({String? search, bool lowStockOnly = false}) async {
     var q = _db.from('products').select(
-        'id, sku, name_ar, name_en, price_minor, compare_at_price_minor, stock_quantity, status, is_featured, category_id, product_images(storage_path, sort_order)');
+        'id, sku, name_ar, name_en, model, brand_id, price_minor, compare_at_price_minor, stock_quantity, status, is_featured, category_id, brands(name_ar, name_en), product_images(storage_path, sort_order)');
     if (search != null && search.trim().isNotEmpty) {
       final s = search.trim().replaceAll(RegExp(r'[,()%*]'), ' ');
       q = q.or('name_ar.ilike.*$s*,name_en.ilike.*$s*,sku.ilike.*$s*');
     }
     if (lowStockOnly) q = q.lte('stock_quantity', 5).eq('status', 'published');
     return List<Map<String, dynamic>>.from(await q.neq('status', 'archived').order('created_at', ascending: false).limit(300));
+  }
+
+  Future<List<Map<String, dynamic>>> brands() async =>
+      List<Map<String, dynamic>>.from(await _db.from('brands').select('id, name_ar, name_en').eq('is_active', true).order('sort_order').order('name_en'));
+
+  /// New brand from the product editor; returns its id.
+  Future<String> createBrand(String nameAr, String nameEn) async {
+    final en = nameEn.trim().isEmpty ? nameAr.trim() : nameEn.trim();
+    final slug = '${en.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '')}-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
+    final row = await _db.from('brands').insert({'slug': slug, 'name_ar': nameAr.trim(), 'name_en': en, 'sort_order': 50}).select('id').single();
+    return row['id'] as String;
   }
 
   Future<List<Map<String, dynamic>>> categories() async =>
@@ -174,6 +185,8 @@ class AdminRepository {
     Uint8List? imageBytes,
     String? imageUrl,
     String? sku,
+    String? brandId,
+    String? model,
   }) async {
     final code = (sku == null || sku.trim().isEmpty) ? 'MH-${DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase()}' : sku.trim();
     if (await skuTaken(code)) throw Exception('SKU_TAKEN');
@@ -183,6 +196,8 @@ class AdminRepository {
           'sku': code,
           'slug': 'p-${code.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}',
           'category_id': categoryId,
+          'brand_id': brandId,
+          'model': (model == null || model.trim().isEmpty) ? null : model.trim(),
           'name_ar': nameAr.trim(),
           'name_en': nameEn.trim().isEmpty ? nameAr.trim() : nameEn.trim(),
           'description_ar': descriptionAr,
