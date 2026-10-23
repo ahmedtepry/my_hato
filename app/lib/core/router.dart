@@ -18,6 +18,7 @@ import '../features/catalog/catalog_screen.dart';
 import '../features/catalog/product_details_screen.dart';
 import '../features/checkout/checkout_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/loyalty/loyalty_screen.dart';
 import '../features/home/onboarding_screens.dart';
 import '../features/notifications/notifications_repository.dart';
 import '../features/orders/orders_screens.dart';
@@ -31,7 +32,7 @@ import 'supabase_providers.dart';
 
 /// Routes that need a signed-in user. The DB enforces access anyway (RLS);
 /// this only gives a friendly redirect to the login screen.
-const _protected = ['/checkout', '/order-confirmed', '/repair-confirmed', '/orders/', '/repairs/new', '/account/', '/notifications', '/pay/', '/payments'];
+const _protected = ['/checkout', '/loyalty', '/order-confirmed', '/repair-confirmed', '/orders/', '/repairs/new', '/account/', '/notifications', '/pay/', '/payments'];
 const _publicAccountRoutes = ['/account/settings', '/account/help', '/account/legal'];
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -126,6 +127,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/account/addresses/new', builder: (_, __) => const AddressFormScreen()),
       GoRoute(path: '/account/addresses/edit', builder: (_, s) => AddressFormScreen(existing: s.extra as Map<String, dynamic>?)),
       GoRoute(path: '/account/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(path: '/loyalty', builder: (_, __) => const LoyaltyScreen()),
       GoRoute(path: '/account/favorites', builder: (_, __) => const FavoritesScreen()),
       GoRoute(path: '/account/help', builder: (_, __) => const HelpScreen()),
       GoRoute(path: '/account/legal', builder: (_, __) => const LegalScreen()),

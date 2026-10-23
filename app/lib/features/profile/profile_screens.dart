@@ -184,6 +184,13 @@ class ProfileScreen extends ConsumerWidget {
                 _tile(context, Icons.location_on_outlined, 'addresses', '/account/addresses'),
                 _tile(context, Icons.receipt_long_outlined, 'my_orders', '/orders'),
                 _tile(context, Icons.build_outlined, 'repairs', '/orders?tab=1'),
+                ListTile(
+                  leading: const Icon(Icons.emoji_events_outlined, color: BrandColors.navy),
+                  title: Text(context.isAr ? 'خزنة المكافآت' : 'Secret Vault'),
+                  subtitle: Text(context.isAr ? 'مهام ونقاط وجوايز' : 'Missions, points and prizes', style: const TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/loyalty'),
+                ),
                 _tile(context, Icons.favorite_border, 'favorites', '/account/favorites'),
                 _tile(context, Icons.credit_card_rounded, 'saved_cards', '/account/cards'),
                 _tile(context, Icons.receipt_rounded, 'payments_history', '/payments'),
