@@ -25,8 +25,10 @@ class OrdersRepository {
     String? branchId,
     String? addressId,
     String? notes,
+    String? couponCode,
   }) async {
     final res = await _db.rpc('place_order', params: {
+      'p_coupon_code': (couponCode == null || couponCode.trim().isEmpty) ? null : couponCode.trim(),
       'p_idempotency_key': idempotencyKey,
       'p_fulfillment': fulfillment,
       'p_payment_method': paymentMethod,
@@ -38,6 +40,10 @@ class OrdersRepository {
   }
 
   String get _uid => _db.auth.currentUser?.id ?? '';
+
+  /// Discount preview for the current cart subtotal (throws COUPON_* when not usable).
+  Future<Map<String, dynamic>> checkCoupon(String code, int subtotalMinor) async =>
+      Map<String, dynamic>.from(await _db.rpc('check_coupon', params: {'p_code': code.trim(), 'p_subtotal_minor': subtotalMinor}) as Map);
 
   /// The signed-in person's own open orders. Filtered explicitly: staff accounts can read every
   /// customer's orders through RLS, and closed operations must never show in a customer's list.
@@ -65,6 +71,9 @@ class OrdersRepository {
   Future<void> requestCancel(String kind, String id, String reason) =>
       _db.rpc('customer_request_cancel', params: {'p_kind': kind, 'p_id': id, 'p_reason': reason});
 }
+
+/// Code from an offer notification (/cart?coupon=CODE), applied automatically at checkout.
+final pendingCouponProvider = StateProvider<String?>((_) => null);
 
 final ordersRepoProvider = Provider((ref) => OrdersRepository(ref.watch(supabaseProvider)));
 final branchesProvider = FutureProvider((ref) => ref.watch(ordersRepoProvider).branches());

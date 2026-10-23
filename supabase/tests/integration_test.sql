@@ -720,4 +720,74 @@ do $$ declare v_before_owner int; v_before_tech int; v_p uuid; begin
   if not exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c0' and title_ar like '%نفد%') then raise exception 'T36 out of stock'; end if;
 end $$;
 
+\echo 'T37 coupons: percent / min order / once per customer / totals add up; broadcast reaches customers only'
+do $$ declare r jsonb; v_o uuid; v_sub bigint; v_n int; begin
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  perform public.staff_save_coupon('SAVE10', 'خصم 10%', 10, null, 100000, null, 1, now() + interval '7 days', true);
+  perform public.staff_save_coupon('BIG', 'خصم كبير', null, 500000, 99999999, null, 1, null, true);
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 2);
+  select sum(line_total_minor) into v_sub from public.get_cart();
+  begin perform public.check_coupon('BIG', v_sub); raise exception 'T37 min order ignored';
+  exception when raise_exception then if sqlerrm not like 'COUPON_MIN_ORDER%' then raise; end if; end;
+  begin perform public.check_coupon('NOPE', v_sub); raise exception 'T37 unknown accepted';
+  exception when raise_exception then if sqlerrm <> 'COUPON_INVALID' then raise; end if; end;
+  r := public.check_coupon('save10', v_sub);
+  if (r->>'discount_minor')::bigint <> floor(v_sub * 0.10) then raise exception 'T37 preview %', r; end if;
+  r := public.place_order('order-key-t37', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null, 'save10');
+  v_o := (r->>'order_id')::uuid;
+  perform t.reset();
+  if (select coupon_code from public.orders where id = v_o) <> 'SAVE10' then raise exception 'T37 code not stored'; end if;
+  if (select coupon_discount_minor from public.orders where id = v_o) <> floor(v_sub * 0.10) then raise exception 'T37 discount'; end if;
+  if (select total_minor from public.orders where id = v_o) <> v_sub - floor(v_sub * 0.10) then raise exception 'T37 total'; end if;
+  if (select uses_count from public.coupons where code = 'SAVE10') <> 1 then raise exception 'T37 uses'; end if;
+  -- second use by the same customer is refused
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 2);
+  begin perform public.place_order('order-key-t37b', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null, 'SAVE10');
+        raise exception 'T37 reused';
+  exception when raise_exception then if sqlerrm <> 'COUPON_ALREADY_USED' then raise; end if; end;
+  -- old 6-argument call still works
+  perform public.place_order('order-key-t37c', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null);
+  -- customers cannot broadcast; staff can, team members do not receive it
+  begin perform public.staff_broadcast_offer('x', 'y', null); raise exception 'T37 customer broadcast';
+  exception when insufficient_privilege then null; end;
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  v_n := public.staff_broadcast_offer('🎁 خصم 10%', 'استخدم الكود SAVE10', 'save10');
+  perform t.reset();
+  if v_n < 1 then raise exception 'T37 nobody reached'; end if;
+  if exists (select 1 from public.notifications where entity_type = 'promo' and user_id in (select user_id from public.user_roles)) then raise exception 'T37 staff got promo'; end if;
+  if not exists (select 1 from public.notifications where entity_type = 'promo' and user_id = '00000000-0000-0000-0000-00000000000a' and deep_link = '/cart?coupon=SAVE10') then raise exception 'T37 customer promo'; end if;
+end $$;
+
+\echo 'T38 account approval: new sign-up is pending + team alerted; sales cannot review; owner approves / rejects'
+do $$ declare v_n int; begin
+  insert into auth.users(id, email, raw_user_meta_data) values
+    ('00000000-0000-0000-0000-0000000000d1', 'new1@test.local', '{"full_name":"New One","phone":"01155555551"}'),
+    ('00000000-0000-0000-0000-0000000000d2', 'new2@test.local', '{"full_name":"New Two"}');
+  if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d1') <> 'pending' then raise exception 'T38 not pending'; end if;
+  if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-00000000000a') <> 'approved' then raise exception 'T38 old account not approved'; end if;
+  if not exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c0' and title_ar like '%حساب جديد%') then raise exception 'T38 owner not alerted'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  begin perform * from public.staff_accounts('pending'); raise exception 'T38 sales listed';
+  exception when insufficient_privilege then null; end;
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  select count(*) into v_n from public.staff_accounts('pending') where user_id in ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000d2');
+  if v_n <> 2 then raise exception 'T38 list %', v_n; end if;
+  if exists (select 1 from public.staff_accounts('pending') where user_id = '00000000-0000-0000-0000-0000000000c0') then raise exception 'T38 staff listed'; end if;
+  if public.staff_pending_accounts_count() < 2 then raise exception 'T38 count'; end if;
+  perform public.staff_mark_account_approved('00000000-0000-0000-0000-0000000000d1');
+  perform public.staff_reject_account('00000000-0000-0000-0000-0000000000d2', 'بيانات ناقصة');
+  begin perform public.staff_reject_account('00000000-0000-0000-0000-0000000000d2', null); raise exception 'T38 double reject';
+  exception when raise_exception then if sqlerrm <> 'ALREADY_DECIDED' then raise; end if; end;
+  perform t.reset();
+  if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d1') <> 'approved' then raise exception 'T38 approve'; end if;
+  if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d2') <> 'rejected' then raise exception 'T38 reject'; end if;
+  if not exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000d1' and title_ar like '%أهلاً%') then raise exception 'T38 welcome'; end if;
+  -- confirming in Auth directly also approves
+  insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000d3', 'new3@test.local', '{}');
+  update auth.users set email_confirmed_at = now() where id = '00000000-0000-0000-0000-0000000000d3';
+  if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d3') <> 'approved' then raise exception 'T38 auto approve'; end if;
+end $$;
+
 \echo 'ALL BACKEND TESTS PASSED'

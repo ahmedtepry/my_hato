@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../features/orders/orders_repository.dart' show pendingCouponProvider;
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 
 import '../features/admin/admin_screens.dart';
@@ -48,6 +49,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final signedIn = ref.read(supabaseProvider).auth.currentSession != null;
       final loc = state.matchedLocation;
+      // offer notification: /cart?coupon=CODE -> remember the code; checkout applies it automatically
+      final coupon = state.uri.queryParameters['coupon'];
+      if (loc == '/cart' && coupon != null && coupon.isNotEmpty) {
+        ref.read(pendingCouponProvider.notifier).state = coupon.toUpperCase();
+        return '/cart';
+      }
       final needsAuth = _protected.any((p) => loc == p || loc.startsWith(p)) && !_publicAccountRoutes.contains(loc);
       if (needsAuth && !signedIn) return '/auth/login?redirect=${Uri.encodeComponent(state.uri.toString())}';
       if (signedIn && (loc == '/auth/login' || loc == '/auth/register')) {

@@ -19,6 +19,8 @@ import '../auth/auth_repository.dart';
 import '../orders/orders_screens.dart' show fmtDate;
 import '../repairs/repairs_repository.dart';
 import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
+import 'accounts_tab.dart';
+import 'promotions.dart';
 import 'admin_repository.dart';
 import 'documents.dart';
 import 'stock_tools.dart';
@@ -178,12 +180,17 @@ class AdminHomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => DefaultTabController(
-        length: 5,
+        length: 6,
         child: Scaffold(
           appBar: AppBar(
             leading: IconButton(icon: const Icon(Icons.home_rounded), onPressed: () => context.go('/')),
             title: Text(_t(context, 'لوحة المسؤول', 'Admin console')),
             actions: [
+              IconButton(
+                tooltip: _t(context, 'العروض وأكواد الخصم', 'Offers & codes'),
+                icon: const Icon(Icons.campaign_outlined),
+                onPressed: () => openPromotions(context),
+              ),
               IconButton(
                 tooltip: _t(context, 'بحث برقم الطلب', 'Search by number'),
                 icon: const Icon(Icons.search_rounded),
@@ -205,9 +212,10 @@ class AdminHomeScreen extends ConsumerWidget {
               Tab(icon: const Icon(Icons.build_outlined), text: _t(context, 'الصيانة', 'Repairs')),
               Tab(icon: const Icon(Icons.inventory_2_outlined), text: _t(context, 'المنتجات', 'Products')),
               Tab(icon: const _ReviewsTabIcon(), text: _t(context, 'التقييمات', 'Reviews')),
+              Tab(icon: const AccountsTabIcon(), text: _t(context, 'الحسابات', 'Accounts')),
             ]),
           ),
-          body: const TabBarView(children: [_Overview(), _OrdersTab(), _RepairsTab(), _ProductsTab(), _ReviewsTab()]),
+          body: const TabBarView(children: [_Overview(), _OrdersTab(), _RepairsTab(), _ProductsTab(), _ReviewsTab(), AccountsTab()]),
         ),
       );
 }
@@ -222,6 +230,7 @@ class _Overview extends ConsumerWidget {
         ref.invalidate(_statsProvider);
         ref.invalidate(_cancelCountProvider);
         ref.invalidate(_pendingReviewsProvider);
+        ref.invalidate(pendingAccountsCountProvider);
       },
       child: stats.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -242,6 +251,8 @@ class _Overview extends ConsumerWidget {
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             children: [
+              tile(_t(context, 'حسابات للتفعيل', 'Accounts to approve'), '${ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0}', Icons.how_to_reg_rounded, BrandColors.electric,
+                  () => go(5, () => ref.read(accountsFilterProvider.notifier).state = 'pending')),
               tile(_t(context, 'تقييمات للمراجعة', 'Reviews to check'), '${ref.watch(_pendingReviewsProvider).valueOrNull ?? 0}', Icons.reviews_rounded, BrandColors.warning,
                   () => go(4, () => ref.read(_reviewFilterProvider.notifier).state = 'pending')),
               tile(_t(context, 'طلبات إلغاء', 'Cancel requests'), '${ref.watch(_cancelCountProvider).valueOrNull ?? 0}', Icons.cancel_outlined, BrandColors.error,

@@ -10,6 +10,7 @@ import '../../core/theme.dart';
 import '../../shared/product_card.dart';
 import '../../shared/states.dart';
 import 'cart_repository.dart';
+import '../orders/orders_repository.dart' show pendingCouponProvider;
 
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
@@ -89,6 +90,28 @@ class CartScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             TextButton.icon(onPressed: () => context.go('/'), icon: const Icon(Icons.arrow_back), label: Text(context.tr('continue_shopping'))),
             const SizedBox(height: 8),
+            if (ref.watch(pendingCouponProvider) != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: BrandColors.success.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: BrandColors.success.withValues(alpha: 0.35)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.local_offer_rounded, color: BrandColors.success),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      context.isAr
+                          ? 'كود الخصم ${ref.watch(pendingCouponProvider)} هيتطبق تلقائي في خطوة الدفع 🎁'
+                          : 'Code ${ref.watch(pendingCouponProvider)} will be applied at checkout 🎁',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ]),
+              ),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),

@@ -1,6 +1,9 @@
 // Support tools for customer accounts (permission: support.manage — owner, manager, support).
 //   reset_password { user_id, password } – sets a new password when a customer asks support
 //                                          ("forgot password" in the app sends customers to WhatsApp).
+//   activate       { user_id }           – accepts a new account waiting for approval: confirms it in Auth
+//                                          so the customer can sign in, then marks it approved (welcome
+//                                          notification + audit via staff_mark_account_approved).
 // Every action is written to the audit log with the staff member who did it.
 import { callerClient, corsHeaders, json, serviceClient } from "../_shared/util.ts";
 
@@ -39,6 +42,18 @@ Deno.serve(async (req) => {
       actor_id: staff.id, action: "customer.password_reset", entity_type: "customer", entity_id: cust.customer_code,
       details: { user_id: userId, via: "admin-customer" },
     });
+    return json(req, 200, { ok: true, customer_code: cust.customer_code });
+  }
+  if (body.action === "activate") {
+    const { data: roles } = await db.from("user_roles").select("role").eq("user_id", userId).limit(1);
+    if (roles && roles.length) return json(req, 403, { error: "STAFF_ACCOUNT" });
+    const { data: cust } = await db.from("customers").select("customer_code").eq("user_id", userId).maybeSingle();
+    if (!cust) return json(req, 404, { error: "NOT_FOUND" });
+    const { error } = await db.auth.admin.updateUserById(userId, { email_confirm: true, ban_duration: "none" });
+    if (error) return json(req, 400, { error: "UPDATE_FAILED" });
+    // as the staff member, so the audit log and reviewed_by name them
+    const { error: markErr } = await caller.rpc("staff_mark_account_approved", { p_user_id: userId });
+    if (markErr) return json(req, 400, { error: "MARK_FAILED" });
     return json(req, 200, { ok: true, customer_code: cust.customer_code });
   }
   return json(req, 400, { error: "unknown_action" });

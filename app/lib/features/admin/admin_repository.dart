@@ -17,11 +17,64 @@ class AdminRepository {
     return await _db.rpc('has_permission', params: {'p_permission': 'orders.manage'}) == true;
   }
 
+  // ---------------- new accounts waiting for approval
+  Future<List<Map<String, dynamic>>> accounts(String status) async =>
+      List<Map<String, dynamic>>.from(await _db.rpc('staff_accounts', params: {'p_status': status}) as List);
+
+  Future<int> pendingAccountsCount() async {
+    try {
+      return ((await _db.rpc('staff_pending_accounts_count')) as num).toInt();
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Confirms the account in Auth (service role, server side) so the customer can sign in now.
+  Future<void> activateAccount(String userId) async {
+    final res = await _db.functions.invoke('admin-customer', body: {'action': 'activate', 'user_id': userId});
+    final data = res.data;
+    if (data is Map && data['ok'] != true) throw Exception(data['error'] ?? 'UPDATE_FAILED');
+  }
+
+  Future<void> rejectAccount(String userId, String? reason) =>
+      _db.rpc('staff_reject_account', params: {'p_user_id': userId, 'p_reason': (reason ?? '').isEmpty ? null : reason});
+
+  // ---------------- discount codes & offers
+  Future<List<Map<String, dynamic>>> coupons() async =>
+      List<Map<String, dynamic>>.from(await _db.from('coupons').select().order('created_at', ascending: false));
+
+  Future<String> saveCoupon({
+    required String code,
+    String? title,
+    int? percentOff,
+    int? amountOffMinor,
+    int minOrderMinor = 0,
+    int? maxUses,
+    int perCustomer = 1,
+    DateTime? endsAt,
+    bool active = true,
+  }) async =>
+      await _db.rpc('staff_save_coupon', params: {
+        'p_code': code.trim().toUpperCase(),
+        'p_title_ar': title,
+        'p_percent_off': percentOff,
+        'p_amount_off_minor': amountOffMinor,
+        'p_min_order_minor': minOrderMinor,
+        'p_max_uses': maxUses,
+        'p_per_customer_limit': perCustomer,
+        'p_ends_at': endsAt?.toUtc().toIso8601String(),
+        'p_is_active': active,
+      }) as String;
+
+  /// Sends the offer to every customer's notifications; returns how many received it.
+  Future<int> broadcastOffer({required String title, required String body, String? couponCode}) async =>
+      ((await _db.rpc('staff_broadcast_offer', params: {'p_title': title.trim(), 'p_body': body.trim(), 'p_coupon_code': couponCode})) as num).toInt();
+
   Future<Map<String, dynamic>> stats() async => Map<String, dynamic>.from(await _db.rpc('staff_dashboard_stats') as Map);
 
   // ---------------- orders
   static const _orderCols =
-      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, closed_at, close_reason, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
+      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, closed_at, close_reason, coupon_code, coupon_discount_minor, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
   static const _repairCols =
       'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at, closed_at, close_reason';
 

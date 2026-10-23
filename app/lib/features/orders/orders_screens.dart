@@ -227,7 +227,10 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                       ),
                     const Divider(height: 20),
                     _kv(context.tr('subtotal'), formatEgp((o['subtotal_minor'] as num).toInt() + (o['discount_minor'] as num).toInt(), lang)),
-                    if ((o['discount_minor'] as num) > 0) _kv(context.tr('discount'), '- ${formatEgp((o['discount_minor'] as num).toInt(), lang)}'),
+                    if ((o['discount_minor'] as num) - ((o['coupon_discount_minor'] as num?) ?? 0) > 0)
+                      _kv(context.tr('discount'), '- ${formatEgp((o['discount_minor'] as num).toInt() - ((o['coupon_discount_minor'] as num?) ?? 0).toInt(), lang)}'),
+                    if (((o['coupon_discount_minor'] as num?) ?? 0) > 0)
+                      _kv('${context.isAr ? 'كود الخصم' : 'Discount code'} (${o['coupon_code']})', '- ${formatEgp((o['coupon_discount_minor'] as num).toInt(), lang)}'),
                     _kv(context.tr('delivery_fee'), formatEgp((o['delivery_fee_minor'] as num).toInt(), lang)),
                     _kv(context.tr('total'), formatEgp((o['total_minor'] as num).toInt(), lang), bold: true),
                   ]),

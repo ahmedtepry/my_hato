@@ -12,6 +12,7 @@ String friendlyError(BuildContext context, Object error) {
   if (error is SocketException || error is TimeoutException) return context.tr('offline');
   if (error is AuthException) return context.tr(authErrorKey(error));
   final msg = error is PostgrestException ? error.message : error.toString();
+  if (msg.startsWith('COUPON_MIN_ORDER')) return context.tr('err_coupon_min_order');
   if (msg.startsWith('OUT_OF_STOCK')) return context.tr('err_out_of_stock');
   if (msg.startsWith('PRODUCT_UNAVAILABLE') || msg.startsWith('VARIANT_UNAVAILABLE')) return context.tr('err_unavailable');
   const map = {
@@ -43,6 +44,10 @@ String friendlyError(BuildContext context, Object error) {
     'CANCEL_ALREADY_REQUESTED': 'err_cancel_already_requested',
     'CANCEL_REASON_REQUIRED': 'err_cancel_reason',
     'ALREADY_DECIDED': 'err_already_decided',
+    'COUPON_INVALID': 'err_coupon_invalid',
+    'COUPON_EXPIRED': 'err_coupon_expired',
+    'COUPON_USED_UP': 'err_coupon_used_up',
+    'COUPON_ALREADY_USED': 'err_coupon_already_used',
     'CANNOT_CANCEL': 'err_cannot_cancel',
     'SKU_TAKEN': 'err_sku_taken',
     'NOT_FOUND': 'err_not_found',

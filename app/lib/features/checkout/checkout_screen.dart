@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -32,11 +33,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _notes = TextEditingController();
   int? _deliveryFee;
   bool _submitting = false;
+  final _couponCtl = TextEditingController();
+  String? _coupon; // applied code
+  int _couponDiscount = 0;
+  int? _couponForSubtotal;
+  String? _couponError;
+  bool _checkingCoupon = false;
+  bool _pendingCouponTried = false;
   // stable across retries of THIS checkout => server never creates duplicates
   final String _idempotencyKey = OrdersRepository.newIdempotencyKey();
 
   @override
   void dispose() {
+    _couponCtl.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -51,6 +60,57 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (mounted) setState(() => _deliveryFee = fee);
   }
 
+  String _couponMessage(Object e) {
+    final m = e.toString();
+    final ar = context.isAr;
+    if (m.contains('COUPON_MIN_ORDER')) {
+      final min = int.tryParse(RegExp(r'COUPON_MIN_ORDER:(\d+)').firstMatch(m)?.group(1) ?? '');
+      return ar ? 'الكود ده محتاج طلب بـ ${min == null ? 'مبلغ أكبر' : formatEgp(min, 'ar')} على الأقل' : 'Needs an order of at least ${min == null ? 'more' : formatEgp(min, 'en')}';
+    }
+    if (m.contains('COUPON_EXPIRED')) return ar ? 'الكود ده انتهت صلاحيته' : 'This code has expired';
+    if (m.contains('COUPON_USED_UP')) return ar ? 'الكود ده خلص' : 'This code is used up';
+    if (m.contains('COUPON_ALREADY_USED')) return ar ? 'انت استخدمت الكود ده قبل كده' : 'You already used this code';
+    if (m.contains('COUPON_INVALID')) return ar ? 'الكود ده مش صالح' : 'Invalid code';
+    return friendlyError(context, e);
+  }
+
+  Future<void> _applyCoupon(int subtotal, {String? code}) async {
+    final c = (code ?? _couponCtl.text).trim().toUpperCase();
+    if (c.isEmpty) return;
+    setState(() {
+      _checkingCoupon = true;
+      _couponError = null;
+    });
+    try {
+      final r = await ref.read(ordersRepoProvider).checkCoupon(c, subtotal);
+      if (!mounted) return;
+      setState(() {
+        _coupon = c;
+        _couponCtl.text = c;
+        _couponDiscount = (r['discount_minor'] as num).toInt();
+        _couponForSubtotal = subtotal;
+      });
+      HapticFeedback.lightImpact();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _coupon = null;
+          _couponDiscount = 0;
+          _couponError = _couponMessage(e);
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _checkingCoupon = false);
+    }
+  }
+
+  void _removeCoupon() => setState(() {
+        _coupon = null;
+        _couponDiscount = 0;
+        _couponError = null;
+        _couponCtl.clear();
+      });
+
   Future<void> _submit() async {
     setState(() => _submitting = true);
     try {
@@ -61,7 +121,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             branchId: _fulfillment == 'pickup' ? _branchId : null,
             addressId: _fulfillment == 'delivery' ? _addressId : null,
             notes: _notes.text,
+            couponCode: _coupon,
           );
+      ref.read(pendingCouponProvider.notifier).state = null;
       ref.invalidate(cartProvider);
       ref.invalidate(myOrdersProvider);
       if (!mounted) return;
@@ -73,7 +135,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // The confirmation animation is shown ONLY after the backend confirmed creation.
       context.go('/order-confirmed?id=${res['order_id']}&ref=${Uri.encodeComponent(res['reference'] as String)}');
     } catch (e) {
-      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+      if (!mounted) return;
+      if (e.toString().contains('COUPON_')) {
+        setState(() {
+          _coupon = null;
+          _couponDiscount = 0;
+          _couponError = _couponMessage(e);
+        });
+      }
+      showSnack(context, e.toString().contains('COUPON_') ? _couponMessage(e) : friendlyError(context, e), error: true);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -92,6 +162,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final phone = reachablePhone(p);
     final hasPhone = phone != null || _fulfillment == 'delivery';
     final subtotal = cart?.subtotal ?? 0;
+    final pending = ref.watch(pendingCouponProvider);
+    if (cart != null && subtotal > 0) {
+      if (!_pendingCouponTried && pending != null && _coupon == null) {
+        _pendingCouponTried = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _applyCoupon(subtotal, code: pending));
+      } else if (_coupon != null && _couponForSubtotal != subtotal && !_checkingCoupon) {
+        final c = _coupon!;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _applyCoupon(subtotal, code: c));
+      }
+    }
     final fee = _fulfillment == 'delivery' ? (_deliveryFee ?? 0) : 0;
     // pick sensible defaults so the customer is never stuck on a greyed-out button
     final branchList = branches.valueOrNull ?? const <Map<String, dynamic>>[];
@@ -246,6 +326,57 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ]),
         ),
         _h(context.tr('items')),
+        // discount code
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: _coupon != null
+                ? Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: BrandColors.success.withValues(alpha: 0.12), shape: BoxShape.circle),
+                      child: const Icon(Icons.local_offer_rounded, color: BrandColors.success, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(context.isAr ? 'اتطبق الكود $_coupon ✅' : 'Code $_coupon applied ✅', style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.success)),
+                        Text(context.isAr ? 'وفّرت ${formatEgp(_couponDiscount, lang)}' : 'You save ${formatEgp(_couponDiscount, lang)}', style: const TextStyle(fontSize: 12.5)),
+                      ]),
+                    ),
+                    TextButton(onPressed: _removeCoupon, child: Text(context.isAr ? 'إزالة' : 'Remove')),
+                  ])
+                : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Row(children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _couponCtl,
+                          textCapitalization: TextCapitalization.characters,
+                          textDirection: TextDirection.ltr,
+                          decoration: InputDecoration(
+                            hintText: context.isAr ? 'عندك كود خصم؟' : 'Have a discount code?',
+                            prefixIcon: const Icon(Icons.local_offer_outlined),
+                            errorText: _couponError,
+                          ),
+                          onSubmitted: (_) => _applyCoupon(subtotal),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 52,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(minimumSize: const Size(80, 52), backgroundColor: BrandColors.navy),
+                          onPressed: _checkingCoupon ? null : () => _applyCoupon(subtotal),
+                          child: _checkingCoupon
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                              : Text(context.isAr ? 'تطبيق' : 'Apply'),
+                        ),
+                      ),
+                    ]),
+                  ]),
+          ),
+        ),
+        const SizedBox(height: 12),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -261,9 +392,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               const Divider(height: 20),
               _sum(context.tr('subtotal'), formatEgp(cart?.listTotal ?? 0, lang)),
               if ((cart?.discount ?? 0) > 0) _sum(context.tr('discount'), '- ${formatEgp(cart!.discount, lang)}'),
+              if (_couponDiscount > 0) _sum('${context.isAr ? 'كود الخصم' : 'Discount code'} ($_coupon)', '- ${formatEgp(_couponDiscount, lang)}'),
               _sum(context.tr('delivery_fee'), _fulfillment == 'pickup' ? formatEgp(0, lang) : (_deliveryFee == null ? '—' : formatEgp(_deliveryFee, lang))),
               const Divider(height: 20),
-              _sum(context.tr('total'), formatEgp(subtotal + fee, lang), bold: true),
+              _sum(context.tr('total'), formatEgp(subtotal - _couponDiscount + fee, lang), bold: true),
             ]),
           ),
         ),
@@ -286,7 +418,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             onPressed: (!ready || _submitting) ? null : _submit,
             child: _submitting
                 ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                : Text('${context.tr(_payment == 'online' ? 'place_and_pay' : 'place_order')} • ${formatEgp(subtotal + fee, lang)}'),
+                : Text('${context.tr(_payment == 'online' ? 'place_and_pay' : 'place_order')} • ${formatEgp(subtotal - _couponDiscount + fee, lang)}'),
           ),
           ]),
         ),
