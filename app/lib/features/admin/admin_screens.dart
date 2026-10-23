@@ -295,7 +295,7 @@ class _Overview extends ConsumerWidget {
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             children: <Widget?>[
-              tile('accounts', _t(context, 'حسابات للتفعيل', 'Accounts to approve'), '${ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0}', Icons.how_to_reg_rounded, BrandColors.electric,
+              tile('accounts', _t(context, 'حسابات للتوثيق', 'Accounts to verify'), '${ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0}', Icons.how_to_reg_rounded, BrandColors.electric,
                   () => go('accounts', () => ref.read(accountsFilterProvider.notifier).state = 'pending')),
               tile('reviews', _t(context, 'تقييمات للمراجعة', 'Reviews to check'), '${ref.watch(_pendingReviewsProvider).valueOrNull ?? 0}', Icons.reviews_rounded, BrandColors.warning,
                   () => go('reviews', () => ref.read(_reviewFilterProvider.notifier).state = 'pending')),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/orders/orders_repository.dart' show pendingCouponProvider;
+import '../shared/account_review.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 
 import '../features/admin/admin_screens.dart';
@@ -209,7 +210,13 @@ class _Shell extends ConsumerWidget {
     ref.watch(notificationsProvider);
     ref.listen(notificationsProvider, (_, next) {
       final list = next.valueOrNull;
-      if (list != null) _announceNew(list, context.isAr);
+      if (list != null) {
+        _announceNew(list, context.isAr);
+        // a welcome notification means the account was just verified -> unlock ordering at once
+        if (ref.read(accountReviewProvider).valueOrNull == 'pending' && list.any((n) => (n['title_en'] as String? ?? '').contains('Welcome'))) {
+          ref.invalidate(accountReviewProvider);
+        }
+      }
     });
     ref.listen(currentUserProvider, (prev, next) {
       if (prev?.id != next?.id) {

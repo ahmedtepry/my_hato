@@ -11,6 +11,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/account_review.dart';
 import '../../shared/copy_code.dart';
 import '../../shared/cancel_request.dart';
 import '../../shared/states.dart';
@@ -123,7 +124,11 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
       if (!mounted) return;
       context.go(Uri(path: '/repair-confirmed', queryParameters: {'id': id, 'ref': res['reference'] as String}).toString());
     } catch (e) {
-      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+      if (mounted && isAccountPendingError(e)) {
+        showAccountPendingSheet(context);
+      } else if (mounted) {
+        showSnack(context, friendlyError(context, e), error: true);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

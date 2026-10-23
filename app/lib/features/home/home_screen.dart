@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/account_review.dart';
 import '../../shared/avatars.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/product_card.dart';
@@ -65,6 +66,7 @@ class HomeScreen extends ConsumerWidget {
         onRefresh: refresh,
         child: CustomScrollView(controller: homeScrollController, slivers: [
           SliverToBoxAdapter(child: _HomeHeader(signedIn: user != null)),
+          const SliverToBoxAdapter(child: PendingAccountBanner()),
           const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 120), child: _SectionsBar())),
           const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 220), child: _BannerCarousel())),
           const SliverToBoxAdapter(child: _ActiveUpdates()),

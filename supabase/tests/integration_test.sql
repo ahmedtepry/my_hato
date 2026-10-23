@@ -784,10 +784,10 @@ do $$ declare v_n int; begin
   if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d1') <> 'approved' then raise exception 'T38 approve'; end if;
   if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d2') <> 'rejected' then raise exception 'T38 reject'; end if;
   if not exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000d1' and title_ar like '%أهلاً%') then raise exception 'T38 welcome'; end if;
-  -- confirming in Auth directly also approves
+  -- confirming in Auth (account-open) lets them sign in but does NOT approve (0034)
   insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000d3', 'new3@test.local', '{}');
   update auth.users set email_confirmed_at = now() where id = '00000000-0000-0000-0000-0000000000d3';
-  if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d3') <> 'approved' then raise exception 'T38 auto approve'; end if;
+  if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d3') <> 'pending' then raise exception 'T38 confirm approved'; end if;
 end $$;
 
 \echo 'T39 team: owner lists / adds / changes / removes members; guards for self and last owner; sales cannot manage'
@@ -848,6 +848,25 @@ do $$ declare r record; begin
   if not public.has_permission('orders.manage') then raise exception 'T40 resumed'; end if;
   perform t.act('00000000-0000-0000-0000-0000000000c1');
   if not public.has_permission('repairs.manage') then raise exception 'T40 technician repairs'; end if;
+  perform t.reset();
+end $$;
+
+\echo 'T41 pending account: can sign in and use the cart, but cannot order / request repair / review until approved'
+do $$ begin
+  perform t.act('00000000-0000-0000-0000-0000000000d3');
+  perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 1);
+  begin
+    perform public.place_order('order-key-t41', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null);
+    raise exception 'T41 pending ordered';
+  exception when raise_exception then if sqlerrm not in ('ACCOUNT_PENDING', 'ACCOUNT_NOT_VERIFIED', 'PHONE_REQUIRED') then raise; end if; end;
+  begin
+    perform public.submit_review((select id from public.products where sku='ANK-20W'), 5, 'حلو');
+    raise exception 'T41 pending reviewed';
+  exception when raise_exception then if sqlerrm <> 'ACCOUNT_PENDING' then raise; end if; end;
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  perform public.staff_mark_account_approved('00000000-0000-0000-0000-0000000000d3');
+  perform t.act('00000000-0000-0000-0000-0000000000d3');
+  if (public.submit_review((select id from public.products where sku='ANK-20W'), 5, 'حلو')->>'status') <> 'published' then raise exception 'T41 approved review'; end if;
   perform t.reset();
 end $$;
 

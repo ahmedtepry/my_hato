@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config.dart';
+import '../../core/errors.dart' show isEmailNotConfirmed;
 import '../../core/supabase_providers.dart';
 
 /// Why a 6-digit email code was sent. Each purpose maps to the Supabase Auth OTP type that
@@ -48,8 +49,27 @@ class AuthRepository {
 
   static String normalizeEmail(String email) => email.trim().toLowerCase();
 
-  Future<void> signInWithEmail(String email, String password) =>
-      _auth.signInWithPassword(email: normalizeEmail(email), password: password);
+  /// Signs in. A brand-new account that Auth has not confirmed yet is opened first (account-open
+  /// checks the password server side), so customers never wait to get in; ordering stays locked
+  /// until the team approves the account.
+  Future<void> signInWithEmail(String email, String password) async {
+    try {
+      await _auth.signInWithPassword(email: normalizeEmail(email), password: password);
+    } on AuthException catch (e) {
+      if (!isEmailNotConfirmed(e) || !await openAccount(email, password)) rethrow;
+      await _auth.signInWithPassword(email: normalizeEmail(email), password: password);
+    }
+  }
+
+  /// true when the server unlocked sign-in for this (correct) email/identifier + password.
+  Future<bool> openAccount(String identifier, String password) async {
+    try {
+      final res = await _db.functions.invoke('account-open', body: {'identifier': identifier.trim(), 'password': password});
+      return res.data is Map && (res.data as Map)['ok'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Sign in with email, mobile number or username + password. For a mobile number or username the
   /// database checks the password and returns the account email only when it is correct

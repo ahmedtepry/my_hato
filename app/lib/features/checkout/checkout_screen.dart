@@ -8,6 +8,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../shared/copy_code.dart';
+import '../../shared/account_review.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/states.dart';
 import '../../shared/support_contact.dart';
@@ -136,6 +137,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       context.go('/order-confirmed?id=${res['order_id']}&ref=${Uri.encodeComponent(res['reference'] as String)}');
     } catch (e) {
       if (!mounted) return;
+      if (isAccountPendingError(e)) {
+        ref.invalidate(accountReviewProvider);
+        showAccountPendingSheet(context);
+        return;
+      }
       if (e.toString().contains('COUPON_')) {
         setState(() {
           _coupon = null;
@@ -203,6 +209,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('checkout'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
+        const PendingAccountBanner(margin: EdgeInsets.only(bottom: 12)),
         _h(context.tr('contact_info')),
         Card(
           child: ListTile(
@@ -414,6 +421,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   Expanded(child: Text(missing, style: const TextStyle(color: BrandColors.warning, fontWeight: FontWeight.w600))),
                 ]),
               ),
+            if (ref.watch(accountReviewProvider).valueOrNull == 'pending' || ref.watch(accountReviewProvider).valueOrNull == 'rejected')
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: BrandColors.gray),
+                icon: const Icon(Icons.hourglass_top_rounded),
+                label: Text(context.isAr ? 'الطلب هيتفتح أول ما حسابك يتوثّق' : 'Ordering opens once your account is verified'),
+                onPressed: () => showAccountPendingSheet(context),
+              )
+            else
             FilledButton(
             onPressed: (!ready || _submitting) ? null : _submit,
             child: _submitting

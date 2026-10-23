@@ -246,7 +246,7 @@ class _AvatarPainter extends CustomPainter {
       canvas.drawCircle(p(71.5, 51), 2.2 * u, fill(skinShade));
     }
     if (hijab) {
-      canvas.drawOval(oval(50, 51, 22.5, 24.5), fill(Color.lerp(l.hairColor, Colors.white, 0.25)!)); // inner band
+      canvas.drawOval(oval(50, 51, 22.5, 24.5), fill(Color.lerp(l.hairColor, Colors.white, niqab ? 0.1 : 0.25)!)); // inner band
     }
     if (niqab) {
       // veil over the face: only an eye band of skin shows

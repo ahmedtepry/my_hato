@@ -44,6 +44,7 @@ String friendlyError(BuildContext context, Object error) {
     'CANCEL_ALREADY_REQUESTED': 'err_cancel_already_requested',
     'CANCEL_REASON_REQUIRED': 'err_cancel_reason',
     'ALREADY_DECIDED': 'err_already_decided',
+    'ACCOUNT_PENDING': 'err_account_pending',
     'COUPON_INVALID': 'err_coupon_invalid',
     'COUPON_EXPIRED': 'err_coupon_expired',
     'COUPON_USED_UP': 'err_coupon_used_up',

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
+import 'account_review.dart';
 import '../core/errors.dart';
 import '../core/l10n.dart';
 import '../core/supabase_providers.dart';
@@ -226,7 +227,12 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
       Navigator.of(context).pop();
       messenger?.showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 3), persist: false));
     } catch (e) {
-      if (mounted) setState(() => _error = friendlyError(context, e));
+      if (mounted && isAccountPendingError(e)) {
+        Navigator.of(context).maybePop();
+        showAccountPendingSheet(context);
+      } else if (mounted) {
+        setState(() => _error = friendlyError(context, e));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

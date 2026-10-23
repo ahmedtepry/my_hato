@@ -407,6 +407,7 @@ const Map<String, Map<String, String>> _strings = {
   'err_coupon_already_used': {'ar': 'انت استخدمت كود الخصم ده قبل كده', 'en': 'You already used this code'},
   'err_coupon_min_order': {'ar': 'الطلب أقل من الحد الأدنى لكود الخصم', 'en': 'Order is below the code minimum'},
   'err_account_suspended': {'ar': 'الحساب ده موقوف مؤقتًا. كلّم المسؤول.', 'en': 'This account is suspended. Please contact the owner.'},
+  'err_account_pending': {'ar': 'حسابك بيتوثّق — الطلب هيتفتح أول ما فريقنا يوثّقه.', 'en': 'Your account is being verified — ordering opens once our team approves it.'},
   'err_rate_limited': {'ar': 'محاولات كتير. استنى شوية وحاول تاني.', 'en': 'Too many attempts. Please wait and try again.'},
   'err_invalid_code': {'ar': 'الكود غلط أو انتهت صلاحيته.', 'en': 'Invalid or expired code.'},
   'err_quote_not_pending': {'ar': 'عرض السعر ده مبقاش متاح للرد.', 'en': 'This quote can no longer be answered.'},

@@ -55,8 +55,8 @@ class AccountsTab extends ConsumerWidget {
       SizedBox(
         height: 54,
         child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), children: [
-          chip('pending', '${_t(context, 'مستني التفعيل', 'Waiting')}${pending > 0 ? ' ($pending)' : ''}', Icons.hourglass_top_rounded),
-          chip('approved', _t(context, 'اتفعّلت', 'Approved'), Icons.verified_user_outlined),
+          chip('pending', '${_t(context, 'مستني التوثيق', 'Waiting')}${pending > 0 ? ' ($pending)' : ''}', Icons.hourglass_top_rounded),
+          chip('approved', _t(context, 'اتوثّقت', 'Verified'), Icons.verified_user_outlined),
           chip('rejected', _t(context, 'مرفوضة', 'Rejected'), Icons.block_rounded),
         ]),
       ),
@@ -76,7 +76,7 @@ class AccountsTab extends ConsumerWidget {
                     const SizedBox(height: 10),
                     Center(
                       child: Text(filter == 'pending'
-                          ? _t(context, 'مفيش حسابات مستنية تفعيل 👌', 'No accounts waiting 👌')
+                          ? _t(context, 'مفيش حسابات مستنية توثيق 👌', 'No accounts waiting 👌')
                           : _t(context, 'مفيش حسابات هنا', 'Nothing here')),
                     ),
                   ])
@@ -121,13 +121,13 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
       final phone = a['phone'] as String?;
       showSnack(
         context,
-        _t(context, 'اتفعّل الحساب ✅ يقدر يدخل دلوقتي', 'Account activated ✅ they can sign in now'),
+        _t(context, 'اتوثّق الحساب ✅ يقدر يطلب دلوقتي', 'Verified ✅ they can order now'),
         action: phone == null
             ? null
             : SnackBarAction(
                 label: _t(context, 'بلّغه واتساب', 'Tell on WhatsApp'),
                 onPressed: () => launchUrl(
-                  Uri.parse('https://wa.me/${waDigits(phone)}?text=${Uri.encodeComponent('أهلاً ${_firstName()} 👋\nحسابك على My Hatō اتفعّل ✅ تقدر تدخل دلوقتي وتطلب من التطبيق.')}'),
+                  Uri.parse('https://wa.me/${waDigits(phone)}?text=${Uri.encodeComponent('أهلاً ${_firstName()} 👋\nحسابك على My Hatō اتوثّق ✅ تقدر تطلب دلوقتي من التطبيق.')}'),
                   mode: LaunchMode.externalApplication,
                 ),
               ),
@@ -196,9 +196,9 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
     final username = a['username'] as String?;
     final initial = name.isNotEmpty ? name.characters.first : '?';
     final (Color color, String label, IconData icon) = switch (status) {
-      'approved' => (BrandColors.success, _t(context, 'متفعّل', 'Active'), Icons.verified_rounded),
+      'approved' => (BrandColors.success, _t(context, 'موثّق', 'Verified'), Icons.verified_rounded),
       'rejected' => (BrandColors.error, _t(context, 'مرفوض', 'Rejected'), Icons.block_rounded),
-      _ => (BrandColors.warning, _t(context, 'مستني التفعيل', 'Waiting'), Icons.hourglass_top_rounded),
+      _ => (BrandColors.warning, _t(context, 'مستني التوثيق', 'Waiting'), Icons.hourglass_top_rounded),
     };
 
     return AnimatedOpacity(
@@ -254,7 +254,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(backgroundColor: BrandColors.success, minimumSize: const Size.fromHeight(46)),
                       icon: const Icon(Icons.check_circle_rounded, size: 20),
-                      label: Text(_t(context, 'قبول وتفعيل', 'Accept')),
+                      label: Text(_t(context, 'توثيق الحساب', 'Verify')),
                       onPressed: _approve,
                     ),
                   ),
@@ -301,7 +301,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
                 ),
             ] else
               Center(
-                child: Text(_done == 'approved' ? _t(context, 'اتفعّل ✅', 'Activated ✅') : _t(context, 'اترفض', 'Rejected'),
+                child: Text(_done == 'approved' ? _t(context, 'اتوثّق ✅', 'Verified ✅') : _t(context, 'اترفض', 'Rejected'),
                     style: TextStyle(fontWeight: FontWeight.w800, color: _done == 'approved' ? BrandColors.success : BrandColors.error)),
               ),
           ]),
@@ -337,7 +337,7 @@ class _RejectSheetState extends State<_RejectSheet> {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(_t(context, 'رفض الحساب', 'Reject account'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         const SizedBox(height: 4),
-        Text(_t(context, 'العميل مش هيقدر يدخل. تقدر تقبله بعدين من تبويب "مرفوضة".', 'They will not be able to sign in. You can still accept later from "Rejected".'),
+        Text(_t(context, 'العميل مش هيقدر يطلب. تقدر توثّقه بعدين من تبويب "مرفوضة".', 'They will not be able to order. You can still verify later from "Rejected".'),
             style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
         const SizedBox(height: 14),
         Wrap(spacing: 8, runSpacing: 8, children: [
