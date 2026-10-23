@@ -1,7 +1,7 @@
 name: myhato
 description: My Hatō — phones, accessories & phone repair. YOUR PHONE. OUR PRIORITY.
 publish_to: "none"
-version: 1.0.0+43
+version: 1.0.0+44
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -25,6 +25,8 @@ dependencies:
   share_plus: ^10.0.2
   url_launcher: ^6.3.0
   intl_phone_field: ^3.2.0
+  pdf: ^3.11.1
+  printing: ^5.13.4
 
 dev_dependencies:
   flutter_test:

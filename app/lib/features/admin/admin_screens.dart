@@ -20,6 +20,7 @@ import '../orders/orders_screens.dart' show fmtDate;
 import '../repairs/repairs_repository.dart';
 import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
 import 'admin_repository.dart';
+import 'documents.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -404,6 +405,13 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           const Spacer(),
           Text(formatEgp((o['total_minor'] as num).toInt(), context.lang), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
         ]),
+        const SizedBox(height: 8),
+        if ((o['customer_phone'] as String?)?.isNotEmpty == true)
+          ContactButtons(
+            phone: o['customer_phone'] as String,
+            message: 'أهلاً ${o['customer_name'] ?? ''}، معاك فريق المبيعات في My Hatō بخصوص طلبك رقم ${o['reference']}.',
+          ),
+        DocumentButtons(fileName: 'MyHato-${o['reference']}', build: () => orderInvoicePdf(o)),
         const SizedBox(height: 16),
         if (o['closed_at'] == null) ...[
         _StatusUpdate(
@@ -577,6 +585,15 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
             padding: const EdgeInsets.only(top: 8),
             child: Text('${_t(context, 'عرض السعر', 'Quote')}: ${formatEgp((r['estimated_cost_minor'] as num).toInt(), context.lang)}'),
           ),
+        if ((r['contact_phone'] as String?)?.isNotEmpty == true)
+          ContactButtons(
+            phone: r['contact_phone'] as String,
+            message: 'أهلاً ${r['contact_name'] ?? ''}، معاك فريق الصيانة في My Hatō بخصوص طلب الصيانة رقم ${r['reference']} (${r['device_brand']} ${r['device_model']}).',
+          ),
+        DocumentButtons(
+          fileName: 'MyHato-${r['reference']}',
+          build: () => repairReceiptPdf(r, repairLabel(context, labels, r['status'] as String)),
+        ),
         const Divider(height: 28),
         if (canQuote)
           Padding(
