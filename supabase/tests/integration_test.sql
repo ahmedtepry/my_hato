@@ -701,4 +701,23 @@ do $$ declare v_p uuid := (select id from public.products where status = 'publis
   if (select rating_avg from public.products where id = v_p) <> 4 then raise exception 'T35 edit summary'; end if;
 end $$;
 
+\echo 'T36 staff alerts: new order -> owner + sales (not technician); low stock and out of stock alerts'
+do $$ declare v_before_owner int; v_before_tech int; v_p uuid; begin
+  select count(*) into v_before_owner from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c0';
+  select count(*) into v_before_tech from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c1';
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  perform public.cart_set_item((select id from public.products where sku='ANK-20W'), null, 1);
+  perform public.place_order('order-key-t36', 'pickup', 'pay_at_branch', (select id from public.branches limit 1), null, null);
+  perform t.reset();
+  if (select count(*) from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c0' and title_ar like '%طلب جديد%') <= 0 then raise exception 'T36 owner not alerted'; end if;
+  if not exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c2' and title_ar like '%طلب جديد%') then raise exception 'T36 sales not alerted'; end if;
+  if (select count(*) from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c1') <> v_before_tech then raise exception 'T36 technician alerted'; end if;
+  -- low stock: drop a product to the threshold, then to zero
+  select id into v_p from public.products where status = 'published' and stock_quantity > 6 order by created_at limit 1;
+  update public.products set stock_quantity = 5 where id = v_p;
+  if not exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c0' and title_ar like '%مخزون قليل%') then raise exception 'T36 low stock'; end if;
+  update public.products set stock_quantity = 0 where id = v_p;
+  if not exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000c0' and title_ar like '%نفد%') then raise exception 'T36 out of stock'; end if;
+end $$;
+
 \echo 'ALL BACKEND TESTS PASSED'
