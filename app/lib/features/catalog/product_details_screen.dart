@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/product_card.dart';
+import '../../shared/reviews.dart';
 import '../../shared/cart_toast.dart';
 import '../../shared/smooth_pages.dart';
 import '../../shared/states.dart';
@@ -165,6 +166,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               ),
             ],
           ]),
+        ),
+        ReviewsSection(
+          productId: p['id'] as String,
+          ratingAvg: (p['rating_avg'] as num?)?.toDouble() ?? 0,
+          ratingCount: (p['rating_count'] as num?)?.toInt() ?? 0,
         ),
         _Related(categoryId: p['category_id'] as String, excludeId: p['id'] as String),
       ]),

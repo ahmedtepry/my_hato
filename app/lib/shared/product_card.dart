@@ -81,6 +81,8 @@ class ProductCard extends StatelessWidget {
     final fits = [if (brand != null && brand.isNotEmpty) brand, if (model != null && model.isNotEmpty) model].join(' · ');
     final name = Text(context.pick(p, 'name'),
         maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, height: 1.3));
+    final rating = (p['rating_avg'] as num?)?.toDouble() ?? 0;
+    final ratingCount = (p['rating_count'] as num?)?.toInt() ?? 0;
     final priceRow = Row(children: [
       Flexible(
         child: FittedBox(
@@ -89,7 +91,12 @@ class ProductCard extends StatelessWidget {
           child: Text(formatEgp(price, context.lang), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5, color: BrandColors.navy)),
         ),
       ),
-      if (compare != null && compare > price) ...[
+      if (ratingCount > 0) ...[
+        const Spacer(),
+        const Icon(Icons.star_rounded, size: 14, color: Color(0xFFFFB400)),
+        Text(rating.toStringAsFixed(1), style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+      ],
+      if (ratingCount == 0 && compare != null && compare > price) ...[
         const SizedBox(width: 6),
         Flexible(
           child: Text(formatEgp(compare, context.lang),

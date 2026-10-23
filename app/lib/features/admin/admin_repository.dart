@@ -116,6 +116,21 @@ class AdminRepository {
   Future<void> closeOperation(String kind, String id, String reason) =>
       _db.rpc('staff_close', params: {'p_kind': kind, 'p_id': id, 'p_reason': reason});
 
+  // ---------------- reviews
+  /// status: 'pending' | 'published' | 'removed'
+  Future<List<Map<String, dynamic>>> reviews(String status) async => List<Map<String, dynamic>>.from(await _db
+      .from('product_reviews')
+      .select('id, rating, comment, author_name, status, flagged_words, verified_purchase, created_at, updated_at, products(id, name_ar, name_en, sku)')
+      .eq('status', status)
+      .order('updated_at', ascending: false)
+      .limit(200));
+
+  Future<int> pendingReviewsCount() async =>
+      (await _db.from('product_reviews').select('id').eq('status', 'pending') as List).length;
+
+  /// action: 'approve' (publish) | 'remove' (hidden from the store)
+  Future<void> moderateReview(String id, String action) => _db.rpc('staff_moderate_review', params: {'p_review_id': id, 'p_action': action});
+
   // ---------------- cancellation requests
   Future<int> pendingCancelCount() async {
     final rows = await _db.from('cancel_requests').select('id').eq('status', 'pending');

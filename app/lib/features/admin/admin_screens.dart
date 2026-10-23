@@ -167,13 +167,16 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
 // =====================================================================================
 final _statsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).stats());
 final _cancelCountProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).pendingCancelCount());
+final _pendingReviewsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).pendingReviewsCount());
+final _reviewFilterProvider = StateProvider<String>((_) => 'pending');
+final _reviewsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).reviews(ref.watch(_reviewFilterProvider)));
 
 class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => DefaultTabController(
-        length: 4,
+        length: 5,
         child: Scaffold(
           appBar: AppBar(
             leading: IconButton(icon: const Icon(Icons.home_rounded), onPressed: () => context.go('/')),
@@ -199,9 +202,10 @@ class AdminHomeScreen extends ConsumerWidget {
               Tab(icon: const Icon(Icons.receipt_long_outlined), text: _t(context, 'الطلبات', 'Orders')),
               Tab(icon: const Icon(Icons.build_outlined), text: _t(context, 'الصيانة', 'Repairs')),
               Tab(icon: const Icon(Icons.inventory_2_outlined), text: _t(context, 'المنتجات', 'Products')),
+              Tab(icon: const _ReviewsTabIcon(), text: _t(context, 'التقييمات', 'Reviews')),
             ]),
           ),
-          body: const TabBarView(children: [_Overview(), _OrdersTab(), _RepairsTab(), _ProductsTab()]),
+          body: const TabBarView(children: [_Overview(), _OrdersTab(), _RepairsTab(), _ProductsTab(), _ReviewsTab()]),
         ),
       );
 }
@@ -215,6 +219,7 @@ class _Overview extends ConsumerWidget {
       onRefresh: () async {
         ref.invalidate(_statsProvider);
         ref.invalidate(_cancelCountProvider);
+        ref.invalidate(_pendingReviewsProvider);
       },
       child: stats.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -235,6 +240,8 @@ class _Overview extends ConsumerWidget {
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             children: [
+              tile(_t(context, 'تقييمات للمراجعة', 'Reviews to check'), '${ref.watch(_pendingReviewsProvider).valueOrNull ?? 0}', Icons.reviews_rounded, BrandColors.warning,
+                  () => go(4, () => ref.read(_reviewFilterProvider.notifier).state = 'pending')),
               tile(_t(context, 'طلبات إلغاء', 'Cancel requests'), '${ref.watch(_cancelCountProvider).valueOrNull ?? 0}', Icons.cancel_outlined, BrandColors.error,
                   () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'cancel_requests')),
               tile(_t(context, 'طلبات جديدة', 'New orders'), n('pending_orders'), Icons.fiber_new_rounded, BrandColors.warning,
@@ -1735,6 +1742,178 @@ class _ProductSearchFieldState extends State<_ProductSearchField> {
         ),
         onSubmitted: widget.onSearch,
       );
+}
+
+// =====================================================================================
+// Reviews moderation
+// =====================================================================================
+class _ReviewsTabIcon extends ConsumerWidget {
+  const _ReviewsTabIcon();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final n = ref.watch(_pendingReviewsProvider).valueOrNull ?? 0;
+    return Badge(isLabelVisible: n > 0, label: Text('$n'), child: const Icon(Icons.reviews_outlined));
+  }
+}
+
+class _ReviewsTab extends ConsumerWidget {
+  const _ReviewsTab();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filter = ref.watch(_reviewFilterProvider);
+    final data = ref.watch(_reviewsProvider);
+    Widget chip(String value, String label, IconData icon) => Padding(
+          padding: const EdgeInsetsDirectional.only(end: 8),
+          child: ChoiceChip(
+            avatar: Icon(icon, size: 16),
+            label: Text(label),
+            selected: filter == value,
+            onSelected: (_) => ref.read(_reviewFilterProvider.notifier).state = value,
+          ),
+        );
+    return Column(children: [
+      SizedBox(
+        height: 54,
+        child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), children: [
+          chip('pending', _t(context, 'قيد المراجعة', 'To review'), Icons.hourglass_top_rounded),
+          chip('published', _t(context, 'منشورة', 'Published'), Icons.check_circle_outline),
+          chip('removed', _t(context, 'محذوفة', 'Removed'), Icons.delete_outline),
+        ]),
+      ),
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(_reviewsProvider);
+            ref.invalidate(_pendingReviewsProvider);
+          },
+          child: data.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(_reviewsProvider)),
+            data: (list) => list.isEmpty
+                ? ListView(children: [
+                    const SizedBox(height: 80),
+                    Center(child: Text(filter == 'pending' ? _t(context, 'مفيش تقييمات محتاجة مراجعة 👌', 'Nothing to review 👌') : _t(context, 'مفيش تقييمات', 'No reviews'))),
+                  ])
+                : ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) => _ReviewModerationCard(review: list[i]),
+                  ),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+class _ReviewModerationCard extends ConsumerStatefulWidget {
+  const _ReviewModerationCard({required this.review});
+  final Map<String, dynamic> review;
+  @override
+  ConsumerState<_ReviewModerationCard> createState() => _ReviewModerationCardState();
+}
+
+class _ReviewModerationCardState extends ConsumerState<_ReviewModerationCard> {
+  bool _busy = false;
+
+  Future<void> _act(String action) async {
+    if (action == 'remove') {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: Text(_t(context, 'مسح التقييم؟', 'Remove review?')),
+          content: Text(_t(context, 'التقييم هيختفي من صفحة المنتج ومش هيتحسب في متوسط النجوم.', 'It disappears from the product page and the star average.')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d, false), child: Text(context.tr('cancel'))),
+            FilledButton(style: FilledButton.styleFrom(backgroundColor: BrandColors.error), onPressed: () => Navigator.pop(d, true), child: Text(_t(context, 'مسح', 'Remove'))),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(adminRepoProvider).moderateReview(widget.review['id'] as String, action);
+      ref.invalidate(_reviewsProvider);
+      ref.invalidate(_pendingReviewsProvider);
+      if (mounted) showSnack(context, action == 'approve' ? _t(context, 'اتنشر التقييم', 'Review published') : _t(context, 'اتمسح التقييم', 'Review removed'));
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.review;
+    final product = r['products'] as Map<String, dynamic>?;
+    final flags = List<String>.from(r['flagged_words'] as List? ?? const []);
+    final status = r['status'] as String;
+    final rating = (r['rating'] as num).toInt();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(
+              child: Text(product == null ? '—' : (context.isAr ? product['name_ar'] : product['name_en']) as String,
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+            Directionality(
+              textDirection: TextDirection.ltr,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                for (var i = 1; i <= 5; i++) Icon(i <= rating ? Icons.star_rounded : Icons.star_outline_rounded, size: 16, color: i <= rating ? const Color(0xFFFFB400) : BrandColors.border),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 4),
+          Text('${r['author_name']} • ${fmtDate(context, (r['updated_at'] ?? r['created_at']) as String)}${r['verified_purchase'] == true ? ' • ✔ ${_t(context, 'مشتري مؤكد', 'verified buyer')}' : ''}',
+              style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+          if ((r['comment'] as String?)?.isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(r['comment'] as String, style: const TextStyle(height: 1.5)),
+          ],
+          if (flags.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              const Icon(Icons.flag_rounded, size: 16, color: BrandColors.error),
+              for (final f in flags)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: BrandColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  child: Text(f == 'link/phone' ? _t(context, 'رابط / رقم تليفون', 'link / phone') : f,
+                      style: const TextStyle(color: BrandColors.error, fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+            ]),
+          ],
+          const SizedBox(height: 10),
+          Row(children: [
+            if (status != 'removed')
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: BrandColors.error, minimumSize: const Size.fromHeight(42)),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: Text(_t(context, 'مسح', 'Remove')),
+                  onPressed: _busy ? null : () => _act('remove'),
+                ),
+              ),
+            if (status != 'removed' && status != 'published') const SizedBox(width: 10),
+            if (status != 'published')
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: BrandColors.success, minimumSize: const Size.fromHeight(42)),
+                  icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check_rounded, size: 18),
+                  label: Text(status == 'removed' ? _t(context, 'رجّعه ونشره', 'Restore') : _t(context, 'قبول ونشر', 'Approve')),
+                  onPressed: _busy ? null : () => _act('approve'),
+                ),
+              ),
+          ]),
+        ]),
+      ),
+    );
+  }
 }
 
 /// Overview tile: tap feedback (ripple + slight press-in) and a chevron so it reads as a button.

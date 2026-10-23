@@ -267,6 +267,7 @@ const Map<String, Map<String, String>> _strings = {
   'err_cannot_cancel': {'ar': 'مينفعش نلغي في المرحلة دي، كلّم الدعم.', 'en': 'This can no longer be cancelled — please contact support.'},
   'err_sku_taken': {'ar': 'الكود (SKU) ده مستخدم لمنتج تاني.', 'en': 'This SKU / barcode is already used by another product.'},
   'err_not_found': {'ar': 'الطلب ده مبقاش متاح.', 'en': 'This is no longer available.'},
+  'err_invalid_rating': {'ar': 'اختار من نجمة لـ 5 نجوم.', 'en': 'Choose 1 to 5 stars.'},
   'order_update': {'ar': 'رسالة من My Hatō', 'en': 'Message from My Hatō'},
   'ps_unpaid': {'ar': 'لم يُدفع', 'en': 'Unpaid'},
   'ps_paid': {'ar': 'مدفوع', 'en': 'Paid'},
