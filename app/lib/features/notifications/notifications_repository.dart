@@ -62,9 +62,10 @@ final notificationsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   }
   Future<void> load() async {
     try {
-      controller.add(await repo.list());
+      final rows = await repo.list();
+      if (!controller.isClosed) controller.add(rows);
     } catch (e, st) {
-      controller.addError(e, st);
+      if (!controller.isClosed) controller.addError(e, st);
     }
   }
 
@@ -79,12 +80,28 @@ final notificationsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
         callback: (_) => load(),
       )
       .subscribe();
+  // Safety nets so nothing is missed if the realtime socket silently drops (phone sleep, weak network):
+  // reload when the app comes back to the foreground and every 45 s while it is open.
+  final resume = _ResumeReload(load);
+  WidgetsBinding.instance.addObserver(resume);
+  final poll = Timer.periodic(const Duration(seconds: 45), (_) => load());
   ref.onDispose(() {
+    poll.cancel();
+    WidgetsBinding.instance.removeObserver(resume);
     db.removeChannel(channel);
     controller.close();
   });
   return controller.stream;
 });
+
+class _ResumeReload with WidgetsBindingObserver {
+  _ResumeReload(this._reload);
+  final Future<void> Function() _reload;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _reload();
+  }
+}
 
 final unreadCountProvider = Provider<AsyncValue<int>>(
     (ref) => ref.watch(notificationsProvider).whenData((l) => l.where((n) => n['read_at'] == null).length));
