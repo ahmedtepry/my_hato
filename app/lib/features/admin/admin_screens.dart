@@ -12,6 +12,7 @@ import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/barcode_scanner.dart';
+import '../../shared/online_now.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/product_card.dart';
 import '../../shared/staff_presence.dart';
@@ -298,6 +299,17 @@ class _Overview extends ConsumerWidget {
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             children: <Widget?>[
+              // live count of customers with the app open right now (see shared/online_now.dart)
+              ValueListenableBuilder<int>(
+                valueListenable: OnlineNow.count,
+                builder: (_, n, __) => _StatTile(
+                  label: _t(context, 'أونلاين دلوقتي', 'Online now'),
+                  value: '$n',
+                  icon: Icons.wifi_tethering_rounded,
+                  color: BrandColors.success,
+                  onTap: () => showSnack(context, _t(context, 'عدد العملاء اللي فاتحين التطبيق دلوقتي', 'Customers with the app open right now')),
+                ),
+              ),
               tile('accounts', _t(context, 'حسابات للتوثيق', 'Accounts to verify'), '${ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0}', Icons.how_to_reg_rounded, BrandColors.electric,
                   () => go('accounts', () => ref.read(accountsFilterProvider.notifier).state = 'pending')),
               tile('reviews', _t(context, 'تقييمات للمراجعة', 'Reviews to check'), '${ref.watch(_pendingReviewsProvider).valueOrNull ?? 0}', Icons.reviews_rounded, BrandColors.warning,

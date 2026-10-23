@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/supabase_providers.dart';
 import '../features/admin/admin_repository.dart';
+import 'online_now.dart';
 
 class StaffPresence {
   StaffPresence._();
@@ -35,6 +36,7 @@ class StaffPresenceScope extends ConsumerStatefulWidget {
 class _StaffPresenceScopeState extends ConsumerState<StaffPresenceScope> with WidgetsBindingObserver {
   Timer? _timer;
   bool _staff = false;
+  bool _foreground = true;
 
   @override
   void initState() {
@@ -73,6 +75,14 @@ class _StaffPresenceScopeState extends ConsumerState<StaffPresenceScope> with Wi
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // the "online now" count only includes copies of the app that are on screen
+    if (state == AppLifecycleState.resumed) {
+      _foreground = true;
+      OnlineNow.start(ref.read(supabaseProvider), staff: _staff);
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      _foreground = false;
+      OnlineNow.stop();
+    }
     if (!_staff) return;
     if (state == AppLifecycleState.resumed) {
       _beat(true);
@@ -88,7 +98,9 @@ class _StaffPresenceScopeState extends ConsumerState<StaffPresenceScope> with Wi
   Widget build(BuildContext context) {
     final roles = ref.watch(staffContextProvider).valueOrNull?.roles ?? const <String>{};
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _setStaff(roles.isNotEmpty);
+      if (!mounted) return;
+      _setStaff(roles.isNotEmpty);
+      if (_foreground) OnlineNow.start(ref.read(supabaseProvider), staff: _staff);
     });
     return widget.child;
   }
