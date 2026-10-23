@@ -10,10 +10,12 @@
 | Admin dashboard | every page rendered in headless Chromium in Arabic, English and at 390 px phone width with no JS errors (mock backend) |
 | Email routing | orders → myhatosales@gmail.com (T08), repairs + quote replies → myhatoservice@gmail.com (T14, T19) |
 | "مستعمل" section | Coming-soon page in app (AR/EN) + backend flag `used_devices_enabled` + admin toggle (T24) |
+| Live chat backend (migration 0010) | applied to the live project and exercised with 2 customers + a support agent + a technician: tenant isolation, direct-write blocked, closed-chat blocked, fake/bad attachments blocked, double rating blocked, retry de-duplication, notification + queued push created; test data rolled back |
 
 ## Written but NOT compiled/executed here
 * **Flutter app** (`app/`) and its tests: this workspace has no Flutter/Dart SDK and cannot download it (network policy),
   so the code has not been compiled. Run `flutter pub get && flutter analyze && flutter test` on a machine with Flutter 3.24 and fix any analyzer findings before release.
+* **Live chat UI** (`app/lib/features/support_chat/` and the dashboard page `#/support`): written against the tested backend, but not run on a device/browser here. Check on a phone: send/receive, image + PDF, typing, read ticks, close → rating.
 * **Edge Functions** (Deno): not executed against a live Supabase project (no Deno/Supabase CLI here).
 * **APK/AAB**: not built — no Android SDK/Flutter available. Exact commands are in ANDROID_RELEASE.md.
 

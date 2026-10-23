@@ -141,6 +141,8 @@ function subscribeLive() {
       if (p.new?.to_status === "pending_confirmation" && !p.new?.from_status) toast(S.lang === "ar" ? "🛒 طلب جديد وصل" : "🛒 New order received");
       if (/^#\/(orders)?$/.test(location.hash || "#/")) render();
     })
+    .on("postgres_changes", { event: "*", schema: "public", table: "support_messages" }, (p) => { if (can("support.manage")) supportOnMessage(p); })
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "support_conversations" }, () => { if (can("support.manage")) supportOnConversation(); })
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "repair_status_history" }, (p) => {
       if (p.new?.to_status === "pickup_requested" && !p.new?.from_status) toast(S.lang === "ar" ? "🔧 طلب صيانة جديد" : "🔧 New repair request");
       if (/^#\/(repairs)?$/.test(location.hash || "#/")) render();
@@ -158,6 +160,7 @@ const NAV = [
   ["#/banners", "banners", "🖼️", "banners.manage"],
   ["#/branches", "branches", "🏬", "settings.manage"],
   ["#/customers", "customers", "👥", "customers.view"],
+  ["#/support", "liveChat", "💬", "support.manage"],
   ["#/staff", "staff", "🛡️", "staff.manage"],
   ["#/payments", "payments", "💳", "orders.view"],
   ["#/payment-settings", "paymentSettings", "🏦", "settings.manage"],
@@ -184,6 +187,7 @@ async function render() {
   if (!S.user || !S.roles.length) return;
   const h = (location.hash || "#/").slice(1);
   const parts = h.split("/").filter(Boolean);
+  if (parts[0] !== "support") supportLeave();
   try {
     switch (parts[0] ?? "") {
       case "": return await pageDashboard();
@@ -194,6 +198,7 @@ async function render() {
       case "banners": return await pageBanners();
       case "branches": return await pageBranches();
       case "customers": return await pageCustomers();
+      case "support": return await pageSupport(parts[1]);
       case "staff": return await pageStaff();
       case "emails": return await pageEmails();
       case "payments": return await pagePayments();
@@ -954,5 +959,165 @@ async function pageAdminCard() {
     render();
   });
 }
+
+// ---------------------------------------------------------------- live chat (customer <-> customer service)
+const SUP = { on: false, filter: "open", rows: [], all: [], id: null, msgs: [], typingCh: null, lastTyping: 0, typingTimer: null, urls: {} };
+const SUP_MIMES = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
+const supSigned = (path) => (SUP.urls[path] ??= db.storage.from("support-chat").createSignedUrl(path, 3600).then((r) => r.data?.signedUrl ?? null));
+const hhmm = (iso) => new Date(iso).toLocaleTimeString(S.lang === "ar" ? "ar-EG" : "en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", minute: "2-digit" });
+
+function supportLeave() {
+  SUP.on = false; SUP.id = null; SUP.msgs = [];
+  if (SUP.typingCh) { db.removeChannel(SUP.typingCh); SUP.typingCh = null; }
+}
+
+async function pageSupport(id) {
+  if (!can("support.manage")) throw new Error("FORBIDDEN");
+  SUP.on = true;
+  shell(t("liveChat"), `<div class="chat-layout${id ? " has-active" : ""}">
+    <div class="card chat-list"><div class="row" id="chat-tabs">
+      <button class="btn sm" data-f="open">${t("chatOpen")}</button><button class="btn sm" data-f="closed">${t("chatClosed")}</button></div>
+      <div id="chat-rows"></div></div>
+    <div class="card chat-pane" id="chat-pane"><div class="empty">${t("chatSelect")}</div></div></div>`);
+  on("[data-f]", "click", (e) => { SUP.filter = e.currentTarget.dataset.f; supportLoad(); });
+  await supportLoad();
+  if (id) await supportOpen(id);
+}
+
+async function supportLoad() {
+  const { data, error } = await db.rpc("support_inbox", { p_status: SUP.filter, p_limit: 100 });
+  if (error) throw error;
+  SUP.rows = data ?? [];
+  if (!SUP.on) return;
+  document.querySelectorAll("#chat-tabs [data-f]").forEach((b) => b.classList.toggle("primary", b.dataset.f === SUP.filter));
+  const box = $("#chat-rows"); if (!box) return;
+  box.innerHTML = SUP.rows.map((c) => `<a class="chat-item${c.id === SUP.id ? " on" : ""}" href="#/support/${c.id}">
+      <div class="top"><b>${esc(c.customer_name)}</b>${c.staff_unread > 0 ? `<span class="chip bad">${c.staff_unread}</span>` : ""}</div>
+      <div class="muted"><small>${esc(c.subject)}</small></div>
+      <div class="muted"><small>${esc(c.last_message_preview ?? "")}</small></div>
+      <div class="muted"><small>${fmtDate(c.last_message_at)}</small></div></a>`).join("") || `<div class="empty">${t("chatNone")}</div>`;
+}
+
+async function supportConv(id) {
+  let c = SUP.rows.find((r) => r.id === id);
+  if (!c) { const { data } = await db.rpc("support_inbox", { p_status: "all", p_limit: 200 }); c = (data ?? []).find((r) => r.id === id); }
+  return c ?? null;
+}
+
+async function supportOpen(id) {
+  SUP.id = id; SUP.msgs = [];
+  const conv = await supportConv(id);
+  const pane = $("#chat-pane"); if (!pane) return;
+  if (!conv) { pane.innerHTML = `<div class="empty">${t("noData")}</div>`; return; }
+  SUP.conv = conv;
+  const { data } = await db.from("support_messages").select("*").eq("conversation_id", id).order("created_at");
+  SUP.msgs = data ?? [];
+  if (SUP.typingCh) db.removeChannel(SUP.typingCh);
+  SUP.typingCh = db.channel("support:" + id, { config: { private: true } })
+    .on("broadcast", { event: "typing" }, ({ payload }) => { if (payload?.role === "customer") supportShowTyping(); })
+    .subscribe();
+  pane.innerHTML = `<div id="chat-head" class="chat-head"></div><div id="chat-msgs" class="chat-msgs"></div><div id="chat-typing" class="chat-typing"></div><div id="chat-foot"></div>`;
+  supportRenderHead(); supportRenderMsgs(); supportRenderFoot();
+  db.rpc("support_mark_read", { p_conversation_id: id }).then(() => supportLoad());
+}
+
+function supportRenderHead() {
+  const c = SUP.conv, el = $("#chat-head"); if (!c || !el) return;
+  const stars = c.rating ? "★".repeat(c.rating) + "☆".repeat(5 - c.rating) : "";
+  el.innerHTML = `<div><a class="btn sm chat-back" href="#/support">${t("chatBack")}</a>
+      <h3>${esc(c.customer_name)} <small class="muted ltr">${esc([c.customer_code, c.customer_phone].filter(Boolean).join(" · "))}</small></h3>
+      <div class="muted"><small>${esc(c.subject)}${c.assigned_name ? ` — ${t("chatAssigned")}: ${esc(c.assigned_name)}` : ""}</small></div></div>
+    <div>${c.status === "open" ? `<button class="btn danger sm" id="chat-end">${t("chatEnd")}</button>` : (stars ? `${t("chatRating")}: <b>${stars}</b>` : chip(t("chatClosedNote"), "muted"))}</div>`;
+  $("#chat-end")?.addEventListener("click", supportClose);
+}
+
+function supportRenderFoot() {
+  const c = SUP.conv, el = $("#chat-foot"); if (!c || !el) return;
+  if (c.status !== "open") { el.innerHTML = `<div class="chat-closed">${t("chatClosedNote")}</div>`; return; }
+  el.innerHTML = `<div class="chat-composer"><input type="file" id="chat-file" hidden accept="${SUP_MIMES.join(",")}" />
+    <button class="btn" id="chat-clip" type="button">📎</button><textarea id="chat-input" rows="1" maxlength="4000" placeholder="${t("chatHint")}"></textarea>
+    <button class="btn primary" id="chat-send" type="button">${t("chatSend")}</button></div>`;
+  const ta = $("#chat-input");
+  $("#chat-send").onclick = supportSend;
+  $("#chat-clip").onclick = () => $("#chat-file").click();
+  $("#chat-file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) supportSendFile(f); };
+  ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 140) + "px"; supportTyping(); });
+  ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); supportSend(); } });
+}
+
+function supportRenderMsgs() {
+  const box = $("#chat-msgs"); if (!box) return;
+  const stick = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  box.innerHTML = SUP.msgs.map((m) => {
+    const cls = m.sender_role === "staff" ? "s" : m.sender_role === "customer" ? "c" : "sys";
+    const att = m.attachment_path
+      ? ((m.attachment_mime ?? "").startsWith("image/")
+        ? `<a data-att="${esc(m.attachment_path)}" target="_blank" rel="noopener"><img alt="" /></a>`
+        : `<a data-att="${esc(m.attachment_path)}" target="_blank" rel="noopener">📄 ${esc(m.attachment_name ?? "PDF")}</a><br>`)
+      : "";
+    const meta = m.sender_role === "system" ? "" : `<div class="meta">${hhmm(m.created_at)}${m.sender_role === "staff" ? (m.read_at ? " ✓✓" : " ✓") : ""}</div>`;
+    return `<div class="cmsg ${cls}">${att}${esc(m.body)}${meta}</div>`;
+  }).join("");
+  box.querySelectorAll("[data-att]").forEach((a) => supSigned(a.dataset.att).then((u) => { if (!u) return; a.href = u; const i = a.querySelector("img"); if (i) i.src = u; }));
+  if (stick) box.scrollTop = box.scrollHeight;
+}
+
+async function supportSend() {
+  const ta = $("#chat-input"); const body = ta?.value.trim(); if (!body) return;
+  ta.value = ""; ta.style.height = "auto";
+  const { error } = await db.rpc("support_send_message", { p_conversation_id: SUP.id, p_body: body, p_client_id: crypto.randomUUID() });
+  if (error) { ta.value = body; toast(error.message.includes("conversation_closed") ? t("chatClosedNote") : t("chatSendFail"), true); }
+}
+
+async function supportSendFile(f) {
+  if (!SUP_MIMES.includes(f.type)) return toast(t("chatBadFile"), true);
+  if (f.size > 10 * 1024 * 1024) return toast(t("chatBigFile"), true);
+  const path = `${SUP.id}/${crypto.randomUUID()}-${safeFileName(f.name)}`;
+  const up = await db.storage.from("support-chat").upload(path, f, { contentType: f.type });
+  if (up.error) return toast(t("chatSendFail"), true);
+  const { error } = await db.rpc("support_send_message", { p_conversation_id: SUP.id, p_body: "", p_client_id: crypto.randomUUID(),
+    p_attachment_path: path, p_attachment_name: f.name, p_attachment_mime: f.type, p_attachment_size: f.size });
+  if (error) toast(t("chatSendFail"), true);
+}
+
+async function supportClose() {
+  if (!(await confirmBox(t("chatEndConfirm")))) return;
+  const { error } = await db.rpc("support_close_conversation", { p_conversation_id: SUP.id });
+  if (error) return toast(errMsg(error), true);
+  await supportLoad();
+  SUP.conv = await supportConv(SUP.id);
+  supportRenderHead(); supportRenderFoot();
+}
+
+function supportTyping() {
+  if (!SUP.typingCh || Date.now() - SUP.lastTyping < 2000) return;
+  SUP.lastTyping = Date.now();
+  SUP.typingCh.send({ type: "broadcast", event: "typing", payload: { role: "staff" } });
+}
+function supportShowTyping() {
+  const el = $("#chat-typing"); if (!el) return;
+  el.textContent = t("chatCustomerTyping"); clearTimeout(SUP.typingTimer);
+  SUP.typingTimer = setTimeout(() => { el.textContent = ""; }, 3500);
+}
+
+function supportOnMessage(p) {
+  const m = p.new;
+  const viewing = SUP.on && m && m.conversation_id === SUP.id;
+  if (p.eventType === "INSERT" && m?.sender_role === "customer" && !viewing) toast(t("chatNewMsg"));
+  if (viewing) {
+    const i = SUP.msgs.findIndex((x) => x.id === m.id);
+    if (i >= 0) SUP.msgs[i] = m; else SUP.msgs.push(m);
+    supportRenderMsgs();
+    if (p.eventType === "INSERT" && m.sender_role === "customer") db.rpc("support_mark_read", { p_conversation_id: SUP.id });
+  }
+  if (SUP.on) supportLoad().catch(() => {});
+}
+
+async function supportOnConversation() {
+  if (!SUP.on) return;
+  await supportLoad().catch(() => {});
+  if (SUP.id) { SUP.conv = await supportConv(SUP.id); supportRenderHead(); supportRenderFoot(); }
+}
+
 
 boot().catch((e) => { app.innerHTML = `<div class="boot">⚠️ ${esc(e?.message ?? e)}</div>`; });

@@ -25,6 +25,7 @@ import '../features/payments/payment_flow.dart';
 import '../features/payments/payments_screens.dart';
 import '../features/profile/profile_screens.dart';
 import '../features/repairs/repairs_screens.dart';
+import '../features/support_chat/support_chat_screen.dart';
 import '../shared/phone_notifications.dart';
 import 'l10n.dart';
 import 'supabase_providers.dart';
@@ -128,6 +129,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/account/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(path: '/account/favorites', builder: (_, __) => const FavoritesScreen()),
       GoRoute(path: '/account/help', builder: (_, __) => const HelpScreen()),
+      GoRoute(path: '/support/chat', builder: (_, __) => const SupportChatScreen()),
+      GoRoute(path: '/support/chat/:id', builder: (_, __) => const SupportChatScreen()),
       GoRoute(path: '/account/legal', builder: (_, __) => const LegalScreen()),
       GoRoute(path: '/account/cards', builder: (_, __) => const SavedCardsScreen()),
       GoRoute(path: '/payments', builder: (_, __) => const PaymentsHistoryScreen()),

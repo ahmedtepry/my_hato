@@ -648,6 +648,16 @@ class _HelpScreenState extends ConsumerState<HelpScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('help'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
+        if (signedIn)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.forum_outlined, color: BrandColors.electric),
+              title: Text(context.tr('chat_live'), style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(context.tr('chat_live_sub')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/support/chat'),
+            ),
+          ),
         if (AppConfig.supportPhone.isNotEmpty)
           Card(child: ListTile(leading: const Icon(Icons.call_outlined), title: Text(context.tr('call_us')), subtitle: Text(AppConfig.supportPhone), onTap: () => launchUrl(Uri.parse('tel:${AppConfig.supportPhone}')))),
         if (AppConfig.supportWhatsapp.isNotEmpty)

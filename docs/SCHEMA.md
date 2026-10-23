@@ -65,3 +65,19 @@ All primary keys are UUID except append-only logs (identity bigint). RLS is enab
 | `banners` | yes | 5 MB | | write `banners.manage` |
 | `avatars` | **no** | 2 MB | `{uid}/…` | owner only (signed URLs) |
 | `repair-photos` | **no** | 8 MB incl. heic | `{customer_uid}/{repair_id}/…` | customer uploads to own repair; read by owner/authorised staff via 5-min signed URLs; internal staff photos hidden from customers |
+
+## Live chat (migration `0010_support_live_chat.sql`)
+Customer ↔ customer service only. Tables are **read-only** for clients (RLS); every write goes through `SECURITY DEFINER` RPCs.
+
+| Object | Access | Notes |
+|---|---|---|
+| `support_conversations` | customer: own rows · staff with `support.manage`: all | one **open** conversation per customer (partial unique index); `customer_unread` / `staff_unread` counters; rating 1–5 once, after close |
+| `support_messages` | same (via `support_can_access`) | `sender_role` customer/staff/system; `client_id` makes retries idempotent; `read_at` = read receipt; optional attachment |
+| `support_start_conversation`, `support_send_message` | authenticated | role is derived server-side (never trusted from the client); closed chats reject; 30 msgs/min limit; attachments must live under `<conversation_id>/` and exist in storage |
+| `support_mark_read`, `support_close_conversation`, `support_rate_conversation` | participant / staff | staff closing is written to `audit_logs` (`support.close`) and asks the customer to rate |
+| `support_inbox(status, limit)` | `support.manage` | conversation list with customer name/phone/code for the dashboard |
+| bucket `support-chat` | **private**, 10 MB, jpeg/png/webp/heic/pdf | read/upload only for participants + `support.manage`; viewed through signed URLs |
+| Broadcast topic `support:<conversation_id>` | participants + `support.manage` | typing indicator only (private channel, policies on `realtime.messages`) |
+
+Notifications reuse `notify_user` / `_notify_staff` (in-app + queued FCM push). Only the first unread message of a burst notifies, to avoid spam.
+Customer notifications carry `deep_link = /support/chat/<conversation_id>`.
