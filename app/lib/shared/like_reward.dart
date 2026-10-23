@@ -20,6 +20,7 @@ Future<void> showLikeReward(BuildContext context, Map<String, dynamic> res, {req
       builder: (c) => AlertDialog(
         title: Text(_t(c, 'لايك محسوب! 🎉', 'Like counted! 🎉')),
         content: Text(_t(
+            c,
             'كل لايك على $what بيجهّزلك $per نقاط، وإنت اللي بتستلمهم بإيدك من تاب «المهام» في صفحة المكافآت. لحد $cap في اليوم، ومرة واحدة لكل ${review ? 'تقييم' : 'منتج'}.',
             'Every $what you like prepares $per points, and you collect them yourself from the Missions tab in Rewards. Up to $cap a day, once per ${review ? 'review' : 'product'}.')),
         actions: [TextButton(onPressed: () => Navigator.pop(c), child: Text(_t(c, 'تمام', 'Got it')))],
