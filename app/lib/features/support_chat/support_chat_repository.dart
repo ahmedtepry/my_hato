@@ -126,7 +126,10 @@ class SupportChatRepository {
         .onBroadcast(
           event: 'typing',
           callback: (payload) {
-            if (payload['role'] == 'staff') onStaffTyping();
+            // Depending on the SDK version the sent payload is either the map itself or nested under 'payload'.
+            final inner = payload['payload'];
+            final data = inner is Map ? inner : payload;
+            if (data['role'] == 'staff') onStaffTyping();
           },
         )
         .subscribe();
