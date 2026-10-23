@@ -11,6 +11,7 @@ import '../../core/theme.dart';
 import '../../shared/account_review.dart';
 import '../../shared/avatars.dart';
 import '../../shared/brand_logo.dart';
+import '../../shared/loyalty_shortcut.dart';
 import '../../shared/product_card.dart';
 import '../../shared/smooth_pages.dart';
 import '../../shared/motion.dart';
@@ -62,7 +63,8 @@ class HomeScreen extends ConsumerWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-      body: RefreshIndicator(
+      body: Stack(children: [
+      RefreshIndicator(
         onRefresh: refresh,
         child: CustomScrollView(controller: homeScrollController, slivers: [
           SliverToBoxAdapter(child: _HomeHeader(signedIn: user != null)),
@@ -79,6 +81,8 @@ class HomeScreen extends ConsumerWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ]),
       ),
+      const Positioned.fill(child: LoyaltyShortcut()),
+      ]),
       ),
     );
   }

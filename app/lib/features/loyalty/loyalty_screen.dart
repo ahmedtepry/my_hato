@@ -207,7 +207,7 @@ class _Missions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ms = _list(d['missions']);
-    final ms0 = ms.where((m) => m['status'] != 'auto').toList();
+    final ms0 = ms.where((m) => m['kind'] != 'review').toList(); // review / like rewards are not daily missions
     final done = ms0.where((m) => m['status'] == 'claimed').length;
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
       Padding(
@@ -233,14 +233,14 @@ class _Missions extends StatelessWidget {
             switch (m['status']) {
               'claimed' => const Icon(Icons.check_circle_rounded, color: BrandColors.success, size: 30),
               'auto' => Text(_t(context, 'تلقائي', 'Auto'), style: const TextStyle(color: BrandColors.electric, fontWeight: FontWeight.w800)),
-              'ready' => FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(84, 40), padding: const EdgeInsets.symmetric(horizontal: 16)), onPressed: busy ? null : () => onClaim(m), child: Text(_t(context, 'استلم', 'Claim'))),
+              'ready' => FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(84, 40), padding: const EdgeInsets.symmetric(horizontal: 16)), onPressed: busy ? null : () => onClaim(m), child: Text(((m['pending'] as num?) ?? 0) > 1 ? _t(context, 'استلم ×${m['pending']}', 'Claim ×${m['pending']}') : _t(context, 'استلم', 'Claim'))),
               _ => Text(_t(context, 'لسه', 'To do'), style: const TextStyle(color: Colors.white54)),
             },
           ]),
         ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Text(_t(context, 'طلباتك المستلمة وتقييماتك المنشورة بتضيف نقاط لوحدها.', 'Delivered orders and published reviews add points automatically.'),
+        child: Text(_t(context, 'طلباتك المستلمة بتضيف نقاطها لوحدها. التقييمات واللايكات بتستلم نقطها إنت بإيدك من هنا.', 'Delivered orders add their points by themselves. You collect review and like points yourself, right here.'),
             style: const TextStyle(color: Colors.white54, fontSize: 12)),
       ),
     ]);
