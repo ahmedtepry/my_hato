@@ -174,13 +174,10 @@ class CatalogRepository {
     return List<Map<String, dynamic>>.from(await _db.from('catalog_products').select().inFilter('id', ids.toList()));
   }
 
-  Future<void> setFavorite(String productId, bool fav) async {
-    final uid = _db.auth.currentUser!.id;
-    if (fav) {
-      await _db.from('product_favorites').upsert({'user_id': uid, 'product_id': productId});
-    } else {
-      await _db.from('product_favorites').delete().eq('user_id', uid).eq('product_id', productId);
-    }
+  /// The heart is the product "like": the server saves it and pays the like reward (once per product, 3 a day).
+  Future<Map<String, dynamic>> setFavorite(String productId, bool fav) async {
+    final res = await _db.rpc('toggle_product_like', params: {'p_product': productId, 'p_like': fav});
+    return Map<String, dynamic>.from(res as Map);
   }
 }
 

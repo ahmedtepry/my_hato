@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import 'account_review.dart';
+import 'like_reward.dart';
 import '../core/errors.dart';
 import '../core/l10n.dart';
 import '../core/supabase_providers.dart';
@@ -19,12 +20,20 @@ final productReviewsProvider = FutureProvider.autoDispose.family<List<Map<String
   final rows = await ref
       .watch(supabaseProvider)
       .from('product_reviews')
-      .select('id, user_id, author_name, rating, comment, status, verified_purchase, created_at, updated_at')
+      .select('id, user_id, author_name, rating, comment, status, verified_purchase, created_at, updated_at, like_count')
       .eq('product_id', productId)
       .neq('status', 'removed')
       .order('updated_at', ascending: false)
       .limit(50);
   return List<Map<String, dynamic>>.from(rows);
+});
+
+/// Ids of the reviews the signed-in customer has liked.
+final myReviewLikesProvider = FutureProvider.autoDispose<Set<String>>((ref) async {
+  final me = ref.watch(currentUserProvider);
+  if (me == null) return <String>{};
+  final rows = await ref.watch(supabaseProvider).from('review_likes').select('review_id').eq('user_id', me.id);
+  return {for (final r in rows) r['review_id'] as String};
 });
 
 /// Read-only stars (supports halves).
@@ -103,19 +112,39 @@ class ReviewsSection extends ConsumerWidget {
         ],
         for (final r in others) ...[
           const SizedBox(height: 10),
-          _ReviewTile(review: r),
+          _ReviewTile(review: r, productId: productId),
         ],
       ]),
     );
   }
 }
 
-class _ReviewTile extends StatelessWidget {
-  const _ReviewTile({required this.review, this.own = false});
+class _ReviewTile extends ConsumerWidget {
+  const _ReviewTile({required this.review, this.own = false, this.productId});
   final Map<String, dynamic> review;
   final bool own;
+  final String? productId;
+
+  Future<void> _like(BuildContext context, WidgetRef ref) async {
+    if (ref.read(currentUserProvider) == null) {
+      context.push('/auth/login?redirect=${Uri.encodeComponent('/product/$productId')}');
+      return;
+    }
+    try {
+      HapticFeedback.selectionClick();
+      final res = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('toggle_review_like', params: {'p_review': review['id']}) as Map);
+      if (productId != null) ref.invalidate(productReviewsProvider(productId!));
+      ref.invalidate(myReviewLikesProvider);
+      if (context.mounted) await showLikeReward(context, res, review: true);
+    } catch (e) {
+      if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liked = ref.watch(myReviewLikesProvider).valueOrNull?.contains(review['id']) ?? false;
+    final likes = (review['like_count'] as num?)?.toInt() ?? 0;
     final pending = review['status'] == 'pending';
     final when = DateTime.parse((review['updated_at'] ?? review['created_at']) as String).toLocal();
     final name = (review['author_name'] as String?)?.trim();
@@ -157,6 +186,29 @@ class _ReviewTile extends StatelessWidget {
         if ((review['comment'] as String?)?.isNotEmpty == true) ...[
           const SizedBox(height: 8),
           Text(review['comment'] as String, style: const TextStyle(height: 1.5)),
+        ],
+        if (!own && review['status'] == 'published') ...[
+          const SizedBox(height: 6),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: liked ? BrandColors.electric : BrandColors.gray,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              icon: Icon(liked ? Icons.thumb_up_alt_rounded : Icons.thumb_up_alt_outlined, size: 18),
+              label: Text(likes > 0 ? '$likes' : _t(context, 'مفيد', 'Helpful')),
+              onPressed: () => _like(context, ref),
+            ),
+          ),
+        ] else if (own && likes > 0) ...[
+          const SizedBox(height: 6),
+          Row(children: [
+            const Icon(Icons.thumb_up_alt_rounded, size: 16, color: BrandColors.electric),
+            const SizedBox(width: 6),
+            Text(_t(context, '$likes لايك على تقييمك', '$likes likes on your review'), style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+          ]),
         ],
         if (own && pending) ...[
           const SizedBox(height: 8),

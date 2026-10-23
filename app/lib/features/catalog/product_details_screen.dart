@@ -8,6 +8,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/like_reward.dart';
 import '../../shared/product_card.dart';
 import '../../shared/reviews.dart';
 import '../../shared/cart_toast.dart';
@@ -79,8 +80,13 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               context.push('/auth/login?redirect=${Uri.encodeComponent('/product/${widget.id}')}');
               return;
             }
-            await ref.read(catalogRepoProvider).setFavorite(p['id'] as String, !isFav);
-            ref.invalidate(favoriteIdsProvider);
+            try {
+              final res = await ref.read(catalogRepoProvider).setFavorite(p['id'] as String, !isFav);
+              ref.invalidate(favoriteIdsProvider);
+              if (context.mounted) await showLikeReward(context, res, review: false);
+            } catch (e) {
+              if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
+            }
           },
         ),
       ]),
