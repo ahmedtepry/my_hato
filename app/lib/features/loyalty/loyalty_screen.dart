@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/errors.dart';
@@ -102,21 +101,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
   Future<void> _claim(Map<String, dynamic> m) => _run(() async {
         final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('loyalty_claim', params: {'p_mission': m['key']}) as Map);
         HapticFeedback.mediumImpact();
-        if (mounted) await _showPop(context, '+${r['points']} ${_t(context, 'نقطة', 'points')}', _t(context, 'اتضافت لرصيدك وقرّبتك من العلبة 🎁', 'added to your balance, closer to the box 🎁'));
-      });
-
-  Future<void> _openVault() => _run(() async {
-        HapticFeedback.mediumImpact();
-        final fut = ref.read(supabaseProvider).rpc('loyalty_open_vault').then((v) => Map<String, dynamic>.from(v as Map));
-        await showGeneralDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          barrierColor: Colors.black87,
-          transitionDuration: const Duration(milliseconds: 250),
-          transitionBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
-          pageBuilder: (_, __, ___) => _VaultOpening(future: fut),
-        );
-        await fut; // if the opening failed the dialog closed itself; surface the error here
+        if (mounted) await _showPop(context, '+${r['points']} ${_t(context, 'نقطة', 'points')}', _t(context, 'اتضافت لرصيدك ✨', 'added to your balance ✨'));
       });
 
   @override
@@ -127,7 +112,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
       if (v != null) _showNewAwards(v);
     });
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Scaffold(
         backgroundColor: BrandColors.navyDeep,
         appBar: AppBar(
@@ -141,9 +126,8 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
             unselectedLabelColor: Colors.white60,
             tabs: [
               Tab(text: _t(context, 'المهام', 'Missions')),
-              Tab(text: _t(context, 'العلبة', 'Box')),
+              Tab(text: _t(context, 'مستواك', 'Your level')),
               Tab(text: _t(context, 'هدايايا', 'My gifts')),
-              Tab(text: _t(context, 'السجل', 'History')),
             ],
           ),
         ),
@@ -155,9 +139,8 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
             Expanded(
               child: TabBarView(children: [
                 _Missions(d: d, busy: _busy, onClaim: _claim),
-                _Vault(d: d, busy: _busy, onOpen: _openVault),
+                _LevelsTab(d: d),
                 _Gifts(d: d),
-                _History(d: d),
               ]),
             ),
           ]),
@@ -264,53 +247,6 @@ class _Missions extends StatelessWidget {
   }
 }
 
-class _Vault extends StatelessWidget {
-  const _Vault({required this.d, required this.busy, required this.onOpen});
-  final Map<String, dynamic> d;
-  final bool busy;
-  final Future<void> Function() onOpen;
-  @override
-  Widget build(BuildContext context) {
-    final p = d['vault_progress'] as int, req = d['vault_required'] as int;
-    final ready = p >= req;
-    final label = ready
-        ? _t(context, 'العلبة جاهزة تتفتح 🎁', 'Your box is ready 🎁')
-        : p == 0
-            ? _t(context, 'ابدأ اجمع نقاط', 'Start earning points')
-            : p >= req * 0.75
-                ? _t(context, 'قربت تجهز', 'Almost ready')
-                : _t(context, 'البطارية بتتملي', 'Battery filling up');
-    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-      _panel(
-        child: Column(children: [
-          _BatteryPhone(progress: (p / req).clamp(0.0, 1.0).toDouble(), ready: ready, style: (d['boxes_opened'] as int? ?? 0).clamp(0, 5).toInt()),
-          const SizedBox(height: 14),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 10),
-          _Bar(p / req, color: ready ? _gold : BrandColors.electric),
-          const SizedBox(height: 6),
-          Text('${(p / req * 100).clamp(0, 100).floor()}%', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: ready ? _gold : null, foregroundColor: ready ? Colors.black : null, minimumSize: const Size.fromHeight(50)),
-              onPressed: ready && !busy ? onOpen : null,
-              icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.inventory_2_rounded),
-              label: Text(ready ? _t(context, 'افتح العلبة', 'Open the box') : _t(context, 'اجمع نقاط عشان تفتحها', 'Earn points to open it')),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(_t(context, 'كل نقطة بتكسبها بتملّي بطارية الموبايل. لما تكمل ١٠٠٪ تفتح العلبة، وعدد النقاط اللي جواها بيتحدد من السيرفر لحظة الفتح.', 'Every point you earn charges the phone battery. At 100% you can open the box, and the server picks the points inside when you open it.'),
-              textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-        ]),
-      ),
-    ]);
-  }
-}
-
-String _date(BuildContext c, Object? iso) => iso == null ? '' : DateFormat.yMMMd(c.lang).add_Hm().format(DateTime.parse(iso as String).toLocal());
-
 /// Small "+points" card that pops in, then closes by itself.
 Future<void> _showPop(BuildContext context, String big, String small) {
   final nav = Navigator.of(context);
@@ -347,242 +283,6 @@ Future<void> _showPop(BuildContext context, String big, String small) {
       );
     },
   );
-}
-
-/// A phone whose battery fills with points. After each opened box the phone itself changes look
-/// (thick bezels -> notch -> punch hole -> edge-to-edge -> gold finish); the new box starts again at 0%.
-class _BatteryPhone extends StatefulWidget {
-  const _BatteryPhone({required this.progress, required this.ready, required this.style});
-  final double progress;
-  final bool ready;
-  final int style; // 0..5
-  @override
-  State<_BatteryPhone> createState() => _BatteryPhoneState();
-}
-
-class _BatteryPhoneState extends State<_BatteryPhone> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  static const _radius = [12.0, 16.0, 20.0, 24.0, 26.0, 28.0];
-  static const _bezel = [12.0, 9.0, 7.0, 6.0, 4.0, 3.0];
-  static const _frame = [Color(0xFF8A94A6), Color(0xFFB8C4D6), Color(0xFFD5DDEA), Color(0xFF7FD3FF), Color(0xFFF1D58A), _gold];
-
-  Widget _top(int s) => switch (s) {
-        0 => Container(width: 26, height: 4, decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(3))), // speaker slit
-        1 => Container(width: 44, height: 12, decoration: const BoxDecoration(color: Colors.black, borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)))), // wide notch
-        2 => Container(width: 22, height: 10, decoration: const BoxDecoration(color: Colors.black, borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)))), // small notch
-        _ => Container(margin: const EdgeInsets.only(top: 5), width: 8, height: 8, decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle)), // punch hole
-      };
-
-  Widget _phone(double k) {
-    final s = widget.style;
-    final color = widget.ready ? _gold : BrandColors.electric;
-    return Container(
-      key: ValueKey(s),
-      width: 104,
-      height: 178,
-      padding: EdgeInsets.all(_bezel[s]),
-      decoration: BoxDecoration(
-        color: const Color(0xFF05080F),
-        borderRadius: BorderRadius.circular(_radius[s]),
-        border: Border.all(color: _frame[s], width: s >= 4 ? 3.5 : 3),
-        boxShadow: [
-          if (s >= 3) BoxShadow(color: _frame[s].withValues(alpha: 0.25), blurRadius: 14),
-          if (widget.ready) BoxShadow(color: _gold.withValues(alpha: 0.35 + 0.35 * k), blurRadius: 22 + 20 * k, spreadRadius: 1 + 4 * k),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(_radius[s] - _bezel[s] / 2 - 2),
-        child: Stack(alignment: Alignment.center, children: [
-          Container(color: Colors.white10),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: widget.progress),
-              duration: const Duration(milliseconds: 900),
-              curve: Curves.easeOutCubic,
-              builder: (_, v, __) => FractionallySizedBox(
-                heightFactor: v,
-                widthFactor: 1,
-                child: Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withValues(alpha: 0.35), color], begin: Alignment.bottomCenter, end: Alignment.topCenter))),
-              ),
-            ),
-          ),
-          Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.bolt_rounded, color: Colors.white, size: 40 + 6 * k),
-            Text('${(widget.progress * 100).floor()}%', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-          ]),
-          Align(alignment: Alignment.topCenter, child: _top(s)),
-          if (s >= 2) Align(alignment: Alignment.bottomCenter, child: Container(margin: const EdgeInsets.only(bottom: 4), width: 30, height: 3, decoration: BoxDecoration(color: Colors.white54, borderRadius: BorderRadius.circular(3)))),
-        ]),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: _c,
-        builder: (_, __) {
-          final k = widget.ready ? Curves.easeInOut.transform(_c.value) : 0.0;
-          return Transform.scale(
-            scale: 1 + 0.04 * k,
-            // a new box opened -> the phone flips to its next look
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 800),
-              transitionBuilder: (child, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.85, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOutBack)), child: child)),
-              child: _phone(k),
-            ),
-          );
-        },
-      );
-}
-
-/// Phone box: the lid flies off and the phone rises out with its screen showing the points.
-class _BoxArt extends StatelessWidget {
-  const _BoxArt({this.lid = 0, this.phone = 0, this.glow = 0, this.text});
-  final double lid, phone, glow;
-  final String? text;
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 230,
-        height: 340,
-        child: Stack(alignment: Alignment.bottomCenter, children: [
-          Positioned(
-            bottom: -50 + phone * 175,
-            child: Container(
-              width: 92,
-              height: 154,
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(color: const Color(0xFF0B0F18), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white70, width: 2.5)),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
-                  gradient: LinearGradient(colors: [Color.lerp(const Color(0xFF0B0F18), BrandColors.navy, glow)!, Color.lerp(const Color(0xFF0B0F18), BrandColors.electric, glow)!], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-                  boxShadow: [BoxShadow(color: BrandColors.electric.withValues(alpha: 0.7 * glow), blurRadius: 30 * glow)],
-                ),
-                alignment: Alignment.center,
-                child: Opacity(opacity: glow, child: Text(text ?? '', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, shadows: [Shadow(color: Colors.white54, blurRadius: 12)]))),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            child: Container(
-              width: 190,
-              height: 100,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
-                gradient: const LinearGradient(colors: [Color(0xFF123F7A), BrandColors.navyDeep], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-                border: Border.all(color: BrandColors.electric.withValues(alpha: 0.7)),
-              ),
-              child: const Text('My Hatō', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
-            ),
-          ),
-          Positioned(
-            bottom: 100 + lid * 110,
-            left: 20 + lid * 70,
-            child: Opacity(
-              opacity: (1 - lid * 0.7).clamp(0.0, 1.0),
-              child: Transform.rotate(
-                angle: lid * 0.7,
-                child: Container(
-                  width: 200,
-                  height: 28,
-                  decoration: BoxDecoration(color: BrandColors.electric, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white54)),
-                ),
-              ),
-            ),
-          ),
-        ]),
-      );
-}
-
-/// Full-screen opening: the phone box shakes while the server decides, then the lid flies off and the phone shows the points.
-class _VaultOpening extends StatefulWidget {
-  const _VaultOpening({required this.future});
-  final Future<Map<String, dynamic>> future;
-  @override
-  State<_VaultOpening> createState() => _VaultOpeningState();
-}
-
-class _VaultOpeningState extends State<_VaultOpening> with TickerProviderStateMixin {
-  late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 90))..repeat(reverse: true);
-  late final AnimationController _burst = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200));
-  Map<String, dynamic>? _r;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final res = await Future.wait<Object?>([widget.future, Future<void>.delayed(const Duration(milliseconds: 1700))]);
-      if (!mounted) return;
-      HapticFeedback.heavyImpact();
-      _shake.stop();
-      setState(() => _r = res[0] as Map<String, dynamic>);
-      _burst.forward();
-    } catch (_) {
-      if (mounted) Navigator.of(context).pop(); // caller shows the error
-    }
-  }
-
-  @override
-  void dispose() {
-    _shake.dispose();
-    _burst.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final r = _r;
-    return PopScope(
-      canPop: r != null,
-      child: Material(
-        color: Colors.transparent,
-        child: Stack(alignment: Alignment.center, children: [
-          if (r != null) Positioned.fill(child: AnimatedBuilder(animation: _burst, builder: (_, __) => CustomPaint(painter: _BurstPainter(_burst.value)))),
-          Column(mainAxisSize: MainAxisSize.min, children: [
-            if (r == null) ...[
-              AnimatedBuilder(
-                animation: _shake,
-                builder: (_, child) => Transform.rotate(angle: (_shake.value - 0.5) * 0.2, child: child),
-                child: const _BoxArt(),
-              ),
-              const SizedBox(height: 16),
-              Text(_t(context, 'بنفتح العلبة...', 'Opening your box...'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
-            ] else ...[
-              AnimatedBuilder(
-                animation: _burst,
-                builder: (_, __) {
-                  final v = _burst.value;
-                  double seg(double a, double b, Curve c) => c.transform(((v - a) / (b - a)).clamp(0.0, 1.0));
-                  final count = (r['points'] as int) * seg(0.3, 0.6, Curves.easeOutCubic);
-                  return _BoxArt(lid: seg(0, 0.15, Curves.easeOut), phone: seg(0.08, 0.38, Curves.easeOutBack), glow: seg(0.25, 0.4, Curves.easeIn), text: '+${count.round()}');
-                },
-              ),
-              const SizedBox(height: 12),
-              Text(_t(context, 'نقطة اتضافت لرصيدك 🎉', 'points added to your balance 🎉'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 28),
-              FadeTransition(
-                opacity: CurvedAnimation(parent: _burst, curve: const Interval(0.3, 0.5)),
-                child: FilledButton(style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: Colors.black, minimumSize: const Size(180, 50)), onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'Awesome'))),
-              ),
-            ],
-          ]),
-        ]),
-      ),
-    );
-  }
 }
 
 class _BurstPainter extends CustomPainter {
@@ -753,26 +453,183 @@ class _AwardRevealState extends State<_AwardReveal> with SingleTickerProviderSta
   }
 }
 
-class _History extends StatelessWidget {
-  const _History({required this.d});
+// ---------------------------------------------------------------------------------------------
+// "Your level": the badge changes shape with every level; levels you passed are crossed out and ticked,
+// the next ones stay hidden (name and points are secret).
+// ---------------------------------------------------------------------------------------------
+const _badgeColors = <List<int>>[
+  [0xFFAAB4C8, 0xFF6B7488],
+  [0xFFE8AE78, 0xFF9C5B2E],
+  [0xFFEEF2F8, 0xFF8D99AE],
+  [0xFFFFD66B, 0xFFD99A00],
+  [0xFFA6ECFF, 0xFF3FA7D6],
+  [0xFFC2AEFF, 0xFF6A4CE0],
+  [0xFFFFADD2, 0xFFE0338A],
+  [0xFFFFB07A, 0xFFEA5A14],
+  [0xFF8CF5C4, 0xFF14A671],
+  [0xFFFFE98A, 0xFFE23D52],
+];
+
+class _LevelsTab extends StatelessWidget {
+  const _LevelsTab({required this.d});
   final Map<String, dynamic> d;
   @override
   Widget build(BuildContext context) {
-    final rows = _list(d['history']);
-    if (rows.isEmpty) {
-      return Center(child: Text(_t(context, 'لسه ماافتحتش أي علبة مكافآت', 'You have not opened any reward box yet'), style: const TextStyle(color: Colors.white60)));
-    }
-    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-      for (final r in rows)
-        _panel(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          child: Row(children: [
-            const Icon(Icons.card_giftcard_rounded, color: _gold, size: 28),
-            const SizedBox(width: 12),
-            Expanded(child: Text(_date(context, r['at']), style: const TextStyle(color: Colors.white70))),
-            Text('+${r['points']} ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(color: _gold, fontWeight: FontWeight.w900, fontSize: 16)),
-          ]),
-        ),
+    final levels = _list(d['levels']);
+    final cur = Map<String, dynamic>.from(d['level'] as Map);
+    final curSort = (cur['sort'] as num).toInt();
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
+      const SizedBox(height: 8),
+      Center(child: _LevelBadge(sort: curSort, size: 132, glow: true)),
+      const SizedBox(height: 12),
+      Center(child: Text(_t(context, 'أنت دلوقتي في مستوى', 'You are at level'), style: const TextStyle(color: Colors.white70))),
+      Center(child: Text(context.pick(cur, 'name'), style: const TextStyle(color: _gold, fontSize: 30, fontWeight: FontWeight.w900))),
+      const SizedBox(height: 18),
+      Text(_t(context, 'رحلتك', 'Your journey'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+      const SizedBox(height: 8),
+      for (final l in levels) _LevelRow(level: l),
     ]);
   }
+}
+
+class _LevelRow extends StatelessWidget {
+  const _LevelRow({required this.level});
+  final Map<String, dynamic> level;
+  @override
+  Widget build(BuildContext context) {
+    final sort = (level['sort'] as num).toInt();
+    final state = level['state'] as String;
+    final passed = state == 'passed', current = state == 'current';
+    final name = state == 'locked' ? '؟؟؟' : context.pick(level, 'name');
+    return _panel(
+      margin: const EdgeInsets.only(bottom: 8),
+      border: current ? _gold : null,
+      child: Row(children: [
+        _LevelBadge(sort: sort, size: 46, locked: state == 'locked', dim: passed),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            name,
+            style: TextStyle(
+              color: current ? _gold : (passed ? Colors.white54 : Colors.white38),
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              decoration: passed ? TextDecoration.lineThrough : null,
+              decorationColor: Colors.white70,
+              decorationThickness: 2.5,
+            ),
+          ),
+        ),
+        if (passed)
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.check_circle_rounded, color: Color(0xFF3DDC97), size: 20),
+            const SizedBox(width: 4),
+            Text(_t(context, 'عدّيته', 'Passed'), style: const TextStyle(color: Color(0xFF3DDC97), fontWeight: FontWeight.w700)),
+          ])
+        else if (current)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: _gold, borderRadius: BorderRadius.circular(20)),
+            child: Text(_t(context, 'أنت هنا', 'You are here'), style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12.5)),
+          )
+        else
+          const Icon(Icons.lock_rounded, color: Colors.white30, size: 20),
+      ]),
+    );
+  }
+}
+
+class _LevelBadge extends StatelessWidget {
+  const _LevelBadge({required this.sort, required this.size, this.locked = false, this.dim = false, this.glow = false});
+  final int sort;
+  final double size;
+  final bool locked, dim, glow;
+  @override
+  Widget build(BuildContext context) {
+    final c = _badgeColors[(sort - 1).clamp(0, _badgeColors.length - 1)];
+    return SizedBox(
+      width: size,
+      height: size,
+      child: DecoratedBox(
+        decoration: glow ? BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Color(c[0]).withValues(alpha: 0.55), blurRadius: 36, spreadRadius: 2)]) : const BoxDecoration(),
+        child: CustomPaint(
+          painter: _BadgePainter(sort: sort, top: Color(c[0]), bottom: Color(c[1]), locked: locked, dim: dim),
+          child: Center(
+            child: locked
+                ? Icon(Icons.lock_rounded, color: Colors.white38, size: size * 0.38)
+                : Text('$sort', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: size * 0.36, shadows: const [Shadow(color: Colors.black45, blurRadius: 4)])),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Each level has its own outline: circle, triangle, diamond, pentagon, hexagon, then stars with more and more points.
+class _BadgePainter extends CustomPainter {
+  _BadgePainter({required this.sort, required this.top, required this.bottom, required this.locked, required this.dim});
+  final int sort;
+  final Color top, bottom;
+  final bool locked, dim;
+
+  Path _poly(Offset c, double r, int n) {
+    final p = Path();
+    for (var i = 0; i < n; i++) {
+      final a = -math.pi / 2 + 2 * math.pi * i / n;
+      final o = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
+      if (i == 0) {
+        p.moveTo(o.dx, o.dy);
+      } else {
+        p.lineTo(o.dx, o.dy);
+      }
+    }
+    return p..close();
+  }
+
+  Path _star(Offset c, double r, int n, double inner) {
+    final p = Path();
+    for (var i = 0; i < n * 2; i++) {
+      final rr = i.isEven ? r : r * inner;
+      final a = -math.pi / 2 + math.pi * i / n;
+      final o = Offset(c.dx + rr * math.cos(a), c.dy + rr * math.sin(a));
+      if (i == 0) {
+        p.moveTo(o.dx, o.dy);
+      } else {
+        p.lineTo(o.dx, o.dy);
+      }
+    }
+    return p..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2 * 0.94;
+    final path = switch (sort) {
+      1 => (Path()..addOval(Rect.fromCircle(center: c, radius: r * 0.92))),
+      2 => _poly(c, r, 3),
+      3 => _poly(c, r, 4),
+      4 => _poly(c, r, 5),
+      5 => _poly(c, r, 6),
+      6 => _star(c, r, 5, 0.52),
+      7 => _star(c, r, 6, 0.58),
+      8 => _star(c, r, 8, 0.66),
+      9 => _star(c, r, 12, 0.76),
+      _ => _star(c, r, 16, 0.84),
+    };
+    final fill = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: locked ? const [Color(0xFF2A3350), Color(0xFF1B2238)] : [top.withValues(alpha: dim ? 0.55 : 1), bottom.withValues(alpha: dim ? 0.55 : 1)],
+      ).createShader(Offset.zero & size);
+    canvas.drawPath(path, fill);
+    canvas.drawPath(path, Paint()..style = PaintingStyle.stroke..strokeWidth = size.width * 0.03..color = Colors.white.withValues(alpha: locked ? 0.12 : 0.5));
+    if (sort >= 10 && !locked) {
+      canvas.drawCircle(c, r * 0.5, Paint()..style = PaintingStyle.stroke..strokeWidth = size.width * 0.025..color = Colors.white.withValues(alpha: 0.55));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BadgePainter o) => o.sort != sort || o.locked != locked || o.dim != dim;
 }
