@@ -226,42 +226,176 @@ class _EditAwardState extends ConsumerState<_EditAward> {
   }
 }
 
-class _Customers extends StatelessWidget {
+class _Customers extends ConsumerStatefulWidget {
   const _Customers({required this.d});
   final Map<String, dynamic> d;
   @override
+  ConsumerState<_Customers> createState() => _CustomersState();
+}
+
+class _CustomersState extends ConsumerState<_Customers> {
+  final _q = TextEditingController();
+  late Future<List<Map<String, dynamic>>> _f = _load();
+
+  Future<List<Map<String, dynamic>>> _load() async =>
+      _list(await ref.read(supabaseProvider).rpc('owner_loyalty_customers', params: {'p_q': _q.text.trim()}));
+
+  void _reload() => setState(() => _f = _load());
+
+  @override
+  void dispose() {
+    _q.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final rows = _list(d['customers']);
-    if (rows.isEmpty) return Center(child: Text(_t(context, 'مفيش عملاء جمعوا نقاط لسه', 'No customer has points yet')));
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: rows.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (_, i) {
-        final c = rows[i];
-        return ListTile(
-          leading: CircleAvatar(child: Text('${i + 1}')),
-          title: Text('${c['customer'] ?? '—'}'),
-          subtitle: Text('${c['email'] ?? ''}'),
-          trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('${c['points']} ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(fontWeight: FontWeight.w900)),
-            Text('${c['level_ar'] ?? ''}', style: const TextStyle(fontSize: 12)),
-          ]),
-        );
-      },
+    // only the main owner (who also sees the levels) may change points
+    final isOwner = _list(widget.d['levels']).isNotEmpty;
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: TextField(
+          controller: _q,
+          textInputAction: TextInputAction.search,
+          onSubmitted: (_) => _reload(),
+          decoration: InputDecoration(
+            hintText: _t(context, 'دوّر على أي عميل بالاسم أو الإيميل', 'Search any customer by name or email'),
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: IconButton(onPressed: _reload, icon: const Icon(Icons.arrow_forward_rounded)),
+          ),
+        ),
+      ),
+      Expanded(
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _f,
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
+            if (snap.hasError) return ErrorView(error: snap.error!, onRetry: _reload);
+            final rows = snap.data!;
+            if (rows.isEmpty) return Center(child: Text(_t(context, 'مفيش نتائج', 'No results')));
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: rows.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final c = rows[i];
+                return ListTile(
+                  leading: CircleAvatar(child: Text('${i + 1}')),
+                  title: Text('${c['customer'] ?? '—'}'),
+                  subtitle: Text('${c['email'] ?? ''}'),
+                  trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Text('${c['points']} ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text('${c['level_ar'] ?? ''}', style: const TextStyle(fontSize: 12)),
+                  ]),
+                  onTap: !isOwner
+                      ? null
+                      : () async {
+                          final done = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (_) => _AdjustPoints(customer: c));
+                          if (done == true) {
+                            ref.invalidate(ownerGiftsProvider);
+                            _reload();
+                          }
+                        },
+                );
+              },
+            );
+          },
+        ),
+      ),
+    ]);
+  }
+}
+
+class _AdjustPoints extends ConsumerStatefulWidget {
+  const _AdjustPoints({required this.customer});
+  final Map<String, dynamic> customer;
+  @override
+  ConsumerState<_AdjustPoints> createState() => _AdjustPointsState();
+}
+
+class _AdjustPointsState extends ConsumerState<_AdjustPoints> {
+  late final _pts = TextEditingController(text: '${widget.customer['points']}');
+  final _note = TextEditingController();
+  bool _notify = true;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _pts.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final target = int.tryParse(_pts.text.trim());
+    final now = (widget.customer['points'] as num).toInt();
+    if (target == null || target < 0 || target > 10000000) {
+      showSnack(context, _t(context, 'اكتب رقم صحيح', 'Enter a valid number'), error: true);
+      return;
+    }
+    if (target == now) {
+      Navigator.pop(context, false);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(supabaseProvider).rpc('owner_loyalty_adjust_points', params: {
+        'p_user': widget.customer['user_id'],
+        'p_delta': target - now,
+        'p_note': _note.text.trim(),
+        'p_notify': _notify,
+      });
+      if (mounted) {
+        Navigator.pop(context, true);
+        showSnack(context, _t(context, 'اتعدّلت النقاط', 'Points updated'));
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.customer;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${c['customer'] ?? '—'}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          Text('${c['email'] ?? ''}', style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _pts,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: _t(context, 'رصيد النقاط الجديد', 'New points balance'), helperText: _t(context, 'دلوقتي: ${c['points']} نقطة', 'Now: ${c['points']} points')),
+          ),
+          TextField(controller: _note, maxLength: 200, decoration: InputDecoration(labelText: _t(context, 'السبب (بتسجّل عندك بس)', 'Reason (kept in your log only)'))),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _notify,
+            onChanged: (v) => setState(() => _notify = v),
+            title: Text(_t(context, 'ابلّغ العميل بإشعار', 'Notify the customer')),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(width: double.infinity, child: FilledButton(onPressed: _busy ? null : _save, child: Text(_t(context, 'حفظ', 'Save')))),
+        ]),
+      ),
     );
   }
 }
 
-class _Levels extends StatelessWidget {
+class _Levels extends ConsumerWidget {
   const _Levels({required this.d});
   final Map<String, dynamic> d;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final rows = _list(d['levels']);
     return ListView(padding: const EdgeInsets.all(16), children: [
       if (rows.isEmpty) Text(_t(context, 'المستويات يشوفها المالك الأساسي بس.', 'Levels are visible to the main owner only.')),
-      Text(_t(context, 'المستويات سرية. العميل مبيشوفش الحدود ولا الهدايا. عدّل الأسماء والحدود والخطة من جدول loyalty_levels في Supabase.', 'Levels are secret. Customers never see thresholds or gifts. Edit names, thresholds and the plan in the loyalty_levels table in Supabase.'),
+      Text(_t(context, 'المستويات سرية، العميل مبيشوفش الحدود ولا الهدايا. اضغط على أي مستوى تعدّل اسمه ونقاطه والهدية المخططة.', 'Levels are secret. Customers never see thresholds or gifts. Tap a level to edit its name, points and planned gift.'),
           style: const TextStyle(fontSize: 12.5)),
       const SizedBox(height: 10),
       for (final l in rows)
@@ -270,8 +404,95 @@ class _Levels extends StatelessWidget {
             leading: CircleAvatar(child: Text('${l['sort']}')),
             title: Text('${context.pick(l, 'name')}  •  ${l['min_points']} ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(fontWeight: FontWeight.w800)),
             subtitle: Text('${_t(context, 'المخطط', 'Planned')}: ${l['plan_ar'] ?? '—'}'),
+            trailing: const Icon(Icons.edit_rounded, size: 20),
+            onTap: () async {
+              final done = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (_) => _EditLevel(level: l));
+              if (done == true) ref.invalidate(ownerGiftsProvider);
+            },
           ),
         ),
     ]);
+  }
+}
+
+class _EditLevel extends ConsumerStatefulWidget {
+  const _EditLevel({required this.level});
+  final Map<String, dynamic> level;
+  @override
+  ConsumerState<_EditLevel> createState() => _EditLevelState();
+}
+
+class _EditLevelState extends ConsumerState<_EditLevel> {
+  late final _nameAr = TextEditingController(text: '${widget.level['name_ar'] ?? ''}');
+  late final _nameEn = TextEditingController(text: '${widget.level['name_en'] ?? ''}');
+  late final _pts = TextEditingController(text: '${widget.level['min_points']}');
+  late final _planAr = TextEditingController(text: '${widget.level['plan_ar'] ?? ''}');
+  late final _planEn = TextEditingController(text: '${widget.level['plan_en'] ?? ''}');
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    for (final c in [_nameAr, _nameEn, _pts, _planAr, _planEn]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final pts = int.tryParse(_pts.text.trim());
+    if (pts == null || _nameAr.text.trim().isEmpty) {
+      showSnack(context, _t(context, 'اكتب الاسم وعدد النقاط', 'Enter a name and the points'), error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(supabaseProvider).rpc('owner_loyalty_set_level', params: {
+        'p_sort': widget.level['sort'],
+        'p_name_ar': _nameAr.text,
+        'p_name_en': _nameEn.text,
+        'p_min_points': pts,
+        'p_plan_ar': _planAr.text,
+        'p_plan_en': _planEn.text,
+      });
+      if (mounted) {
+        Navigator.pop(context, true);
+        showSnack(context, _t(context, 'اتحفظ المستوى', 'Level saved'));
+      }
+    } catch (e) {
+      final m = e is PostgrestException ? e.message : '';
+      final txt = m.startsWith('LEVEL_ORDER')
+          ? _t(context, 'النقاط لازم تكون أكتر من المستوى اللي قبله وأقل من اللي بعده', 'Points must be above the previous level and below the next one')
+          : m.startsWith('INVALID_POINTS')
+              ? _t(context, 'عدد النقاط مش مظبوط (المستوى الأول لازم يبقى صفر)', 'Invalid points (the first level must be 0)')
+              : friendlyError(context, e);
+      if (mounted) showSnack(context, txt, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final first = widget.level['sort'] == 1;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_t(context, 'مستوى ${widget.level['sort']}', 'Level ${widget.level['sort']}'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          TextField(controller: _nameAr, maxLength: 40, decoration: InputDecoration(labelText: _t(context, 'اسم المستوى (عربي)', 'Level name (Arabic)'))),
+          TextField(controller: _nameEn, maxLength: 40, decoration: InputDecoration(labelText: _t(context, 'اسم المستوى (إنجليزي)', 'Level name (English)'))),
+          TextField(
+            controller: _pts,
+            enabled: !first,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: _t(context, 'النقاط المطلوبة للوصول', 'Points needed to reach it')),
+          ),
+          TextField(controller: _planAr, maxLength: 120, decoration: InputDecoration(labelText: _t(context, 'الهدية المخططة (ليك بس)', 'Planned gift (private)'))),
+          TextField(controller: _planEn, maxLength: 120, decoration: InputDecoration(labelText: _t(context, 'الهدية المخططة بالإنجليزي (اختياري)', 'Planned gift in English (optional)'))),
+          const SizedBox(height: 6),
+          SizedBox(width: double.infinity, child: FilledButton(onPressed: _busy ? null : _save, child: Text(_t(context, 'حفظ', 'Save')))),
+        ]),
+      ),
+    );
   }
 }
