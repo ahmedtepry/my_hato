@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
@@ -131,15 +132,54 @@ final routerProvider = Provider<GoRouter>((ref) {
   return router;
 });
 
+/// Time of the last "back" press on the home tab (double-back-to-exit).
+DateTime? _lastBackPress;
+
 class _Shell extends ConsumerWidget {
   const _Shell({required this.shell});
   final StatefulNavigationShell shell;
+
+  /// Back at the root of a tab: other tabs go to Home first; on Home, the first press shows a hint
+  /// and a second press within 2 seconds closes the app.
+  void _onBack(BuildContext context) {
+    if (shell.currentIndex != 0) {
+      shell.goBranch(0);
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastBackPress != null && now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+      _lastBackPress = null;
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBackPress = now;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Row(children: [
+          const Icon(Icons.exit_to_app_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Text(context.isAr ? 'اضغط رجوع مرة تانية للخروج من التطبيق' : 'Press back again to exit')),
+        ]),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        duration: const Duration(seconds: 2),
+        persist: false,
+      ));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartCount = ref.watch(cartProvider).valueOrNull?.count ?? 0;
     // keep realtime notifications alive while the shell is mounted
     ref.watch(notificationsProvider);
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack(context);
+      },
+      child: Scaffold(
       body: shell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: shell.currentIndex,
@@ -155,6 +195,7 @@ class _Shell extends ConsumerWidget {
           NavigationDestination(icon: const Icon(Icons.receipt_long_outlined), selectedIcon: const Icon(Icons.receipt_long_rounded), label: context.tr('nav_orders')),
           NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person_rounded), label: context.tr('nav_account')),
         ],
+      ),
       ),
     );
   }
