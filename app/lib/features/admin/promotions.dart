@@ -1,10 +1,12 @@
 // Offers & discount codes: create codes, and send an offer notification (optionally with a code)
 // that lands in every customer's notifications; tapping it opens the cart with the code ready.
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -439,6 +441,22 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
   late final _body = TextEditingController();
   String? _code;
   bool _sending = false;
+  Uint8List? _image; // optional picture sent with the offer
+
+  Future<void> _pickImage() async {
+    try {
+      final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80, maxWidth: 1200);
+      if (x == null) return;
+      final bytes = await x.readAsBytes();
+      if (bytes.lengthInBytes > 5 * 1024 * 1024) {
+        if (mounted) showSnack(context, _t(context, 'الصورة كبيرة، اختار صورة أصغر من ٥ ميجا', 'Picture too large, pick one under 5 MB'), error: true);
+        return;
+      }
+      if (mounted) setState(() => _image = bytes);
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    }
+  }
 
   @override
   void initState() {
@@ -470,7 +488,10 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(context, 'إرسال لكل العملاء؟', 'Send to all customers?')),
-        content: Text(_t(context, 'الإشعار هيوصل لكل العملاء في التطبيق. (أقصى ٥ عروض في اليوم)', 'Every customer will get this notification. (Max 5 offers a day)')),
+        content: Text(_t(
+            context,
+            'الإشعار هيوصل لكل العملاء في التطبيق، وهيختفي من عندهم لوحده بعد نص ساعة. (أقصى ٥ عروض في اليوم)',
+            'Every customer will get this notification and it disappears by itself after 30 minutes. (Max 5 offers a day)')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(context, 'رجوع', 'Back'))),
           FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(_t(context, 'ابعت', 'Send'))),
@@ -480,7 +501,9 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
     if (ok != true || !mounted) return;
     setState(() => _sending = true);
     try {
-      final n = await ref.read(adminRepoProvider).broadcastOffer(title: _title.text, body: _body.text, couponCode: _code);
+      final repo = ref.read(adminRepoProvider);
+      final imageUrl = _image == null ? null : await repo.uploadOfferImage(_image!);
+      final n = await repo.broadcastOffer(title: _title.text, body: _body.text, couponCode: _code, imageUrl: imageUrl);
       if (mounted) Navigator.pop(context, n);
     } catch (e) {
       if (mounted) showSnack(context, friendlyError(context, e), error: true);
@@ -526,7 +549,26 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(labelText: _t(context, 'نص العرض', 'Message')),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
+        if (_image == null)
+          OutlinedButton.icon(
+            onPressed: _sending ? null : _pickImage,
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: Text(_t(context, 'إضافة صورة (اختياري)', 'Add a picture (optional)')),
+          )
+        else
+          Row(children: [
+            ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.memory(_image!, width: 56, height: 56, fit: BoxFit.cover)),
+            const SizedBox(width: 10),
+            Expanded(child: Text(_t(context, 'الصورة هتظهر مع العرض', 'The picture is sent with the offer'))),
+            TextButton(onPressed: _sending ? null : _pickImage, child: Text(_t(context, 'غيّر', 'Change'))),
+            IconButton(
+              tooltip: _t(context, 'شيل الصورة', 'Remove picture'),
+              onPressed: _sending ? null : () => setState(() => _image = null),
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ]),
+        const SizedBox(height: 12),
         Text(_t(context, 'شكل الإشعار عند العميل', 'Preview'), style: const TextStyle(fontSize: 12.5, color: BrandColors.gray, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         Container(
@@ -548,6 +590,13 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
                 Text(_title.text.isEmpty ? '…' : _title.text, style: const TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 2),
                 Text(_body.text.isEmpty ? '…' : _body.text, style: const TextStyle(fontSize: 13)),
+                if (_image != null) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(_image!, height: 130, width: double.infinity, fit: BoxFit.cover)),
+                ],
+                const SizedBox(height: 6),
+                Text(_t(context, 'بيختفي من عند العميل بعد نص ساعة', 'Disappears from the customer after 30 minutes'),
+                    style: const TextStyle(fontSize: 11.5, color: BrandColors.gray)),
                 if (_code != null) ...[
                   const SizedBox(height: 6),
                   Text(_t(context, 'لما يدوس عليه: السلة تفتح والكود يتطبق لوحده ✨', 'Tapping it opens the cart with the code applied ✨'),

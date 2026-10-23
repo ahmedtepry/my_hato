@@ -79,8 +79,21 @@ class AdminRepository {
       }) as String;
 
   /// Sends the offer to every customer's notifications; returns how many received it.
-  Future<int> broadcastOffer({required String title, required String body, String? couponCode}) async =>
-      ((await _db.rpc('staff_broadcast_offer', params: {'p_title': title.trim(), 'p_body': body.trim(), 'p_coupon_code': couponCode})) as num).toInt();
+  Future<int> broadcastOffer({required String title, required String body, String? couponCode, String? imageUrl}) async =>
+      ((await _db.rpc('staff_broadcast_offer', params: {
+        'p_title': title.trim(),
+        'p_body': body.trim(),
+        'p_coupon_code': couponCode,
+        if (imageUrl != null) 'p_image_url': imageUrl,
+      })) as num)
+          .toInt();
+
+  /// Uploads an offer picture to the public banners bucket (offers/ folder) and returns its public URL.
+  Future<String> uploadOfferImage(Uint8List bytes) async {
+    final path = 'offers/${DateTime.now().microsecondsSinceEpoch}.jpg';
+    await _db.storage.from('banners').uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+    return _db.storage.from('banners').getPublicUrl(path);
+  }
 
   Future<Map<String, dynamic>> stats() async => Map<String, dynamic>.from(await _db.rpc('staff_dashboard_stats') as Map);
 

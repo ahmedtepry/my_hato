@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,14 @@ import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+
+/// Offers expire (expires_at): after that moment they no longer show in the inbox or the unread count.
+bool notificationAlive(Map<String, dynamic> n) {
+  final e = n['expires_at'];
+  if (e is! String) return true;
+  final t = DateTime.tryParse(e);
+  return t == null || t.isAfter(DateTime.now());
+}
 
 class NotificationsRepository {
   NotificationsRepository(this._db);
@@ -26,6 +35,7 @@ class NotificationsRepository {
         .select()
         .eq('user_id', uid)
         .isFilter('cleared_at', null)
+        .or('expires_at.is.null,expires_at.gt.${DateTime.now().toUtc().toIso8601String()}')
         .order('created_at', ascending: false)
         .limit(100));
   }
@@ -104,7 +114,7 @@ class _ResumeReload with WidgetsBindingObserver {
 }
 
 final unreadCountProvider = Provider<AsyncValue<int>>(
-    (ref) => ref.watch(notificationsProvider).whenData((l) => l.where((n) => n['read_at'] == null).length));
+    (ref) => ref.watch(notificationsProvider).whenData((l) => l.where((n) => n['read_at'] == null && notificationAlive(n)).length));
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -116,6 +126,23 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   /// Hidden right away on swipe / clear, before the server round-trip finishes.
   final _hidden = <String>{};
   bool _allHidden = false;
+
+  /// Re-checks every 20 s so an offer vanishes the moment it expires, even while the inbox is open.
+  Timer? _expiryTick;
+
+  @override
+  void initState() {
+    super.initState();
+    _expiryTick = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _expiryTick?.cancel();
+    super.dispose();
+  }
 
   /// Shown as read right away (before the server round-trip).
   final _read = <String>{};
@@ -194,7 +221,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Widget build(BuildContext context) {
     final data = ref.watch(notificationsProvider);
     final repo = ref.read(notificationsRepoProvider);
-    final visible = _allHidden ? <Map<String, dynamic>>[] : [for (final n in data.valueOrNull ?? const <Map<String, dynamic>>[]) if (!_hidden.contains(n['id'])) n];
+    final visible = _allHidden ? <Map<String, dynamic>>[] : [for (final n in data.valueOrNull ?? const <Map<String, dynamic>>[]) if (!_hidden.contains(n['id']) && notificationAlive(n)) n];
     if (data.hasValue) _autoRead(visible);
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('notifications')), actions: [
@@ -255,6 +282,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       title: Text(context.pick(n, 'title'), style: TextStyle(fontWeight: unread ? FontWeight.w800 : FontWeight.w500)),
                       subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(context.pick(n, 'body')),
+                        if (n['image_url'] is String && (n['image_url'] as String).isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: CachedNetworkImage(
+                              imageUrl: n['image_url'] as String,
+                              height: 150,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => Container(height: 150, color: BrandColors.offWhite),
+                              errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(DateFormat.yMMMd(context.lang).add_jm().format(DateTime.parse(n['created_at'] as String).toLocal()),
                             style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
