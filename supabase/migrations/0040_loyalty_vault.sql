@@ -13,7 +13,7 @@ create table if not exists public.loyalty_profiles (
 );
 create table if not exists public.loyalty_levels (
   sort int primary key, name_ar text not null, name_en text not null, min_points int not null,
-  perk_ar text, perk_en text
+  prize_ar text, prize_en text            -- what the customer wins on reaching the level (null = no prize)
 );
 create table if not exists public.loyalty_missions (
   key text primary key, kind text not null check (kind in ('checkin','favorite','streak','review')),
@@ -32,6 +32,13 @@ create table if not exists public.loyalty_claims (
   period_key text not null, claimed_at timestamptz not null default now(),
   primary key (user_id, mission_key, period_key)
 );
+create table if not exists public.loyalty_awards (        -- one level prize per customer per level, never repeated
+  user_id uuid not null references auth.users(id) on delete cascade, level_sort int not null references public.loyalty_levels(sort),
+  code text not null unique, awarded_at timestamptz not null default now(),
+  seen_at timestamptz,                                     -- congratulation screen shown
+  delivered_at timestamptz, delivered_note text,           -- staff fills these when the prize is handed over
+  primary key (user_id, level_sort)
+);
 create table if not exists public.loyalty_ledger (          -- every change, once only (idempotency)
   id bigint generated always as identity primary key, user_id uuid not null references auth.users(id) on delete cascade,
   kind text not null, ref text not null, points int not null default 0, vault int not null default 0,
@@ -40,12 +47,12 @@ create table if not exists public.loyalty_ledger (          -- every change, onc
 
 do $$ declare t text; begin
   foreach t in array array['loyalty_profiles','loyalty_levels','loyalty_missions',
-                           'loyalty_rewards','loyalty_claims','loyalty_ledger'] loop
+                           'loyalty_rewards','loyalty_claims','loyalty_ledger','loyalty_awards'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon, authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
   end loop;
-  foreach t in array array['loyalty_profiles','loyalty_claims','loyalty_ledger'] loop
+  foreach t in array array['loyalty_profiles','loyalty_claims','loyalty_ledger','loyalty_awards'] loop
     execute format('drop policy if exists own_read on public.%I', t);
     execute format('create policy own_read on public.%I for select to authenticated using (user_id = auth.uid() or public.has_permission(''settings.manage''))', t);
   end loop;
@@ -57,12 +64,19 @@ do $$ declare t text; begin
   create policy staff_read on public.loyalty_rewards for select to authenticated using (public.has_permission('settings.manage'));
 end $$;
 
-insert into public.loyalty_levels (sort, name_ar, name_en, min_points, perk_ar, perk_en) values
- (1,'مستكشف','Explorer',0,'ابدأ تجمع نقاط','Start collecting points'),
- (2,'برو','Pro',200,'أولوية في العروض','Priority on offers'),
- (3,'إيليت','Elite',600,'مكافآت أكبر في الخزنة','Bigger vault rewards'),
- (4,'ماستر','Master',1500,'عروض حصرية','Exclusive offers'),
- (5,'أسطورة','Legend',3500,'أعلى مستوى','Top level')
+-- Suggested defaults. The owner decides: edit loyalty_levels (name, min_points, prize) any time, no new APK.
+-- A prize is given ONCE per customer per level. Thresholds are high so prizes stay small compared with what the customer spent.
+insert into public.loyalty_levels (sort, name_ar, name_en, min_points, prize_ar, prize_en) values
+ (1,'مستكشف','Explorer',0,null,null),
+ (2,'برونز','Bronze',300,'اسكرينة + كفر','Screen protector + case'),
+ (3,'فضي','Silver',700,'سماعة سلك','Wired earphones'),
+ (4,'ذهبي','Gold',1500,'شاحن سريع','Fast charger'),
+ (5,'بلاتينيوم','Platinum',3000,'سماعة بلوتوث','Bluetooth headset'),
+ (6,'إيليت','Elite',5500,'باور بانك','Power bank'),
+ (7,'ماستر','Master',9000,'سماعة بلوتوث بريميوم','Premium Bluetooth earbuds'),
+ (8,'جراند ماستر','Grand Master',14000,'ساعة ذكية','Smart watch'),
+ (9,'أسطورة','Legend',22000,'هدية كبيرة يحددها المتجر','A big gift chosen by the store'),
+ (10,'عرش الأساطير','Mythic',35000,'الجايزة الكبرى يحددها المتجر','The grand prize chosen by the store')
 on conflict do nothing;
 insert into public.loyalty_missions (key, kind, title_ar, title_en, desc_ar, desc_en, icon, points, vault, repeat, sort) values
  ('checkin','checkin','تسجيل حضور يومي','Daily check-in','ادخل كل يوم واكسب نقاط','Come back every day for points','event_available',5,10,'daily',10),
@@ -165,10 +179,18 @@ begin
   perform public._loy_ensure(u);
   perform public._loy_sync_orders(u);
   select * into p from public.loyalty_profiles where user_id = u;
+  insert into public.loyalty_awards (user_id, level_sort, code)
+    select u, l.sort, 'LV' || l.sort || '-' || upper(substr(md5(gen_random_uuid()::text), 1, 6))
+      from public.loyalty_levels l where l.min_points <= p.points and l.prize_ar is not null
+    on conflict do nothing;
   return jsonb_build_object(
     'points', p.points, 'streak', p.streak, 'vault_progress', p.vault_progress, 'vault_required', v_req,
     'level', (select to_jsonb(l) from public.loyalty_levels l where l.min_points <= p.points order by l.sort desc limit 1),
     'next_level', (select to_jsonb(l) from public.loyalty_levels l where l.min_points > p.points order by l.sort limit 1),
+    'levels', (select coalesce(jsonb_agg(to_jsonb(l) order by l.sort), '[]') from public.loyalty_levels l),
+    'awards', (select coalesce(jsonb_agg(jsonb_build_object('level_sort', a.level_sort, 'code', a.code, 'awarded_at', a.awarded_at,
+                  'new', a.seen_at is null, 'delivered', a.delivered_at is not null) order by a.level_sort), '[]')
+               from public.loyalty_awards a where a.user_id = u),
     'missions', (select coalesce(jsonb_agg(jsonb_build_object('key', m.key, 'title_ar', m.title_ar, 'title_en', m.title_en,
                      'desc_ar', m.desc_ar, 'desc_en', m.desc_en, 'icon', m.icon, 'points', m.points, 'vault', m.vault,
                      'repeat', m.repeat,
@@ -215,5 +237,8 @@ begin
   return jsonb_build_object('points', r.points, 'name_ar', r.name_ar, 'name_en', r.name_en);
 end $$;
 
-revoke all on function public.loyalty_dashboard(), public.loyalty_claim(text), public.loyalty_open_vault() from public, anon;
-grant execute on function public.loyalty_dashboard(), public.loyalty_claim(text), public.loyalty_open_vault() to authenticated;
+create or replace function public.loyalty_ack_awards() returns void language sql security definer set search_path = public as $$
+  update public.loyalty_awards set seen_at = now() where user_id = public.require_auth() and seen_at is null $$;
+
+revoke all on function public.loyalty_dashboard(), public.loyalty_claim(text), public.loyalty_open_vault(), public.loyalty_ack_awards() from public, anon;
+grant execute on function public.loyalty_dashboard(), public.loyalty_claim(text), public.loyalty_open_vault(), public.loyalty_ack_awards() to authenticated;

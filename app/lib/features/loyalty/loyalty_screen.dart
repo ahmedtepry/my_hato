@@ -68,6 +68,38 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
     }
   }
 
+  bool _awarding = false;
+
+  /// Level prizes the customer has not seen yet: show the congratulation screen once, then mark them as seen.
+  Future<void> _showNewAwards(Map<String, dynamic> d) async {
+    if (_awarding) return;
+    final fresh = _list(d['awards']).where((a) => a['new'] == true).toList();
+    if (fresh.isEmpty) return;
+    _awarding = true;
+    try {
+      final levels = _list(d['levels']);
+      for (final a in fresh) {
+        final lvl = levels.firstWhere((l) => l['sort'] == a['level_sort'], orElse: () => <String, dynamic>{});
+        if (!mounted) return;
+        HapticFeedback.heavyImpact();
+        await showGeneralDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          barrierColor: Colors.black87,
+          transitionDuration: const Duration(milliseconds: 250),
+          transitionBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+          pageBuilder: (_, __, ___) => _AwardReveal(level: lvl, code: a['code'] as String),
+        );
+      }
+      await ref.read(supabaseProvider).rpc('loyalty_ack_awards');
+    } catch (_) {
+      // not acknowledged: the screen simply shows again next time
+    } finally {
+      _awarding = false;
+      ref.invalidate(loyaltyProvider);
+    }
+  }
+
   Future<void> _claim(Map<String, dynamic> m) => _run(() async {
         final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('loyalty_claim', params: {'p_mission': m['key']}) as Map);
         HapticFeedback.mediumImpact();
@@ -91,8 +123,12 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(loyaltyProvider);
+    ref.listen<AsyncValue<Map<String, dynamic>>>(loyaltyProvider, (_, next) {
+      final v = next.valueOrNull;
+      if (v != null) _showNewAwards(v);
+    });
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         backgroundColor: BrandColors.navyDeep,
         appBar: AppBar(
@@ -107,6 +143,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
             tabs: [
               Tab(text: _t(context, 'المهام', 'Missions')),
               Tab(text: _t(context, 'الخزنة', 'Vault')),
+              Tab(text: _t(context, 'المستويات', 'Levels')),
               Tab(text: _t(context, 'سجل المكافآت', 'Rewards')),
             ],
           ),
@@ -120,6 +157,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
               child: TabBarView(children: [
                 _Missions(d: d, busy: _busy, onClaim: _claim),
                 _Vault(d: d, busy: _busy, onOpen: _openVault),
+                _Levels(d: d),
                 _History(d: d),
               ]),
             ),
@@ -188,7 +226,11 @@ class _Header extends StatelessWidget {
               : _t(context, 'باقي ${to! - pts} نقطة على ${context.pick(next, 'name')}', '${to! - pts} points to ${context.pick(next, 'name')}'),
           style: const TextStyle(color: Colors.white70, fontSize: 12.5),
         ),
-        if (lvl['perk_ar'] != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(context.pick(lvl, 'perk'), style: const TextStyle(color: Colors.white54, fontSize: 12))),
+        if (next != null && next['prize_ar'] != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(_t(context, 'الجايزة الجاية: ${context.pick(next, 'prize')} 🎁', 'Next prize: ${context.pick(next, 'prize')} 🎁'), style: const TextStyle(color: _gold, fontSize: 12.5, fontWeight: FontWeight.w700)),
+          ),
       ]),
     );
   }
@@ -495,6 +537,116 @@ class _BurstPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BurstPainter old) => old.t != t;
+}
+
+class _Levels extends StatelessWidget {
+  const _Levels({required this.d});
+  final Map<String, dynamic> d;
+  @override
+  Widget build(BuildContext context) {
+    final levels = _list(d['levels']);
+    final awards = {for (final a in _list(d['awards'])) a['level_sort']: a};
+    final pts = d['points'] as int;
+    final cur = (d['level'] as Map)['sort'];
+    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+      for (final l in levels)
+        Builder(builder: (_) {
+          final reached = (l['min_points'] as int) <= pts;
+          final a = awards[l['sort']];
+          return _panel(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            border: l['sort'] == cur ? _gold : (reached ? BrandColors.success : Colors.white24),
+            child: Row(children: [
+              CircleAvatar(
+                backgroundColor: reached ? _gold : Colors.white12,
+                child: reached ? Text('${l['sort']}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)) : const Icon(Icons.lock_rounded, color: Colors.white38, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(context.pick(l, 'name'), style: TextStyle(color: reached ? Colors.white : Colors.white60, fontWeight: FontWeight.w900)),
+                  Text('${l['min_points']} ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  if (l['prize_ar'] != null)
+                    Text('🎁 ${context.pick(l, 'prize')}', style: TextStyle(color: reached ? _gold : Colors.white38, fontWeight: FontWeight.w700, fontSize: 13)),
+                  if (a != null)
+                    SelectableText(
+                      '${_t(context, 'كود الجايزة', 'Prize code')}: ${a['code']}${a['delivered'] == true ? '  ✅ ${_t(context, 'اتسلمت', 'delivered')}' : ''}',
+                      style: const TextStyle(color: BrandColors.electric, fontSize: 12.5, fontWeight: FontWeight.w800),
+                    ),
+                ]),
+              ),
+            ]),
+          );
+        }),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Text(_t(context, 'صوّر كود الجايزة وابعته لخدمة عملاء My Hatō عشان تستلمها.', 'Screenshot your prize code and send it to My Hatō support to collect it.'),
+            style: const TextStyle(color: Colors.white54, fontSize: 12)),
+      ),
+    ]);
+  }
+}
+
+/// Congratulation screen for a level prize: confetti, prize name, and a code the customer screenshots for the store.
+class _AwardReveal extends StatefulWidget {
+  const _AwardReveal({required this.level, required this.code});
+  final Map<String, dynamic> level;
+  final String code;
+  @override
+  State<_AwardReveal> createState() => _AwardRevealState();
+}
+
+class _AwardRevealState extends State<_AwardReveal> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200))..forward();
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = widget.level;
+    return PopScope(
+      canPop: false,
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(alignment: Alignment.center, children: [
+          Positioned.fill(child: AnimatedBuilder(animation: _c, builder: (_, __) => CustomPaint(painter: _BurstPainter(_c.value)))),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 900),
+                curve: Curves.elasticOut,
+                builder: (_, v, child) => Transform.scale(scale: v, child: child),
+                child: const Icon(Icons.emoji_events_rounded, color: _gold, size: 120),
+              ),
+              Text(_t(context, 'مبروك! وصلت لمستوى', 'Congratulations! You reached'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+              Text(context.pick(l, 'name'), style: const TextStyle(color: _gold, fontSize: 36, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 10),
+              Text('${_t(context, 'كسبت', 'You won')} ${context.pick(l, 'prize')} 🎁', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(border: Border.all(color: _gold), borderRadius: BorderRadius.circular(12)),
+                child: Text(widget.code, style: const TextStyle(color: _gold, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 2)),
+              ),
+              const SizedBox(height: 10),
+              Text(_t(context, 'صوّر الشاشة دي وابعتها لخدمة عملاء My Hatō عشان تستلم جايزتك', 'Take a screenshot and send it to My Hatō support to collect your prize'),
+                  textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+              const SizedBox(height: 22),
+              FadeTransition(
+                opacity: CurvedAnimation(parent: _c, curve: const Interval(0.3, 0.5)),
+                child: FilledButton(style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: Colors.black, minimumSize: const Size(180, 50)), onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'Awesome'))),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 class _History extends StatelessWidget {
