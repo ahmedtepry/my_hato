@@ -98,23 +98,25 @@ class AuthRepository {
     );
   }
 
-  /// Creates the account. With "Confirm email" on (production), Supabase emails a 6-digit code and
-  /// no session exists until it is verified. Supabase does not reveal whether an email is already
-  /// registered: for a confirmed address it returns a user with no identities and sends nothing.
+  /// Creates the account server side (account-signup), already confirmed, then signs in. No email is sent.
   Future<SignUpResult> signUpWithEmail(String email, String password, String fullName, {String? username, String? phone}) async {
-    final res = await _auth.signUp(
-      email: normalizeEmail(email),
-      password: password,
-      // username + phone are stored in the customer register by the database (migration 0014)
-      data: {
+    // The account is created server side already confirmed (no confirmation email: the built-in
+    // mailer is limited to a few emails per hour and blocked real sign-ups).
+    try {
+      await _db.functions.invoke('account-signup', body: {
+        'email': normalizeEmail(email),
+        'password': password,
         'full_name': fullName.trim(),
         if (username != null) 'username': username.trim().toLowerCase(),
         if (phone != null) 'phone': phone,
-      },
-      emailRedirectTo: AppConfig.oauthRedirect,
-    );
-    if (res.session != null) return SignUpResult.signedIn;
-    if (res.user != null && (res.user!.identities?.isEmpty ?? false)) return SignUpResult.alreadyRegistered;
+      });
+    } on FunctionException catch (e) {
+      final d = e.details;
+      final code = d is Map ? '${d['error']}' : '';
+      if (code == 'ALREADY_REGISTERED') return SignUpResult.alreadyRegistered;
+      if (code == 'invalid_password') throw const AuthException('weak_password', code: 'weak_password');
+      rethrow;
+    }
     // No verification codes: accounts are confirmed on creation (Supabase "Confirm email" off).
     // If the project still asks for confirmation, try signing in; otherwise support activates it.
     try {
