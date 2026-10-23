@@ -361,5 +361,6 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('products.manage')) 'products',
     if (p.contains('products.manage')) 'reviews',
     if (p.contains('support.manage')) 'accounts',
+    if (p.contains('gifts.manage')) 'gifts',
   ];
 });

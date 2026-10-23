@@ -21,6 +21,7 @@ import '../orders/orders_screens.dart' show fmtDate;
 import '../repairs/repairs_repository.dart';
 import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
 import 'accounts_tab.dart';
+import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'team.dart';
 import 'admin_repository.dart';
@@ -242,6 +243,7 @@ class AdminHomeScreen extends ConsumerWidget {
                   'products' => Tab(icon: const Icon(Icons.inventory_2_outlined), text: _t(context, 'المنتجات', 'Products')),
                   'reviews' => Tab(icon: const _ReviewsTabIcon(), text: _t(context, 'التقييمات', 'Reviews')),
                   'accounts' => Tab(icon: const AccountsTabIcon(), text: _t(context, 'الحسابات', 'Accounts')),
+                  'gifts' => Tab(icon: const Icon(Icons.card_giftcard_rounded), text: _t(context, 'الهدايا', 'Gifts')),
                   _ => Tab(icon: const Icon(Icons.dashboard_outlined), text: _t(context, 'نظرة عامة', 'Overview')),
                 },
             ]),
@@ -254,6 +256,7 @@ class AdminHomeScreen extends ConsumerWidget {
                 'products' => const _ProductsTab(),
                 'reviews' => const _ReviewsTab(),
                 'accounts' => const AccountsTab(),
+                'gifts' => const GiftsPanel(),
                 _ => const _Overview(),
               },
           ]),

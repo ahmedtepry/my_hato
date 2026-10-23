@@ -651,15 +651,16 @@ class _Gifts extends StatelessWidget {
               const Icon(Icons.card_giftcard_rounded, color: _gold, size: 28),
               const SizedBox(width: 10),
               Expanded(child: Text(_t(context, 'هدية مستوى ${context.pick(g, 'name')}', '${context.pick(g, 'name')} level gift'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900))),
-              if (g['delivered'] == true) Text('✅ ${_t(context, 'اتسلمت', 'Delivered')}', style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w800)),
+              if (g['status'] == 'delivered') Text('✅ ${_t(context, 'اتسلمت', 'Delivered')}', style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w800)),
             ]),
             const SizedBox(height: 8),
             if (context.pick(g, 'prize').isNotEmpty)
-              Text('🎁 ${context.pick(g, 'prize')}', style: const TextStyle(color: _gold, fontSize: 16, fontWeight: FontWeight.w800))
-            else
-              Text(_t(context, 'انسخ الكود واكتب لخدمة العملاء: «اسأل عن هديتي»', 'Copy the code and message support: "asking about my gift"'), style: const TextStyle(color: Colors.white70)),
-            const SizedBox(height: 8),
-            _CodeChip(code: g['code'] as String),
+              Text('🎁 ${context.pick(g, 'prize')}', style: const TextStyle(color: _gold, fontSize: 16, fontWeight: FontWeight.w800)),
+            Text(context.pick(g, 'status'), style: const TextStyle(color: Colors.white70)),
+            if (g['status'] != 'delivered') ...[
+              const SizedBox(height: 8),
+              _CodeChip(code: g['code'] as String),
+            ],
           ]),
         ),
     ]);
