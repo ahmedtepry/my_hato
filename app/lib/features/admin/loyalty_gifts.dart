@@ -155,7 +155,7 @@ class _EditAwardState extends ConsumerState<_EditAward> {
           content: Text(_t(c, 'بعد التسليم الكود بيتقفل ومينفعش يتغير أو يتستخدم تاني. متأكد إنك سلّمت الهدية للعميل ده؟', 'After delivery the code is locked and cannot be changed or used again. Are you sure you handed the gift to this customer?')),
           actions: [
             TextButton(onPressed: () => Navigator.pop(c, false), child: Text(_t(c, 'إلغاء', 'Cancel'))),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(_t(c, 'أيوه، اتسلمت', 'Yes, delivered'))),
+            FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(96, 44)), onPressed: () => Navigator.pop(c, true), child: Text(_t(c, 'أيوه، اتسلمت', 'Yes, delivered'))),
           ],
         ),
       );

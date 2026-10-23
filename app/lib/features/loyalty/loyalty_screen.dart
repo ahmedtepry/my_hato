@@ -132,7 +132,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
         appBar: AppBar(
           backgroundColor: BrandColors.navyDeep,
           foregroundColor: Colors.white,
-          title: Text(_t(context, 'مكافآت My Hatō', 'My Hatō Rewards'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+          title: Text(_t(context, 'مكافآت My Hatō', 'My Hatō Rewards'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)),
           actions: [IconButton(tooltip: _t(context, 'تحديث', 'Refresh'), onPressed: () => ref.invalidate(loyaltyProvider), icon: const Icon(Icons.refresh_rounded))],
           bottom: TabBar(
             indicatorColor: BrandColors.electric,
@@ -142,7 +142,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
               Tab(text: _t(context, 'المهام', 'Missions')),
               Tab(text: _t(context, 'العلبة', 'Box')),
               Tab(text: _t(context, 'هدايايا', 'My gifts')),
-              Tab(text: _t(context, 'سجل المكافآت', 'Rewards')),
+              Tab(text: _t(context, 'السجل', 'History')),
             ],
           ),
         ),
@@ -249,7 +249,7 @@ class _Missions extends StatelessWidget {
             switch (m['status']) {
               'claimed' => const Icon(Icons.check_circle_rounded, color: BrandColors.success, size: 30),
               'auto' => Text(_t(context, 'تلقائي', 'Auto'), style: const TextStyle(color: BrandColors.electric, fontWeight: FontWeight.w800)),
-              'ready' => FilledButton(onPressed: busy ? null : () => onClaim(m), child: Text(_t(context, 'استلم', 'Claim'))),
+              'ready' => FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(84, 40), padding: const EdgeInsets.symmetric(horizontal: 16)), onPressed: busy ? null : () => onClaim(m), child: Text(_t(context, 'استلم', 'Claim'))),
               _ => Text(_t(context, 'لسه', 'To do'), style: const TextStyle(color: Colors.white54)),
             },
           ]),
