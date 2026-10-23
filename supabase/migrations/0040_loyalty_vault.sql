@@ -1,6 +1,6 @@
 -- 0040: MYHATO SECRET VAULT (loyalty). Everything that gives points / parts / rewards runs inside the database.
 -- The app can only READ its own rows and call 3 functions: loyalty_dashboard, loyalty_claim, loyalty_open_vault.
--- Rewards are real coupons in the existing `coupons` table (one-use, secret code), so checkout needs no change.
+-- Vault rewards are POINTS only (no money value is ever stated). History of openings is read from the ledger.
 -- Wording, missions, levels, rewards and numbers are plain tables: edit them in Supabase, no new APK needed.
 
 create table if not exists public.loyalty_profiles (
@@ -30,11 +30,8 @@ create table if not exists public.loyalty_tiers (
 );
 create table if not exists public.loyalty_rewards (
   id int generated always as identity primary key, name_ar text not null, name_en text not null,
-  percent_off int check (percent_off between 1 and 90), amount_off_minor bigint check (amount_off_minor > 0),
-  min_order_minor bigint not null default 0, valid_days int not null default 14,
-  weight numeric not null default 1 check (weight > 0), stock int check (stock is null or stock >= 0),
-  is_active boolean not null default true,
-  check ((percent_off is null) <> (amount_off_minor is null))
+  points int not null check (points > 0), weight numeric not null default 1 check (weight > 0),
+  stock int check (stock is null or stock >= 0), is_active boolean not null default true
 );
 create table if not exists public.loyalty_claims (
   user_id uuid not null references auth.users(id) on delete cascade, mission_key text not null references public.loyalty_missions(key),
@@ -45,12 +42,6 @@ create table if not exists public.loyalty_user_components (
   user_id uuid not null references auth.users(id) on delete cascade, component_key text not null references public.loyalty_components(key),
   qty int not null default 0 check (qty >= 0), primary key (user_id, component_key)
 );
-create table if not exists public.loyalty_wallet (
-  id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
-  reward_id int not null references public.loyalty_rewards(id), coupon_code text not null references public.coupons(code),
-  granted_at timestamptz not null default now(), expires_at timestamptz not null
-);
-create index if not exists loyalty_wallet_user_idx on public.loyalty_wallet(user_id, granted_at desc);
 create table if not exists public.loyalty_ledger (          -- every change, once only (idempotency)
   id bigint generated always as identity primary key, user_id uuid not null references auth.users(id) on delete cascade,
   kind text not null, ref text not null, points int not null default 0, vault int not null default 0,
@@ -59,12 +50,12 @@ create table if not exists public.loyalty_ledger (          -- every change, onc
 
 do $$ declare t text; begin
   foreach t in array array['loyalty_profiles','loyalty_levels','loyalty_missions','loyalty_components','loyalty_tiers',
-                           'loyalty_rewards','loyalty_claims','loyalty_user_components','loyalty_wallet','loyalty_ledger'] loop
+                           'loyalty_rewards','loyalty_claims','loyalty_user_components','loyalty_ledger'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon, authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
   end loop;
-  foreach t in array array['loyalty_profiles','loyalty_claims','loyalty_user_components','loyalty_wallet','loyalty_ledger'] loop
+  foreach t in array array['loyalty_profiles','loyalty_claims','loyalty_user_components','loyalty_ledger'] loop
     execute format('drop policy if exists own_read on public.%I', t);
     execute format('create policy own_read on public.%I for select to authenticated using (user_id = auth.uid() or public.has_permission(''settings.manage''))', t);
   end loop;
@@ -95,9 +86,8 @@ on conflict do nothing;
 insert into public.loyalty_tiers (sort, name_ar, name_en, min_parts) values
  (1,'أساسي','Basic',0),(2,'جالاكسي','Galaxy',2),(3,'برو','Pro',3),(4,'ألتميت','Ultimate',4)
 on conflict do nothing;
-insert into public.loyalty_rewards (name_ar, name_en, percent_off, amount_off_minor, min_order_minor, valid_days, weight) values
- ('خصم ٥٪','5% off',5,null,0,14,10),('خصم ١٠٪','10% off',10,null,0,14,5),
- ('خصم ٥٠ جنيه','50 EGP off',null,5000,50000,14,4),('خصم ١٥٪','15% off',15,null,0,7,1)
+insert into public.loyalty_rewards (name_ar, name_en, points, weight) values
+ ('٢٠ نقطة','20 points',20,10),('٥٠ نقطة','50 points',50,5),('١٠٠ نقطة','100 points',100,3),('٢٥٠ نقطة','250 points',250,1)
 on conflict do nothing;
 insert into public.application_settings (key, value, description) values
  ('loyalty_vault_required','100','Vault progress needed to open it'),
@@ -201,13 +191,9 @@ begin
                      'status', case when exists (select 1 from public.loyalty_claims c where c.user_id = u and c.mission_key = m.key and c.period_key = public._loy_period(m.repeat))
                                     then 'claimed' when public._loy_cond(u, m.kind, m.repeat) then 'ready' else 'todo' end) order by m.sort), '[]')
                  from public.loyalty_missions m where m.is_active),
-    'wallet', (select coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'code', w.coupon_code, 'name_ar', r.name_ar, 'name_en', r.name_en,
-                     'percent_off', r.percent_off, 'amount_off_minor', r.amount_off_minor, 'min_order_minor', r.min_order_minor,
-                     'granted_at', w.granted_at, 'expires_at', w.expires_at,
-                     'status', case when c.uses_count > 0 then 'used' when w.expires_at < now() or not c.is_active then 'expired' else 'available' end)
-                     order by w.granted_at desc), '[]')
-               from public.loyalty_wallet w join public.loyalty_rewards r on r.id = w.reward_id join public.coupons c on c.code = w.coupon_code
-               where w.user_id = u));
+    'history', (select coalesce(jsonb_agg(jsonb_build_object('points', l.points, 'at', l.created_at) order by l.created_at desc), '[]')
+                from (select points, created_at from public.loyalty_ledger where user_id = u and kind = 'vault_reward'
+                      order by created_at desc limit 30) l));
 end $$;
 
 create or replace function public.loyalty_claim(p_mission text) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -231,7 +217,7 @@ end $$;
 
 create or replace function public.loyalty_open_vault() returns jsonb language plpgsql security definer set search_path = public as $$
 declare u uuid := public.require_auth(); p public.loyalty_profiles%rowtype; v_req int := public._loy_num('loyalty_vault_required', 100)::int;
-        r public.loyalty_rewards%rowtype; v_code text; v_exp timestamptz; v_w uuid;
+        r public.loyalty_rewards%rowtype; v_ref text := gen_random_uuid()::text;
 begin
   perform public._loy_ensure(u);
   select * into p from public.loyalty_profiles where user_id = u for update;      -- a second tap waits here, then sees the lower progress
@@ -240,15 +226,8 @@ begin
     order by -ln(greatest(random(), 1e-12)) / weight limit 1 for update skip locked;
   if not found then raise exception 'REWARD_UNAVAILABLE'; end if;                 -- progress is kept
   if r.stock is not null then update public.loyalty_rewards set stock = stock - 1 where id = r.id; end if;
-  v_code := 'HATO-' || upper(substr(md5(gen_random_uuid()::text), 1, 8));
-  v_exp := now() + make_interval(days => r.valid_days);
-  insert into public.coupons (code, title_ar, percent_off, amount_off_minor, min_order_minor, max_uses, per_customer_limit, starts_at, ends_at)
-    values (v_code, r.name_ar, r.percent_off, r.amount_off_minor, r.min_order_minor, 1, 1, now(), v_exp);
-  insert into public.loyalty_wallet (user_id, reward_id, coupon_code, expires_at) values (u, r.id, v_code, v_exp) returning id into v_w;
-  update public.loyalty_profiles set vault_progress = vault_progress - v_req where user_id = u;
-  insert into public.loyalty_ledger (user_id, kind, ref, vault) values (u, 'vault_open', v_w::text, -v_req);
-  return jsonb_build_object('code', v_code, 'name_ar', r.name_ar, 'name_en', r.name_en, 'percent_off', r.percent_off,
-                            'amount_off_minor', r.amount_off_minor, 'min_order_minor', r.min_order_minor, 'expires_at', v_exp);
+  perform public._loy_grant(u, 'vault_reward', v_ref, r.points, -v_req, null);
+  return jsonb_build_object('points', r.points, 'name_ar', r.name_ar, 'name_en', r.name_en);
 end $$;
 
 revoke all on function public.loyalty_dashboard(), public.loyalty_claim(text), public.loyalty_open_vault() from public, anon;

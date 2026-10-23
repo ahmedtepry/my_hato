@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
-import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
@@ -98,7 +95,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
               Tab(text: _t(context, 'المهام', 'Missions')),
               Tab(text: _t(context, 'موبايلي', 'My phone')),
               Tab(text: _t(context, 'الخزنة', 'Vault')),
-              Tab(text: _t(context, 'مكافآتي', 'Rewards')),
+              Tab(text: _t(context, 'سجل المكافآت', 'Rewards')),
             ],
           ),
         ),
@@ -112,7 +109,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
                 _Missions(d: d, busy: _busy, onClaim: _claim),
                 _Phone(d: d),
                 _Vault(d: d, busy: _busy, onOpen: _openVault),
-                _Wallet(d: d),
+                _History(d: d),
               ]),
             ),
           ]),
@@ -326,7 +323,7 @@ class _Vault extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(_t(context, 'المكافأة بتتحدد من السيرفر لحظة الفتح، ومفيش حاجة مضمونة قبلها.', 'The reward is picked by the server when you open it; nothing is promised before.'),
+          Text(_t(context, 'عدد النقاط بيتحدد من السيرفر لحظة الفتح، ومفيش حاجة مضمونة قبلها.', 'The server picks your points when you open it; nothing is promised before.'),
               textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
         ]),
       ),
@@ -334,103 +331,39 @@ class _Vault extends StatelessWidget {
   }
 }
 
-String _rewardText(BuildContext c, Map<String, dynamic> r) {
-  final off = r['percent_off'] != null ? '${r['percent_off']}%' : formatEgp(r['amount_off_minor'] as int?, c.lang);
-  final min = (r['min_order_minor'] as int? ?? 0);
-  return _t(c, 'خصم $off${min > 0 ? ' على طلب من ${formatEgp(min, c.lang)}' : ''}', '$off off${min > 0 ? ' on orders from ${formatEgp(min, c.lang)}' : ''}');
-}
-
-String _date(BuildContext c, Object? iso) => iso == null ? '' : DateFormat.yMMMd(c.lang).format(DateTime.parse(iso as String).toLocal());
+String _date(BuildContext c, Object? iso) => iso == null ? '' : DateFormat.yMMMd(c.lang).add_Hm().format(DateTime.parse(iso as String).toLocal());
 
 class _RewardDialog extends StatelessWidget {
   const _RewardDialog({required this.reward});
   final Map<String, dynamic> reward;
   @override
-  Widget build(BuildContext context) {
-    final code = reward['code'] as String;
-    return AlertDialog(
-      backgroundColor: BrandColors.navy,
-      icon: const Icon(Icons.card_giftcard_rounded, color: _gold, size: 56),
-      title: Text(context.pick(reward, 'name'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900), textAlign: TextAlign.center),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(_rewardText(context, reward), style: const TextStyle(color: Colors.white70), textAlign: TextAlign.center),
-        const SizedBox(height: 12),
-        InkWell(
-          onTap: () {
-            Clipboard.setData(ClipboardData(text: code));
-            showSnack(context, _t(context, 'اتنسخ الكود', 'Code copied'));
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(border: Border.all(color: _gold), borderRadius: BorderRadius.circular(12)),
-            child: Text(code, style: const TextStyle(color: _gold, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2)),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(_t(context, 'صالح لحد ${_date(context, reward['expires_at'])} • استخدام واحد', 'Valid until ${_date(context, reward['expires_at'])} • single use'),
-            style: const TextStyle(color: Colors.white54, fontSize: 12)),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'OK'))),
-        FilledButton(
-          onPressed: () {
-            Navigator.pop(context);
-            context.go('/cart?coupon=$code');
-          },
-          child: Text(_t(context, 'استخدمه في السلة', 'Use in cart')),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => AlertDialog(
+        backgroundColor: BrandColors.navy,
+        icon: const Icon(Icons.card_giftcard_rounded, color: _gold, size: 56),
+        title: Text('+${reward['points']} ${_t(context, 'نقطة', 'points')}', style: const TextStyle(color: _gold, fontSize: 28, fontWeight: FontWeight.w900), textAlign: TextAlign.center),
+        content: Text(_t(context, 'اتضافت لرصيدك', 'Added to your balance'), style: const TextStyle(color: Colors.white70), textAlign: TextAlign.center),
+        actions: [FilledButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'OK')))],
+      );
 }
 
-class _Wallet extends StatefulWidget {
-  const _Wallet({required this.d});
+class _History extends StatelessWidget {
+  const _History({required this.d});
   final Map<String, dynamic> d;
   @override
-  State<_Wallet> createState() => _WalletState();
-}
-
-class _WalletState extends State<_Wallet> {
-  String _f = 'all';
-  @override
   Widget build(BuildContext context) {
-    final all = _list(widget.d['wallet']);
-    final rows = [for (final w in all) if (_f == 'all' || w['status'] == _f) w];
-    final filters = {
-      'all': _t(context, 'الكل', 'All'),
-      'available': _t(context, 'متاح', 'Available'),
-      'used': _t(context, 'اتستخدم', 'Used'),
-      'expired': _t(context, 'انتهى', 'Expired'),
-    };
+    final rows = _list(d['history']);
+    if (rows.isEmpty) {
+      return Center(child: Text(_t(context, 'لسه ماافتحتش الخزنة', 'You have not opened the vault yet'), style: const TextStyle(color: Colors.white60)));
+    }
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        child: Wrap(spacing: 8, children: [
-          for (final e in filters.entries)
-            ChoiceChip(label: Text(e.value), selected: _f == e.key, onSelected: (_) => setState(() => _f = e.key)),
-        ]),
-      ),
-      if (rows.isEmpty)
-        Padding(padding: const EdgeInsets.all(32), child: Center(child: Text(_t(context, 'مفيش مكافآت هنا لسه', 'No rewards here yet'), style: const TextStyle(color: Colors.white60)))),
-      for (final w in rows)
+      for (final r in rows)
         _panel(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          border: w['status'] == 'available' ? _gold : Colors.white24,
           child: Row(children: [
-            Icon(Icons.local_activity_rounded, color: w['status'] == 'available' ? _gold : Colors.white38, size: 30),
+            const Icon(Icons.card_giftcard_rounded, color: _gold, size: 28),
             const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_rewardText(context, w), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                Text(w['status'] == 'available' ? _t(context, 'لحد ${_date(context, w['expires_at'])}', 'Until ${_date(context, w['expires_at'])}') : filters[w['status']]!,
-                    style: const TextStyle(color: Colors.white60, fontSize: 12)),
-                if (w['status'] == 'available')
-                  SelectableText(w['code'] as String, style: const TextStyle(color: _gold, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-              ]),
-            ),
-            if (w['status'] == 'available')
-              FilledButton(onPressed: () => context.go('/cart?coupon=${w['code']}'), child: Text(_t(context, 'استخدم', 'Use'))),
+            Expanded(child: Text(_date(context, r['at']), style: const TextStyle(color: Colors.white70))),
+            Text('+${r['points']} ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(color: _gold, fontWeight: FontWeight.w900, fontSize: 16)),
           ]),
         ),
     ]);
