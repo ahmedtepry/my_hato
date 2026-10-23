@@ -70,28 +70,29 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
 
   bool _awarding = false;
 
-  /// Level prizes the customer has not seen yet: show the congratulation screen once, then mark them as seen.
+  /// Level prizes the customer has not seen yet: ONE congratulation screen (for the highest new level),
+  /// marked as seen before it opens so it can never come back, even if the app is closed while it shows.
   Future<void> _showNewAwards(Map<String, dynamic> d) async {
     if (_awarding) return;
     final fresh = _list(d['awards']).where((a) => a['new'] == true).toList();
     if (fresh.isEmpty) return;
     _awarding = true;
     try {
-      for (final a in fresh) {
-        if (!mounted) return;
-        HapticFeedback.heavyImpact();
-        await showGeneralDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          barrierColor: Colors.black87,
-          transitionDuration: const Duration(milliseconds: 250),
-          transitionBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
-          pageBuilder: (_, __, ___) => _AwardReveal(award: a),
-        );
+      try {
+        await ref.read(supabaseProvider).rpc('loyalty_ack_awards');
+      } catch (_) {
+        return; // could not mark as seen: do not show, so it never repeats; the next refresh tries again
       }
-      await ref.read(supabaseProvider).rpc('loyalty_ack_awards');
-    } catch (_) {
-      // not acknowledged: the screen simply shows again next time
+      if (!mounted) return;
+      HapticFeedback.heavyImpact();
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black87,
+        transitionDuration: const Duration(milliseconds: 250),
+        transitionBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+        pageBuilder: (_, __, ___) => _AwardReveal(award: fresh.last, more: fresh.length - 1),
+      );
     } finally {
       _awarding = false;
       ref.invalidate(loyaltyProvider);
@@ -692,8 +693,9 @@ class _CodeChip extends StatelessWidget {
 
 /// Shown once when a gift is won. It never names the gift: the customer copies the code and asks the store.
 class _AwardReveal extends StatefulWidget {
-  const _AwardReveal({required this.award});
+  const _AwardReveal({required this.award, this.more = 0});
   final Map<String, dynamic> award;
+  final int more; // other new gifts that are listed in the Gifts tab
   @override
   State<_AwardReveal> createState() => _AwardRevealState();
 }
@@ -733,6 +735,11 @@ class _AwardRevealState extends State<_AwardReveal> with SingleTickerProviderSta
               _CodeChip(code: a['code'] as String),
               const SizedBox(height: 12),
               Text(_t(context, 'انسخ الكود وابعتهولنا واكتب: «اسأل عن هديتي»', 'Copy the code, send it to us and write: "asking about my gift"'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+              if (widget.more > 0) ...[
+                const SizedBox(height: 10),
+                Text(_t(context, 'وعندك كمان ${widget.more} ${widget.more == 1 ? 'هدية' : 'هدايا'} تانية، هتلاقيها في «هدايايا»', 'plus ${widget.more} more gift${widget.more == 1 ? '' : 's'} in "My gifts"'),
+                    textAlign: TextAlign.center, style: const TextStyle(color: _gold, fontWeight: FontWeight.w700)),
+              ],
               const SizedBox(height: 22),
               FadeTransition(
                 opacity: CurvedAnimation(parent: _c, curve: const Interval(0.3, 0.5)),
