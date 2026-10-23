@@ -180,29 +180,29 @@ class ProfileScreen extends ConsumerWidget {
             ],
             Card(
               child: Column(children: [
-                _tile(context, Icons.edit_outlined, 'edit_profile', '/account/edit'),
-                _tile(context, Icons.location_on_outlined, 'addresses', '/account/addresses'),
-                _tile(context, Icons.receipt_long_outlined, 'my_orders', '/orders'),
-                _tile(context, Icons.build_outlined, 'repairs', '/orders?tab=1'),
+                _tile(context, Icons.edit_rounded, 'edit_profile', '/account/edit', const Color(0xFF2F6FE0)),
+                _tile(context, Icons.location_on_rounded, 'addresses', '/account/addresses', const Color(0xFFE23D52)),
+                _tile(context, Icons.shopping_bag_rounded, 'my_orders', '/orders', const Color(0xFFF08A12)),
+                _tile(context, Icons.build_rounded, 'repairs', '/orders?tab=1', const Color(0xFF566380)),
                 ListTile(
-                  leading: const Icon(Icons.emoji_events_outlined, color: BrandColors.navy),
-                  title: Text(context.isAr ? 'خزنة المكافآت' : 'Secret Vault'),
+                  leading: _iconTile(Icons.emoji_events_rounded, const Color(0xFFD99A00)),
+                  title: Text(context.isAr ? 'مكافآت My Hatō' : 'My Hatō Rewards'),
                   subtitle: Text(context.isAr ? 'مهام ونقاط وجوايز' : 'Missions, points and prizes', style: const TextStyle(fontSize: 12)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/loyalty'),
                 ),
-                _tile(context, Icons.favorite_border, 'favorites', '/account/favorites'),
-                _tile(context, Icons.credit_card_rounded, 'saved_cards', '/account/cards'),
-                _tile(context, Icons.receipt_rounded, 'payments_history', '/payments'),
-                _tile(context, Icons.notifications_none, 'notifications', '/notifications'),
+                _tile(context, Icons.favorite_rounded, 'favorites', '/account/favorites', const Color(0xFFE0338A)),
+                _tile(context, Icons.credit_card_rounded, 'saved_cards', '/account/cards', const Color(0xFF1B8FC4)),
+                _tile(context, Icons.receipt_rounded, 'payments_history', '/payments', const Color(0xFF14A671)),
+                _tile(context, Icons.notifications_rounded, 'notifications', '/notifications', const Color(0xFFEA5A14)),
               ]),
             ),
             const SizedBox(height: 12),
             Card(
               child: Column(children: [
-                _tile(context, Icons.settings_outlined, 'settings', '/account/settings'),
-                _tile(context, Icons.support_agent, 'help', '/account/help'),
-                _tile(context, Icons.privacy_tip_outlined, 'privacy', '/account/legal'),
+                _tile(context, Icons.settings_rounded, 'settings', '/account/settings', const Color(0xFF5253D6)),
+                _tile(context, Icons.support_agent_rounded, 'help', '/account/help', const Color(0xFF1B8FC4)),
+                _tile(context, Icons.privacy_tip_rounded, 'privacy', '/account/legal', const Color(0xFF566380)),
               ]),
             ),
             const SizedBox(height: 12),
@@ -243,8 +243,16 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _tile(BuildContext context, IconData icon, String key, String route) => ListTile(
-        leading: Icon(icon, color: BrandColors.navy),
+  // soft tinted square with a single-colour glyph; one accent per entry
+  Widget _iconTile(IconData icon, Color c) => Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(color: c.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(13)),
+        child: Icon(icon, color: c, size: 23),
+      );
+
+  Widget _tile(BuildContext context, IconData icon, String key, String route, Color color) => ListTile(
+        leading: _iconTile(icon, color),
         title: Text(context.tr(key)),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
