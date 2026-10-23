@@ -16,6 +16,7 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'permissions.dart';
+import 'loyalty_gifts.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -295,6 +296,11 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
             tooltip: _t(context, 'صلاحيات الفريق', 'Team permissions'),
             icon: const Icon(Icons.admin_panel_settings_rounded),
             onPressed: () => openPermissions(context),
+          ),
+          IconButton(
+            tooltip: _t(context, 'هدايا العملاء', 'Customer gifts'),
+            icon: const Icon(Icons.card_giftcard_rounded),
+            onPressed: () => openGifts(context),
           ),
         ],
       ),

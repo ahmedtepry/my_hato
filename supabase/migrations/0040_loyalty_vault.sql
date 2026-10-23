@@ -13,7 +13,7 @@ create table if not exists public.loyalty_profiles (
 );
 create table if not exists public.loyalty_levels (
   sort int primary key, name_ar text not null, name_en text not null, min_points int not null,
-  prize_ar text, prize_en text            -- what the customer wins on reaching the level (null = no prize)
+  plan_ar text, plan_en text              -- PRIVATE owner notes: the gift planned for this level (customers never see it)
 );
 create table if not exists public.loyalty_missions (
   key text primary key, kind text not null check (kind in ('checkin','favorite','streak','review')),
@@ -36,6 +36,7 @@ create table if not exists public.loyalty_awards (        -- one level prize per
   user_id uuid not null references auth.users(id) on delete cascade, level_sort int not null references public.loyalty_levels(sort),
   code text not null unique, awarded_at timestamptz not null default now(),
   seen_at timestamptz,                                     -- congratulation screen shown
+  prize_ar text, prize_en text, revealed_at timestamptz,   -- set by the owner; the customer sees the prize only after revealed_at
   delivered_at timestamptz, delivered_note text,           -- staff fills these when the prize is handed over
   primary key (user_id, level_sort)
 );
@@ -56,17 +57,19 @@ do $$ declare t text; begin
     execute format('drop policy if exists own_read on public.%I', t);
     execute format('create policy own_read on public.%I for select to authenticated using (user_id = auth.uid() or public.has_permission(''settings.manage''))', t);
   end loop;
-  foreach t in array array['loyalty_levels','loyalty_missions'] loop
+  foreach t in array array['loyalty_missions'] loop
     execute format('drop policy if exists cfg_read on public.%I', t);
     execute format('create policy cfg_read on public.%I for select to authenticated using (true)', t);
   end loop;
+  drop policy if exists staff_read on public.loyalty_levels;
+  create policy staff_read on public.loyalty_levels for select to authenticated using (public.has_permission('permissions.manage'));
   drop policy if exists staff_read on public.loyalty_rewards;
   create policy staff_read on public.loyalty_rewards for select to authenticated using (public.has_permission('settings.manage'));
 end $$;
 
--- Suggested defaults. The owner decides: edit loyalty_levels (name, min_points, prize) any time, no new APK.
--- A prize is given ONCE per customer per level. Thresholds are high so prizes stay small compared with what the customer spent.
-insert into public.loyalty_levels (sort, name_ar, name_en, min_points, prize_ar, prize_en) values
+-- Levels are SECRET: customers cannot read this table and never see thresholds or gifts.
+-- plan_* is only the owner's private note. A gift is shown to a customer only after the owner reveals it (owner page in the app).
+insert into public.loyalty_levels (sort, name_ar, name_en, min_points, plan_ar, plan_en) values
  (1,'مستكشف','Explorer',0,null,null),
  (2,'برونز','Bronze',300,'اسكرينة + كفر','Screen protector + case'),
  (3,'فضي','Silver',700,'سماعة سلك','Wired earphones'),
@@ -75,8 +78,8 @@ insert into public.loyalty_levels (sort, name_ar, name_en, min_points, prize_ar,
  (6,'إيليت','Elite',5500,'باور بانك','Power bank'),
  (7,'ماستر','Master',9000,'سماعة بلوتوث بريميوم','Premium Bluetooth earbuds'),
  (8,'جراند ماستر','Grand Master',14000,'ساعة ذكية','Smart watch'),
- (9,'أسطورة','Legend',22000,'هدية كبيرة يحددها المتجر','A big gift chosen by the store'),
- (10,'عرش الأساطير','Mythic',35000,'الجايزة الكبرى يحددها المتجر','The grand prize chosen by the store')
+ (9,'أسطورة','Legend',22000,'هدية كبيرة','A big gift'),
+ (10,'عرش الأساطير','Mythic',35000,'الجايزة الكبرى','The grand prize')
 on conflict do nothing;
 insert into public.loyalty_missions (key, kind, title_ar, title_en, desc_ar, desc_en, icon, points, repeat, sort) values
  ('checkin','checkin','تسجيل حضور يومي','Daily check-in','ادخل كل يوم واكسب نقاط','Come back every day for points','event_available',5,'daily',10),
@@ -164,10 +167,25 @@ begin
   end if;
 end $$;
 
+-- Gift codes: 12 consonants in 3 groups (KRTV-PXMB-QHZD). No digits, no prefix: nothing like order (MH-...) or repair (MY-HATO...) codes.
+create or replace function public._loy_gift_code() returns text language plpgsql volatile as $$
+declare a constant text := 'BCDFGHJKMNPQRSTVWXZ'; c text;
+begin
+  loop
+    c := '';
+    for i in 1..12 loop
+      c := c || substr(a, 1 + floor(random() * length(a))::int, 1);
+      if i in (4, 8) then c := c || '-'; end if;
+    end loop;
+    exit when not exists (select 1 from public.loyalty_awards where code = c);
+  end loop;
+  return c;
+end $$;
+
 create or replace function public._loy_ensure(p_user uuid) returns void language sql security definer set search_path = public as $$
   insert into public.loyalty_profiles (user_id) values (p_user) on conflict do nothing $$;
 revoke all on function public._loy_num(text, numeric), public._loy_tz(), public._loy_period(text), public._loy_period_start(text),
-  public._loy_grant(uuid, text, text, int, int), public._loy_cond(uuid, text, text), public._loy_sync_orders(uuid), public._loy_ensure(uuid)
+  public._loy_grant(uuid, text, text, int, int), public._loy_gift_code(), public._loy_cond(uuid, text, text), public._loy_sync_orders(uuid), public._loy_ensure(uuid)
   from public, anon, authenticated;
 
 -- ---------- what the app calls ----------
@@ -178,17 +196,17 @@ begin
   perform public._loy_sync_orders(u);
   select * into p from public.loyalty_profiles where user_id = u;
   insert into public.loyalty_awards (user_id, level_sort, code)
-    select u, l.sort, 'LV' || l.sort || '-' || upper(substr(md5(gen_random_uuid()::text), 1, 6))
-      from public.loyalty_levels l where l.min_points <= p.points and l.prize_ar is not null
+    select u, l.sort, public._loy_gift_code()
+      from public.loyalty_levels l where l.min_points <= p.points and l.sort > 1
     on conflict do nothing;
   return jsonb_build_object(
     'points', p.points, 'streak', p.streak, 'vault_progress', p.vault_progress, 'vault_required', v_req,
-    'level', (select to_jsonb(l) from public.loyalty_levels l where l.min_points <= p.points order by l.sort desc limit 1),
-    'next_level', (select to_jsonb(l) from public.loyalty_levels l where l.min_points > p.points order by l.sort limit 1),
-    'levels', (select coalesce(jsonb_agg(to_jsonb(l) order by l.sort), '[]') from public.loyalty_levels l),
-    'awards', (select coalesce(jsonb_agg(jsonb_build_object('level_sort', a.level_sort, 'code', a.code, 'awarded_at', a.awarded_at,
-                  'new', a.seen_at is null, 'delivered', a.delivered_at is not null) order by a.level_sort), '[]')
-               from public.loyalty_awards a where a.user_id = u),
+    'level', (select jsonb_build_object('sort', l.sort, 'name_ar', l.name_ar, 'name_en', l.name_en) from public.loyalty_levels l where l.min_points <= p.points order by l.sort desc limit 1),
+    'awards', (select coalesce(jsonb_agg(jsonb_build_object('level_sort', a.level_sort, 'name_ar', l.name_ar, 'name_en', l.name_en,
+                  'code', a.code, 'awarded_at', a.awarded_at, 'new', a.seen_at is null, 'delivered', a.delivered_at is not null,
+                  'prize_ar', case when a.revealed_at is not null then a.prize_ar end, 'prize_en', case when a.revealed_at is not null then a.prize_en end)
+                  order by a.level_sort), '[]')
+               from public.loyalty_awards a join public.loyalty_levels l on l.sort = a.level_sort where a.user_id = u),
     'missions', (select coalesce(jsonb_agg(jsonb_build_object('key', m.key, 'title_ar', m.title_ar, 'title_en', m.title_en,
                      'desc_ar', m.desc_ar, 'desc_en', m.desc_en, 'icon', m.icon, 'points', m.points,
                      'repeat', m.repeat,
@@ -237,6 +255,44 @@ end $$;
 
 create or replace function public.loyalty_ack_awards() returns void language sql security definer set search_path = public as $$
   update public.loyalty_awards set seen_at = now() where user_id = public.require_auth() and seen_at is null $$;
+
+-- ---------- owner only (permissions.manage = the owner) ----------
+create or replace function public.owner_loyalty_overview() returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.require_permission('permissions.manage');
+  return jsonb_build_object(
+    'awards', (select coalesce(jsonb_agg(jsonb_build_object('code', a.code, 'level_sort', a.level_sort, 'level_ar', l.name_ar, 'level_en', l.name_en,
+                  'plan_ar', l.plan_ar, 'customer', coalesce(nullif(pr.full_name, ''), pr.email), 'email', pr.email, 'points', lp.points,
+                  'awarded_at', a.awarded_at, 'prize_ar', a.prize_ar, 'prize_en', a.prize_en, 'revealed', a.revealed_at is not null,
+                  'delivered', a.delivered_at is not null) order by a.delivered_at is not null, a.awarded_at desc), '[]')
+               from (select * from public.loyalty_awards order by awarded_at desc limit 300) a
+               join public.loyalty_levels l on l.sort = a.level_sort
+               left join public.profiles pr on pr.id = a.user_id left join public.loyalty_profiles lp on lp.user_id = a.user_id),
+    'customers', (select coalesce(jsonb_agg(jsonb_build_object('customer', coalesce(nullif(pr.full_name, ''), pr.email), 'email', pr.email, 'points', lp.points,
+                  'level_ar', (select name_ar from public.loyalty_levels x where x.min_points <= lp.points order by x.sort desc limit 1)) order by lp.points desc), '[]')
+               from (select * from public.loyalty_profiles order by points desc limit 100) lp left join public.profiles pr on pr.id = lp.user_id),
+    'levels', (select coalesce(jsonb_agg(to_jsonb(l) order by l.sort), '[]') from public.loyalty_levels l));
+end $$;
+
+create or replace function public.owner_loyalty_set_award(p_code text, p_prize_ar text, p_prize_en text, p_reveal boolean, p_delivered boolean)
+returns void language plpgsql security definer set search_path = public as $$
+declare a public.loyalty_awards%rowtype;
+begin
+  perform public.require_permission('permissions.manage');
+  select * into a from public.loyalty_awards where code = upper(trim(p_code)) for update;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  if length(coalesce(p_prize_ar, '')) > 120 or length(coalesce(p_prize_en, '')) > 120 then raise exception 'INVALID_INPUT'; end if;
+  if (p_reveal or a.revealed_at is not null) and nullif(trim(coalesce(p_prize_ar, a.prize_ar, '')), '') is null then raise exception 'INVALID_INPUT'; end if;
+  update public.loyalty_awards set
+    prize_ar = nullif(trim(coalesce(p_prize_ar, '')), ''), prize_en = nullif(trim(coalesce(p_prize_en, '')), ''),
+    revealed_at = case when p_reveal then coalesce(revealed_at, now()) else null end,
+    delivered_at = case when p_delivered then coalesce(delivered_at, now()) else null end
+   where code = a.code;
+  perform public.audit_write('loyalty.award', 'loyalty_award', a.code,
+    jsonb_build_object('level', a.level_sort, 'revealed', p_reveal, 'delivered', p_delivered, 'prize', p_prize_ar));
+end $$;
+revoke all on function public.owner_loyalty_overview(), public.owner_loyalty_set_award(text, text, text, boolean, boolean) from public, anon;
+grant execute on function public.owner_loyalty_overview(), public.owner_loyalty_set_award(text, text, text, boolean, boolean) to authenticated;
 
 revoke all on function public.loyalty_dashboard(), public.loyalty_claim(text), public.loyalty_open_vault(), public.loyalty_ack_awards() from public, anon;
 grant execute on function public.loyalty_dashboard(), public.loyalty_claim(text), public.loyalty_open_vault(), public.loyalty_ack_awards() to authenticated;
