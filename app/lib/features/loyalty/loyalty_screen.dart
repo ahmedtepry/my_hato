@@ -103,7 +103,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
   Future<void> _claim(Map<String, dynamic> m) => _run(() async {
         final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('loyalty_claim', params: {'p_mission': m['key']}) as Map);
         HapticFeedback.mediumImpact();
-        if (mounted) await _showPop(context, '+${r['points']} ${_t(context, 'نقطة', 'points')}', _t(context, 'والخزنة اتشحنت +${r['vault']} 🔋', 'and the vault charged +${r['vault']} 🔋'));
+        if (mounted) await _showPop(context, '+${r['points']} ${_t(context, 'نقطة', 'points')}', _t(context, 'اتضافت لرصيدك وقرّبتك من الخزنة 🔓', 'added to your balance, closer to the vault 🔓'));
       });
 
   Future<void> _openVault() => _run(() async {
@@ -262,7 +262,7 @@ class _Missions extends StatelessWidget {
                 Text(context.pick(m, 'title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                 Text(context.pick(m, 'desc'), style: const TextStyle(color: Colors.white60, fontSize: 12)),
                 const SizedBox(height: 4),
-                Text('+${m['points']} ${_t(context, 'نقطة', 'pts')}  •  +${m['vault']} ${_t(context, 'شحن', 'charge')}',
+                Text('+${m['points']} ${_t(context, 'نقطة', 'pts')}',
                     style: const TextStyle(color: _gold, fontSize: 12, fontWeight: FontWeight.w700)),
               ]),
             ),
@@ -277,7 +277,7 @@ class _Missions extends StatelessWidget {
         ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Text(_t(context, 'طلباتك المستلمة وتقييماتك المنشورة بتضيف نقاط وشحن لوحدها.', 'Delivered orders and published reviews add points and charge automatically.'),
+        child: Text(_t(context, 'طلباتك المستلمة وتقييماتك المنشورة بتضيف نقاط لوحدها.', 'Delivered orders and published reviews add points automatically.'),
             style: const TextStyle(color: Colors.white54, fontSize: 12)),
       ),
     ]);
@@ -299,7 +299,7 @@ class _Vault extends StatelessWidget {
             ? _t(context, 'مقفولة', 'Locked')
             : p >= req * 0.75
                 ? _t(context, 'قربت تجهز', 'Almost ready')
-                : _t(context, 'بتتشحن', 'Charging');
+                : _t(context, 'بتتملي', 'Filling up');
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
       _panel(
         child: Column(children: [
@@ -309,7 +309,7 @@ class _Vault extends StatelessWidget {
           const SizedBox(height: 10),
           _Bar(p / req, color: ready ? _gold : BrandColors.electric),
           const SizedBox(height: 6),
-          Text('${p.clamp(0, req)} / $req', style: const TextStyle(color: Colors.white70)),
+          Text('${p.clamp(0, req)} / $req ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
@@ -317,11 +317,11 @@ class _Vault extends StatelessWidget {
               style: FilledButton.styleFrom(backgroundColor: ready ? _gold : null, foregroundColor: ready ? Colors.black : null, minimumSize: const Size.fromHeight(50)),
               onPressed: ready && !busy ? onOpen : null,
               icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.vpn_key_rounded),
-              label: Text(ready ? _t(context, 'افتح الخزنة', 'Open the vault') : _t(context, 'كمّل المهام عشان تشحنها', 'Finish missions to charge it')),
+              label: Text(ready ? _t(context, 'افتح الخزنة', 'Open the vault') : _t(context, 'اجمع نقاط عشان تفتحها', 'Earn points to open it')),
             ),
           ),
           const SizedBox(height: 8),
-          Text(_t(context, 'عدد النقاط بيتحدد من السيرفر لحظة الفتح، ومفيش حاجة مضمونة قبلها.', 'The server picks your points when you open it; nothing is promised before.'),
+          Text(_t(context, 'كل نقطة بتكسبها بتملّي الخزنة كمان. وعدد النقاط اللي جواها بيتحدد من السيرفر لحظة الفتح.', 'Every point you earn also fills the vault. The server picks the points inside when you open it.'),
               textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
         ]),
       ),

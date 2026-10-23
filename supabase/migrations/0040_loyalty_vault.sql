@@ -18,7 +18,7 @@ create table if not exists public.loyalty_levels (
 create table if not exists public.loyalty_missions (
   key text primary key, kind text not null check (kind in ('checkin','favorite','streak','review')),
   title_ar text not null, title_en text not null, desc_ar text, desc_en text, icon text default 'star',
-  points int not null default 0, vault int not null default 0,
+  points int not null default 0,                           -- one number: it adds to the balance AND fills the vault
   repeat text not null default 'daily' check (repeat in ('daily','weekly')),
   is_active boolean not null default true, sort int not null default 100
 );
@@ -78,17 +78,16 @@ insert into public.loyalty_levels (sort, name_ar, name_en, min_points, prize_ar,
  (9,'أسطورة','Legend',22000,'هدية كبيرة يحددها المتجر','A big gift chosen by the store'),
  (10,'عرش الأساطير','Mythic',35000,'الجايزة الكبرى يحددها المتجر','The grand prize chosen by the store')
 on conflict do nothing;
-insert into public.loyalty_missions (key, kind, title_ar, title_en, desc_ar, desc_en, icon, points, vault, repeat, sort) values
- ('checkin','checkin','تسجيل حضور يومي','Daily check-in','ادخل كل يوم واكسب نقاط','Come back every day for points','event_available',5,10,'daily',10),
- ('review','review','قيّم منتج اشتريته','Review a product you bought','اكتب رأيك (١٠ حروف على الأقل) في منتج اتسلّمك، والمكافأة بتتضاف تلقائي بعد ما التقييم يتنشر','Write your opinion (10+ characters) on a product you received. The reward is added automatically once the review is published','rate_review',40,40,'weekly',20),
- ('streak7','streak','٧ أيام ورا بعض','7-day streak','سجّل حضور ٧ أيام ورا بعض واكسب مكافأة','Check in 7 days in a row for a bonus','local_fire_department',30,30,'weekly',30)
+insert into public.loyalty_missions (key, kind, title_ar, title_en, desc_ar, desc_en, icon, points, repeat, sort) values
+ ('checkin','checkin','تسجيل حضور يومي','Daily check-in','ادخل كل يوم واكسب نقاط','Come back every day for points','event_available',5,'daily',10),
+ ('review','review','قيّم منتج اشتريته','Review a product you bought','اكتب رأيك (١٠ حروف على الأقل) في منتج اتسلّمك، والمكافأة بتتضاف تلقائي بعد ما التقييم يتنشر','Write your opinion (10+ characters) on a product you received. The reward is added automatically once the review is published','rate_review',40,'weekly',20),
+ ('streak7','streak','٧ أيام ورا بعض','7-day streak','سجّل حضور ٧ أيام ورا بعض واكسب مكافأة','Check in 7 days in a row for a bonus','local_fire_department',30,'weekly',30)
 on conflict do nothing;
 insert into public.loyalty_rewards (points, weight) values (20,10),(50,5),(100,3),(250,1)   -- the app always shows exactly this number
 on conflict do nothing;
 insert into public.application_settings (key, value, description) values
  ('loyalty_vault_required','100','Vault progress needed to open it'),
  ('loyalty_order_points_per_10egp','1','Points per 10 EGP on a delivered, paid order'),
- ('loyalty_order_vault','25','Vault progress per delivered order'),
  ('loyalty_timezone','"Africa/Cairo"','Day boundary for daily missions')
 on conflict (key) do nothing;
 
@@ -133,14 +132,14 @@ end $$;
 
 -- paid + delivered orders give points once; cancelled / refunded ones take them back (once)
 create or replace function public._loy_sync_orders(p_user uuid) returns void language plpgsql security definer set search_path = public as $$
-declare o record; v_rp int; v_rv int; v_pts int; v_per numeric := public._loy_num('loyalty_order_points_per_10egp', 1); v_vault int := public._loy_num('loyalty_order_vault', 25)::int;
+declare o record; v_rp int; v_pts int; v_per numeric := public._loy_num('loyalty_order_points_per_10egp', 1);
 begin
   for o in select id, total_minor from public.orders
             where customer_id = p_user and status = 'delivered' and payment_status not in ('refunded','partially_refunded','failed')
               and not exists (select 1 from public.loyalty_ledger l where l.user_id = p_user and l.kind = 'order' and l.ref = orders.id::text)
             order by created_at limit 50 loop
     v_pts := floor(o.total_minor / 1000.0 * v_per)::int;
-    perform public._loy_grant(p_user, 'order', o.id::text, v_pts, v_vault);
+    perform public._loy_grant(p_user, 'order', o.id::text, v_pts, v_pts);
   end loop;
   for o in select l.ref, l.points, l.vault from public.loyalty_ledger l join public.orders r on r.id::text = l.ref
             where l.user_id = p_user and l.kind = 'order'
@@ -149,13 +148,13 @@ begin
     perform public._loy_grant(p_user, 'order_reversal', o.ref, -o.points, -o.vault);
   end loop;
   -- verified, published reviews with a real comment give the 'review' mission reward once; removed reviews take it back
-  select points, vault into v_rp, v_rv from public.loyalty_missions where key = 'review' and is_active;
+  select points into v_rp from public.loyalty_missions where key = 'review' and is_active;
   if found then
     for o in select r.id from public.product_reviews r
               where r.user_id = p_user and r.status = 'published' and r.verified_purchase and length(trim(coalesce(r.comment, ''))) >= 10
                 and not exists (select 1 from public.loyalty_ledger l where l.user_id = p_user and l.kind = 'review' and l.ref = r.id::text)
               limit 20 loop
-      perform public._loy_grant(p_user, 'review', o.id::text, v_rp, v_rv);
+      perform public._loy_grant(p_user, 'review', o.id::text, v_rp, v_rp);
     end loop;
     for o in select l.ref, l.points, l.vault from public.loyalty_ledger l join public.product_reviews r on r.id::text = l.ref
               where l.user_id = p_user and l.kind = 'review' and r.status = 'removed'
@@ -191,7 +190,7 @@ begin
                   'new', a.seen_at is null, 'delivered', a.delivered_at is not null) order by a.level_sort), '[]')
                from public.loyalty_awards a where a.user_id = u),
     'missions', (select coalesce(jsonb_agg(jsonb_build_object('key', m.key, 'title_ar', m.title_ar, 'title_en', m.title_en,
-                     'desc_ar', m.desc_ar, 'desc_en', m.desc_en, 'icon', m.icon, 'points', m.points, 'vault', m.vault,
+                     'desc_ar', m.desc_ar, 'desc_en', m.desc_en, 'icon', m.icon, 'points', m.points,
                      'repeat', m.repeat,
                      'kind', m.kind,
                      'status', case when m.kind = 'review' then 'auto' when exists (select 1 from public.loyalty_claims c where c.user_id = u and c.mission_key = m.key and c.period_key = public._loy_period(m.repeat))
@@ -217,8 +216,8 @@ begin
   end if;
   if not public._loy_cond(u, m.kind, m.repeat) then raise exception 'NOT_ELIGIBLE'; end if;
   insert into public.loyalty_claims (user_id, mission_key, period_key) values (u, m.key, public._loy_period(m.repeat));
-  perform public._loy_grant(u, 'mission', m.key || ':' || public._loy_period(m.repeat), m.points, m.vault);
-  return jsonb_build_object('points', m.points, 'vault', m.vault);
+  perform public._loy_grant(u, 'mission', m.key || ':' || public._loy_period(m.repeat), m.points, m.points);
+  return jsonb_build_object('points', m.points);
 end $$;
 
 create or replace function public.loyalty_open_vault() returns jsonb language plpgsql security definer set search_path = public as $$
