@@ -36,6 +36,7 @@ IconData _icon(String? n) => switch (n) {
       'event_available' => Icons.event_available_rounded,
       'favorite' => Icons.favorite_rounded,
       'local_fire_department' => Icons.local_fire_department_rounded,
+      'rate_review' => Icons.rate_review_rounded,
       'smartphone' => Icons.smartphone_rounded,
       'battery_charging_full' => Icons.battery_charging_full_rounded,
       'photo_camera' => Icons.photo_camera_rounded,
@@ -201,11 +202,12 @@ class _Missions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ms = _list(d['missions']);
-    final done = ms.where((m) => m['status'] == 'claimed').length;
+    final ms0 = ms.where((m) => m['status'] != 'auto').toList();
+    final done = ms0.where((m) => m['status'] == 'claimed').length;
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-        child: Text(_t(context, 'خلصت $done من ${ms.length} مهام', '$done of ${ms.length} missions done'), style: const TextStyle(color: Colors.white70)),
+        child: Text(_t(context, 'خلصت $done من ${ms0.length} مهام النهاردة', '$done of ${ms0.length} missions done'), style: const TextStyle(color: Colors.white70)),
       ),
       for (final m in ms)
         _panel(
@@ -225,6 +227,7 @@ class _Missions extends StatelessWidget {
             const SizedBox(width: 8),
             switch (m['status']) {
               'claimed' => const Icon(Icons.check_circle_rounded, color: BrandColors.success, size: 30),
+              'auto' => Text(_t(context, 'تلقائي', 'Auto'), style: const TextStyle(color: BrandColors.electric, fontWeight: FontWeight.w800)),
               'ready' => FilledButton(onPressed: busy ? null : () => onClaim(m), child: Text(_t(context, 'استلم', 'Claim'))),
               _ => Text(_t(context, 'لسه', 'To do'), style: const TextStyle(color: Colors.white54)),
             },
@@ -232,7 +235,7 @@ class _Missions extends StatelessWidget {
         ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Text(_t(context, 'طلباتك المدفوعة والمستلمة بتحسب نقاط وشحن لوحدها.', 'Paid, delivered orders add points and charge automatically.'),
+        child: Text(_t(context, 'طلباتك المستلمة وتقييماتك المنشورة بتضيف نقاط وشحن لوحدها.', 'Delivered orders and published reviews add points and charge automatically.'),
             style: const TextStyle(color: Colors.white54, fontSize: 12)),
       ),
     ]);
