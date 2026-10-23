@@ -14,6 +14,7 @@ import '../../core/theme.dart';
 import '../../shared/barcode_scanner.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/product_card.dart';
+import '../../shared/staff_presence.dart';
 import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
 import '../orders/orders_screens.dart' show fmtDate;
@@ -21,6 +22,7 @@ import '../repairs/repairs_repository.dart';
 import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
 import 'accounts_tab.dart';
 import 'promotions.dart';
+import 'team.dart';
 import 'admin_repository.dart';
 import 'documents.dart';
 import 'stock_tools.dart';
@@ -80,7 +82,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
     });
     try {
       await ref.read(authRepoProvider).signInWithIdentifier(_user.text, _pass.text);
-      ref.invalidate(isStaffProvider);
+      ref.invalidate(staffContextProvider);
       final ok = await ref.read(adminRepoProvider).isStaff();
       if (!ok && mounted) setState(() => _error = _t(context, 'الحساب ده مالوش صلاحية دخول المساحة دي.', 'This account has no access to this area.'));
     } catch (e) {
@@ -179,45 +181,85 @@ class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => DefaultTabController(
-        length: 6,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tabs = ref.watch(consoleTabsProvider);
+    if (StaffPresence.area == 'store') StaffPresence.area = 'overview';
+    final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    return DefaultTabController(
+        key: ValueKey(tabs.join(',')),
+        length: tabs.length,
         child: Scaffold(
           appBar: AppBar(
-            leading: IconButton(icon: const Icon(Icons.home_rounded), onPressed: () => context.go('/')),
+            leading: IconButton(
+              icon: const Icon(Icons.home_rounded),
+              onPressed: () {
+                StaffPresence.area = 'store';
+                context.go('/');
+              },
+            ),
             title: Text(_t(context, 'لوحة المسؤول', 'Admin console')),
             actions: [
-              IconButton(
-                tooltip: _t(context, 'العروض وأكواد الخصم', 'Offers & codes'),
-                icon: const Icon(Icons.campaign_outlined),
-                onPressed: () => openPromotions(context),
-              ),
-              IconButton(
-                tooltip: _t(context, 'بحث برقم الطلب', 'Search by number'),
-                icon: const Icon(Icons.search_rounded),
-                onPressed: () => _openSearch(context, ref),
-              ),
+              if (perms.contains('staff.manage'))
+                IconButton(
+                  tooltip: _t(context, 'فريق العمل', 'Team'),
+                  icon: const Icon(Icons.groups_rounded),
+                  onPressed: () {
+                    StaffPresence.area = 'team';
+                    openTeam(context);
+                  },
+                ),
+              if (perms.contains('orders.manage'))
+                IconButton(
+                  tooltip: _t(context, 'العروض وأكواد الخصم', 'Offers & codes'),
+                  icon: const Icon(Icons.campaign_outlined),
+                  onPressed: () {
+                    StaffPresence.area = 'offers';
+                    openPromotions(context);
+                  },
+                ),
+              if (perms.contains('orders.view') || perms.contains('repairs.view'))
+                IconButton(
+                  tooltip: _t(context, 'بحث برقم الطلب', 'Search by number'),
+                  icon: const Icon(Icons.search_rounded),
+                  onPressed: () => _openSearch(context, ref),
+                ),
               IconButton(
                 tooltip: _t(context, 'خروج', 'Sign out'),
                 icon: const Icon(Icons.logout_rounded),
                 onPressed: () async {
+                  await staffWentOffline(ref);
                   await ref.read(authRepoProvider).signOut();
-                  ref.invalidate(isStaffProvider);
+                  ref.invalidate(staffContextProvider);
                   if (context.mounted) context.go('/');
                 },
               ),
             ],
-            bottom: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
-              Tab(icon: const Icon(Icons.dashboard_outlined), text: _t(context, 'نظرة عامة', 'Overview')),
-              Tab(icon: const Icon(Icons.receipt_long_outlined), text: _t(context, 'الطلبات', 'Orders')),
-              Tab(icon: const Icon(Icons.build_outlined), text: _t(context, 'الصيانة', 'Repairs')),
-              Tab(icon: const Icon(Icons.inventory_2_outlined), text: _t(context, 'المنتجات', 'Products')),
-              Tab(icon: const _ReviewsTabIcon(), text: _t(context, 'التقييمات', 'Reviews')),
-              Tab(icon: const AccountsTabIcon(), text: _t(context, 'الحسابات', 'Accounts')),
+            bottom: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, onTap: (i) => StaffPresence.area = tabs[i], tabs: [
+              for (final t in tabs)
+                switch (t) {
+                  'orders' => Tab(icon: const Icon(Icons.receipt_long_outlined), text: _t(context, 'الطلبات', 'Orders')),
+                  'repairs' => Tab(icon: const Icon(Icons.build_outlined), text: _t(context, 'الصيانة', 'Repairs')),
+                  'products' => Tab(icon: const Icon(Icons.inventory_2_outlined), text: _t(context, 'المنتجات', 'Products')),
+                  'reviews' => Tab(icon: const _ReviewsTabIcon(), text: _t(context, 'التقييمات', 'Reviews')),
+                  'accounts' => Tab(icon: const AccountsTabIcon(), text: _t(context, 'الحسابات', 'Accounts')),
+                  _ => Tab(icon: const Icon(Icons.dashboard_outlined), text: _t(context, 'نظرة عامة', 'Overview')),
+                },
             ]),
           ),
-          body: const TabBarView(children: [_Overview(), _OrdersTab(), _RepairsTab(), _ProductsTab(), _ReviewsTab(), AccountsTab()]),
+          body: TabBarView(children: [
+            for (final t in tabs)
+              switch (t) {
+                'orders' => const _OrdersTab(),
+                'repairs' => const _RepairsTab(),
+                'products' => const _ProductsTab(),
+                'reviews' => const _ReviewsTab(),
+                'accounts' => const AccountsTab(),
+                _ => const _Overview(),
+              },
+          ]),
         ),
       );
+  }
 }
 
 class _Overview extends ConsumerWidget {
@@ -236,11 +278,13 @@ class _Overview extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(_statsProvider)),
         data: (s) {
-          Widget tile(String label, String value, IconData icon, Color color, VoidCallback onTap) => _StatTile(
-                label: label, value: value, icon: icon, color: color, onTap: onTap);
-          void go(int tab, void Function() setFilter) {
+          final tabs = ref.watch(consoleTabsProvider);
+          Widget? tile(String tab, String label, String value, IconData icon, Color color, VoidCallback onTap) => tabs.contains(tab)
+              ? _StatTile(label: label, value: value, icon: icon, color: color, onTap: onTap)
+              : null;
+          void go(String tab, void Function() setFilter) {
             setFilter();
-            DefaultTabController.of(context).animateTo(tab);
+            DefaultTabController.of(context).animateTo(tabs.indexOf(tab));
           }
 
           final n = (String k) => '${s[k] ?? 0}';
@@ -250,32 +294,32 @@ class _Overview extends ConsumerWidget {
             childAspectRatio: 2.1,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            children: [
-              tile(_t(context, 'حسابات للتفعيل', 'Accounts to approve'), '${ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0}', Icons.how_to_reg_rounded, BrandColors.electric,
-                  () => go(5, () => ref.read(accountsFilterProvider.notifier).state = 'pending')),
-              tile(_t(context, 'تقييمات للمراجعة', 'Reviews to check'), '${ref.watch(_pendingReviewsProvider).valueOrNull ?? 0}', Icons.reviews_rounded, BrandColors.warning,
-                  () => go(4, () => ref.read(_reviewFilterProvider.notifier).state = 'pending')),
-              tile(_t(context, 'طلبات إلغاء', 'Cancel requests'), '${ref.watch(_cancelCountProvider).valueOrNull ?? 0}', Icons.cancel_outlined, BrandColors.error,
-                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'cancel_requests')),
-              tile(_t(context, 'طلبات جديدة', 'New orders'), n('pending_orders'), Icons.fiber_new_rounded, BrandColors.warning,
-                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'pending_confirmation')),
-              tile(_t(context, 'طلبات النهارده', 'Orders today'), n('new_orders_today'), Icons.today_rounded, BrandColors.electric,
-                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = null)),
-              tile(_t(context, 'صيانة شغالة', 'Active repairs'), n('active_repairs'), Icons.build_rounded, BrandColors.navy,
-                  () => go(2, () => ref.read(_repairFilterProvider.notifier).state = null)),
-              tile(_t(context, 'مستني موافقة', 'Awaiting approval'), n('repairs_awaiting_approval'), Icons.hourglass_top_rounded, BrandColors.warning,
-                  () => go(2, () => ref.read(_repairFilterProvider.notifier).state = 'awaiting_approval')),
-              tile(_t(context, 'جاهز للتسليم', 'Ready'), n('repairs_ready'), Icons.check_circle_rounded, BrandColors.success,
-                  () => go(2, () => ref.read(_repairFilterProvider.notifier).state = 'ready_for_pickup')),
-              tile(_t(context, 'مخزون قليل', 'Low stock'), n('low_stock'), Icons.inventory_rounded, BrandColors.error,
-                  () => go(3, () => ref.read(_lowStockOnlyProvider.notifier).state = true)),
-              tile(_t(context, 'عمليات مغلقة', 'Closed'), n('closed_operations'), Icons.lock_rounded, BrandColors.gray,
-                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'closed')),
-              tile(_t(context, 'طلبات اتسلّمت', 'Delivered'), n('completed_orders'), Icons.local_shipping_rounded, BrandColors.success,
-                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'delivered')),
-              tile(_t(context, 'المبيعات', 'Sales'), formatEgp((s['total_sales_minor'] as num?)?.toInt() ?? 0, context.lang), Icons.payments_rounded, BrandColors.navy,
-                  () => go(1, () => ref.read(_orderFilterProvider.notifier).state = 'delivered')),
-            ],
+            children: <Widget?>[
+              tile('accounts', _t(context, 'حسابات للتفعيل', 'Accounts to approve'), '${ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0}', Icons.how_to_reg_rounded, BrandColors.electric,
+                  () => go('accounts', () => ref.read(accountsFilterProvider.notifier).state = 'pending')),
+              tile('reviews', _t(context, 'تقييمات للمراجعة', 'Reviews to check'), '${ref.watch(_pendingReviewsProvider).valueOrNull ?? 0}', Icons.reviews_rounded, BrandColors.warning,
+                  () => go('reviews', () => ref.read(_reviewFilterProvider.notifier).state = 'pending')),
+              tile('orders', _t(context, 'طلبات إلغاء', 'Cancel requests'), '${ref.watch(_cancelCountProvider).valueOrNull ?? 0}', Icons.cancel_outlined, BrandColors.error,
+                  () => go('orders', () => ref.read(_orderFilterProvider.notifier).state = 'cancel_requests')),
+              tile('orders', _t(context, 'طلبات جديدة', 'New orders'), n('pending_orders'), Icons.fiber_new_rounded, BrandColors.warning,
+                  () => go('orders', () => ref.read(_orderFilterProvider.notifier).state = 'pending_confirmation')),
+              tile('orders', _t(context, 'طلبات النهارده', 'Orders today'), n('new_orders_today'), Icons.today_rounded, BrandColors.electric,
+                  () => go('orders', () => ref.read(_orderFilterProvider.notifier).state = null)),
+              tile('repairs', _t(context, 'صيانة شغالة', 'Active repairs'), n('active_repairs'), Icons.build_rounded, BrandColors.navy,
+                  () => go('repairs', () => ref.read(_repairFilterProvider.notifier).state = null)),
+              tile('repairs', _t(context, 'مستني موافقة', 'Awaiting approval'), n('repairs_awaiting_approval'), Icons.hourglass_top_rounded, BrandColors.warning,
+                  () => go('repairs', () => ref.read(_repairFilterProvider.notifier).state = 'awaiting_approval')),
+              tile('repairs', _t(context, 'جاهز للتسليم', 'Ready'), n('repairs_ready'), Icons.check_circle_rounded, BrandColors.success,
+                  () => go('repairs', () => ref.read(_repairFilterProvider.notifier).state = 'ready_for_pickup')),
+              tile('products', _t(context, 'مخزون قليل', 'Low stock'), n('low_stock'), Icons.inventory_rounded, BrandColors.error,
+                  () => go('products', () => ref.read(_lowStockOnlyProvider.notifier).state = true)),
+              tile('orders', _t(context, 'عمليات مغلقة', 'Closed'), n('closed_operations'), Icons.lock_rounded, BrandColors.gray,
+                  () => go('orders', () => ref.read(_orderFilterProvider.notifier).state = 'closed')),
+              tile('orders', _t(context, 'طلبات اتسلّمت', 'Delivered'), n('completed_orders'), Icons.local_shipping_rounded, BrandColors.success,
+                  () => go('orders', () => ref.read(_orderFilterProvider.notifier).state = 'delivered')),
+              tile('orders', _t(context, 'المبيعات', 'Sales'), formatEgp((s['total_sales_minor'] as num?)?.toInt() ?? 0, context.lang), Icons.payments_rounded, BrandColors.navy,
+                  () => go('orders', () => ref.read(_orderFilterProvider.notifier).state = 'delivered')),
+            ].whereType<Widget>().toList(),
           );
         },
       ),

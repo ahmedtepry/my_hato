@@ -17,6 +17,7 @@ create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text, phone text, phone_confirmed_at timestamptz, email_confirmed_at timestamptz, encrypted_password text,
   raw_user_meta_data jsonb default '{}'::jsonb,
+  last_sign_in_at timestamptz,
   created_at timestamptz default now()
 );
 create function auth.uid() returns uuid language sql stable as $$

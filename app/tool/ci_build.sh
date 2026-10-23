@@ -30,6 +30,7 @@ fi
 printf "storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$KS" "$SP" "$ALIAS" "$KP" > android/key.properties
 python3 tool/patch_signing.py || exit 1
 python3 tool/patch_desugar.py || exit 1
+python3 tool/patch_compilesdk.py || exit 1
 grep -nE "applicationId|minSdk|signingConfig" "$G"
 
 step "bundle fonts"
@@ -52,6 +53,7 @@ step "flutter build apk --release"
 build_apk() {
   flutter build apk --release --obfuscate --split-debug-info=build/symbols \
     --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
+    --dart-define=APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" \
     --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
 }
 if ! build_apk; then

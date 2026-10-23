@@ -12,9 +12,17 @@ class AdminRepository {
   AdminRepository(this._db);
   final SupabaseClient _db;
 
-  Future<bool> isStaff() async {
-    if (_db.auth.currentUser == null) return false;
-    return await _db.rpc('has_permission', params: {'p_permission': 'orders.manage'}) == true;
+  Future<bool> isStaff() async => (await staffContext()).roles.isNotEmpty;
+
+  /// The signed-in member's roles + permissions (the console shows only what they can use;
+  /// the database still checks every action).
+  Future<StaffContext> staffContext() async {
+    if (_db.auth.currentUser == null) return const StaffContext({}, {});
+    final r = Map<String, dynamic>.from(await _db.rpc('my_staff_context') as Map);
+    return StaffContext(
+      Set<String>.from((r['roles'] as List? ?? const []).map((e) => '$e')),
+      Set<String>.from((r['permissions'] as List? ?? const []).map((e) => '$e')),
+    );
   }
 
   // ---------------- new accounts waiting for approval
@@ -313,7 +321,28 @@ class AdminRepository {
 
 final adminRepoProvider = Provider((ref) => AdminRepository(ref.watch(supabaseProvider)));
 
-final isStaffProvider = FutureProvider<bool>((ref) async {
+class StaffContext {
+  const StaffContext(this.roles, this.permissions);
+  final Set<String> roles;
+  final Set<String> permissions;
+}
+
+final staffContextProvider = FutureProvider<StaffContext>((ref) async {
   ref.watch(currentUserProvider);
-  return ref.watch(adminRepoProvider).isStaff();
+  return ref.watch(adminRepoProvider).staffContext();
+});
+
+final isStaffProvider = FutureProvider<bool>((ref) async => (await ref.watch(staffContextProvider.future)).roles.isNotEmpty);
+
+/// Console tabs for the signed-in member, in order.
+final consoleTabsProvider = Provider<List<String>>((ref) {
+  final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+  return [
+    'overview',
+    if (p.contains('orders.view')) 'orders',
+    if (p.contains('repairs.view')) 'repairs',
+    if (p.contains('products.manage')) 'products',
+    if (p.contains('products.manage')) 'reviews',
+    if (p.contains('support.manage')) 'accounts',
+  ];
 });

@@ -285,10 +285,10 @@ do $$ declare v_r uuid := (select v from t.ids where k='repair1'); begin
   perform t.reset();
 end $$;
 
-\echo 'T16 technician not assigned is forbidden; owner assigns; tech moves to received'
+\echo 'T16 sales cannot touch repairs (repair team can, since 0032); owner assigns; tech moves to received'
 do $$ declare v_r uuid := (select v from t.ids where k='repair1'); begin
-  perform t.act('00000000-0000-0000-0000-0000000000c1');
-  begin perform public.staff_update_repair_status(v_r, 'pickup_scheduled'); raise exception 'T16 unassigned allowed';
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  begin perform public.staff_update_repair_status(v_r, 'pickup_scheduled'); raise exception 'T16 sales allowed';
   exception when insufficient_privilege then null; end;
   perform t.act('00000000-0000-0000-0000-0000000000c0');
   perform public.staff_assign_technician(v_r, '00000000-0000-0000-0000-0000000000c1');
@@ -328,8 +328,8 @@ do $$ begin
   perform t.act('00000000-0000-0000-0000-00000000000b');
   begin perform public.customer_respond_to_quote((select v from t.ids where k='quote1'), 'approved'); raise exception 'T18 B approved';
   exception when raise_exception then if sqlerrm <> 'NOT_FOUND' then raise; end if; end;
-  perform t.act('00000000-0000-0000-0000-0000000000c1');
-  begin perform public.staff_record_quote_decision((select v from t.ids where k='quote1'), 'approved', 'x'); raise exception 'T18 tech recorded';
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  begin perform public.staff_record_quote_decision((select v from t.ids where k='quote1'), 'approved', 'x'); raise exception 'T18 sales recorded';
   exception when insufficient_privilege then null; end;
   perform t.reset();
 end $$;
@@ -788,6 +788,67 @@ do $$ declare v_n int; begin
   insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000d3', 'new3@test.local', '{}');
   update auth.users set email_confirmed_at = now() where id = '00000000-0000-0000-0000-0000000000d3';
   if (select review_status from public.customers where user_id = '00000000-0000-0000-0000-0000000000d3') <> 'approved' then raise exception 'T38 auto approve'; end if;
+end $$;
+
+\echo 'T39 team: owner lists / adds / changes / removes members; guards for self and last owner; sales cannot manage'
+do $$ declare v_n int; begin
+  perform t.act('00000000-0000-0000-0000-0000000000c2');
+  begin perform * from public.staff_team(); raise exception 'T39 sales listed team';
+  exception when insufficient_privilege then null; end;
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  select count(*) into v_n from public.staff_team();
+  if v_n < 3 then raise exception 'T39 team %', v_n; end if;
+  if (select role from public.staff_team() where user_id = '00000000-0000-0000-0000-0000000000c0') <> 'owner' then raise exception 'T39 owner role'; end if;
+  if not exists (select 1 from public.staff_find_customer('01022222222') where user_id = '00000000-0000-0000-0000-00000000000b') then raise exception 'T39 find by phone'; end if;
+  if exists (select 1 from public.staff_find_customer('sales@test.local')) then raise exception 'T39 staff found as customer'; end if;
+  perform public.staff_assign_role('00000000-0000-0000-0000-00000000000b', 'support');
+  perform public.staff_assign_role('00000000-0000-0000-0000-00000000000b', 'technician');
+  if (select array_agg(role::text) from public.user_roles where user_id = '00000000-0000-0000-0000-00000000000b') <> array['technician'] then raise exception 'T39 single role'; end if;
+  begin perform public.staff_assign_role('00000000-0000-0000-0000-0000000000c0', 'sales'); raise exception 'T39 own role';
+  exception when raise_exception then if sqlerrm <> 'CANNOT_CHANGE_OWN_ROLE' then raise; end if; end;
+  begin perform public.staff_remove_member('00000000-0000-0000-0000-0000000000c0'); raise exception 'T39 self remove';
+  exception when raise_exception then if sqlerrm <> 'CANNOT_CHANGE_OWN_ROLE' then raise; end if; end;
+  perform public.staff_remove_member('00000000-0000-0000-0000-00000000000b');
+  perform t.reset();
+  if exists (select 1 from public.user_roles where user_id = '00000000-0000-0000-0000-00000000000b') then raise exception 'T39 remove'; end if;
+  if not exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-00000000000b' and title_ar like '%فريق%') then raise exception 'T39 notify'; end if;
+end $$;
+
+\echo 'T40 team login names, presence, suspension, activity'
+do $$ declare r record; begin
+  insert into auth.users(id, email, encrypted_password, raw_user_meta_data) values
+    ('00000000-0000-0000-0000-0000000000e7', 'x1@team.myhato.app', extensions.crypt('1234', extensions.gen_salt('bf', 4)), '{"full_name":"أحمد المبيعات"}');
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  if not public.staff_login_available('  أحمد   مبيعات ') then raise exception 'T40 available'; end if;
+  perform public.staff_assign_role('00000000-0000-0000-0000-0000000000e7', 'sales');
+  perform public.staff_register_login('00000000-0000-0000-0000-0000000000e7', 'أحمد مبيعات');
+  if public.staff_login_available('أحمد  مبيعات') then raise exception 'T40 still available'; end if;
+  perform t.reset();
+  -- signs in with the free-form name (spaces / case ignored)
+  if public.login_email_for(' أحمد   مبيعات ', '1234') is distinct from 'x1@team.myhato.app' then raise exception 'T40 login'; end if;
+  if public.login_email_for('أحمد مبيعات', 'wrong') is not null then raise exception 'T40 wrong pw'; end if;
+  -- customers cannot take the name
+  begin insert into auth.users(id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000e8', 'y@test.local', '{"username":"ahmed"}');
+  exception when others then raise; end;
+  perform t.act('00000000-0000-0000-0000-0000000000e7');
+  perform public.staff_heartbeat(true, 'orders', 'android', '1.0.0+48');
+  if not public.has_permission('orders.manage') then raise exception 'T40 perm'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  select * into r from public.staff_team_live() where user_id = '00000000-0000-0000-0000-0000000000e7';
+  if r.presence <> 'online' or r.username <> 'أحمد مبيعات' or r.area <> 'orders' then raise exception 'T40 presence %', row_to_json(r); end if;
+  perform public.staff_set_suspended('00000000-0000-0000-0000-0000000000e7', true);
+  perform t.act('00000000-0000-0000-0000-0000000000e7');
+  if public.has_permission('orders.manage') or public.is_staff() then raise exception 'T40 suspended still allowed'; end if;
+  if (public.my_staff_context()->>'suspended') is distinct from 'true' then raise exception 'T40 ctx'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  if (select presence from public.staff_team_live() where user_id = '00000000-0000-0000-0000-0000000000e7') <> 'suspended' then raise exception 'T40 list suspended'; end if;
+  perform public.staff_set_suspended('00000000-0000-0000-0000-0000000000e7', false);
+  if (select count(*) from public.staff_member_activity('00000000-0000-0000-0000-0000000000c0')) < 1 then raise exception 'T40 activity'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000e7');
+  if not public.has_permission('orders.manage') then raise exception 'T40 resumed'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c1');
+  if not public.has_permission('repairs.manage') then raise exception 'T40 technician repairs'; end if;
+  perform t.reset();
 end $$;
 
 \echo 'ALL BACKEND TESTS PASSED'

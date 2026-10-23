@@ -70,6 +70,7 @@ String authErrorKey(AuthException e) {
   if (has('otp_expired') || code == 'invalid_otp' || m.contains('token has expired') || m.contains('invalid otp') || m.contains('otp has expired')) {
     return 'err_invalid_code';
   }
+  if (has('user_banned') || m.contains('banned')) return 'err_account_suspended';
   if (has('invalid_credentials') || m.contains('invalid login')) return 'err_invalid_credentials';
   if (has('user_already_exists') || has('email_exists') || m.contains('already registered')) return 'email_already_registered';
   if (has('weak_password') || m.contains('password should')) return 'password_rules';

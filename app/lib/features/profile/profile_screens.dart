@@ -11,6 +11,7 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/product_card.dart';
 import '../../shared/states.dart';
+import '../admin/admin_repository.dart' show staffContextProvider;
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
 import '../../shared/avatars.dart';
@@ -149,6 +150,26 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
             const SizedBox(height: 12),
+            // team members only: their way into the team console
+            if ((ref.watch(staffContextProvider).valueOrNull?.roles ?? const <String>{}).isNotEmpty) ...[
+              Material(
+                borderRadius: BorderRadius.circular(18),
+                clipBehavior: Clip.antiAlias,
+                child: Ink(
+                  decoration: const BoxDecoration(gradient: LinearGradient(colors: [BrandColors.navyDeep, BrandColors.navy])),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    leading: const CircleAvatar(backgroundColor: Colors.white24, child: Icon(Icons.dashboard_customize_rounded, color: Colors.white)),
+                    title: Text(context.isAr ? 'لوحة الفريق' : 'Team console', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                    subtitle: Text(context.isAr ? 'الطلبات والصيانة وشغلك اليومي' : 'Orders, repairs and your daily work',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+                    trailing: const Icon(Icons.chevron_left_rounded, color: Colors.white),
+                    onTap: () => context.push('/hato-console'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Card(
               child: Column(children: [
                 _tile(context, Icons.edit_outlined, 'edit_profile', '/account/edit'),

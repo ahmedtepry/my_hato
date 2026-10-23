@@ -9,6 +9,7 @@ import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'shared/phone_notifications.dart';
+import 'shared/staff_presence.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +52,7 @@ class MyHatoApp extends ConsumerWidget {
       ],
       theme: AppTheme.light(locale),
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) => StaffPresenceScope(child: child ?? const SizedBox.shrink()),
     );
   }
 }
