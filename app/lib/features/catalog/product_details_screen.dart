@@ -285,7 +285,7 @@ class _GalleryState extends State<_Gallery> {
                       child: SmoothPage(
                         controller: _pc,
                         index: i,
-                        child: i == 0 ? Hero(tag: 'p-${widget.productId}', child: img) : img,
+                        child: img,
                       ),
                     );
                   },

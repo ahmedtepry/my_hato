@@ -46,6 +46,7 @@ step "splash"; dart run flutter_native_splash:create || echo "WARN: splash step 
 step "flutter analyze"; flutter analyze --no-fatal-infos --no-fatal-warnings; echo "analyze exit=$?"
 step "avatar preview"; flutter test --update-goldens test/avatars_golden_test.dart test/product_grid_golden_test.dart; echo "golden exit=$?"
 step "flutter test"; flutter test; echo "test exit=$?"
+step "release guards"; flutter test test/no_hero_test.dart || { echo "FAILURE: release guard (Hero widgets) failed"; exit 1; }
 step "flutter build apk --release"
 build_apk() {
   flutter build apk --release --obfuscate --split-debug-info=build/symbols \

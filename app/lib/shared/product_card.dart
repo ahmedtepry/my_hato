@@ -97,7 +97,9 @@ class ProductCard extends StatelessWidget {
       Container(
         decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF4F7FB), Color(0xFFE9EEF6)])),
       ),
-      Hero(tag: 'p-${p['id']}', child: NetImage(path: p['thumb_path'] as String?)),
+      // No Hero here: the same product appears in several home sections at once, and duplicate hero
+      // tags break the page transition (the screen freezes half-faded). See test/no_hero_test.dart.
+      NetImage(path: p['thumb_path'] as String?),
       if (discount > 0)
         PositionedDirectional(
           top: 8,
