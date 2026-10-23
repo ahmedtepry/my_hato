@@ -91,7 +91,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
   Widget build(BuildContext context) {
     final data = ref.watch(loyaltyProvider);
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Scaffold(
         backgroundColor: BrandColors.navyDeep,
         appBar: AppBar(
@@ -105,7 +105,6 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
             unselectedLabelColor: Colors.white60,
             tabs: [
               Tab(text: _t(context, 'المهام', 'Missions')),
-              Tab(text: _t(context, 'موبايلي', 'My phone')),
               Tab(text: _t(context, 'الخزنة', 'Vault')),
               Tab(text: _t(context, 'سجل المكافآت', 'Rewards')),
             ],
@@ -119,7 +118,6 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
             Expanded(
               child: TabBarView(children: [
                 _Missions(d: d, busy: _busy, onClaim: _claim),
-                _Phone(d: d),
                 _Vault(d: d, busy: _busy, onOpen: _openVault),
                 _History(d: d),
               ]),
@@ -220,7 +218,7 @@ class _Missions extends StatelessWidget {
                 Text(context.pick(m, 'title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                 Text(context.pick(m, 'desc'), style: const TextStyle(color: Colors.white60, fontSize: 12)),
                 const SizedBox(height: 4),
-                Text('+${m['points']} ${_t(context, 'نقطة', 'pts')}  •  +${m['vault']} ${_t(context, 'شحن', 'charge')}${m['component'] != null ? '  •  ${_t(context, 'جزء موبايل', 'phone part')}' : ''}',
+                Text('+${m['points']} ${_t(context, 'نقطة', 'pts')}  •  +${m['vault']} ${_t(context, 'شحن', 'charge')}',
                     style: const TextStyle(color: _gold, fontSize: 12, fontWeight: FontWeight.w700)),
               ]),
             ),
@@ -237,58 +235,6 @@ class _Missions extends StatelessWidget {
         child: Text(_t(context, 'طلباتك المدفوعة والمستلمة بتحسب نقاط وشحن لوحدها.', 'Paid, delivered orders add points and charge automatically.'),
             style: const TextStyle(color: Colors.white54, fontSize: 12)),
       ),
-    ]);
-  }
-}
-
-class _Phone extends StatelessWidget {
-  const _Phone({required this.d});
-  final Map<String, dynamic> d;
-  @override
-  Widget build(BuildContext context) {
-    final comps = _list(d['components']);
-    final tier = Map<String, dynamic>.from(d['tier'] as Map);
-    final next = d['next_tier'] == null ? null : Map<String, dynamic>.from(d['next_tier'] as Map);
-    final owned = d['parts_owned'] as int;
-    final total = comps.length;
-    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-      _panel(
-        child: Column(children: [
-          // the phone gets more complete as parts are collected
-          SizedBox(
-            height: 150,
-            child: Stack(alignment: Alignment.center, children: [
-              Icon(Icons.smartphone_rounded, size: 150, color: Color.lerp(Colors.white24, BrandColors.electric, total == 0 ? 0 : owned / total)),
-              Positioned(
-                  bottom: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(color: _gold, borderRadius: BorderRadius.circular(20)),
-                    child: Text(context.pick(tier, 'name'), style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
-                  )),
-            ]),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            next == null
-                ? _t(context, 'موبايلك وصل لأعلى مستوى 🔥', 'Your phone is fully upgraded 🔥')
-                : _t(context, 'اجمع ${next['min_parts'] - owned} جزء كمان عشان يبقى «${context.pick(next, 'name')}»', 'Collect ${next['min_parts'] - owned} more part(s) to reach ${context.pick(next, 'name')}'),
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70),
-          ),
-        ]),
-      ),
-      for (final c in comps)
-        _panel(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          border: (c['qty'] as int) > 0 ? BrandColors.success : null,
-          child: Row(children: [
-            Icon(_icon(c['icon'] as String?), color: (c['qty'] as int) > 0 ? BrandColors.success : Colors.white38, size: 28),
-            const SizedBox(width: 12),
-            Expanded(child: Text(context.pick(c, 'name'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
-            Text((c['qty'] as int) > 0 ? '×${c['qty']}' : _t(context, 'لسه', 'Missing'), style: TextStyle(color: (c['qty'] as int) > 0 ? BrandColors.success : Colors.white54, fontWeight: FontWeight.w800)),
-          ]),
-        ),
     ]);
   }
 }
