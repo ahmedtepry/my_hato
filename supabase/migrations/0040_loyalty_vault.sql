@@ -23,7 +23,7 @@ create table if not exists public.loyalty_missions (
   is_active boolean not null default true, sort int not null default 100
 );
 create table if not exists public.loyalty_rewards (
-  id int generated always as identity primary key, name_ar text not null, name_en text not null,
+  id int generated always as identity primary key,
   points int not null check (points > 0), weight numeric not null default 1 check (weight > 0),
   stock int check (stock is null or stock >= 0), is_active boolean not null default true
 );
@@ -83,8 +83,7 @@ insert into public.loyalty_missions (key, kind, title_ar, title_en, desc_ar, des
  ('review','review','قيّم منتج اشتريته','Review a product you bought','اكتب رأيك (١٠ حروف على الأقل) في منتج اتسلّمك، والمكافأة بتتضاف تلقائي بعد ما التقييم يتنشر','Write your opinion (10+ characters) on a product you received. The reward is added automatically once the review is published','rate_review',40,40,'weekly',20),
  ('streak7','streak','٧ أيام ورا بعض','7-day streak','سجّل حضور ٧ أيام ورا بعض واكسب مكافأة','Check in 7 days in a row for a bonus','local_fire_department',30,30,'weekly',30)
 on conflict do nothing;
-insert into public.loyalty_rewards (name_ar, name_en, points, weight) values
- ('٢٠ نقطة','20 points',20,10),('٥٠ نقطة','50 points',50,5),('١٠٠ نقطة','100 points',100,3),('٢٥٠ نقطة','250 points',250,1)
+insert into public.loyalty_rewards (points, weight) values (20,10),(50,5),(100,3),(250,1)   -- the app always shows exactly this number
 on conflict do nothing;
 insert into public.application_settings (key, value, description) values
  ('loyalty_vault_required','100','Vault progress needed to open it'),
@@ -234,7 +233,7 @@ begin
   if not found then raise exception 'REWARD_UNAVAILABLE'; end if;                 -- progress is kept
   if r.stock is not null then update public.loyalty_rewards set stock = stock - 1 where id = r.id; end if;
   perform public._loy_grant(u, 'vault_reward', v_ref, r.points, -v_req);
-  return jsonb_build_object('points', r.points, 'name_ar', r.name_ar, 'name_en', r.name_en);
+  return jsonb_build_object('points', r.points);
 end $$;
 
 create or replace function public.loyalty_ack_awards() returns void language sql security definer set search_path = public as $$
