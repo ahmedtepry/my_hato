@@ -648,4 +648,57 @@ do $$ declare v_n int; v_one uuid; begin
   if not exists (select 1 from public.notifications where body_ar like '%لفريق المبيعات%') then raise exception 'T34 sales team text'; end if;
 end $$;
 
+\echo 'T35 reviews: clean -> published + rating; profanity/links -> pending; no false positives; staff approve/remove'
+do $$ declare v_p uuid := (select id from public.products where status = 'published' order by created_at limit 1); r jsonb; v_rev uuid; begin
+  -- the filter
+  if cardinality(public._review_flags('الشاشة اتكسرت بعد يومين بس، والتعليق ده للتوضيح والكسوة حلوة')) <> 0 then
+    raise exception 'T35 false positive: %', public._review_flags('الشاشة اتكسرت بعد يومين بس، والتعليق ده للتوضيح والكسوة حلوة');
+  end if;
+  if cardinality(public._review_flags('منتج ممتاز جدا وسعره كويس')) <> 0 then raise exception 'T35 clean flagged'; end if;
+  if cardinality(public._review_flags('ده منتج متنااااكك')) = 0 then raise exception 'T35 repeated letters missed'; end if;
+  if cardinality(public._review_flags('يا عَرْص')) = 0 then raise exception 'T35 diacritics missed'; end if;
+  if cardinality(public._review_flags('KOSOMAK el mahal')) = 0 then raise exception 'T35 franco missed'; end if;
+  if cardinality(public._review_flags('كلمني على 01012345678')) = 0 then raise exception 'T35 phone missed'; end if;
+
+  -- customer A: clean review is published right away and counted
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  r := public.submit_review(v_p, 5, 'منتج ممتاز وجودته عالية');
+  if r->>'status' <> 'published' then raise exception 'T35 clean not published %', r; end if;
+  begin perform public.submit_review(v_p, 6, 'x'); raise exception 'T35 rating 6 allowed';
+  exception when raise_exception then if sqlerrm <> 'INVALID_RATING' then raise; end if; end;
+  -- customer B: profane review waits for staff and is not counted / not public
+  perform t.act('00000000-0000-0000-0000-00000000000b');
+  r := public.submit_review(v_p, 1, 'البياع ده شرموط');
+  if r->>'status' <> 'pending' then raise exception 'T35 profane published %', r; end if;
+  select id into v_rev from public.product_reviews where product_id = v_p and user_id = auth.uid();
+  perform t.act(null);
+  if exists (select 1 from public.product_reviews where id = v_rev) then raise exception 'T35 pending visible to public'; end if;
+  if (select count(*) from public.product_reviews where product_id = v_p) <> 1 then raise exception 'T35 public count'; end if;
+  perform t.reset();
+  if (select rating_count from public.products where id = v_p) <> 1 or (select rating_avg from public.products where id = v_p) <> 5 then
+    raise exception 'T35 rating summary';
+  end if;
+  -- customer cannot moderate
+  perform t.act('00000000-0000-0000-0000-00000000000b');
+  begin perform public.staff_moderate_review(v_rev, 'approve'); raise exception 'T35 customer moderated';
+  exception when insufficient_privilege then null; end;
+  -- staff approves -> counted; then removes -> hidden and not counted
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  perform public.staff_moderate_review(v_rev, 'approve');
+  perform t.reset();
+  if (select rating_count from public.products where id = v_p) <> 2 or (select rating_avg from public.products where id = v_p) <> 3 then raise exception 'T35 approve summary'; end if;
+  perform t.act('00000000-0000-0000-0000-0000000000c0');
+  perform public.staff_moderate_review(v_rev, 'remove');
+  perform t.act(null);
+  if exists (select 1 from public.product_reviews where id = v_rev) then raise exception 'T35 removed still public'; end if;
+  perform t.reset();
+  if (select rating_count from public.products where id = v_p) <> 1 then raise exception 'T35 remove summary'; end if;
+  -- editing keeps one review per customer
+  perform t.act('00000000-0000-0000-0000-00000000000a');
+  perform public.submit_review(v_p, 4, 'كويس بس الشحن اتأخر');
+  perform t.reset();
+  if (select count(*) from public.product_reviews where product_id = v_p and user_id = '00000000-0000-0000-0000-00000000000a') <> 1 then raise exception 'T35 duplicate'; end if;
+  if (select rating_avg from public.products where id = v_p) <> 4 then raise exception 'T35 edit summary'; end if;
+end $$;
+
 \echo 'ALL BACKEND TESTS PASSED'
