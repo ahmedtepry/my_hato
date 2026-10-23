@@ -6,13 +6,13 @@ import 'package:flutter/material.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 
-/// Built-in cartoon avatars (drawn in code, no image files): 4 boys (m1–m4) and 4 girls (f1–f4).
-/// Customers pick one instead of uploading a photo. They blink and breathe gently.
-const avatarIds = ['m1', 'm2', 'm3', 'm4', 'f1', 'f2', 'f3', 'f4'];
+/// Built-in cartoon avatars (drawn in code, no image files): 8 men (m1–m4 young, m5–m8 older) and
+/// 8 women (f1–f8, incl. hijab and niqab). Customers pick one instead of uploading a photo.
+const avatarIds = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8'];
 
 bool isAvatarId(String? id) => id != null && avatarIds.contains(id);
 
-enum _Hair { cap, curly, sidePart, spiky, long, bun, bob, hijab }
+enum _Hair { cap, curly, sidePart, spiky, long, bun, bob, hijab, bald, kufi, receding, niqab, ponytail, curlyLong }
 
 class _Look {
   const _Look({
@@ -26,11 +26,14 @@ class _Look {
     this.glasses = false,
     this.beard = false,
     this.headphones = false,
+    this.mustache = false,
+    this.tie = false,
+    this.older = false,
   });
   final List<Color> bg;
   final Color skin, hairColor, shirt, accent;
   final _Hair hair;
-  final bool female, glasses, beard, headphones;
+  final bool female, glasses, beard, headphones, mustache, tie, older;
 }
 
 const _looks = <String, _Look>{
@@ -44,6 +47,16 @@ const _looks = <String, _Look>{
   'f2': _Look(bg: [Color(0xFF00A3FF), Color(0xFF8FD8FF)], skin: Color(0xFF9C6644), hair: _Hair.bun, hairColor: Color(0xFF1A1110), shirt: Color(0xFFFF6F61), accent: Color(0xFFFFC94A), female: true),
   'f3': _Look(bg: [Color(0xFF0B1F4D), Color(0xFF5B6CFF)], skin: Color(0xFFF3CDB0), hair: _Hair.bob, hairColor: Color(0xFF111111), shirt: Color(0xFFFFD166), accent: Color(0xFFFF4D8D), female: true, glasses: true),
   'f4': _Look(bg: [Color(0xFF14B8A6), Color(0xFF99F6E4)], skin: Color(0xFFE8B48F), hair: _Hair.hijab, hairColor: Color(0xFF7C3AED), shirt: Color(0xFF7C3AED), accent: Color(0xFFFFFFFF), female: true),
+  // older men
+  'm5': _Look(bg: [Color(0xFF3A6073), Color(0xFF9CC9DC)], skin: Color(0xFFEDC3A0), hair: _Hair.bald, hairColor: Color(0xFFD9D9D9), shirt: Color(0xFFB5523B), accent: Color(0xFF6B4226), glasses: true, mustache: true, older: true),
+  'm6': _Look(bg: [Color(0xFF0F5132), Color(0xFF6FCF97)], skin: Color(0xFFC98E62), hair: _Hair.kufi, hairColor: Color(0xFFF2F2F2), shirt: Color(0xFFFFFFFF), accent: Color(0xFF0F5132), beard: true, older: true),
+  'm7': _Look(bg: [Color(0xFF1F2A44), Color(0xFF6E7FA8)], skin: Color(0xFFF1CBA8), hair: _Hair.sidePart, hairColor: Color(0xFF9AA0A6), shirt: Color(0xFF1F2A44), accent: Color(0xFFC62828), mustache: true, tie: true, older: true),
+  'm8': _Look(bg: [Color(0xFFB7791F), Color(0xFFF6D365)], skin: Color(0xFF9C6A48), hair: _Hair.receding, hairColor: Color(0xFF8E8E8E), shirt: Color(0xFF2E5E4E), accent: Color(0xFF1B1B2F), glasses: true, beard: true, older: true),
+  // more women
+  'f5': _Look(bg: [Color(0xFF3D2C5E), Color(0xFF9F86C0)], skin: Color(0xFFE9BE98), hair: _Hair.niqab, hairColor: Color(0xFF1C1C24), shirt: Color(0xFF1C1C24), accent: Color(0xFFE0B354), female: true),
+  'f6': _Look(bg: [Color(0xFFFF8FAB), Color(0xFFFFD6E0)], skin: Color(0xFFF2C7A5), hair: _Hair.hijab, hairColor: Color(0xFFE5486F), shirt: Color(0xFFE5486F), accent: Color(0xFFFFD166), female: true, glasses: true),
+  'f7': _Look(bg: [Color(0xFF0EA5E9), Color(0xFFBAE6FD)], skin: Color(0xFFF6D0B1), hair: _Hair.ponytail, hairColor: Color(0xFFB5651D), shirt: Color(0xFF22C55E), accent: Color(0xFFFF5D8F), female: true),
+  'f8': _Look(bg: [Color(0xFFF97316), Color(0xFFFED7AA)], skin: Color(0xFF7B4B2A), hair: _Hair.curlyLong, hairColor: Color(0xFF1F130C), shirt: Color(0xFFFFFFFF), accent: Color(0xFF8B5CF6), female: true),
 };
 
 /// One avatar. [animate] adds an occasional blink (off in tiny places).
@@ -65,7 +78,7 @@ class _HatoAvatarState extends State<HatoAvatar> with SingleTickerProviderStateM
 
   void _sync() {
     if (widget.animate && _timer == null) {
-      final every = Duration(milliseconds: 3800 + 350 * avatarIds.indexOf(widget.id).clamp(0, 7));
+      final every = Duration(milliseconds: 3800 + 230 * avatarIds.indexOf(widget.id).clamp(0, 15));
       _timer = Timer.periodic(every, (_) {
         if (mounted) _c.forward(from: 0);
       });
@@ -144,7 +157,8 @@ class _AvatarPainter extends CustomPainter {
     canvas.translate(0, bob * 0.9 * u);
 
     final skinShade = Color.lerp(l.skin, Colors.black, 0.12)!;
-    final hijab = l.hair == _Hair.hijab;
+    final niqab = l.hair == _Hair.niqab;
+    final hijab = l.hair == _Hair.hijab || niqab;
 
     // ---------- back hair / hijab drape
     switch (l.hair) {
@@ -167,10 +181,26 @@ class _AvatarPainter extends CustomPainter {
         }
         canvas.drawCircle(p(50, 24), 9 * u, fill(l.hairColor));
       case _Hair.hijab:
+      case _Hair.niqab:
         final drape = Path()
           ..addOval(oval(50, 50, 30, 32))
           ..addRect(Rect.fromLTRB(20 * u, 50 * u, 80 * u, 92 * u));
         canvas.drawPath(drape, fill(l.hairColor));
+      case _Hair.ponytail:
+        final tail = Path()
+          ..moveTo(66 * u, 30 * u)
+          ..cubicTo(90 * u, 30 * u, 92 * u, 62 * u, 80 * u, 76 * u)
+          ..cubicTo(84 * u, 58 * u, 78 * u, 44 * u, 68 * u, 42 * u)
+          ..close();
+        canvas.drawPath(tail, fill(l.hairColor));
+      case _Hair.curlyLong:
+        for (var i = 0; i <= 12; i++) {
+          final a = math.pi * 0.85 + i * math.pi * 1.3 / 12;
+          canvas.drawCircle(p(50 + 29 * math.cos(a), 50 + 30 * math.sin(a)), 9 * u, fill(l.hairColor));
+        }
+        for (final x in [22.0, 30.0, 70.0, 78.0]) {
+          canvas.drawCircle(p(x, 72), 8.5 * u, fill(l.hairColor));
+        }
       default:
         break;
     }
@@ -186,6 +216,20 @@ class _AvatarPainter extends CustomPainter {
         ..lineTo(50 * u, 84 * u)
         ..lineTo(58 * u, 76.5 * u);
       canvas.drawPath(collar, stroke(Color.lerp(l.shirt, Colors.black, 0.18)!, 1.6));
+      if (l.tie) {
+        canvas.drawPath(Path()..moveTo(41 * u, 75 * u)..lineTo(50 * u, 92 * u)..lineTo(59 * u, 75 * u)..close(), fill(Colors.white));
+        canvas.drawPath(
+            Path()
+              ..moveTo(47.5 * u, 79 * u)
+              ..lineTo(52.5 * u, 79 * u)
+              ..lineTo(53.5 * u, 92 * u)
+              ..lineTo(50 * u, 96 * u)
+              ..lineTo(46.5 * u, 92 * u)
+              ..close(),
+            fill(l.accent));
+        canvas.drawPath(Path()..moveTo(47 * u, 75.5 * u)..lineTo(53 * u, 75.5 * u)..lineTo(52 * u, 80 * u)..lineTo(48 * u, 80 * u)..close(),
+            fill(Color.lerp(l.accent, Colors.black, 0.2)!));
+      }
     } else {
       // hijab falls over the shoulders
       canvas.drawOval(oval(50, 96, 34, 22), fill(l.hairColor));
@@ -204,7 +248,31 @@ class _AvatarPainter extends CustomPainter {
     if (hijab) {
       canvas.drawOval(oval(50, 51, 22.5, 24.5), fill(Color.lerp(l.hairColor, Colors.white, 0.25)!)); // inner band
     }
-    canvas.drawOval(oval(50, 50, hijab ? 19.5 : 22, hijab ? 22 : 25), fill(l.skin));
+    if (niqab) {
+      // veil over the face: only an eye band of skin shows
+      final face = oval(50, 50, 19.5, 22);
+      canvas.drawOval(face, fill(Color.lerp(l.hairColor, Colors.white, 0.06)!));
+      canvas.save();
+      canvas.clipPath(Path()..addOval(face));
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(28 * u, 40.5 * u, 72 * u, 56 * u), Radius.circular(6 * u)), fill(l.skin));
+      canvas.restore();
+      canvas.drawLine(p(33, 56.5), p(67, 56.5), stroke(l.accent.withValues(alpha: 0.85), 1.2)); // veil edge
+      canvas.drawCircle(p(50, 70), 1.6 * u, fill(l.accent));
+    } else {
+      canvas.drawOval(oval(50, 50, hijab ? 19.5 : 22, hijab ? 22 : 25), fill(l.skin));
+    }
+    // older faces: soft forehead and smile lines
+    if (l.older) {
+      final line = stroke(skinShade, 1.1);
+      if (l.hair == _Hair.bald || l.hair == _Hair.receding) {
+        canvas.drawArc(oval(50, 39, 9, 3), math.pi + 0.4, math.pi - 0.8, false, line);
+        canvas.drawArc(oval(50, 35.5, 7, 2.5), math.pi + 0.4, math.pi - 0.8, false, line);
+      }
+      if (!l.beard) {
+        canvas.drawArc(oval(38.5, 59, 4, 5), math.pi * 0.55, math.pi * 0.5, false, line);
+        canvas.drawArc(oval(61.5, 59, 4, 5), -math.pi * 0.05, math.pi * 0.5, false, line);
+      }
+    }
 
     // beard
     if (l.beard) {
@@ -293,14 +361,73 @@ class _AvatarPainter extends CustomPainter {
         canvas.drawPath(bangs, fill(l.hairColor));
       case _Hair.hijab:
         canvas.drawCircle(p(69, 64), 2 * u, fill(l.accent)); // pin
+      case _Hair.niqab:
+        break;
+      case _Hair.bald:
+        // grey hair left only around the sides + a little shine on top
+        canvas.drawPath(
+            Path()
+              ..moveTo(27.5 * u, 52 * u)
+              ..quadraticBezierTo(25 * u, 38 * u, 32 * u, 33 * u)
+              ..quadraticBezierTo(30 * u, 42 * u, 31.5 * u, 52 * u)
+              ..close(),
+            fill(l.hairColor));
+        canvas.drawPath(
+            Path()
+              ..moveTo(72.5 * u, 52 * u)
+              ..quadraticBezierTo(75 * u, 38 * u, 68 * u, 33 * u)
+              ..quadraticBezierTo(70 * u, 42 * u, 68.5 * u, 52 * u)
+              ..close(),
+            fill(l.hairColor));
+        canvas.drawOval(oval(42, 31, 6, 3), fill(Colors.white.withValues(alpha: 0.35)));
+      case _Hair.kufi:
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(27.5 * u, 38 * u, 31 * u, 50 * u), Radius.circular(2 * u)), fill(l.hairColor));
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(69 * u, 38 * u, 72.5 * u, 50 * u), Radius.circular(2 * u)), fill(l.hairColor));
+        final cap = Path()
+          ..moveTo(27 * u, 38 * u)
+          ..cubicTo(27 * u, 17 * u, 73 * u, 17 * u, 73 * u, 38 * u)
+          ..close();
+        canvas.drawPath(cap, fill(Colors.white));
+        canvas.drawLine(p(27.5, 37.5), p(72.5, 37.5), stroke(const Color(0xFFDADADA), 2));
+        for (var i = 0; i < 7; i++) {
+          canvas.drawCircle(p(33 + i * 5.7, 31), 0.9 * u, fill(l.accent.withValues(alpha: 0.6)));
+        }
+        for (var i = 0; i < 5; i++) {
+          canvas.drawCircle(p(38.5 + i * 5.7, 25.5), 0.9 * u, fill(l.accent.withValues(alpha: 0.6)));
+        }
+      case _Hair.receding:
+        final top = Path()
+          ..moveTo(27.5 * u, 48 * u)
+          ..cubicTo(24 * u, 22 * u, 76 * u, 22 * u, 72.5 * u, 48 * u)
+          ..quadraticBezierTo(71 * u, 33 * u, 63 * u, 28 * u)
+          ..quadraticBezierTo(50 * u, 31 * u, 37 * u, 28 * u)
+          ..quadraticBezierTo(29 * u, 33 * u, 27.5 * u, 48 * u)
+          ..close();
+        canvas.drawPath(top, fill(l.hairColor));
+      case _Hair.ponytail:
+        final top = Path()
+          ..moveTo(27.5 * u, 47 * u)
+          ..cubicTo(24 * u, 17 * u, 76 * u, 17 * u, 72.5 * u, 47 * u)
+          ..quadraticBezierTo(64 * u, 31 * u, 44 * u, 32 * u)
+          ..quadraticBezierTo(33 * u, 36 * u, 27.5 * u, 47 * u)
+          ..close();
+        canvas.drawPath(top, fill(l.hairColor));
+        canvas.drawCircle(p(69, 33), 3.2 * u, fill(l.accent)); // scrunchie
+      case _Hair.curlyLong:
+        for (var i = 0; i < 6; i++) {
+          canvas.drawCircle(p(31 + i * 7.6, 30 + (i.isEven ? 0 : -2)), 6.8 * u, fill(l.hairColor));
+        }
+        canvas.drawCircle(p(27, 40), 6 * u, fill(l.hairColor));
+        canvas.drawCircle(p(73, 40), 6 * u, fill(l.hairColor));
     }
 
     // ---------- face
     final ink = const Color(0xFF1B1B2F);
     // brows
     final browY = l.glasses ? 41.0 : 42.5;
-    canvas.drawLine(p(37, browY), p(44, browY - 1.2), stroke(l.hair == _Hair.hijab ? const Color(0xFF3B2A20) : l.hairColor, 1.8));
-    canvas.drawLine(p(56, browY - 1.2), p(63, browY), stroke(l.hair == _Hair.hijab ? const Color(0xFF3B2A20) : l.hairColor, 1.8));
+    final browColor = hijab ? const Color(0xFF3B2A20) : (l.hair == _Hair.bald || l.hair == _Hair.kufi ? Color.lerp(l.hairColor, Colors.black, 0.35)! : l.hairColor);
+    canvas.drawLine(p(37, browY), p(44, browY - 1.2), stroke(browColor, l.older ? 2.3 : 1.8));
+    canvas.drawLine(p(56, browY - 1.2), p(63, browY), stroke(browColor, l.older ? 2.3 : 1.8));
     // eyes
     for (final x in [41.0, 59.0]) {
       canvas.drawOval(oval(x, 50, 3.1, 3.8 * blink), fill(ink));
@@ -322,9 +449,25 @@ class _AvatarPainter extends CustomPainter {
       }
       canvas.drawLine(p(47.4, 49.5), p(52.6, 49.5), frame);
     }
+    if (niqab) {
+      canvas.restore();
+      canvas.restore();
+      return;
+    }
     // cheeks
     canvas.drawCircle(p(35, 58), 3.4 * u, fill(const Color(0xFFFF7A90).withValues(alpha: 0.35)));
     canvas.drawCircle(p(65, 58), 3.4 * u, fill(const Color(0xFFFF7A90).withValues(alpha: 0.35)));
+    // mustache
+    if (l.mustache) {
+      final m = Path()
+        ..moveTo(50 * u, 56 * u)
+        ..quadraticBezierTo(43 * u, 53.5 * u, 39 * u, 59.5 * u)
+        ..quadraticBezierTo(44 * u, 57.5 * u, 50 * u, 59 * u)
+        ..quadraticBezierTo(56 * u, 57.5 * u, 61 * u, 59.5 * u)
+        ..quadraticBezierTo(57 * u, 53.5 * u, 50 * u, 56 * u)
+        ..close();
+      canvas.drawPath(m, fill(l.hairColor));
+    }
     // smile
     final smile = Path()
       ..moveTo(44 * u, 60 * u)
@@ -355,7 +498,7 @@ class _AvatarPainter extends CustomPainter {
   bool shouldRepaint(_AvatarPainter old) => old.blink != blink || old.bob != bob || old.l != l;
 }
 
-/// Bottom sheet with the 8 avatars (boys row, girls row). Returns the chosen id.
+/// Bottom sheet with the 16 avatars (men rows, women rows). Returns the chosen id.
 Future<String?> showAvatarPicker(BuildContext context, {String? current}) => showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -418,13 +561,23 @@ class _AvatarPickerState extends State<_AvatarPicker> {
                 : SizedBox(key: ValueKey(_sel), height: 120, child: Center(child: HatoAvatar(id: _sel!, size: 116))),
           ),
           const SizedBox(height: 18),
-          Text(ar ? 'ولاد' : 'Boys', style: const TextStyle(fontWeight: FontWeight.w700, color: BrandColors.gray)),
-          const SizedBox(height: 8),
-          _row(const ['m1', 'm2', 'm3', 'm4']),
-          const SizedBox(height: 16),
-          Text(ar ? 'بنات' : 'Girls', style: const TextStyle(fontWeight: FontWeight.w700, color: BrandColors.gray)),
-          const SizedBox(height: 8),
-          _row(const ['f1', 'f2', 'f3', 'f4']),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(ar ? 'رجالة' : 'Men', style: const TextStyle(fontWeight: FontWeight.w700, color: BrandColors.gray)),
+                const SizedBox(height: 8),
+                _row(const ['m1', 'm2', 'm3', 'm4']),
+                const SizedBox(height: 10),
+                _row(const ['m5', 'm6', 'm7', 'm8']),
+                const SizedBox(height: 16),
+                Text(ar ? 'بنات وستات' : 'Women', style: const TextStyle(fontWeight: FontWeight.w700, color: BrandColors.gray)),
+                const SizedBox(height: 8),
+                _row(const ['f1', 'f2', 'f3', 'f4']),
+                const SizedBox(height: 10),
+                _row(const ['f5', 'f6', 'f7', 'f8']),
+              ]),
+            ),
+          ),
           const SizedBox(height: 22),
           FilledButton(
             onPressed: _sel == null || _sel == widget.current ? null : () => Navigator.pop(context, _sel),
