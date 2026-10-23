@@ -200,7 +200,7 @@ begin
       from public.loyalty_levels l where l.min_points <= p.points and l.sort > 1
     on conflict do nothing;
   return jsonb_build_object(
-    'points', p.points, 'streak', p.streak, 'vault_progress', p.vault_progress, 'vault_required', v_req,
+    'points', p.points, 'streak', p.streak, 'boxes_opened', (select count(*) from public.loyalty_ledger where user_id = u and kind = 'vault_reward'), 'vault_progress', p.vault_progress, 'vault_required', v_req,
     'level', (select jsonb_build_object('sort', l.sort, 'name_ar', l.name_ar, 'name_en', l.name_en) from public.loyalty_levels l where l.min_points <= p.points order by l.sort desc limit 1),
     'awards', (select coalesce(jsonb_agg(jsonb_build_object('level_sort', a.level_sort, 'name_ar', l.name_ar, 'name_en', l.name_en,
                   'code', a.code, 'awarded_at', a.awarded_at, 'new', a.seen_at is null, 'delivered', a.delivered_at is not null,
@@ -249,7 +249,7 @@ begin
     order by -ln(greatest(random(), 1e-12)) / weight limit 1 for update skip locked;
   if not found then raise exception 'REWARD_UNAVAILABLE'; end if;                 -- progress is kept
   if r.stock is not null then update public.loyalty_rewards set stock = stock - 1 where id = r.id; end if;
-  perform public._loy_grant(u, 'vault_reward', v_ref, r.points, -v_req);
+  perform public._loy_grant(u, 'vault_reward', v_ref, r.points, -p.vault_progress);   -- the next box starts again from 0%
   return jsonb_build_object('points', r.points);
 end $$;
 

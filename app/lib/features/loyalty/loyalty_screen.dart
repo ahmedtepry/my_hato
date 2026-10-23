@@ -282,13 +282,13 @@ class _Vault extends StatelessWidget {
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
       _panel(
         child: Column(children: [
-          _BatteryPhone(progress: (p / req).clamp(0.0, 1.0).toDouble(), ready: ready),
+          _BatteryPhone(progress: (p / req).clamp(0.0, 1.0).toDouble(), ready: ready, style: (d['boxes_opened'] as int? ?? 0).clamp(0, 5).toInt()),
           const SizedBox(height: 14),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
           _Bar(p / req, color: ready ? _gold : BrandColors.electric),
           const SizedBox(height: 6),
-          Text('${p.clamp(0, req)} / $req ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(color: Colors.white70)),
+          Text('${(p / req * 100).clamp(0, 100).floor()}%', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800)),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
@@ -348,11 +348,13 @@ Future<void> _showPop(BuildContext context, String big, String small) {
   );
 }
 
-/// A phone whose battery fills with points; at 100% it glows and the reward box can be opened.
+/// A phone whose battery fills with points. After each opened box the phone itself changes look
+/// (thick bezels -> notch -> punch hole -> edge-to-edge -> gold finish); the new box starts again at 0%.
 class _BatteryPhone extends StatefulWidget {
-  const _BatteryPhone({required this.progress, required this.ready});
+  const _BatteryPhone({required this.progress, required this.ready, required this.style});
   final double progress;
   final bool ready;
+  final int style; // 0..5
   @override
   State<_BatteryPhone> createState() => _BatteryPhoneState();
 }
@@ -365,42 +367,74 @@ class _BatteryPhoneState extends State<_BatteryPhone> with SingleTickerProviderS
     super.dispose();
   }
 
+  static const _radius = [12.0, 16.0, 20.0, 24.0, 26.0, 28.0];
+  static const _bezel = [12.0, 9.0, 7.0, 6.0, 4.0, 3.0];
+  static const _frame = [Color(0xFF8A94A6), Color(0xFFB8C4D6), Color(0xFFD5DDEA), Color(0xFF7FD3FF), Color(0xFFF1D58A), _gold];
+
+  Widget _top(int s) => switch (s) {
+        0 => Container(width: 26, height: 4, decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(3))), // speaker slit
+        1 => Container(width: 44, height: 12, decoration: const BoxDecoration(color: Colors.black, borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)))), // wide notch
+        2 => Container(width: 22, height: 10, decoration: const BoxDecoration(color: Colors.black, borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)))), // small notch
+        _ => Container(margin: const EdgeInsets.only(top: 5), width: 8, height: 8, decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle)), // punch hole
+      };
+
+  Widget _phone(double k) {
+    final s = widget.style;
+    final color = widget.ready ? _gold : BrandColors.electric;
+    return Container(
+      key: ValueKey(s),
+      width: 104,
+      height: 178,
+      padding: EdgeInsets.all(_bezel[s]),
+      decoration: BoxDecoration(
+        color: const Color(0xFF05080F),
+        borderRadius: BorderRadius.circular(_radius[s]),
+        border: Border.all(color: _frame[s], width: s >= 4 ? 3.5 : 3),
+        boxShadow: [
+          if (s >= 3) BoxShadow(color: _frame[s].withValues(alpha: 0.25), blurRadius: 14),
+          if (widget.ready) BoxShadow(color: _gold.withValues(alpha: 0.35 + 0.35 * k), blurRadius: 22 + 20 * k, spreadRadius: 1 + 4 * k),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_radius[s] - _bezel[s] / 2 - 2),
+        child: Stack(alignment: Alignment.center, children: [
+          Container(color: Colors.white10),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: widget.progress),
+              duration: const Duration(milliseconds: 900),
+              curve: Curves.easeOutCubic,
+              builder: (_, v, __) => FractionallySizedBox(
+                heightFactor: v,
+                widthFactor: 1,
+                child: Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withValues(alpha: 0.35), color], begin: Alignment.bottomCenter, end: Alignment.topCenter))),
+              ),
+            ),
+          ),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.bolt_rounded, color: Colors.white, size: 40 + 6 * k),
+            Text('${(widget.progress * 100).floor()}%', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+          ]),
+          Align(alignment: Alignment.topCenter, child: _top(s)),
+          if (s >= 2) Align(alignment: Alignment.bottomCenter, child: Container(margin: const EdgeInsets.only(bottom: 4), width: 30, height: 3, decoration: BoxDecoration(color: Colors.white54, borderRadius: BorderRadius.circular(3)))),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: _c,
         builder: (_, __) {
           final k = widget.ready ? Curves.easeInOut.transform(_c.value) : 0.0;
-          final color = widget.ready ? _gold : BrandColors.electric;
           return Transform.scale(
             scale: 1 + 0.04 * k,
-            child: Container(
-              width: 104,
-              height: 178,
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.white70, width: 3),
-                boxShadow: [if (widget.ready) BoxShadow(color: _gold.withValues(alpha: 0.35 + 0.35 * k), blurRadius: 22 + 20 * k, spreadRadius: 1 + 4 * k)],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(15),
-                child: Stack(alignment: Alignment.center, children: [
-                  Container(color: Colors.white10),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: widget.progress),
-                      duration: const Duration(milliseconds: 900),
-                      curve: Curves.easeOutCubic,
-                      builder: (_, v, __) => FractionallySizedBox(heightFactor: v, widthFactor: 1, child: Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withValues(alpha: 0.35), color], begin: Alignment.bottomCenter, end: Alignment.topCenter)))),
-                    ),
-                  ),
-                  Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.bolt_rounded, color: Colors.white, size: 40 + 6 * k),
-                    Text('${(widget.progress * 100).floor()}%', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                  ]),
-                ]),
-              ),
+            // a new box opened -> the phone flips to its next look
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 800),
+              transitionBuilder: (child, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.85, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOutBack)), child: child)),
+              child: _phone(k),
             ),
           );
         },
