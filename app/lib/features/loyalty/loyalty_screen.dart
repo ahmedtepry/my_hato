@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -66,13 +69,22 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
 
   Future<void> _claim(Map<String, dynamic> m) => _run(() async {
         final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('loyalty_claim', params: {'p_mission': m['key']}) as Map);
-        if (mounted) showSnack(context, _t(context, '+${r['points']} نقطة وشحنت الخزنة 🔋', '+${r['points']} points, vault charged 🔋'));
+        HapticFeedback.mediumImpact();
+        if (mounted) await _showPop(context, '+${r['points']} ${_t(context, 'نقطة', 'points')}', _t(context, 'والخزنة اتشحنت +${r['vault']} 🔋', 'and the vault charged +${r['vault']} 🔋'));
       });
 
   Future<void> _openVault() => _run(() async {
-        final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('loyalty_open_vault') as Map);
-        if (!mounted) return;
-        await showDialog<void>(context: context, builder: (_) => _RewardDialog(reward: r));
+        HapticFeedback.mediumImpact();
+        final fut = ref.read(supabaseProvider).rpc('loyalty_open_vault').then((v) => Map<String, dynamic>.from(v as Map));
+        await showGeneralDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          barrierColor: Colors.black87,
+          transitionDuration: const Duration(milliseconds: 250),
+          transitionBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+          pageBuilder: (_, __, ___) => _VaultOpening(future: fut),
+        );
+        await fut; // if the opening failed the dialog closed itself; surface the error here
       });
 
   @override
@@ -162,7 +174,11 @@ class _Header extends StatelessWidget {
           const Icon(Icons.workspace_premium_rounded, color: _gold, size: 30),
           const SizedBox(width: 8),
           Expanded(child: Text(context.pick(lvl, 'name'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))),
-          Text('$pts ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(color: _gold, fontWeight: FontWeight.w900, fontSize: 18)),
+          TweenAnimationBuilder<int>(
+            tween: IntTween(begin: 0, end: pts),
+            duration: const Duration(milliseconds: 900),
+            builder: (_, v, __) => Text('$v ${_t(context, 'نقطة', 'pts')}', style: const TextStyle(color: _gold, fontWeight: FontWeight.w900, fontSize: 18)),
+          ),
         ]),
         const SizedBox(height: 10),
         _Bar(to == null ? 1 : (pts - from) / (to - from), color: _gold),
@@ -296,16 +312,7 @@ class _Vault extends StatelessWidget {
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
       _panel(
         child: Column(children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 500),
-            padding: const EdgeInsets.all(26),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white10,
-              boxShadow: [if (ready) BoxShadow(color: _gold.withValues(alpha: 0.6), blurRadius: 36, spreadRadius: 4)],
-            ),
-            child: Icon(ready ? Icons.lock_open_rounded : Icons.lock_rounded, size: 84, color: ready ? _gold : BrandColors.electric),
-          ),
+          _VaultIcon(ready: ready),
           const SizedBox(height: 14),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
@@ -333,17 +340,212 @@ class _Vault extends StatelessWidget {
 
 String _date(BuildContext c, Object? iso) => iso == null ? '' : DateFormat.yMMMd(c.lang).add_Hm().format(DateTime.parse(iso as String).toLocal());
 
-class _RewardDialog extends StatelessWidget {
-  const _RewardDialog({required this.reward});
-  final Map<String, dynamic> reward;
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        backgroundColor: BrandColors.navy,
-        icon: const Icon(Icons.card_giftcard_rounded, color: _gold, size: 56),
-        title: Text('+${reward['points']} ${_t(context, 'نقطة', 'points')}', style: const TextStyle(color: _gold, fontSize: 28, fontWeight: FontWeight.w900), textAlign: TextAlign.center),
-        content: Text(_t(context, 'اتضافت لرصيدك', 'Added to your balance'), style: const TextStyle(color: Colors.white70), textAlign: TextAlign.center),
-        actions: [FilledButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'OK')))],
+/// Small "+points" card that pops in, then closes by itself.
+Future<void> _showPop(BuildContext context, String big, String small) {
+  final nav = Navigator.of(context);
+  return showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'close',
+    barrierColor: Colors.black54,
+    transitionDuration: const Duration(milliseconds: 450),
+    transitionBuilder: (_, a, __, child) => ScaleTransition(scale: CurvedAnimation(parent: a, curve: Curves.elasticOut), child: FadeTransition(opacity: a, child: child)),
+    pageBuilder: (ctx, __, ___) {
+      Future.delayed(const Duration(milliseconds: 1700), () {
+        if (ctx.mounted && nav.canPop()) Navigator.of(ctx).pop();
+      });
+      return Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+            decoration: BoxDecoration(
+              color: BrandColors.navy,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _gold),
+              boxShadow: [BoxShadow(color: _gold.withValues(alpha: 0.45), blurRadius: 30)],
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.stars_rounded, color: _gold, size: 54),
+              const SizedBox(height: 6),
+              Text(big, style: const TextStyle(color: _gold, fontSize: 30, fontWeight: FontWeight.w900)),
+              Text(small, style: const TextStyle(color: Colors.white70)),
+            ]),
+          ),
+        ),
       );
+    },
+  );
+}
+
+class _VaultIcon extends StatefulWidget {
+  const _VaultIcon({required this.ready});
+  final bool ready;
+  @override
+  State<_VaultIcon> createState() => _VaultIconState();
+}
+
+class _VaultIconState extends State<_VaultIcon> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        builder: (_, __) {
+          final k = widget.ready ? Curves.easeInOut.transform(_c.value) : 0.0;
+          return Transform.scale(
+            scale: 1 + 0.05 * k,
+            child: Container(
+              padding: const EdgeInsets.all(26),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white10,
+                boxShadow: [if (widget.ready) BoxShadow(color: _gold.withValues(alpha: 0.35 + 0.35 * k), blurRadius: 24 + 22 * k, spreadRadius: 2 + 4 * k)],
+              ),
+              child: Icon(widget.ready ? Icons.lock_open_rounded : Icons.lock_rounded, size: 84, color: widget.ready ? _gold : BrandColors.electric),
+            ),
+          );
+        },
+      );
+}
+
+/// Full-screen opening: the vault shakes while the server decides, then rays + confetti + counting points.
+class _VaultOpening extends StatefulWidget {
+  const _VaultOpening({required this.future});
+  final Future<Map<String, dynamic>> future;
+  @override
+  State<_VaultOpening> createState() => _VaultOpeningState();
+}
+
+class _VaultOpeningState extends State<_VaultOpening> with TickerProviderStateMixin {
+  late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 90))..repeat(reverse: true);
+  late final AnimationController _burst = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200));
+  Map<String, dynamic>? _r;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await Future.wait<Object?>([widget.future, Future<void>.delayed(const Duration(milliseconds: 1700))]);
+      if (!mounted) return;
+      HapticFeedback.heavyImpact();
+      _shake.stop();
+      setState(() => _r = res[0] as Map<String, dynamic>);
+      _burst.forward();
+    } catch (_) {
+      if (mounted) Navigator.of(context).pop(); // caller shows the error
+    }
+  }
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    _burst.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = _r;
+    return PopScope(
+      canPop: r != null,
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(alignment: Alignment.center, children: [
+          if (r != null) Positioned.fill(child: AnimatedBuilder(animation: _burst, builder: (_, __) => CustomPaint(painter: _BurstPainter(_burst.value)))),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            if (r == null) ...[
+              AnimatedBuilder(
+                animation: _shake,
+                builder: (_, child) => Transform.rotate(angle: (_shake.value - 0.5) * 0.28, child: child),
+                child: Container(
+                  padding: const EdgeInsets.all(30),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white10, boxShadow: [BoxShadow(color: _gold.withValues(alpha: 0.5), blurRadius: 40, spreadRadius: 4)]),
+                  child: const Icon(Icons.lock_rounded, size: 100, color: _gold),
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text(_t(context, 'بنفتح الخزنة...', 'Opening the vault...'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+            ] else ...[
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 900),
+                curve: Curves.elasticOut,
+                builder: (_, v, child) => Transform.scale(scale: v, child: child),
+                child: const Icon(Icons.card_giftcard_rounded, color: _gold, size: 120),
+              ),
+              const SizedBox(height: 8),
+              AnimatedBuilder(
+                animation: _burst,
+                builder: (_, __) {
+                  final t = Curves.easeOutCubic.transform((_burst.value * 2.2).clamp(0.0, 1.0));
+                  return Text('+${((r['points'] as int) * t).round()}', style: const TextStyle(color: _gold, fontSize: 64, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0xAAF5B83D), blurRadius: 24)]));
+                },
+              ),
+              Text(_t(context, 'نقطة اتضافت لرصيدك 🎉', 'points added to your balance 🎉'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 28),
+              FadeTransition(
+                opacity: CurvedAnimation(parent: _burst, curve: const Interval(0.3, 0.5)),
+                child: FilledButton(style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: Colors.black, minimumSize: const Size(180, 50)), onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'Awesome'))),
+              ),
+            ],
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+class _BurstPainter extends CustomPainter {
+  _BurstPainter(this.t);
+  final double t;
+  static final _rnd = math.Random(7);
+  static final _p = List.generate(70, (i) => (angle: _rnd.nextDouble() * math.pi * 2, speed: 160 + _rnd.nextDouble() * 320, size: 5 + _rnd.nextDouble() * 7, spin: _rnd.nextDouble() * 8, hue: i % 4));
+  static const _colors = [_gold, BrandColors.electric, Colors.white, Color(0xFF12B76A)];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2 - 40);
+    // slow rotating light rays
+    final ray = Paint()..color = _gold.withValues(alpha: 0.10 * (1 - t));
+    for (var i = 0; i < 12; i++) {
+      final a = t * 1.2 + i * math.pi / 6;
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.dx, c.dy)
+          ..lineTo(c.dx + math.cos(a - 0.1) * size.height, c.dy + math.sin(a - 0.1) * size.height)
+          ..lineTo(c.dx + math.cos(a + 0.1) * size.height, c.dy + math.sin(a + 0.1) * size.height)
+          ..close(),
+        ray,
+      );
+    }
+    // confetti: flies out, then gravity pulls it down while it fades
+    final life = (t * 1.4).clamp(0.0, 1.0);
+    for (final p in _p) {
+      final x = c.dx + math.cos(p.angle) * p.speed * life;
+      final y = c.dy + math.sin(p.angle) * p.speed * life + 420 * life * life;
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(p.spin * life * 3);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size * 1.6), const Radius.circular(2)),
+        Paint()..color = _colors[p.hue].withValues(alpha: (1 - life * life).clamp(0.0, 1.0)),
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BurstPainter old) => old.t != t;
 }
 
 class _History extends StatelessWidget {
