@@ -607,7 +607,7 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
   final labels = ref.read(repairLabelsProvider).valueOrNull;
   if (!context.mounted) return;
   final closed = r['closed_at'] != null;
-  final canQuote = !closed && ['initial_inspection', 'diagnosis_completed', 'received_at_branch', 'device_collected'].contains(r['status']);
+  final canQuote = !closed && ['initial_inspection', 'diagnosis_completed', 'received_at_branch', 'device_collected', 'awaiting_approval'].contains(r['status']);
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -653,31 +653,6 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
           build: () => repairReceiptPdf(r, repairLabel(context, labels, r['status'] as String)),
         ),
         const Divider(height: 28),
-        if (canQuote)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.request_quote_outlined),
-              label: Text(_t(context, 'ابعت عرض سعر للعميل', 'Send a quote to the customer')),
-              onPressed: () async {
-                final amount = await _askText(ctx, _t(ctx, 'التكلفة (ج.م)', 'Cost (EGP)'), keyboard: TextInputType.number);
-                final egp = int.tryParse((amount ?? '').replaceAll(RegExp(r'[^0-9]'), ''));
-                if (egp == null || egp <= 0 || !ctx.mounted) return;
-                final desc = await _askText(ctx, _t(ctx, 'المطلوب إصلاحه', 'Work needed'));
-                if (desc == null) return;
-                try {
-                  await repo.sendQuote(r['id'] as String, egp * 100, desc, desc);
-                  ref.invalidate(_repairsProvider);
-                  if (ctx.mounted) {
-                    Navigator.of(ctx).pop();
-                    showSnack(ctx, _t(ctx, 'اتبعت عرض السعر للعميل', 'Quote sent to the customer'));
-                  }
-                } catch (e) {
-                  if (ctx.mounted) showSnack(ctx, friendlyError(ctx, e), error: true);
-                }
-              },
-            ),
-          ),
         if (!closed) ...[
         _StatusUpdate(
           current: r['status'] as String,
@@ -689,6 +664,21 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
           message: (s) => labels?[s] == null ? null : (context.isAr ? labels![s]!['message_ar'] : labels![s]!['message_en']) as String?,
           presets: _repairPresets,
           onSubmit: (to, msg) => _changeRepair(ctx, ref, r['id'] as String, to, msg),
+          onQuote: canQuote
+              ? (egp, msg) async {
+                  final desc = msg ?? _t(ctx, 'تكلفة الإصلاح', 'Repair cost');
+                  try {
+                    await repo.sendQuote(r['id'] as String, egp * 100, desc, msg);
+                    ref.invalidate(_repairsProvider);
+                    if (ctx.mounted) {
+                      Navigator.of(ctx).pop();
+                      showSnack(ctx, _t(ctx, 'اتبعت التكلفة للعميل، مستنيين رده', 'Price sent to the customer, waiting for the answer'));
+                    }
+                  } catch (e) {
+                    if (ctx.mounted) showSnack(ctx, friendlyError(ctx, e), error: true);
+                  }
+                }
+              : null,
         ),
         const Divider(height: 36),
         _CloseOperationButton(
@@ -1195,6 +1185,7 @@ class _StatusUpdate extends StatefulWidget {
     required this.presets,
     required this.onSubmit,
     this.message,
+    this.onQuote,
   });
   final String current;
   final List<String> options;
@@ -1210,6 +1201,10 @@ class _StatusUpdate extends StatefulWidget {
   /// to == null: keep the status, only send the message.
   final Future<void> Function(String? to, String? message) onSubmit;
 
+  /// When set, the list offers "will cost" with a price field: the customer gets the price and
+  /// can accept or reject it (amount in EGP, optional message).
+  final Future<void> Function(int egp, String? message)? onQuote;
+
   @override
   State<_StatusUpdate> createState() => _StatusUpdateState();
 }
@@ -1217,13 +1212,21 @@ class _StatusUpdate extends StatefulWidget {
 class _StatusUpdateState extends State<_StatusUpdate> {
   String? _to;
   String? _preset;
+  bool _quote = false;
   final _custom = TextEditingController();
+  final _price = TextEditingController();
   bool _busy = false;
 
   @override
   void dispose() {
     _custom.dispose();
+    _price.dispose();
     super.dispose();
+  }
+
+  int? get _priceEgp {
+    final n = int.tryParse(_price.text.replaceAll(RegExp(r'[^0-9]'), ''));
+    return (n == null || n <= 0 || n > 1000000) ? null : n;
   }
 
   String? get _message => _custom.text.trim().isNotEmpty ? _custom.text.trim() : _preset;
@@ -1245,9 +1248,11 @@ class _StatusUpdateState extends State<_StatusUpdate> {
         return (idx[x] ?? 99).compareTo(idx[y] ?? 99);
       });
     final msg = _message;
-    final ready = !_busy && (_to != null || msg != null);
+    final ready = !_busy && (_quote ? _priceEgp != null : (_to != null || msg != null));
     final negative = _to != null && widget.isNegative(_to!);
-    final buttonLabel = _to == null
+    final buttonLabel = _quote
+        ? _t(context, 'ابعت التكلفة للعميل', 'Send the price to the customer')
+        : _to == null
         ? _t(context, 'ابعت الرسالة للعميل', 'Send message')
         : (msg == null ? _t(context, 'تأكيد تغيير الحالة', 'Confirm status change') : _t(context, 'غيّر الحالة وابعت الرسالة', 'Change status & send message'));
 
@@ -1260,24 +1265,70 @@ class _StatusUpdateState extends State<_StatusUpdate> {
             clipBehavior: Clip.antiAlias,
             child: Column(children: [
           ListTile(
-            onTap: _busy ? null : () => setState(() => _to = null),
-            selected: _to == null,
+            onTap: _busy ? null : () => setState(() {
+              _to = null;
+              _quote = false;
+            }),
+            selected: _to == null && !_quote,
             selectedTileColor: BrandColors.electric.withValues(alpha: 0.04),
-            leading: _radio(_to == null),
-            title: Text(widget.label(widget.current), style: TextStyle(fontWeight: _to == null ? FontWeight.w700 : FontWeight.w500)),
+            leading: _radio(_to == null && !_quote),
+            title: Text(widget.label(widget.current), style: TextStyle(fontWeight: _to == null && !_quote ? FontWeight.w700 : FontWeight.w500)),
             trailing: Text(finalStatus ? _t(context, 'نهائية', 'Final') : _t(context, 'الحالية — من غير تغيير', 'Current — keep'),
                 style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
           ),
           for (final s in ordered) ...[
             const Divider(height: 1),
             ListTile(
-              onTap: _busy ? null : () => setState(() => _to = s),
+              onTap: _busy ? null : () => setState(() {
+                _to = s;
+                _quote = false;
+              }),
               selected: _to == s,
               selectedTileColor: (widget.isNegative(s) ? BrandColors.error : BrandColors.electric).withValues(alpha: 0.06),
               leading: _radio(_to == s, negative: widget.isNegative(s)),
               title: Text(widget.label(s),
                   style: TextStyle(fontWeight: _to == s ? FontWeight.w800 : FontWeight.w500, color: widget.isNegative(s) ? BrandColors.error : null)),
               subtitle: widget.message?.call(s) == null ? null : Text('💬 ${widget.message!(s)}', style: const TextStyle(fontSize: 12)),
+            ),
+          ],
+          if (widget.onQuote != null) ...[
+            const Divider(height: 1),
+            ListTile(
+              onTap: _busy
+                  ? null
+                  : () => setState(() {
+                        _quote = true;
+                        _to = null;
+                      }),
+              selected: _quote,
+              selectedTileColor: BrandColors.success.withValues(alpha: 0.08),
+              leading: _radio(_quote),
+              title: Text(_t(context, 'هيكلّف 💰', 'Will cost 💰'), style: TextStyle(fontWeight: _quote ? FontWeight.w800 : FontWeight.w500)),
+              subtitle: Text(_t(context, 'العميل يوصله السعر ويختار يوافق أو يرفض', 'The customer gets the price and accepts or rejects'),
+                  style: const TextStyle(fontSize: 12)),
+              trailing: SizedBox(
+                width: 112,
+                child: TextField(
+                  controller: _price,
+                  enabled: !_busy,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.ltr,
+                  onTap: () => setState(() {
+                    _quote = true;
+                    _to = null;
+                  }),
+                  onChanged: (_) => setState(() {
+                    _quote = true;
+                    _to = null;
+                  }),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: _t(context, 'السعر', 'Price'),
+                    suffixText: _t(context, 'ج.م', 'EGP'),
+                  ),
+                ),
+              ),
             ),
           ],
         ]),
@@ -1331,7 +1382,11 @@ class _StatusUpdateState extends State<_StatusUpdate> {
               : () async {
                   setState(() => _busy = true);
                   try {
-                    await widget.onSubmit(_to, msg);
+                    if (_quote) {
+                      await widget.onQuote!(_priceEgp!, msg);
+                    } else {
+                      await widget.onSubmit(_to, msg);
+                    }
                   } finally {
                     if (mounted) setState(() => _busy = false);
                   }

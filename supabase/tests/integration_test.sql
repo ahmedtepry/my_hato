@@ -339,6 +339,11 @@ do $$ declare v_r uuid := (select v from t.ids where k='repair1'); begin
   perform t.act('00000000-0000-0000-0000-00000000000a');
   perform public.customer_respond_to_quote((select v from t.ids where k='quote1'), 'approved');
   perform t.act('00000000-0000-0000-0000-0000000000c1');
+  -- the team is alerted right away that the customer accepted the price
+  if not exists (select 1 from public.notifications n where n.entity_reference = (select reference from public.repair_requests where id = v_r)
+                   and n.title_en like '%Customer accepted the price%' and n.user_id = '00000000-0000-0000-0000-0000000000c1') then
+    raise exception 'T19 staff not alerted';
+  end if;
   perform public.staff_update_repair_status(v_r, 'repair_in_progress');
   perform public.staff_update_repair_status(v_r, 'quality_testing');
   perform public.staff_update_repair_status(v_r, 'repair_completed');
