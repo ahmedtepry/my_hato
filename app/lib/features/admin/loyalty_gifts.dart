@@ -19,6 +19,10 @@ final ownerGiftsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref
   return Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('owner_loyalty_overview') as Map);
 });
 
+final ownerTuningProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  return Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('owner_loyalty_get_tuning') as Map);
+});
+
 void openGifts(BuildContext context) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const GiftsAdminScreen()));
 
 class GiftsAdminScreen extends StatelessWidget {
@@ -33,27 +37,30 @@ class GiftsPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(ownerGiftsProvider);
-    return DefaultTabController(
-      length: 3,
-      child: Column(children: [
-        Row(children: [
-          Expanded(
-            child: TabBar(tabs: [
-              Tab(text: _t(context, 'الهدايا', 'Gifts')),
-              Tab(text: _t(context, 'العملاء', 'Customers')),
-              Tab(text: _t(context, 'المستويات', 'Levels')),
+    return data.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(ownerGiftsProvider)),
+      data: (d) {
+        // the difficulty dial is secret and belongs to the main owner only (the one who also sees the levels)
+        final owner = _list(d['levels']).isNotEmpty;
+        return DefaultTabController(
+          length: owner ? 4 : 3,
+          child: Column(children: [
+            Row(children: [
+              Expanded(
+                child: TabBar(isScrollable: owner, tabs: [
+                  Tab(text: _t(context, 'الهدايا', 'Gifts')),
+                  Tab(text: _t(context, 'العملاء', 'Customers')),
+                  Tab(text: _t(context, 'المستويات', 'Levels')),
+                  if (owner) Tab(text: _t(context, 'الصعوبة', 'Difficulty')),
+                ]),
+              ),
+              IconButton(tooltip: _t(context, 'تحديث', 'Refresh'), onPressed: () => ref.invalidate(ownerGiftsProvider), icon: const Icon(Icons.refresh_rounded)),
             ]),
-          ),
-          IconButton(tooltip: _t(context, 'تحديث', 'Refresh'), onPressed: () => ref.invalidate(ownerGiftsProvider), icon: const Icon(Icons.refresh_rounded)),
-        ]),
-        Expanded(
-          child: data.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(ownerGiftsProvider)),
-            data: (d) => TabBarView(children: [_Awards(d: d), _Customers(d: d), _Levels(d: d)]),
-          ),
-        ),
-      ]),
+            Expanded(child: TabBarView(children: [_Awards(d: d), _Customers(d: d), _Levels(d: d), if (owner) const _Difficulty()])),
+          ]),
+        );
+      },
     );
   }
 }
@@ -493,6 +500,133 @@ class _EditLevelState extends ConsumerState<_EditLevel> {
           SizedBox(width: double.infinity, child: FilledButton(onPressed: _busy ? null : _save, child: Text(_t(context, 'حفظ', 'Save')))),
         ]),
       ),
+    );
+  }
+}
+
+/// SECRET (main owner only): one dial that makes every point customers earn bigger or smaller, live at once.
+/// Customers never see it; they only see the amounts it produces.
+class _Difficulty extends ConsumerStatefulWidget {
+  const _Difficulty();
+  @override
+  ConsumerState<_Difficulty> createState() => _DifficultyState();
+}
+
+class _DifficultyState extends ConsumerState<_Difficulty> {
+  double? _pct;
+  bool _busy = false;
+
+  int _scale(num p, double pct) => p <= 0 ? p.toInt() : (p * pct / 100).round().clamp(1, 1 << 30);
+
+  Future<void> _save(int saved) async {
+    final v = _pct!.round();
+    if (v == saved) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(_t(c, 'تطبيق الصعوبة؟', 'Apply difficulty?')),
+        content: Text(_t(c, 'هتتطبق فورًا على أي نقاط العملاء يكسبوها من دلوقتي. النقاط اللي معاهم فعلًا مش بتتغير، والعملاء مش هيعرفوا إن في تحكم.', 'It applies at once to every point customers earn from now on. Existing balances do not change and customers cannot tell a dial exists.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(_t(c, 'إلغاء', 'Cancel'))),
+          FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(96, 44)), onPressed: () => Navigator.pop(c, true), child: Text(_t(c, 'تطبيق', 'Apply'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(supabaseProvider).rpc('owner_loyalty_set_tuning', params: {'p_pct': v});
+      ref.invalidate(ownerTuningProvider);
+      if (mounted) showSnack(context, _t(context, 'اتطبقت دلوقتي', 'Applied now'));
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = ref.watch(ownerTuningProvider);
+    return data.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(ownerTuningProvider)),
+      data: (d) {
+        final saved = (d['pct'] as num).toInt();
+        final pct = _pct ?? saved.toDouble();
+        final missions = _list(d['missions']);
+        final rewards = (d['rewards'] as List? ?? const []).map((e) => (e as num).toInt()).toList();
+        final per10 = (d['order_per_10egp'] as num?) ?? 1;
+        final diff = pct.round() - 100;
+        final label = diff == 0
+            ? _t(context, 'عادي', 'Normal')
+            : diff > 0
+                ? _t(context, 'أسهل بـ $diff%', 'Easier by $diff%')
+                : _t(context, 'أصعب بـ ${-diff}%', 'Harder by ${-diff}%');
+        Widget row(String name, num base) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(children: [
+                Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Text('$base', style: const TextStyle(color: Colors.grey)),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.arrow_forward_rounded, size: 16)),
+                Text('${_scale(base, pct)}', style: const TextStyle(fontWeight: FontWeight.w900)),
+              ]),
+            );
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          Row(children: [
+            const Icon(Icons.lock_rounded, size: 18),
+            const SizedBox(width: 6),
+            Expanded(child: Text(_t(context, 'سري: ليك إنت بس. العميل مش بيشوفه ومش بيعرف إنه موجود.', 'Secret: for you only. Customers never see it or know it exists.'), style: const TextStyle(fontSize: 12.5))),
+          ]),
+          const SizedBox(height: 14),
+          Center(child: Text('${pct.round()}%', style: const TextStyle(fontSize: 44, fontWeight: FontWeight.w900))),
+          Center(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Column(children: [
+              Slider(
+                value: pct.clamp(25, 300),
+                min: 25,
+                max: 300,
+                divisions: 55,
+                label: '${pct.round()}%',
+                onChanged: _busy ? null : (v) => setState(() => _pct = v),
+              ),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text(_t(context, 'أصعب (نقاط أقل)', 'Harder (fewer points)'), style: const TextStyle(fontSize: 12)),
+                Text(_t(context, 'أسهل (نقاط أكتر)', 'Easier (more points)'), style: const TextStyle(fontSize: 12)),
+              ]),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: FilledButton(
+                onPressed: _busy || pct.round() == saved ? null : () => _save(saved),
+                child: Text(_t(context, 'تطبيق دلوقتي', 'Apply now')),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
+              onPressed: _busy ? null : () => setState(() => _pct = 100),
+              child: Text(_t(context, 'رجّع 100%', 'Reset 100%')),
+            ),
+          ]),
+          const SizedBox(height: 18),
+          Text(_t(context, 'العميل هياخد بعد التطبيق:', 'Customers will earn after applying:'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          for (final m in missions) row(context.pick(m, 'title'), (m['points'] as num)),
+          row(_t(context, 'أوردر 1000 جنيه', 'Order of 1000 EGP'), (100 * per10).round()),
+          if (rewards.isNotEmpty) ...[
+            const Divider(),
+            Text(_t(context, 'مكافآت علبة النقاط', 'Reward box'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            for (final r in rewards) row('$r ${_t(context, 'نقطة', 'pts')}', r),
+          ],
+          const SizedBox(height: 10),
+          Text(_t(context, 'التعديلات اليدوية على رصيد عميل مش بتتأثر بالمؤشر. وأي استرجاع أوردر أو تقييم بيسحب نفس النقاط اللي اتدفعت.', 'Manual balance changes are never scaled. Reversals take back exactly what was paid.'), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        ]);
+      },
     );
   }
 }
