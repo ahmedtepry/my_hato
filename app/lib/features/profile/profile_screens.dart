@@ -251,8 +251,18 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final _name = TextEditingController(text: (ref.read(profileProvider).valueOrNull?['full_name'] as String?) ?? '');
   late final _phone = TextEditingController(text: _localPhone(ref.read(profileProvider).valueOrNull?['contact_phone'] as String?));
+  late final String _email0 = _realEmail(ref.read(currentUserProvider)?.email ?? ref.read(profileProvider).valueOrNull?['email'] as String?);
+  late final _email = TextEditingController(text: _email0);
+  final _curPass = TextEditingController();
+  bool _showPass = false;
   bool _busy = false;
   String? _phoneError;
+  String? _emailError;
+  String? _passError;
+
+  /// Team accounts carry a placeholder address: treat it as "no email yet".
+  static String _realEmail(String? e) => (e == null || e.endsWith('@team.myhato.app')) ? '' : e;
+  bool get _emailChanged => _email.text.trim().toLowerCase() != _email0.toLowerCase();
 
   static String _localPhone(String? e164) => (e164 != null && e164.startsWith('+20')) ? '0${e164.substring(3)}' : (e164 ?? '');
 
@@ -260,6 +270,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void dispose() {
     _name.dispose();
     _phone.dispose();
+    _email.dispose();
+    _curPass.dispose();
     super.dispose();
   }
 
@@ -295,12 +307,65 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               prefixIcon: const Icon(Icons.phone_outlined),
             ),
           ),
+          const SizedBox(height: 12),
+          if (_email0.isEmpty)
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                const Icon(Icons.mark_email_unread_outlined, color: BrandColors.electric),
+                const SizedBox(width: 10),
+                Expanded(child: Text(context.tr('email_add_hint'), style: const TextStyle(height: 1.5))),
+              ]),
+            ),
+          TextField(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            textDirection: TextDirection.ltr,
+            autocorrect: false,
+            onChanged: (_) => setState(() => _showPass = _email0.isNotEmpty && _emailChanged),
+            decoration: InputDecoration(
+              labelText: context.tr('email_label'),
+              errorText: _emailError,
+              prefixIcon: const Icon(Icons.alternate_email_rounded),
+            ),
+          ),
+          if (_showPass) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _curPass,
+              obscureText: true,
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(
+                labelText: context.tr('current_password'),
+                helperText: context.tr('email_change_hint'),
+                helperMaxLines: 2,
+                errorText: _passError,
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           FilledButton(
             onPressed: _busy
                 ? null
                 : () async {
                     if (_name.text.trim().length < 2) return;
+                    final newEmail = _email.text.trim().toLowerCase();
+                    final wantsEmail = newEmail.isNotEmpty && _emailChanged;
+                    if (wantsEmail && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(newEmail)) {
+                      setState(() => _emailError = context.tr('err_invalid_email'));
+                      return;
+                    }
+                    if (wantsEmail && _email0.isNotEmpty && _curPass.text.isEmpty) {
+                      setState(() => _passError = context.tr('required'));
+                      return;
+                    }
+                    setState(() {
+                      _emailError = null;
+                      _passError = null;
+                    });
                     final raw = _phone.text.trim();
                     final phone = raw.isEmpty ? '' : normalizeEgyptMobile(raw);
                     if (phone == null) {
@@ -313,12 +378,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     });
                     try {
                       await ref.read(profileRepoProvider).update(fullName: _name.text, contactPhone: phone);
+                      if (wantsEmail) {
+                        await ref.read(authRepoProvider).changeEmail(newEmail, _curPass.text);
+                      }
                       ref.invalidate(profileProvider);
                       if (context.mounted) {
-                        showSnack(context, context.tr('saved'));
+                        showSnack(context, context.tr(wantsEmail ? 'email_saved' : 'saved'));
                         context.pop();
                       }
                     } catch (e) {
+                      if (context.mounted && '$e'.contains('WRONG_PASSWORD')) setState(() => _passError = context.tr('err_wrong_password'));
                       if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
                     } finally {
                       if (mounted) setState(() => _busy = false);
