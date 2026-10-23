@@ -21,6 +21,7 @@ import '../repairs/repairs_repository.dart';
 import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
 import 'admin_repository.dart';
 import 'documents.dart';
+import 'stock_tools.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -706,6 +707,49 @@ class _ProductsTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
           child: _ProductSearchField(onSearch: (v) => ref.read(_productSearchProvider.notifier).state = v),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          child: Row(children: [
+            Expanded(
+              child: FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(42)),
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                label: Text(_t(context, 'استلام بضاعة', 'Receive stock')),
+                onPressed: () => receiveStockByBarcode(
+                  context,
+                  ref,
+                  onChanged: () => ref.invalidate(_productsProvider),
+                  onNewProduct: (sku) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _ProductEditor(initialSku: sku))),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            PopupMenuButton<String>(
+              tooltip: 'Excel',
+              onSelected: (v) {
+                if (v == 'export') {
+                  exportProductsExcel(context, ref);
+                } else {
+                  importProductsExcel(context, ref, onDone: () => ref.invalidate(_productsProvider));
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'export', child: ListTile(leading: const Icon(Icons.download_rounded), title: Text(_t(context, 'تصدير Excel', 'Export to Excel')), contentPadding: EdgeInsets.zero)),
+                PopupMenuItem(value: 'import', child: ListTile(leading: const Icon(Icons.upload_file_rounded), title: Text(_t(context, 'استيراد أسعار وكميات من Excel', 'Import prices & stock')), contentPadding: EdgeInsets.zero)),
+              ],
+              child: Container(
+                height: 42,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(color: const Color(0xFF1D6F42).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14)),
+                child: const Row(children: [
+                  Icon(Icons.table_chart_rounded, color: Color(0xFF1D6F42), size: 20),
+                  SizedBox(width: 6),
+                  Text('Excel', style: TextStyle(color: Color(0xFF1D6F42), fontWeight: FontWeight.w800)),
+                ]),
+              ),
+            ),
+          ]),
+        ),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: Padding(
@@ -757,8 +801,11 @@ class _ProductsTab extends ConsumerWidget {
 }
 
 class _ProductEditor extends ConsumerStatefulWidget {
-  const _ProductEditor({this.product});
+  const _ProductEditor({this.product, this.initialSku});
   final Map<String, dynamic>? product;
+
+  /// New product from an unknown scanned barcode.
+  final String? initialSku;
   @override
   ConsumerState<_ProductEditor> createState() => _ProductEditorState();
 }
@@ -772,7 +819,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   late final _compare = TextEditingController(text: p?['compare_at_price_minor'] == null ? '' : '${(p!['compare_at_price_minor'] as num) ~/ 100}');
   late final _stock = TextEditingController(text: p == null ? '' : '${p!['stock_quantity']}');
   late final _desc = TextEditingController();
-  late final _sku = TextEditingController(text: p?['sku'] as String? ?? '');
+  late final _sku = TextEditingController(text: p?['sku'] as String? ?? widget.initialSku ?? '');
   late final _model = TextEditingController(text: p?['model'] as String? ?? '');
   late String? _brandId = p?['brand_id'] as String?;
   late String? _categoryId = p?['category_id'] as String?;

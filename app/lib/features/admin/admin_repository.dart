@@ -152,6 +152,21 @@ class AdminRepository {
     return List<Map<String, dynamic>>.from(await q.neq('status', 'archived').order('created_at', ascending: false).limit(300));
   }
 
+  /// Exact SKU / barcode lookup (archived products excluded).
+  Future<Map<String, dynamic>?> productBySku(String sku) async => await _db
+      .from('products')
+      .select('id, sku, name_ar, name_en, price_minor, compare_at_price_minor, stock_quantity, status, product_images(storage_path, sort_order)')
+      .eq('sku', sku.trim())
+      .neq('status', 'archived')
+      .maybeSingle();
+
+  /// Every product (for the Excel export / import), with category and brand names.
+  Future<List<Map<String, dynamic>>> allProductsForSheet() async => List<Map<String, dynamic>>.from(await _db
+      .from('products')
+      .select('id, sku, name_ar, name_en, model, price_minor, compare_at_price_minor, stock_quantity, status, categories(name_ar), brands(name_en)')
+      .neq('status', 'archived')
+      .order('sku'));
+
   Future<List<Map<String, dynamic>>> brands() async =>
       List<Map<String, dynamic>>.from(await _db.from('brands').select('id, name_ar, name_en').eq('is_active', true).order('sort_order').order('name_en'));
 
