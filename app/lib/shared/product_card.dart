@@ -16,20 +16,28 @@ import '../core/supabase_providers.dart';
 import '../core/theme.dart';
 
 class NetImage extends ConsumerWidget {
-  const NetImage({super.key, required this.path, this.bucket = 'product-images', this.fit = BoxFit.cover});
+  const NetImage({super.key, required this.path, this.bucket = 'product-images', this.fit = BoxFit.cover, this.thumb = false});
   final String? path;
   final String bucket;
   final BoxFit fit;
+
+  /// Small tiles: ask for a ~480px image instead of 900px (4× fewer pixels to download and decode).
+  final bool thumb;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final url = publicImageUrl(ref.watch(supabaseProvider), path, bucket: bucket);
+    var url = publicImageUrl(ref.watch(supabaseProvider), path, bucket: bucket);
+    if (thumb && url.contains('images.unsplash.com')) {
+      url = url.replaceAll('w=900', 'w=480').replaceAll('h=900', 'h=480').replaceAll('q=80', 'q=70');
+    }
     if (url.isEmpty) {
       return Container(color: BrandColors.offWhite, child: const Icon(Icons.smartphone_rounded, size: 40, color: BrandColors.border));
     }
     return CachedNetworkImage(
       imageUrl: url,
       fit: fit,
-      memCacheWidth: 600,
+      memCacheWidth: thumb ? 420 : 900,
+      fadeInDuration: const Duration(milliseconds: 150),
+      fadeOutDuration: const Duration(milliseconds: 100),
       placeholder: (_, __) => Container(color: BrandColors.offWhite),
       errorWidget: (_, __, ___) => Container(color: BrandColors.offWhite, child: const Icon(Icons.broken_image_outlined, color: BrandColors.gray)),
     );
@@ -99,7 +107,7 @@ class ProductCard extends StatelessWidget {
       ),
       // No Hero here: the same product appears in several home sections at once, and duplicate hero
       // tags break the page transition (the screen freezes half-faded). See test/no_hero_test.dart.
-      NetImage(path: p['thumb_path'] as String?),
+      NetImage(path: p['thumb_path'] as String?, thumb: true),
       if (discount > 0)
         PositionedDirectional(
           top: 8,
@@ -144,7 +152,8 @@ class ProductCard extends StatelessWidget {
         ),
       );
     }
-    return PressScale(
+    return RepaintBoundary(
+      child: PressScale(
       child: _Shell(
         onTap: open,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -165,6 +174,7 @@ class ProductCard extends StatelessWidget {
           ),
         ]),
       ),
+    ),
     );
   }
 }
@@ -179,7 +189,7 @@ class _Shell extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [BoxShadow(color: BrandColors.navy.withValues(alpha: 0.07), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: BrandColors.navy.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 3))],
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -255,7 +265,7 @@ class HorizontalProducts extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
           clipBehavior: Clip.none,
           scrollDirection: Axis.horizontal,
-          itemCount: items.length,
+          itemCount: items.length > 10 ? 10 : items.length, // home rows: 10 tiles, "see all" for the rest
           separatorBuilder: (_, __) => const SizedBox(width: 12),
           itemBuilder: (_, i) => FadeSlideIn(id: 'h-${items[i]['id']}', delay: FadeSlideIn.stagger(i), child: SizedBox(width: 158, child: ProductCard(p: items[i]))),
         ),
