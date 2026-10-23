@@ -23,6 +23,7 @@ import '../features/payments/payment_flow.dart';
 import '../features/payments/payments_screens.dart';
 import '../features/profile/profile_screens.dart';
 import '../features/repairs/repairs_screens.dart';
+import '../shared/phone_notifications.dart';
 import 'l10n.dart';
 import 'supabase_providers.dart';
 
@@ -129,11 +130,36 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  PhoneNotifications.onOpen = (link) => router.push(link);
   return router;
 });
 
 /// Time of the last "back" press on the home tab (double-back-to-exit).
 DateTime? _lastBackPress;
+
+/// Notifications already known on this device (the first load is not re-announced).
+final _announced = <String>{};
+bool _primed = false;
+
+/// New notification rows -> phone notification (title/body in the app language, tap opens its link).
+void _announceNew(List<Map<String, dynamic>> list, bool ar) {
+  if (!_primed) {
+    _announced.addAll(list.map((n) => n['id'] as String));
+    _primed = true;
+    return;
+  }
+  for (final n in list.reversed) {
+    final id = n['id'] as String;
+    if (_announced.add(id) && n['read_at'] == null) {
+      PhoneNotifications.show(
+        id: id,
+        title: (ar ? n['title_ar'] : n['title_en']) as String? ?? 'My Hatō',
+        body: (ar ? n['body_ar'] : n['body_en']) as String? ?? '',
+        link: n['deep_link'] as String?,
+      );
+    }
+  }
+}
 
 class _Shell extends ConsumerWidget {
   const _Shell({required this.shell});
@@ -172,8 +198,18 @@ class _Shell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartCount = ref.watch(cartProvider).valueOrNull?.count ?? 0;
-    // keep realtime notifications alive while the shell is mounted
+    // keep realtime notifications alive while the shell is mounted, and announce new ones on the phone
     ref.watch(notificationsProvider);
+    ref.listen(notificationsProvider, (_, next) {
+      final list = next.valueOrNull;
+      if (list != null) _announceNew(list, context.isAr);
+    });
+    ref.listen(currentUserProvider, (prev, next) {
+      if (prev?.id != next?.id) {
+        _announced.clear();
+        _primed = false;
+      }
+    });
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {

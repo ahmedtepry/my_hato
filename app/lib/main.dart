@@ -8,6 +8,7 @@ import 'core/config.dart';
 import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'shared/phone_notifications.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,8 @@ Future<void> main() async {
     authOptions: const FlutterAuthClientOptions(authFlowType: AuthFlowType.pkce),
     debug: false, // never log auth/session details in release
   );
+
+  await PhoneNotifications.init();
 
   runApp(ProviderScope(
     overrides: [sharedPrefsProvider.overrideWithValue(prefs)],

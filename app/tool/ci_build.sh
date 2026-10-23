@@ -29,6 +29,7 @@ else
 fi
 printf "storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$KS" "$SP" "$ALIAS" "$KP" > android/key.properties
 python3 tool/patch_signing.py || exit 1
+python3 tool/patch_desugar.py || exit 1
 grep -nE "applicationId|minSdk|signingConfig" "$G"
 
 step "bundle fonts"
