@@ -15,6 +15,7 @@ import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+import 'permissions.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -170,6 +171,11 @@ String actionLabel(BuildContext context, String? a) {
     'staff.suspend': ['أوقف عضو', 'Suspended a member'],
     'staff.resume': ['رجّع عضو', 'Resumed a member'],
     'staff.password_reset': ['غيّر باسورد عضو', 'Reset a member password'],
+    'permission.role_grant': ['أضاف صلاحية لدور', 'Gave a permission to a role'],
+    'permission.role_revoke': ['سحب صلاحية من دور', 'Took a permission from a role'],
+    'permission.user_grant': ['زوّد صلاحية لحساب', 'Gave a permission to an account'],
+    'permission.user_deny': ['سحب صلاحية من حساب', 'Took a permission from an account'],
+    'permission.user_clear': ['شال استثناء صلاحية', 'Removed a permission exception'],
   };
   final v = m[a];
   if (v != null) return ar ? v[0] : v[1];
@@ -282,7 +288,16 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     final shown = _filter == 'all' ? list : list.where((m) => m['presence'] == _filter || (_filter == 'offline' && m['presence'] == 'suspended')).toList();
 
     return Scaffold(
-      appBar: AppBar(title: Text(_t(context, 'فريق العمل', 'Team'))),
+      appBar: AppBar(
+        title: Text(_t(context, 'فريق العمل', 'Team')),
+        actions: [
+          IconButton(
+            tooltip: _t(context, 'صلاحيات الفريق', 'Team permissions'),
+            icon: const Icon(Icons.admin_panel_settings_rounded),
+            onPressed: () => openPermissions(context),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addMember(context, ref),
         icon: const Icon(Icons.person_add_alt_1_rounded),
