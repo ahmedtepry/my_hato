@@ -13,7 +13,7 @@ import '../../core/theme.dart';
 import '../../shared/states.dart';
 
 /// MYHATO SECRET VAULT. All numbers come from the server (loyalty_dashboard); the app can only ask the
-/// server to claim a mission or open the vault. Wording/missions/rewards are tables, editable without a new APK.
+/// server to claim a mission or open the reward box. Wording/missions/rewards are tables, editable without a new APK.
 final loyaltyProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   final db = ref.watch(supabaseProvider);
   return Map<String, dynamic>.from(await db.rpc('loyalty_dashboard') as Map);
@@ -26,7 +26,7 @@ String _loyaltyError(BuildContext c, Object e) {
   final m = e is PostgrestException ? e.message : '';
   if (m.startsWith('ALREADY_CLAIMED')) return _t(c, 'خدت المكافأة دي النهاردة', 'Already claimed for this period');
   if (m.startsWith('NOT_ELIGIBLE')) return _t(c, 'لسه ماكملتش المطلوب للمهمة', 'Mission requirement not met yet');
-  if (m.startsWith('VAULT_NOT_READY')) return _t(c, 'الخزنة لسه مش جاهزة', 'The vault is not ready yet');
+  if (m.startsWith('VAULT_NOT_READY')) return _t(c, 'العلبة لسه مش جاهزة', 'The box is not ready yet');
   if (m.startsWith('REWARD_UNAVAILABLE')) return _t(c, 'مفيش مكافآت متاحة دلوقتي، تقدمك محفوظ وحاول بعد شوية', 'No rewards available right now. Your progress is safe, try again later');
   if (m.startsWith('MISSION_NOT_FOUND')) return _t(c, 'المهمة دي مش متاحة', 'Mission unavailable');
   return friendlyError(c, e);
@@ -103,7 +103,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
   Future<void> _claim(Map<String, dynamic> m) => _run(() async {
         final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('loyalty_claim', params: {'p_mission': m['key']}) as Map);
         HapticFeedback.mediumImpact();
-        if (mounted) await _showPop(context, '+${r['points']} ${_t(context, 'نقطة', 'points')}', _t(context, 'اتضافت لرصيدك وقرّبتك من الخزنة 🔓', 'added to your balance, closer to the vault 🔓'));
+        if (mounted) await _showPop(context, '+${r['points']} ${_t(context, 'نقطة', 'points')}', _t(context, 'اتضافت لرصيدك وقرّبتك من العلبة 🎁', 'added to your balance, closer to the box 🎁'));
       });
 
   Future<void> _openVault() => _run(() async {
@@ -134,7 +134,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
         appBar: AppBar(
           backgroundColor: BrandColors.navyDeep,
           foregroundColor: Colors.white,
-          title: const Text('MYHATO SECRET VAULT', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 16)),
+          title: Text(_t(context, 'مكافآت My Hatō', 'My Hatō Rewards'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
           actions: [IconButton(tooltip: _t(context, 'تحديث', 'Refresh'), onPressed: () => ref.invalidate(loyaltyProvider), icon: const Icon(Icons.refresh_rounded))],
           bottom: TabBar(
             indicatorColor: BrandColors.electric,
@@ -142,7 +142,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
             unselectedLabelColor: Colors.white60,
             tabs: [
               Tab(text: _t(context, 'المهام', 'Missions')),
-              Tab(text: _t(context, 'الخزنة', 'Vault')),
+              Tab(text: _t(context, 'العلبة', 'Box')),
               Tab(text: _t(context, 'المستويات', 'Levels')),
               Tab(text: _t(context, 'سجل المكافآت', 'Rewards')),
             ],
@@ -294,16 +294,16 @@ class _Vault extends StatelessWidget {
     final p = d['vault_progress'] as int, req = d['vault_required'] as int;
     final ready = p >= req;
     final label = ready
-        ? _t(context, 'جاهزة للفتح', 'Ready to open')
+        ? _t(context, 'العلبة جاهزة تتفتح 🎁', 'Your box is ready 🎁')
         : p == 0
-            ? _t(context, 'مقفولة', 'Locked')
+            ? _t(context, 'ابدأ اجمع نقاط', 'Start earning points')
             : p >= req * 0.75
                 ? _t(context, 'قربت تجهز', 'Almost ready')
-                : _t(context, 'بتتملي', 'Filling up');
+                : _t(context, 'البطارية بتتملي', 'Battery filling up');
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
       _panel(
         child: Column(children: [
-          _VaultIcon(ready: ready),
+          _BatteryPhone(progress: (p / req).clamp(0.0, 1.0).toDouble(), ready: ready),
           const SizedBox(height: 14),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
@@ -316,12 +316,12 @@ class _Vault extends StatelessWidget {
             child: FilledButton.icon(
               style: FilledButton.styleFrom(backgroundColor: ready ? _gold : null, foregroundColor: ready ? Colors.black : null, minimumSize: const Size.fromHeight(50)),
               onPressed: ready && !busy ? onOpen : null,
-              icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.vpn_key_rounded),
-              label: Text(ready ? _t(context, 'افتح الخزنة', 'Open the vault') : _t(context, 'اجمع نقاط عشان تفتحها', 'Earn points to open it')),
+              icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.inventory_2_rounded),
+              label: Text(ready ? _t(context, 'افتح العلبة', 'Open the box') : _t(context, 'اجمع نقاط عشان تفتحها', 'Earn points to open it')),
             ),
           ),
           const SizedBox(height: 8),
-          Text(_t(context, 'كل نقطة بتكسبها بتملّي الخزنة كمان. وعدد النقاط اللي جواها بيتحدد من السيرفر لحظة الفتح.', 'Every point you earn also fills the vault. The server picks the points inside when you open it.'),
+          Text(_t(context, 'كل نقطة بتكسبها بتملّي بطارية الموبايل. لما تكمل ١٠٠٪ تفتح العلبة، وعدد النقاط اللي جواها بيتحدد من السيرفر لحظة الفتح.', 'Every point you earn charges the phone battery. At 100% you can open the box, and the server picks the points inside when you open it.'),
               textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
         ]),
       ),
@@ -369,14 +369,16 @@ Future<void> _showPop(BuildContext context, String big, String small) {
   );
 }
 
-class _VaultIcon extends StatefulWidget {
-  const _VaultIcon({required this.ready});
+/// A phone whose battery fills with points; at 100% it glows and the reward box can be opened.
+class _BatteryPhone extends StatefulWidget {
+  const _BatteryPhone({required this.progress, required this.ready});
+  final double progress;
   final bool ready;
   @override
-  State<_VaultIcon> createState() => _VaultIconState();
+  State<_BatteryPhone> createState() => _BatteryPhoneState();
 }
 
-class _VaultIconState extends State<_VaultIcon> with SingleTickerProviderStateMixin {
+class _BatteryPhoneState extends State<_BatteryPhone> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
   @override
   void dispose() {
@@ -389,23 +391,105 @@ class _VaultIconState extends State<_VaultIcon> with SingleTickerProviderStateMi
         animation: _c,
         builder: (_, __) {
           final k = widget.ready ? Curves.easeInOut.transform(_c.value) : 0.0;
+          final color = widget.ready ? _gold : BrandColors.electric;
           return Transform.scale(
-            scale: 1 + 0.05 * k,
+            scale: 1 + 0.04 * k,
             child: Container(
-              padding: const EdgeInsets.all(26),
+              width: 104,
+              height: 178,
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white10,
-                boxShadow: [if (widget.ready) BoxShadow(color: _gold.withValues(alpha: 0.35 + 0.35 * k), blurRadius: 24 + 22 * k, spreadRadius: 2 + 4 * k)],
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Colors.white70, width: 3),
+                boxShadow: [if (widget.ready) BoxShadow(color: _gold.withValues(alpha: 0.35 + 0.35 * k), blurRadius: 22 + 20 * k, spreadRadius: 1 + 4 * k)],
               ),
-              child: Icon(widget.ready ? Icons.lock_open_rounded : Icons.lock_rounded, size: 84, color: widget.ready ? _gold : BrandColors.electric),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: Stack(alignment: Alignment.center, children: [
+                  Container(color: Colors.white10),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: widget.progress),
+                      duration: const Duration(milliseconds: 900),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, v, __) => FractionallySizedBox(heightFactor: v, widthFactor: 1, child: Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withValues(alpha: 0.35), color], begin: Alignment.bottomCenter, end: Alignment.topCenter)))),
+                    ),
+                  ),
+                  Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.bolt_rounded, color: Colors.white, size: 40 + 6 * k),
+                    Text('${(widget.progress * 100).floor()}%', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                  ]),
+                ]),
+              ),
             ),
           );
         },
       );
 }
 
-/// Full-screen opening: the vault shakes while the server decides, then rays + confetti + counting points.
+/// Phone box: the lid flies off and the phone rises out with its screen showing the points.
+class _BoxArt extends StatelessWidget {
+  const _BoxArt({this.lid = 0, this.phone = 0, this.glow = 0, this.text});
+  final double lid, phone, glow;
+  final String? text;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 230,
+        height: 340,
+        child: Stack(alignment: Alignment.bottomCenter, children: [
+          Positioned(
+            bottom: -50 + phone * 175,
+            child: Container(
+              width: 92,
+              height: 154,
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(color: const Color(0xFF0B0F18), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white70, width: 2.5)),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(13),
+                  gradient: LinearGradient(colors: [Color.lerp(const Color(0xFF0B0F18), BrandColors.navy, glow)!, Color.lerp(const Color(0xFF0B0F18), BrandColors.electric, glow)!], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                  boxShadow: [BoxShadow(color: BrandColors.electric.withValues(alpha: 0.7 * glow), blurRadius: 30 * glow)],
+                ),
+                alignment: Alignment.center,
+                child: Opacity(opacity: glow, child: Text(text ?? '', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, shadows: [Shadow(color: Colors.white54, blurRadius: 12)]))),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            child: Container(
+              width: 190,
+              height: 100,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+                gradient: const LinearGradient(colors: [Color(0xFF123F7A), BrandColors.navyDeep], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                border: Border.all(color: BrandColors.electric.withValues(alpha: 0.7)),
+              ),
+              child: const Text('My Hatō', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
+            ),
+          ),
+          Positioned(
+            bottom: 100 + lid * 110,
+            left: 20 + lid * 70,
+            child: Opacity(
+              opacity: (1 - lid * 0.7).clamp(0.0, 1.0),
+              child: Transform.rotate(
+                angle: lid * 0.7,
+                child: Container(
+                  width: 200,
+                  height: 28,
+                  decoration: BoxDecoration(color: BrandColors.electric, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white54)),
+                ),
+              ),
+            ),
+          ),
+        ]),
+      );
+}
+
+/// Full-screen opening: the phone box shakes while the server decides, then the lid flies off and the phone shows the points.
 class _VaultOpening extends StatefulWidget {
   const _VaultOpening({required this.future});
   final Future<Map<String, dynamic>> future;
@@ -457,31 +541,22 @@ class _VaultOpeningState extends State<_VaultOpening> with TickerProviderStateMi
             if (r == null) ...[
               AnimatedBuilder(
                 animation: _shake,
-                builder: (_, child) => Transform.rotate(angle: (_shake.value - 0.5) * 0.28, child: child),
-                child: Container(
-                  padding: const EdgeInsets.all(30),
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white10, boxShadow: [BoxShadow(color: _gold.withValues(alpha: 0.5), blurRadius: 40, spreadRadius: 4)]),
-                  child: const Icon(Icons.lock_rounded, size: 100, color: _gold),
-                ),
+                builder: (_, child) => Transform.rotate(angle: (_shake.value - 0.5) * 0.2, child: child),
+                child: const _BoxArt(),
               ),
-              const SizedBox(height: 28),
-              Text(_t(context, 'بنفتح الخزنة...', 'Opening the vault...'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 16),
+              Text(_t(context, 'بنفتح العلبة...', 'Opening your box...'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
             ] else ...[
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 900),
-                curve: Curves.elasticOut,
-                builder: (_, v, child) => Transform.scale(scale: v, child: child),
-                child: const Icon(Icons.card_giftcard_rounded, color: _gold, size: 120),
-              ),
-              const SizedBox(height: 8),
               AnimatedBuilder(
                 animation: _burst,
                 builder: (_, __) {
-                  final t = Curves.easeOutCubic.transform((_burst.value * 2.2).clamp(0.0, 1.0));
-                  return Text('+${((r['points'] as int) * t).round()}', style: const TextStyle(color: _gold, fontSize: 64, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0xAAF5B83D), blurRadius: 24)]));
+                  final v = _burst.value;
+                  double seg(double a, double b, Curve c) => c.transform(((v - a) / (b - a)).clamp(0.0, 1.0));
+                  final count = (r['points'] as int) * seg(0.3, 0.6, Curves.easeOutCubic);
+                  return _BoxArt(lid: seg(0, 0.15, Curves.easeOut), phone: seg(0.08, 0.38, Curves.easeOutBack), glow: seg(0.25, 0.4, Curves.easeIn), text: '+${count.round()}');
                 },
               ),
+              const SizedBox(height: 12),
               Text(_t(context, 'نقطة اتضافت لرصيدك 🎉', 'points added to your balance 🎉'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 28),
               FadeTransition(
@@ -656,7 +731,7 @@ class _History extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = _list(d['history']);
     if (rows.isEmpty) {
-      return Center(child: Text(_t(context, 'لسه ماافتحتش الخزنة', 'You have not opened the vault yet'), style: const TextStyle(color: Colors.white60)));
+      return Center(child: Text(_t(context, 'لسه ماافتحتش أي علبة مكافآت', 'You have not opened any reward box yet'), style: const TextStyle(color: Colors.white60)));
     }
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
       for (final r in rows)
