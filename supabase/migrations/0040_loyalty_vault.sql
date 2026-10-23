@@ -83,7 +83,7 @@ insert into public.loyalty_levels (sort, name_ar, name_en, min_points, plan_ar, 
 on conflict do nothing;
 insert into public.loyalty_missions (key, kind, title_ar, title_en, desc_ar, desc_en, icon, points, repeat, sort) values
  ('checkin','checkin','تسجيل حضور يومي','Daily check-in','ادخل كل يوم واكسب نقاط','Come back every day for points','event_available',5,'daily',10),
- ('review','review','قيّم منتج اشتريته','Review a product you bought','اكتب رأيك (١٠ حروف على الأقل) في منتج اتسلّمك، والمكافأة بتتضاف تلقائي بعد ما التقييم يتنشر','Write your opinion (10+ characters) on a product you received. The reward is added automatically once the review is published','rate_review',40,'weekly',20),
+ ('review','review','قيّم منتج اشتريته','Review a product you bought','قيّم منتج اتسلّمك فعلًا واكتب رأيك (١٠ حروف على الأقل). التقييم على منتج مشتريتوش بيتنشر عادي بس من غير نقاط. النقاط بتتضاف تلقائي بعد نشر التقييم.','Review a product you actually received and write your opinion (10+ characters). Reviews of products you did not buy are published but earn no points. Points are added automatically once the review is published.','rate_review',40,'weekly',20),
  ('streak7','streak','٧ أيام ورا بعض','7-day streak','سجّل حضور ٧ أيام ورا بعض واكسب مكافأة','Check in 7 days in a row for a bonus','local_fire_department',30,'weekly',30)
 on conflict do nothing;
 insert into public.loyalty_rewards (points, weight) values (20,10),(50,5),(100,3),(250,1)   -- the app always shows exactly this number
