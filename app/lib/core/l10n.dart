@@ -233,7 +233,7 @@ const Map<String, Map<String, String>> _strings = {
   'delivery_notes': {'ar': 'ملاحظات للتوصيل (اختياري)', 'en': 'Delivery notes (optional)'},
   'payment_method': {'ar': 'طريقة الدفع', 'en': 'Payment method'},
   'cod': {'ar': 'الدفع عند الاستلام', 'en': 'Cash on delivery'},
-  'pay_branch': {'ar': 'الدفع في الفرع', 'en': 'Pay at branch'},
+  'pay_branch': {'ar': 'الدفع كاش', 'en': 'Pay cash'},
   'online_payment_soon': {'ar': 'الدفع أونلاين غير متاح حاليًا.', 'en': 'Online payment is not available yet.'},
   'place_order': {'ar': 'تأكيد الطلب', 'en': 'Place order'},
   'order_sent_msg': {'ar': 'تم إرسال طلبك لفريق المبيعات، وهنكلمك قريب لتأكيد الطلب.', 'en': 'Your order was sent to our sales team, and we will call you soon to confirm it.'},
