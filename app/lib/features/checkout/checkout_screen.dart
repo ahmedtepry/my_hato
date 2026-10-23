@@ -165,6 +165,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final p = profile.valueOrNull;
     final onlineEnabled = ref.watch(onlinePaymentsEnabledProvider).valueOrNull ?? false;
     final verified = isAccountVerified(p);
+    final reviewStatus = ref.watch(accountReviewProvider).valueOrNull ?? 'approved';
     final phone = reachablePhone(p);
     final hasPhone = phone != null || _fulfillment == 'delivery';
     final subtotal = cart?.subtotal ?? 0;
@@ -220,7 +221,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               child: Text(phone ?? (p?['email'] as String?) ?? '—', textAlign: context.isAr ? TextAlign.end : TextAlign.start),
             ),
             trailing: verified
-                ? StatusChip(label: context.tr('verified'), color: BrandColors.success)
+                ? (reviewStatus == 'approved'
+                    ? StatusChip(label: context.tr('verified'), color: BrandColors.success)
+                    : StatusChip(
+                        label: reviewStatus == 'rejected' ? (context.isAr ? 'مرفوض' : 'Rejected') : (context.isAr ? 'قيد التوثيق' : 'Being verified'),
+                        color: reviewStatus == 'rejected' ? BrandColors.error : BrandColors.warning))
                 : TextButton(
                     onPressed: () => showSupportSheet(context,
                         title: context.tr('account_pending_title'), body: context.tr('account_pending_body'), whatsappMessage: context.tr('account_pending_wa')),
