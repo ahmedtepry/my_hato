@@ -14,6 +14,7 @@ import '../../shared/states.dart';
 import '../admin/admin_repository.dart' show staffContextProvider;
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
+import '../../shared/account_review.dart';
 import '../../shared/avatars.dart';
 import 'profile_repository.dart';
 
@@ -100,7 +101,8 @@ class ProfileScreen extends ConsumerWidget {
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(profileProvider)),
         data: (p) {
           final created = DateTime.parse((p?['created_at'] ?? user.createdAt) as String).toLocal();
-          final verified = isAccountVerified(p);
+          final review = ref.watch(accountReviewProvider).valueOrNull ?? 'approved';
+          final verified = isAccountVerified(p) && review == 'approved';
           final phone = reachablePhone(p) ?? (p?['phone'] as String?);
           final customer = ref.watch(customerProvider).valueOrNull;
           final avatar = ref.watch(_avatarUrlProvider).valueOrNull;
@@ -127,8 +129,14 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Wrap(spacing: 6, runSpacing: 6, children: [
                         StatusChip(
-                          label: verified ? context.tr('account_verified') : context.tr('account_not_verified'),
-                          color: verified ? BrandColors.success : BrandColors.warning,
+                          label: verified
+                              ? context.tr('account_verified')
+                              : review == 'rejected'
+                                  ? (context.isAr ? 'حساب مرفوض' : 'Account rejected')
+                                  : review == 'pending'
+                                      ? (context.isAr ? 'قيد التوثيق' : 'Being verified')
+                                      : context.tr('account_not_verified'),
+                          color: verified ? BrandColors.success : (review == 'rejected' ? BrandColors.error : BrandColors.warning),
                         ),
                         if (customer?['customer_code'] != null)
                           StatusChip(label: '${context.tr('customer_code')}: ${customer!['customer_code']}', color: BrandColors.navy),
