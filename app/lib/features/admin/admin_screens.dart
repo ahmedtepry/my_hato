@@ -428,6 +428,7 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           Expanded(child: Text(o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
           _orderChip(context, o),
         ]),
+        _SeenCard(type: 'order', id: o['id'] as String),
         if (o['closed_at'] != null) _ClosedCard(row: o, kind: 'order'),
         if (o['closed_at'] == null && _openCancel(o) != null)
           _CancelRequestCard(
@@ -620,6 +621,7 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
           Expanded(child: Text(r['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
           StatusChip(label: repairLabel(context, labels, r['status'] as String), color: repairStatusColor(r['status'] as String)),
         ]),
+        _SeenCard(type: 'repair', id: r['id'] as String),
         if (r['closed_at'] != null) _ClosedCard(row: r, kind: 'repair'),
         if (r['closed_at'] == null && _openCancel(r) != null)
           _CancelRequestCard(
@@ -2086,4 +2088,58 @@ class _StatTileState extends State<_StatTile> {
           ),
         ),
       );
+}
+
+
+final _seenProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, (String, String)>(
+    (ref, k) => ref.watch(adminRepoProvider).entitySeen(k.$1, k.$2));
+
+/// Read receipts: what the customer was told about this order/repair and whether they have opened it
+/// (single grey tick = delivered to their notifications, blue double tick = they saw it, with the time).
+class _SeenCard extends ConsumerWidget {
+  const _SeenCard({required this.type, required this.id});
+  final String type;
+  final String id;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final data = ref.watch(_seenProvider((type, id)));
+    return data.maybeWhen(
+      data: (list) {
+        if (list.isEmpty) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(14)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.visibility_outlined, size: 18, color: BrandColors.electric),
+              const SizedBox(width: 6),
+              Text(_t(context, 'العميل شاف الرسائل؟', 'Did the customer see the messages?'), style: const TextStyle(fontWeight: FontWeight.w800)),
+              const Spacer(),
+              InkWell(onTap: () => ref.invalidate(_seenProvider((type, id))), child: const Icon(Icons.refresh_rounded, size: 18, color: BrandColors.gray)),
+            ]),
+            const SizedBox(height: 6),
+            for (final n in list)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Icon(n['read_at'] != null ? Icons.done_all_rounded : Icons.done_rounded, size: 18, color: n['read_at'] != null ? const Color(0xFF1E88E5) : BrandColors.gray),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(context.isAr ? n['title_ar'] as String : n['title_en'] as String, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  const SizedBox(width: 8),
+                  Text(
+                    n['read_at'] != null
+                        ? _t(context, 'شافها ${fmtDate(context, n['read_at'] as String)}', 'Seen ${fmtDate(context, n['read_at'] as String)}')
+                        : _t(context, 'لسه ما شافهاش', 'Not seen yet'),
+                    style: TextStyle(fontSize: 12, color: n['read_at'] != null ? const Color(0xFF1E88E5) : BrandColors.gray),
+                  ),
+                ]),
+              ),
+          ]),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
 }

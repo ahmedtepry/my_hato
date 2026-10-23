@@ -29,6 +29,10 @@ class AdminRepository {
   Future<List<Map<String, dynamic>>> accounts(String status) async =>
       List<Map<String, dynamic>>.from(await _db.rpc('staff_accounts', params: {'p_status': status}) as List);
 
+  /// Latest customer notifications for an order / repair with their read receipt (read_at).
+  Future<List<Map<String, dynamic>>> entitySeen(String type, String id) async =>
+      List<Map<String, dynamic>>.from(await _db.rpc('staff_entity_seen', params: {'p_type': type, 'p_id': id}) as List);
+
   Future<int> pendingAccountsCount() async {
     try {
       return ((await _db.rpc('staff_pending_accounts_count')) as num).toInt();
