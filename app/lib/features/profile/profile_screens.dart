@@ -712,8 +712,8 @@ class LegalScreen extends StatelessWidget {
   static const _cards = <(IconData, Color, String, String, String, String)>[
     (Icons.lock_rounded, Color(0xFF2F6FE0), 'بياناتك معانا', 'بنستخدمها لتنفيذ طلباتك وصيانتك بس. مش بنبيعها لحد، وبطاقتك مش بنخزّنها.',
         'Your data', 'We use it only for your orders and repairs. We never sell it, and we do not store your card.'),
-    (Icons.delete_outline_rounded, Color(0xFFE23D52), 'حذف حسابك', 'تعدّل بياناتك أو تحذف حسابك من «حسابي»، وبنمسح بياناتك خلال 30 يوم.',
-        'Delete your account', 'Edit your data or delete your account from Account. We erase your data within 30 days.'),
+    (Icons.bookmark_rounded, Color(0xFFE23D52), 'حسابك محفوظ', 'حسابك وطلباتك وصيانتك ونقاطك بتفضل محفوظة، وتقدر تعدّل بياناتك في أي وقت من «حسابي».',
+        'Your account is kept', 'Your account, orders, repairs and points stay saved, and you can edit your details any time from Account.'),
     (Icons.shopping_bag_rounded, Color(0xFFF08A12), 'المشتريات', 'الأسعار بالجنيه المصري وفريقنا بيأكدها. الضمان لعيوب التصنيع بس، مش الكسر أو المياه. افحص المنتج وقت الاستلام.',
         'Purchases', 'Prices are in EGP and confirmed by our team. Warranty covers manufacturing defects only, not breakage or water. Check the product when you receive it.'),
     (Icons.build_rounded, Color(0xFF566380), 'الصيانة', 'مفيش تكلفة من غير موافقتك. خد نسخة احتياطية من بياناتك، وتأكد إن الجهاز بتاعك، واستلمه أول ما يبقى جاهز.',
