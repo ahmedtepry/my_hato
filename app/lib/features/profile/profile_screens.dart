@@ -703,7 +703,7 @@ class _HelpScreenState extends ConsumerState<HelpScreen> {
 }
 
 /// Privacy policy and terms, kept short on purpose: seven small cards a customer can read in under a minute.
-class LegalScreen extends StatelessWidget {
+class LegalScreen extends ConsumerWidget {
   const LegalScreen({super.key});
 
   static const _updated = '24/10/2026';
@@ -724,13 +724,65 @@ class LegalScreen extends StatelessWidget {
         'Using the app', 'No hacking, duplicate accounts or fake reviews. Breaking these rules can suspend your account.'),
   ];
 
+  /// '# ' title, '## ' heading, '- ' bullet, anything else a paragraph (see migration 0050).
+  static List<Widget> _formatted(BuildContext context, String text) {
+    final out = <Widget>[];
+    for (final raw in text.split('\n')) {
+      final line = raw.trimRight();
+      if (line.isEmpty) {
+        out.add(const SizedBox(height: 8));
+      } else if (line.startsWith('## ')) {
+        out.add(Padding(padding: const EdgeInsets.only(top: 14, bottom: 4), child: Text(line.substring(3), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: BrandColors.navy))));
+      } else if (line.startsWith('# ')) {
+        out.add(Text(line.substring(2), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)));
+      } else if (line.startsWith('- ')) {
+        out.add(Padding(
+          padding: const EdgeInsetsDirectional.only(start: 6, top: 3),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('•  ', style: TextStyle(height: 1.7)),
+            Expanded(child: Text(line.substring(2), style: const TextStyle(height: 1.7))),
+          ]),
+        ));
+      } else {
+        out.add(Text(line, style: const TextStyle(height: 1.7)));
+      }
+    }
+    return out;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ar = context.isAr;
     final theme = Theme.of(context).textTheme;
+    // the full policy is stored in the database (one text per language) so it can change without a new app release
+    final stored = ref.watch(publicSettingsProvider).valueOrNull?['legal_privacy_${ar ? 'ar' : 'en'}'];
+    final full = stored is String && stored.trim().isNotEmpty ? stored : null;
+    final contact = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
+      child: Row(children: [
+        const Icon(Icons.support_agent_rounded, color: BrandColors.electric),
+        const SizedBox(width: 10),
+        Expanded(child: Text(ar ? 'أي سؤال؟ كلمنا: ${AppConfig.supportPhone}' : 'Any question? Call us: ${AppConfig.supportPhone}', style: const TextStyle(fontWeight: FontWeight.w700))),
+      ]),
+    );
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('privacy'))),
-      body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(publicSettingsProvider);
+          await ref.read(publicSettingsProvider.future);
+        },
+        child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: full != null
+            ? [..._formatted(context, full), const SizedBox(height: 20), contact]
+            : _summary(context, ar, theme, contact)),
+      ),
+    );
+  }
+
+  // shown when the full text is not available (offline, or before the database text exists)
+  List<Widget> _summary(BuildContext context, bool ar, TextTheme theme, Widget contact) {
+    return [
         Text(ar ? 'باختصار' : 'In short', style: theme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 2),
         Text(ar ? 'My Hatō · آخر تحديث $_updated' : 'My Hatō · Updated $_updated', style: theme.bodySmall?.copyWith(color: BrandColors.gray)),
@@ -760,16 +812,7 @@ class LegalScreen extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
-          child: Row(children: [
-            const Icon(Icons.support_agent_rounded, color: BrandColors.electric),
-            const SizedBox(width: 10),
-            Expanded(child: Text(ar ? 'أي سؤال؟ كلمنا: ${AppConfig.supportPhone}' : 'Any question? Call us: ${AppConfig.supportPhone}', style: const TextStyle(fontWeight: FontWeight.w700))),
-          ]),
-        ),
-      ]),
-    );
+        contact,
+    ];
   }
 }
