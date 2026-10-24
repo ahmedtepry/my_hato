@@ -20,6 +20,7 @@ dependencies:
   intl: any
   image_picker: ^1.1.2
   geolocator: ^13.0.2
+  geocoding: ^3.0.0
   mobile_scanner: ^7.0.0
   uuid: ^4.4.2
   google_fonts: ^6.2.1

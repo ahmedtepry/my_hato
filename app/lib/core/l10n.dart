@@ -356,6 +356,7 @@ const Map<String, Map<String, String>> _strings = {
   'call': {'ar': 'اتصال', 'en': 'Call'},
   'copy_address': {'ar': 'نسخ العنوان', 'en': 'Copy address'},
   'copied': {'ar': 'اتنسخ', 'en': 'Copied'},
+  'location_filled': {'ar': 'مليّنا العنوان من موقعك. راجعه وعدّل لو فيه حاجة غلط.', 'en': 'We filled the address from your location. Please check it.'},
   'open_map': {'ar': 'افتح الخريطة', 'en': 'Open map'},
   'make_default': {'ar': 'العنوان الافتراضي', 'en': 'Default address'},
   'support_subject': {'ar': 'الموضوع', 'en': 'Subject'},

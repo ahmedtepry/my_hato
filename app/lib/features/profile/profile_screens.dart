@@ -502,14 +502,26 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
     setState(() => _locating = true);
     final pos = await currentPosition();
     if (!mounted) return;
+    if (pos == null) {
+      setState(() => _locating = false);
+      showSnack(context, context.tr('location_denied'), error: true);
+      return;
+    }
+    // fill the address fields from the point; fields the customer already typed are left alone
+    final g = await addressFromPosition(pos.latitude, pos.longitude, egyptGovernorates);
+    if (!mounted) return;
     setState(() {
       _locating = false;
-      if (pos != null) {
-        _lat = pos.latitude;
-        _lng = pos.longitude;
+      _lat = pos.latitude;
+      _lng = pos.longitude;
+      if (g != null) {
+        _gov ??= g.governorate;
+        for (final e in {'city': g.city, 'street': g.street, 'building': g.building}.entries) {
+          if (e.value != null && _c[e.key]!.text.trim().isEmpty) _c[e.key]!.text = e.value!;
+        }
       }
     });
-    if (pos == null) showSnack(context, context.tr('location_denied'), error: true);
+    if (g != null) showSnack(context, context.tr('location_filled'));
   }
 
   @override
