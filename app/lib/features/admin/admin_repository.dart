@@ -98,8 +98,10 @@ class AdminRepository {
   Future<Map<String, dynamic>> stats() async => Map<String, dynamic>.from(await _db.rpc('staff_dashboard_stats') as Map);
 
   // ---------------- orders
-  static const _orderCols =
-      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, delivery_address, delivery_notes, created_at, closed_at, close_reason, coupon_code, coupon_discount_minor, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
+  // the address column is only requested by members who hold orders.address
+  static String _orderCols({required bool address}) =>
+      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, ${address ? 'delivery_address, ' : ''}delivery_notes, created_at, closed_at, close_reason, coupon_code, coupon_discount_minor, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
+  Future<bool> _canSeeAddress() async => (await staffContext()).permissions.contains('orders.address');
   static const _repairCols =
       'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at, closed_at, close_reason';
 
@@ -112,8 +114,9 @@ class AdminRepository {
     }
     q = q.replaceAll(RegExp(r'[^A-Z0-9-]'), '');
     if (q.length < 3) return (orders: <Map<String, dynamic>>[], repairs: <Map<String, dynamic>>[]);
+    final addr = await _canSeeAddress();
     final res = await Future.wait([
-      _db.from('orders').select('$_orderCols, cancel_requests(id, reason, status, created_at)').ilike('reference', '%$q%').order('created_at', ascending: false).limit(20),
+      _db.from('orders').select('${_orderCols(address: addr)}, cancel_requests(id, reason, status, created_at)').ilike('reference', '%$q%').order('created_at', ascending: false).limit(20),
       _db.from('repair_requests').select('$_repairCols, cancel_requests(id, reason, status, created_at)').ilike('reference', '%$q%').order('created_at', ascending: false).limit(20),
     ]);
     return (orders: List<Map<String, dynamic>>.from(res[0]), repairs: List<Map<String, dynamic>>.from(res[1]));
@@ -122,7 +125,8 @@ class AdminRepository {
   /// status: null = all, 'cancel_requests' = orders with an open cancellation request.
   Future<List<Map<String, dynamic>>> orders({String? status}) async {
     final cr = status == 'cancel_requests' ? 'cancel_requests!inner' : 'cancel_requests';
-    var q = _db.from('orders').select('$_orderCols, $cr(id, reason, status, created_at)');
+    final addr = await _canSeeAddress();
+    var q = _db.from('orders').select('${_orderCols(address: addr)}, $cr(id, reason, status, created_at)');
     if (status == 'closed') {
       q = q.not('closed_at', 'is', null);
     } else {
