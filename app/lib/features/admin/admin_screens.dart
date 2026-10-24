@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -465,6 +466,30 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
         if (addr != null && (addr['landmark'] as String?)?.isNotEmpty == true) Text('📍 ${addr['landmark']}'),
         if (addr != null && addr['location_confirmed'] == true && addr['latitude'] == null)
           Text('✓ ${context.tr('location_confirmed_by')}', style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w700)),
+        Wrap(spacing: 8, children: [
+          OutlinedButton.icon(
+            icon: const Icon(Icons.call_outlined),
+            label: Text(context.tr('call')),
+            onPressed: () => launchUrl(Uri.parse('tel:${o['customer_phone']}')),
+          ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.chat_outlined),
+            label: Text(context.tr('whatsapp')),
+            onPressed: () => launchUrl(Uri.parse('https://wa.me/${waDigits('${o['customer_phone']}')}'), mode: LaunchMode.externalApplication),
+          ),
+          if (addr != null)
+            OutlinedButton.icon(
+              icon: const Icon(Icons.copy_rounded),
+              label: Text(context.tr('copy_address')),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(
+                    text: [addr['governorate'], addr['city'], addr['street'], addr['building'], addr['landmark'], addr['location_note']]
+                        .where((x) => x != null && '$x'.trim().isNotEmpty)
+                        .join(' — ')));
+                showSnack(context, context.tr('copied'));
+              },
+            ),
+        ]),
         if (addr != null)
           Wrap(spacing: 8, children: [
             OutlinedButton.icon(
