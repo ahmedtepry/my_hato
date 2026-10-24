@@ -702,68 +702,71 @@ class _HelpScreenState extends ConsumerState<HelpScreen> {
   }
 }
 
-/// Privacy policy and terms. Written as sections so each part is easy to scan; keep the Arabic and English in step.
+/// Privacy policy and terms, kept short on purpose: seven small cards a customer can read in under a minute.
 class LegalScreen extends StatelessWidget {
   const LegalScreen({super.key});
 
   static const _updated = '24/10/2026';
 
-  static const _ar = <(String, String)>[
-    ('عن السياسة دي', 'السياسة دي بتوضّح إزاي My Hatō بتتعامل مع بياناتك، وإيه القواعد اللي بتحكم الشراء والصيانة ونظام المكافآت والهدايا. باستخدامك للتطبيق وإنشاء حساب إنت موافق عليها.'),
-    ('البيانات اللي بنجمعها', '• بيانات الحساب: الاسم، رقم الموبايل، الإيميل، والعناوين.\n• الطلبات والمدفوعات: تفاصيل الطلبات وحالتها وسجل الدفع.\n• الصيانة: بيانات الجهاز، رقم IMEI، وصف العطل، والصور اللي بترفعها.\n• التفاعل: التقييمات، اللايكات، المفضلة، والإشعارات.\n• المكافآت: النقاط والمستوى والهدايا وأكوادها.\n• بيانات تقنية بسيطة لتشغيل التطبيق وحمايته.'),
-    ('إزاي بنستخدم بياناتك', '• تنفيذ طلباتك وصيانتك والتواصل معاك بخصوصها.\n• إرسال إشعارات عن حالة الطلب أو الصيانة، وعروض لو إنت وافقت عليها.\n• تشغيل نظام المكافآت ومنع التلاعب.\n• تحسين الخدمة وحماية التطبيق والحسابات.\nمش بنبيع بياناتك ولا بنشاركها مع أي طرف للإعلان.'),
-    ('حماية بياناتك', '• الاتصال بين التطبيق والسيرفر مشفّر.\n• صور الأجهزة ورقم IMEI محفوظة بشكل خاص ومتاحة لك وللموظفين المختصين بس.\n• وصول الموظفين بيتحدد حسب دور كل واحد، والعمليات المهمة بتتسجل.\n• بيانات البطاقة مش بتتخزن عندنا: بنحتفظ بس بآخر 4 أرقام ونوع البطاقة وتاريخ الانتهاء من مزوّد الدفع، وتأكيد الدفع بيجي من المزوّد نفسه مش من التطبيق.\n• أكواد التحقق مش بتتخزن.'),
-    ('الاحتفاظ بالبيانات وحذفها', '• تقدر تعدّل بياناتك أو تطلب حذف حسابك من صفحة حسابي. بنحذف بياناتك الشخصية خلال 30 يوم.\n• بنحتفظ بسجلات الطلبات والفواتير 5 سنين لأغراض محاسبية وقانونية.'),
-    ('الشراء والطلبات', '• الأسعار بالجنيه المصري، والتوفر والسعر النهائي بيتأكدوا لما فريقنا يأكد الطلب.\n• الدفع عند الاستلام أو في الفرع، أو بالطرق الأونلاين المتاحة في التطبيق.\n• ممكن نرفض أو نلغي طلب لو فيه بيانات غير صحيحة أو شبهة احتيال أو المنتج مش متاح، وبنرجّع أي مبلغ اتدفع.\n• الضمان حسب المكتوب على كل منتج، وبيشمل عيوب التصنيع بس، مش سوء الاستخدام أو الكسر أو السوائل.\n• عند الاستلام افحص المنتج قبل ما تمشي، وأي مشكلة بلّغنا بيها بأسرع وقت.'),
-    ('الصيانة', '• بنفحص الجهاز وبنبلّغك بالتشخيص والتكلفة، ومفيش صيانة بتكلفة بتبدأ إلا بموافقتك.\n• كل طلب صيانة ليه كود تتابع بيه الحالة، ومتشاركوش مع حد.\n• إنت بتقرّ إن الجهاز بتاعك أو معاك تفويض بصيانته. لو الجهاز مشتبه إنه مسروق أو الـIMEI مش مظبوط، بنرفض الصيانة ونقدر نبلّغ الجهات المختصة.\n• خد نسخة احتياطية من بياناتك قبل التسليم. إحنا مش مسؤولين عن فقدان البيانات أثناء الصيانة.\n• ممكن يتضح إن الجهاز مش قابل للإصلاح، وساعتها بنبلّغك وبنرجّعه.\n• لازم تستلم جهازك بعد ما يبقى جاهز، وبنتواصل معاك عدة مرات. الأجهزة اللي مش بتتسلّم بعد المدة اللي بنبلّغك بيها مش بنتحمّل مسؤولية تخزينها.\n• ضمان الصيانة بيشمل القطعة أو العطل اللي اتصلّح بس، حسب المكتوب في تفاصيل الصيانة.'),
-    ('المكافآت والهدايا', '• النقاط والمستويات والهدايا ملكك الشخصي، مش ليها قيمة نقدية، ومينفعش تتحوّل أو تتباع أو تتنقل لحساب تاني.\n• النقاط بتتضاف بعد تسليم الطلبات، ولو الطلب اتلغى أو اتسترد، أو التقييم اتشال، النقاط بتتسحب.\n• نقاط التقييمات واللايكات ليها حدود يومية وأسبوعية، وبتستلمها بنفسك من صفحة المكافآت.\n• المستويات سرية، والهدية لكل مستوى بتحددها الإدارة وتظهرلك بس لما نحددها.\n• كود الهدية خاص بيك وبيتستخدم مرة واحدة، ولما الهدية تتسلّم الكود بيتقفل. متشاركوش مع حد.\n• الاستلام بيكون من الفرع أو بالتنسيق مع فريقنا، وبنطلب إثبات إنك صاحب الحساب.\n• نقدر نعدّل نظام المكافآت أو نوقفه أو نغيّر الهدايا في أي وقت، من غير ما ده يمس النقاط اللي اتكسبت بشكل سليم.\n• أي تلاعب (حسابات مكررة، تقييمات أو لايكات وهمية، استغلال ثغرات، استخدام برامج آلية) بيخلّينا نلغي النقاط والهدايا ونوقف الحساب.'),
-    ('الاستخدام المسموح وحماية التطبيق', 'ممنوع:\n• محاولة اختراق التطبيق أو السيرفر، أو الوصول لبيانات حد تاني.\n• فك التطبيق أو تعديله، أو استخدام برامج آلية لسحب البيانات أو تنفيذ عمليات.\n• إنشاء حسابات متعددة للاستفادة من المكافآت أو العروض.\n• كتابة تقييمات مسيئة أو وهمية أو فيها أرقام تليفونات أو إعلانات.\n• رفع محتوى مخالف للقانون أو مش بتاعك.\nبنراجع التقييمات اللي فيها ألفاظ مش لائقة قبل نشرها، ونقدر نشيل أي محتوى مخالف.\nلو حصل مخالفة، نقدر نحد من الحساب أو نوقفه مؤقتًا أو نهائيًا ونتخذ الإجراء القانوني المناسب.'),
-    ('حسابك', '• بيانات الدخول مسؤوليتك، متشاركهاش مع حد. بلّغنا فورًا لو شكيت إن حد دخل على حسابك.\n• بعض الخدمات ممكن تتطلب توثيق الحساب من فريقنا.'),
-    ('الإشعارات', 'بنبعتلك إشعارات عن طلباتك وصيانتك وهداياك. العروض ممكن تقفلها من إعدادات الإشعارات في حسابك.'),
-    ('تعديل السياسة والتواصل', 'ممكن نحدّث السياسة من وقت للتاني، وبنبلّغك بالتعديلات المهمة. استمرارك في الاستخدام معناه موافقتك على النسخة الجديدة.'),
-  ];
-
-  static const _en = <(String, String)>[
-    ('About this policy', 'This policy explains how My Hatō handles your data and the rules for purchases, repairs, and the rewards and gifts system. By using the app and creating an account you agree to it.'),
-    ('Data we collect', '• Account: name, mobile number, email and addresses.\n• Orders and payments: order details, status and payment history.\n• Repairs: device details, IMEI, fault description and the photos you upload.\n• Activity: reviews, likes, favourites and notifications.\n• Rewards: points, level, gifts and their codes.\n• Basic technical data to run and protect the app.'),
-    ('How we use your data', '• To fulfil your orders and repairs and contact you about them.\n• To send notifications about your order or repair, and offers if you agreed to them.\n• To run the rewards system and prevent abuse.\n• To improve the service and protect the app and accounts.\nWe never sell your data or share it for advertising.'),
-    ('How we protect it', '• The connection between the app and our server is encrypted.\n• Device photos and IMEI are private and visible only to you and authorised staff.\n• Staff access depends on each person\'s role, and important actions are logged.\n• We do not store card data: we only keep the last 4 digits, card brand and expiry from the payment provider, and payment confirmation comes from the provider, not the app.\n• Verification codes are never stored.'),
-    ('Retention and deletion', '• You can edit your data or request account deletion from Account. We delete your personal data within 30 days.\n• Order and invoice records are kept for 5 years for accounting and legal reasons.'),
-    ('Purchases and orders', '• Prices are in Egyptian Pounds; availability and final price are confirmed when our team confirms the order.\n• Payment is cash on delivery or at the branch, or by the online methods offered in the app.\n• We may decline or cancel an order for incorrect details, suspected fraud or unavailability, and refund anything paid.\n• Warranty is as stated on each product and covers manufacturing defects only, not misuse, breakage or liquid damage.\n• Check the product when you receive it and report any problem as soon as possible.'),
-    ('Repairs', '• We inspect the device and tell you the diagnosis and cost; no chargeable repair starts without your approval.\n• Each repair has a code to track its status. Do not share it.\n• You confirm the device is yours or that you are authorised to repair it. If a device is suspected stolen or the IMEI does not match, we refuse the repair and may notify the authorities.\n• Back up your data before handing the device over. We are not responsible for data loss during repair.\n• A device may turn out to be unrepairable; we will tell you and return it.\n• Collect your device once it is ready; we contact you several times. We are not responsible for storing devices left uncollected after the period we tell you about.\n• Repair warranty covers only the part or fault that was repaired, as stated in the repair details.'),
-    ('Rewards and gifts', '• Points, levels and gifts are personal, have no cash value, and cannot be sold, transferred or moved to another account.\n• Points are added after orders are delivered; if an order is cancelled or refunded, or a review is removed, the points are taken back.\n• Review and like points have daily and weekly limits, and you collect them yourself from the Rewards page.\n• Levels are private, and the gift for each level is decided by management and shown to you only when we set it.\n• A gift code is yours alone and works once; after the gift is delivered the code is locked. Do not share it.\n• Gifts are collected at the branch or arranged with our team, and we may ask you to prove you own the account.\n• We may change or stop the rewards system or change gifts at any time, without affecting points that were properly earned.\n• Any abuse (duplicate accounts, fake reviews or likes, exploiting bugs, automated tools) lets us cancel points and gifts and suspend the account.'),
-    ('Acceptable use and app protection', 'You must not:\n• try to break into the app or server, or access anyone else\'s data.\n• reverse engineer or modify the app, or use automated tools to scrape data or perform actions.\n• create multiple accounts to take advantage of rewards or offers.\n• post abusive or fake reviews, or ones containing phone numbers or ads.\n• upload content that is unlawful or not yours.\nReviews with inappropriate language are checked before publishing, and we may remove anything that breaks these rules.\nIf the rules are broken we may restrict or suspend the account, temporarily or permanently, and take appropriate legal action.'),
-    ('Your account', '• You are responsible for your login details; do not share them. Tell us immediately if you think someone accessed your account.\n• Some services may require our team to verify your account.'),
-    ('Notifications', 'We send notifications about your orders, repairs and gifts. You can turn offers off from notification settings in your account.'),
-    ('Changes and contact', 'We may update this policy from time to time and will tell you about important changes. Continuing to use the app means you accept the new version.'),
+  // (icon, colour, Arabic title, Arabic text, English title, English text)
+  static const _cards = <(IconData, Color, String, String, String, String)>[
+    (Icons.lock_rounded, Color(0xFF2F6FE0), 'بياناتك معانا', 'بنستخدمها لتنفيذ طلباتك وصيانتك بس. مش بنبيعها لحد، وبطاقتك مش بنخزّنها.',
+        'Your data', 'We use it only for your orders and repairs. We never sell it, and we do not store your card.'),
+    (Icons.delete_outline_rounded, Color(0xFFE23D52), 'حذف حسابك', 'تعدّل بياناتك أو تحذف حسابك من «حسابي»، وبنمسح بياناتك خلال 30 يوم.',
+        'Delete your account', 'Edit your data or delete your account from Account. We erase your data within 30 days.'),
+    (Icons.shopping_bag_rounded, Color(0xFFF08A12), 'المشتريات', 'الأسعار بالجنيه المصري وفريقنا بيأكدها. الضمان لعيوب التصنيع بس، مش الكسر أو المياه. افحص المنتج وقت الاستلام.',
+        'Purchases', 'Prices are in EGP and confirmed by our team. Warranty covers manufacturing defects only, not breakage or water. Check the product when you receive it.'),
+    (Icons.build_rounded, Color(0xFF566380), 'الصيانة', 'مفيش تكلفة من غير موافقتك. خد نسخة احتياطية من بياناتك، وتأكد إن الجهاز بتاعك، واستلمه أول ما يبقى جاهز.',
+        'Repairs', 'No cost starts without your approval. Back up your data, make sure the device is yours, and collect it as soon as it is ready.'),
+    (Icons.emoji_events_rounded, Color(0xFFD99A00), 'المكافآت والهدايا', 'النقاط والهدايا ليك إنت بس ومالهاش قيمة نقدية. كود الهدية بيتستخدم مرة واحدة، وأي تلاعب بيلغي النقاط.',
+        'Rewards and gifts', 'Points and gifts are yours alone and have no cash value. A gift code works once, and any cheating cancels your points.'),
+    (Icons.shield_rounded, Color(0xFF14A671), 'استخدام التطبيق', 'ممنوع الاختراق والحسابات المتكررة والتقييمات الوهمية. المخالفة ممكن توقف الحساب.',
+        'Using the app', 'No hacking, duplicate accounts or fake reviews. Breaking these rules can suspend your account.'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final ar = context.isAr;
-    final sections = ar ? _ar : _en;
     final theme = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('privacy'))),
-      body: ListView(padding: const EdgeInsets.fromLTRB(20, 16, 20, 32), children: [
-        Text(ar ? 'سياسة الخصوصية والشروط' : 'Privacy policy and terms', style: theme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 4),
-        Text(ar ? 'My Hatō · آخر تحديث $_updated' : 'My Hatō · Last updated $_updated', style: theme.bodySmall?.copyWith(color: BrandColors.gray)),
-        const SizedBox(height: 12),
-        for (final s in sections) ...[
-          const SizedBox(height: 14),
-          Text(s.$1, style: theme.titleMedium?.copyWith(fontWeight: FontWeight.w800, color: BrandColors.navy)),
-          const SizedBox(height: 6),
-          Text(s.$2, style: const TextStyle(height: 1.8)),
-        ],
-        const SizedBox(height: 20),
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
+        Text(ar ? 'باختصار' : 'In short', style: theme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 2),
+        Text(ar ? 'My Hatō · آخر تحديث $_updated' : 'My Hatō · Updated $_updated', style: theme.bodySmall?.copyWith(color: BrandColors.gray)),
+        const SizedBox(height: 14),
+        for (final c in _cards)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(color: c.$2.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(13)),
+                  child: Icon(c.$1, color: c.$2, size: 23),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(ar ? c.$3 : c.$5, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    Text(ar ? c.$4 : c.$6, style: const TextStyle(height: 1.6, color: BrandColors.gray)),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
           child: Row(children: [
             const Icon(Icons.support_agent_rounded, color: BrandColors.electric),
             const SizedBox(width: 10),
-            Expanded(child: Text(ar ? 'أي استفسار أو طلب بخصوص بياناتك: ${AppConfig.supportPhone}' : 'Questions or requests about your data: ${AppConfig.supportPhone}', style: const TextStyle(fontWeight: FontWeight.w700))),
+            Expanded(child: Text(ar ? 'أي سؤال؟ كلمنا: ${AppConfig.supportPhone}' : 'Any question? Call us: ${AppConfig.supportPhone}', style: const TextStyle(fontWeight: FontWeight.w700))),
           ]),
         ),
       ]),
