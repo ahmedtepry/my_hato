@@ -16,6 +16,7 @@ import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
 import '../../shared/account_review.dart';
 import '../../shared/avatars.dart';
+import '../../shared/delivery_location.dart';
 import 'profile_repository.dart';
 
 final _avatarUrlProvider = FutureProvider<String?>((ref) async {
@@ -486,12 +487,29 @@ class AddressFormScreen extends ConsumerStatefulWidget {
 class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   final _form = GlobalKey<FormState>();
   late final Map<String, TextEditingController> _c = {
-    for (final k in ['label', 'recipient_name', 'phone', 'city', 'street', 'building', 'landmark'])
+    for (final k in ['label', 'recipient_name', 'phone', 'city', 'street', 'building', 'landmark', 'location_note'])
       k: TextEditingController(text: widget.existing?[k] as String? ?? ''),
   };
   late String? _gov = widget.existing?['governorate'] as String?;
   late bool _default = widget.existing?['is_default'] == true;
   bool _busy = false;
+  bool _locating = false;
+  late double? _lat = (widget.existing?['latitude'] as num?)?.toDouble();
+  late double? _lng = (widget.existing?['longitude'] as num?)?.toDouble();
+
+  Future<void> _pickLocation() async {
+    setState(() => _locating = true);
+    final pos = await currentPosition();
+    if (!mounted) return;
+    setState(() {
+      _locating = false;
+      if (pos != null) {
+        _lat = pos.latitude;
+        _lng = pos.longitude;
+      }
+    });
+    if (pos == null) showSnack(context, context.tr('location_denied'), error: true);
+  }
 
   @override
   void initState() {
@@ -547,6 +565,20 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
           TextFormField(controller: _c['building'], decoration: InputDecoration(labelText: context.tr('building'))),
           const SizedBox(height: 12),
           TextFormField(controller: _c['landmark'], decoration: InputDecoration(labelText: context.tr('landmark'))),
+          const SizedBox(height: 20),
+          Text(context.tr('location_title'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(context.tr('location_hint'), style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            icon: _locating
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(_lat != null ? Icons.check_circle_rounded : Icons.my_location_rounded),
+            label: Text(_lat != null ? context.tr('location_done') : context.tr('location_pick')),
+            onPressed: _locating ? null : _pickLocation,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(controller: _c['location_note'], maxLength: 500, maxLines: 2, decoration: InputDecoration(labelText: context.tr('location_note'))),
           SwitchListTile(contentPadding: EdgeInsets.zero, value: _default, onChanged: (v) => setState(() => _default = v), title: Text(context.tr('make_default'))),
           const SizedBox(height: 12),
           FilledButton(
@@ -554,12 +586,18 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                 ? null
                 : () async {
                     if (!_form.currentState!.validate()) return;
+                    if (_lat == null && _c['location_note']!.text.trim().isEmpty) {
+                      showSnack(context, context.tr('location_required'), error: true);
+                      return;
+                    }
                     setState(() => _busy = true);
                     try {
                       await ref.read(profileRepoProvider).saveAddress({
                         for (final e in _c.entries) e.key: e.value.text.trim().isEmpty ? null : e.value.text.trim(),
                         'phone': _c['phone']!.text.replaceAll(' ', ''),
                         'governorate': _gov,
+                        'latitude': _lat,
+                        'longitude': _lng,
                         'is_default': _default,
                       }, id: widget.existing?['id'] as String?);
                       if (context.mounted) context.pop();

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -14,6 +15,7 @@ import '../../core/theme.dart';
 import '../../shared/barcode_scanner.dart';
 import '../../shared/online_now.dart';
 import '../../shared/brand_logo.dart';
+import '../../shared/delivery_location.dart' show mapUri;
 import '../../shared/product_card.dart';
 import '../../shared/staff_presence.dart';
 import '../../shared/states.dart';
@@ -459,6 +461,16 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
         Text('${o['customer_name']}'),
         SelectableText('${o['customer_phone']}', style: const TextStyle(fontWeight: FontWeight.w700)),
         if (addr != null) Text('${addr['governorate']} — ${addr['city']} — ${addr['street']} ${addr['building'] ?? ''}'),
+        if (addr != null && (addr['location_note'] as String?)?.isNotEmpty == true) Text('${addr['location_note']}'),
+        if (addr != null && addr['latitude'] != null && addr['longitude'] != null)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              icon: const Icon(Icons.map_outlined),
+              label: Text(context.tr('open_map')),
+              onPressed: () => launchUrl(mapUri(addr['latitude'] as num, addr['longitude'] as num), mode: LaunchMode.externalApplication),
+            ),
+          ),
         if ((o['delivery_notes'] as String?)?.isNotEmpty == true) Text('📝 ${o['delivery_notes']}'),
         Text('${_t(context, o['fulfillment'] == 'pickup' ? 'استلام من الفرع' : 'توصيل', o['fulfillment'] == 'pickup' ? 'Branch pickup' : 'Delivery')} • ${o['payment_method']}',
             style: const TextStyle(color: BrandColors.gray)),

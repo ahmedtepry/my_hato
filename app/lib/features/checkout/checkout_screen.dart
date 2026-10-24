@@ -8,6 +8,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../shared/copy_code.dart';
+import '../../shared/delivery_location.dart';
 import '../../shared/account_review.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/states.dart';
@@ -190,10 +191,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         if (mounted) _refreshFee(addressList, subtotal);
       });
     }
+    final selectedAddress = addressList.where((x) => x['id'] == _addressId).firstOrNull;
     final ready = verified &&
         hasPhone &&
         (cart?.lines.isNotEmpty ?? false) &&
-        ((_fulfillment == 'pickup' && _branchId != null) || (_fulfillment == 'delivery' && _addressId != null && _deliveryFee != null));
+        ((_fulfillment == 'pickup' && _branchId != null) || (_fulfillment == 'delivery' && _addressId != null && _deliveryFee != null && addressHasLocation(selectedAddress)));
     // tell the customer exactly what is missing instead of a silent disabled button
     final String? missing = !verified
         ? context.tr('err_account_not_verified')
@@ -205,7 +207,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ? (branches.isLoading ? null : context.tr('checkout_no_branch'))
                     : _fulfillment == 'delivery' && _addressId == null
                         ? context.tr('checkout_add_address')
-                        : null;
+                        : _fulfillment == 'delivery' && !addressHasLocation(selectedAddress)
+                            ? context.tr('checkout_need_location')
+                            : null;
 
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('checkout'))),
@@ -291,6 +295,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     },
                     title: Text('${a['label'] ?? a['recipient_name']}', style: const TextStyle(fontWeight: FontWeight.w700)),
                     subtitle: Text('${a['governorate']} — ${a['city']} — ${a['street']}'),
+                    secondary: addressHasLocation(a)
+                        ? const Icon(Icons.location_on_rounded, color: BrandColors.success)
+                        : TextButton(
+                            onPressed: () async {
+                              await context.push('/account/addresses/edit', extra: a);
+                              ref.invalidate(addressesProvider);
+                            },
+                            child: Text(context.tr('location_missing')),
+                          ),
                   ),
                 ),
               OutlinedButton.icon(

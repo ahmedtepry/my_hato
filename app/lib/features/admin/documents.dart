@@ -131,6 +131,7 @@ Future<Uint8List> orderInvoicePdf(Map<String, dynamic> o) async {
       _kv('الاستلام', o['fulfillment'] == 'pickup' ? 'استلام من الفرع' : 'توصيل للعنوان'),
       if (addr != null)
         _kv('العنوان', [addr['governorate'], addr['city'], addr['street'], addr['building'], addr['landmark']].where((x) => x != null && '$x'.isNotEmpty).join(' — ')),
+      if (addr != null && (addr['location_note'] as String?)?.isNotEmpty == true) _kv('الموقع', '${addr['location_note']}'),
       if ((o['delivery_notes'] as String?)?.isNotEmpty == true) _kv('ملاحظات', o['delivery_notes'] as String),
       _kv('الدفع', switch (o['payment_method']) { 'cash_on_delivery' => 'كاش عند الاستلام', 'online' => 'دفع أونلاين', _ => 'كاش' }),
       pw.SizedBox(height: 14),

@@ -8,129 +8,141 @@ insert into public.application_settings (key, value, description) values
  ('legal_privacy_ar', to_jsonb($t$# سياسة الخصوصية – My Hatō
 آخر تحديث: 24 أكتوبر 2026
 
-توضح سياسة الخصوصية هذه كيفية جمع واستخدام وحماية المعلومات عند استخدام تطبيق My Hatō، المتخصص في بيع الهواتف المحمولة والإكسسوارات وتقديم خدمات الصيانة.
+## 1. مقدمة
+نحن في My Hatō نحترم خصوصية المستخدمين ونلتزم بحماية البيانات الشخصية التي يتم جمعها من خلال التطبيق واستخدامها وفقًا لهذه السياسة.
 
-## 1. المعلومات التي نجمعها
-قد يجمع التطبيق، حسب الخدمات التي تستخدمها، المعلومات التالية:
-- بيانات الحساب: الاسم، البريد الإلكتروني، ورقم الهاتف عند تقديمه.
-- بيانات الطلبات: المنتجات المطلوبة، الأسعار، العناوين، وحالة الطلب.
-- بيانات الصيانة: نوع الجهاز، وصف العطل، تفاصيل الإصلاح والصور التي يرسلها العميل.
-- بيانات الدفع: حالة العملية وقيمتها ومعرّف المعاملة. وقد تتم معالجة بيانات البطاقة بواسطة مزود الدفع المعتمد.
-- البيانات الفنية الضرورية لتشغيل التطبيق وحمايته، وفقًا للأذونات والممارسات الفعلية للتطبيق.
+باستخدام التطبيق، فإنك توافق على الممارسات الموضحة في سياسة الخصوصية هذه.
 
-لا نجمع بيانات أكثر مما نحتاج إليه لتقديم خدماتنا، ولا نطلب كلمات المرور البنكية أو رموز التحقق الخاصة ببطاقات الدفع.
+## 2. البيانات التي نجمعها
+قد يجمع التطبيق البيانات التالية حسب الخدمات التي يستخدمها العميل:
+- الاسم.
+- رقم الهاتف.
+- البريد الإلكتروني عند استخدامه للتسجيل.
+- بيانات الحساب وتسجيل الدخول.
+- عنوان التوصيل وموقعك، إذا اخترت التوصيل.
+- تفاصيل الطلبات والمنتجات التي يطلبها العميل.
+- بيانات الاستخدام اللازمة لتشغيل التطبيق وتحسين خدماته.
 
-## 2. كيفية استخدام المعلومات
-نستخدم المعلومات من أجل:
-- إنشاء الحسابات وتسجيل الدخول وإدارتها.
-- معالجة الطلبات والمدفوعات ومتابعة عمليات التوصيل.
-- تقديم خدمات الصيانة والتواصل مع العملاء.
-- معالجة الشكاوى وطلبات الاسترجاع والاسترداد.
-- حماية الحسابات وتحسين أداء التطبيق.
+إذا أتاح التطبيق تسجيل الدخول باستخدام Google أو Facebook، فقد نتلقى بعض بيانات الحساب الأساسية التي تسمح بها خدمة تسجيل الدخول.
 
-## 3. تسجيل الدخول
-قد يتيح التطبيق تسجيل الدخول باستخدام البريد الإلكتروني أو رقم الهاتف أو خدمات تسجيل الدخول التابعة لأطراف خارجية، مثل Google أو Facebook، إذا كانت هذه الخيارات مفعّلة.
+## 3. كيفية استخدام البيانات
+نستخدم البيانات للأغراض التالية:
+- إنشاء حساب العميل وإدارته.
+- استقبال الطلبات ومتابعتها.
+- التواصل مع العميل بشأن الطلبات.
+- توصيل المنتجات إلى العنوان المحدد عند اختيار التوصيل.
+- تقديم الدعم الفني وخدمة العملاء.
+- حماية التطبيق.
+- تحسين أداء التطبيق وتجربة المستخدم.
 
-تخضع البيانات التي تتم معالجتها من خلال تلك الخدمات لسياساتها الخاصة، بالإضافة إلى هذه السياسة فيما يتعلق باستخدامها داخل My Hatō.
+## 4. مشاركة البيانات
+لا نبيع البيانات الشخصية للمستخدمين.
 
-## 4. المدفوعات
-قد يستخدم التطبيق مزودي خدمات دفع معتمدين لمعالجة المدفوعات الإلكترونية. وتخضع بيانات الدفع التي يجمعها هؤلاء المزودون لسياساتهم وشروطهم.
+قد تتم مشاركة البيانات الضرورية فقط مع الموظفين أو مندوب التوصيل أو مزودي الخدمات التقنية، بالقدر اللازم لتنفيذ الطلبات وتشغيل التطبيق، أو عندما يكون ذلك مطلوبًا بموجب القانون.
 
-تتم معالجة بيانات البطاقة عبر مزود الدفع المعتمد.
+## 5. تخزين البيانات وحمايتها
+نتخذ تدابير تقنية وتنظيمية مناسبة لحماية البيانات من الوصول غير المصرح به أو الفقد أو التعديل.
 
-## 5. حماية المعلومات
-نتخذ تدابير تقنية وتنظيمية مناسبة لحماية المعلومات من الوصول غير المصرح به أو التعديل أو الإفصاح أو الفقدان.
+قد تُخزن بعض البيانات باستخدام خدمات قواعد البيانات أو تسجيل الدخول التي يعتمد عليها التطبيق، مثل Supabase أو Google أو Facebook، بحسب الخدمات المفعلة فعليًا.
 
-تقتصر صلاحية الوصول إلى بيانات العملاء على الأشخاص المخولين الذين يحتاجون إليها لأداء مهامهم، وفقًا للصلاحيات المطبقة في النظام.
+## 6. الموقع الجغرافي
+عند طلب توصيل، نطلب منك تحديد موقعك على الخريطة أو كتابته بنفسك، حتى يصل المندوب إليك بسهولة.
 
-## 6. مشاركة المعلومات
-لا نبيع البيانات الشخصية للعملاء. وقد تتم مشاركة المعلومات بالقدر الضروري مع مزودي الاستضافة وقواعد البيانات والدفع والتوصيل، أو عند وجود التزام قانوني بذلك.
+لا نستخدم موقعك إلا لتنفيذ التوصيل، وحسب الإذن الذي تمنحه. يمكنك اختيار كتابة الموقع بدلًا من استخدام الإذن، ويمكنك إلغاء إذن الموقع من إعدادات جهازك في أي وقت.
 
-ويخضع أي تعامل مع مزودي الخدمات للضوابط المناسبة لحماية البيانات.
+## 7. سياسة الدفع النقدي
+يعتمد تطبيق My Hatō على الدفع النقدي فقط، ولا يوفر حاليًا الدفع الإلكتروني أو الدفع بالبطاقات البنكية من خلال التطبيق.
 
-## 7. الاحتفاظ بالبيانات
-نحتفظ بالمعلومات فقط للمدة اللازمة لتقديم الخدمات وتحقيق الأغراض الموضحة في هذه السياسة، أو للمدة التي تقتضيها الالتزامات القانونية وحماية حسابك.
+تتم عملية تحصيل قيمة الطلب بإحدى الطريقتين:
+- الاستلام من الفرع: يدفع العميل قيمة الطلب نقدًا عند استلام المنتجات من الفرع.
+- التوصيل: يقوم مندوب التوصيل بتحصيل قيمة الطلب نقدًا من العميل عند تسليم المنتجات.
 
-## 8. حذف الحساب والبيانات
-يمكن للمستخدم طلب حذف حسابه والبيانات المرتبطة به من خلال خيار حذف الحساب داخل التطبيق.
+تُوضح قيمة الطلب ورسوم التوصيل، إن وجدت، قبل تأكيد الطلب.
 
-عند استلام الطلب، تتم معالجة الحذف خلال مدة معقولة، مع حذف البيانات المشمولة بالطلب، باستثناء المعلومات التي يلزم الاحتفاظ بها لأسباب قانونية. ويتم توضيح أي استثناءات ومدة الاحتفاظ عند انطباقها.
+## 8. الاحتفاظ بالبيانات
+نحتفظ بالبيانات للمدة اللازمة لتشغيل الحساب وتنفيذ الطلبات وتقديم الدعم والوفاء بالالتزامات القانونية، ثم نحذفها عندما لا تعود هناك حاجة للاحتفاظ بها.
 
-## 9. حقوق المستخدم
-يمكن للمستخدم طلب الوصول إلى بياناته أو تصحيحها أو حذفها، وفقًا للقوانين المعمول بها. ويمكنه التواصل معنا بشأن أي استفسار متعلق بالخصوصية أو معالجة بياناته.
+## 9. حذف الحساب والبيانات
+يمكن للمستخدم طلب حذف حسابه من داخل التطبيق عبر خيار حذف الحساب، إذا كان متاحًا في نسخة التطبيق المستخدمة.
+
+قد يؤدي حذف الحساب إلى إزالة البيانات المرتبطة به، مع الاحتفاظ ببعض السجلات عند الضرورة للامتثال للقانون.
 
 ## 10. التعديلات على السياسة
-قد نحدّث هذه السياسة عند تغيير خدمات التطبيق أو ممارسات معالجة البيانات. وسيتم نشر النسخة الجديدة مع تحديث تاريخ المراجعة.
+قد نقوم بتحديث سياسة الخصوصية من وقت لآخر. سيتم نشر النسخة المحدثة داخل التطبيق.
 
 ## 11. التواصل
-اسم التطبيق: My Hatō
+للاستفسارات المتعلقة بالخصوصية أو البيانات الشخصية، تواصل معنا عبر رقم الدعم الموضح أسفل هذه الصفحة.
 
-يمكنك التواصل معنا عبر رقم الدعم الموضح أسفل هذه الصفحة لتقديم استفسار أو طلب يتعلق بالخصوصية.
-
-My Hatō — YOUR PHONE. OUR PRIORITY.$t$::text), 'Privacy policy shown to Arabic users'),
+باستخدام تطبيق My Hatō، يقر المستخدم بأنه اطلع على سياسة الخصوصية هذه.$t$::text), 'Privacy policy shown to Arabic users'),
  ('legal_privacy_en', to_jsonb($t$# Privacy Policy – My Hatō
 Last updated: 24 October 2026
 
-This Privacy Policy explains how we collect, use and protect information when you use the My Hatō app, which specialises in selling mobile phones and accessories and providing repair services.
+## 1. Introduction
+At My Hatō we respect users' privacy and are committed to protecting the personal data collected through the app and using it in line with this policy.
 
-## 1. Information we collect
-Depending on the services you use, the app may collect the following:
-- Account data: name, email address, and phone number when provided.
-- Order data: items ordered, prices, addresses and order status.
-- Repair data: device type, fault description, repair details and the photos the customer sends.
-- Payment data: transaction status, amount and transaction ID. Card details may be processed by an approved payment provider.
-- Technical data necessary to run and protect the app, in line with the app's actual permissions and practices.
+By using the app, you agree to the practices described in this Privacy Policy.
 
-We do not collect more data than we need to provide our services, and we never ask for banking passwords or card verification codes.
+## 2. Data we collect
+Depending on the services the customer uses, the app may collect:
+- Name.
+- Phone number.
+- Email address when used to sign up.
+- Account and sign-in data.
+- Delivery address and your location, if you choose delivery.
+- Details of the orders and products the customer requests.
+- Usage data needed to run the app and improve its services.
 
-## 2. How we use information
-We use information to:
-- Create, sign in to and manage accounts.
-- Process orders and payments and follow up on deliveries.
-- Provide repair services and communicate with customers.
-- Handle complaints, returns and refunds.
-- Keep accounts safe and improve the app's performance.
+If the app offers sign-in with Google or Facebook, we may receive some basic account data that the sign-in service allows.
 
-## 3. Signing in
-The app may allow sign-in with email, phone number, or third-party sign-in services such as Google or Facebook, where these options are enabled.
+## 3. How we use data
+We use data to:
+- Create and manage the customer's account.
+- Receive and follow up on orders.
+- Contact the customer about orders.
+- Deliver products to the chosen address when delivery is selected.
+- Provide technical support and customer service.
+- Protect the app.
+- Improve the app's performance and the user experience.
 
-Data processed through those services is subject to their own policies, in addition to this policy as it relates to their use inside My Hatō.
+## 4. Sharing data
+We do not sell users' personal data.
 
-## 4. Payments
-The app may use approved payment providers to process online payments. Payment data collected by those providers is subject to their policies and terms.
+Only the necessary data may be shared with staff, the delivery courier or technical service providers, as far as needed to fulfil orders and run the app, or where required by law.
 
-Card details are processed through the approved payment provider.
+## 5. Storing and protecting data
+We take appropriate technical and organisational measures to protect data from unauthorised access, loss or alteration.
 
-## 5. Protecting information
-We take appropriate technical and organisational measures to protect information from unauthorised access, alteration, disclosure or loss.
+Some data may be stored using the database or sign-in services the app relies on, such as Supabase, Google or Facebook, depending on the services actually enabled.
 
-Access to customer data is limited to authorised people who need it to do their jobs, according to the permissions applied in the system.
+## 6. Location
+When you request delivery, we ask you to mark your location on the map or type it yourself, so the courier can reach you easily.
 
-## 6. Sharing information
-We do not sell customers' personal data. Information may be shared to the extent necessary with hosting, database, payment and delivery providers, or where there is a legal obligation to do so.
+We use your location only to carry out the delivery, and according to the permission you give. You can type your location instead of using the permission, and you can turn off location permission in your device settings at any time.
 
-Any dealings with service providers are subject to appropriate data protection controls.
+## 7. Cash payment policy
+My Hatō relies on cash payment only and does not currently offer online payment or bank card payment through the app.
 
-## 7. Keeping data
-We keep information only for as long as needed to provide the services and achieve the purposes described in this policy, or for as long as legal obligations, protecting your account require.
+The order amount is collected in one of two ways:
+- Branch pickup: the customer pays the order amount in cash when collecting the products from the branch.
+- Delivery: the delivery courier collects the order amount in cash from the customer when handing over the products.
 
-## 8. Deleting your account and data
-A user may request deletion of their account and related data through the delete account option inside the app.
+The order amount and the delivery fee, if any, are shown before the order is confirmed.
 
-When we receive the request, deletion is processed within a reasonable time and the data covered by the request is deleted, except for information we must keep for legal reasons. Any exceptions and retention periods are explained where they apply.
+## 8. Keeping data
+We keep data for as long as needed to run the account, fulfil orders, provide support and meet legal obligations, then delete it when there is no longer a need to keep it.
 
-## 9. User rights
-A user may request access to, correction of, or deletion of their data, in accordance with applicable laws. They may contact us about any privacy question or how their data is handled.
+## 9. Deleting your account and data
+A user may request deletion of their account from inside the app through the delete account option, where it is available in the version of the app being used.
+
+Deleting an account may remove the data linked to it, while keeping some records where necessary to comply with the law.
 
 ## 10. Changes to this policy
-We may update this policy when the app's services or data handling practices change. The new version will be published with an updated review date.
+We may update this Privacy Policy from time to time. The updated version will be published inside the app.
 
 ## 11. Contact
-App name: My Hatō
+For questions about privacy or personal data, contact us through the support number shown at the bottom of this page.
 
-You can contact us through the support number shown at the bottom of this page for any question or request about privacy.
-
-My Hatō — YOUR PHONE. OUR PRIORITY.$t$::text), 'Privacy policy shown to English users')
+By using the My Hatō app, the user confirms that they have read this Privacy Policy.$t$::text), 'Privacy policy shown to English users')
 on conflict (key) do update set value = excluded.value, updated_at = now();
 
 -- customers (and visitors) may read these two keys
