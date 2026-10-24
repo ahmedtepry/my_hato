@@ -25,3 +25,21 @@ Future<Position?> currentPosition() async {
 }
 
 Uri mapUri(num lat, num lng) => Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+
+/// Google Maps link for a delivery address: the exact pin when the customer shared one, otherwise a search
+/// built from the typed location and the address text.
+Uri addressMapUri(Map<String, dynamic> a) {
+  final lat = a['latitude'], lng = a['longitude'];
+  if (lat is num && lng is num) return mapUri(lat, lng);
+  final text = [a['location_note'], a['street'], a['building'], a['city'], a['governorate']]
+      .where((x) => x != null && '$x'.trim().isNotEmpty)
+      .join(' ');
+  return Uri.https('www.google.com', '/maps/search/', {'api': '1', 'query': text});
+}
+
+/// Turn-by-turn directions to the customer, when there is a GPS pin.
+Uri? addressRouteUri(Map<String, dynamic> a) {
+  final lat = a['latitude'], lng = a['longitude'];
+  if (lat is! num || lng is! num) return null;
+  return Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+}

@@ -348,6 +348,7 @@ const Map<String, Map<String, String>> _strings = {
   'location_denied': {'ar': 'مقدرناش نوصل لموقعك. اسمح بالإذن من الإعدادات أو اكتب الموقع بإيدك.', 'en': 'Could not get your location. Allow the permission in settings or type it.'},
   'checkout_need_location': {'ar': 'العنوان ده محتاج موقع. دوس عليه وحدد موقعك أو اكتبه.', 'en': 'This address needs a location. Tap it to set or type your location.'},
   'location_missing': {'ar': 'من غير موقع', 'en': 'No location'},
+  'start_route': {'ar': 'ابدأ الطريق', 'en': 'Start route'},
   'open_map': {'ar': 'افتح الخريطة', 'en': 'Open map'},
   'make_default': {'ar': 'العنوان الافتراضي', 'en': 'Default address'},
   'support_subject': {'ar': 'الموضوع', 'en': 'Subject'},
