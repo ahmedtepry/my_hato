@@ -26,7 +26,7 @@ insert into public.application_settings (key, value, description) values
 - معالجة الطلبات والمدفوعات ومتابعة عمليات التوصيل.
 - تقديم خدمات الصيانة والتواصل مع العملاء.
 - معالجة الشكاوى وطلبات الاسترجاع والاسترداد.
-- حماية الحسابات ومنع الاحتيال وتحسين أداء التطبيق.
+- حماية الحسابات وتحسين أداء التطبيق.
 
 ## 3. تسجيل الدخول
 قد يتيح التطبيق تسجيل الدخول باستخدام البريد الإلكتروني أو رقم الهاتف أو خدمات تسجيل الدخول التابعة لأطراف خارجية، مثل Google أو Facebook، إذا كانت هذه الخيارات مفعّلة.
@@ -36,7 +36,7 @@ insert into public.application_settings (key, value, description) values
 ## 4. المدفوعات
 قد يستخدم التطبيق مزودي خدمات دفع معتمدين لمعالجة المدفوعات الإلكترونية. وتخضع بيانات الدفع التي يجمعها هؤلاء المزودون لسياساتهم وشروطهم.
 
-لا ندّعي تخزين بيانات البطاقات كاملة داخل أنظمتنا إلا إذا كانت هذه الوظيفة مطبقة فعليًا وبطريقة آمنة ومتوافقة مع المتطلبات المعمول بها.
+تتم معالجة بيانات البطاقة عبر مزود الدفع المعتمد.
 
 ## 5. حماية المعلومات
 نتخذ تدابير تقنية وتنظيمية مناسبة لحماية المعلومات من الوصول غير المصرح به أو التعديل أو الإفصاح أو الفقدان.
@@ -49,23 +49,20 @@ insert into public.application_settings (key, value, description) values
 ويخضع أي تعامل مع مزودي الخدمات للضوابط المناسبة لحماية البيانات.
 
 ## 7. الاحتفاظ بالبيانات
-نحتفظ بالمعلومات فقط للمدة اللازمة لتقديم الخدمات وتحقيق الأغراض الموضحة في هذه السياسة، أو للمدة التي تقتضيها الالتزامات القانونية وتسوية النزاعات ومنع الاحتيال.
+نحتفظ بالمعلومات فقط للمدة اللازمة لتقديم الخدمات وتحقيق الأغراض الموضحة في هذه السياسة، أو للمدة التي تقتضيها الالتزامات القانونية وحماية حسابك.
 
 ## 8. حذف الحساب والبيانات
 يمكن للمستخدم طلب حذف حسابه والبيانات المرتبطة به من خلال خيار حذف الحساب داخل التطبيق.
 
-عند استلام الطلب، تتم معالجة الحذف خلال مدة معقولة، مع حذف البيانات المشمولة بالطلب، باستثناء المعلومات التي يلزم الاحتفاظ بها لأسباب قانونية أو أمنية مشروعة. ويتم توضيح أي استثناءات ومدة الاحتفاظ عند انطباقها.
+عند استلام الطلب، تتم معالجة الحذف خلال مدة معقولة، مع حذف البيانات المشمولة بالطلب، باستثناء المعلومات التي يلزم الاحتفاظ بها لأسباب قانونية. ويتم توضيح أي استثناءات ومدة الاحتفاظ عند انطباقها.
 
 ## 9. حقوق المستخدم
 يمكن للمستخدم طلب الوصول إلى بياناته أو تصحيحها أو حذفها، وفقًا للقوانين المعمول بها. ويمكنه التواصل معنا بشأن أي استفسار متعلق بالخصوصية أو معالجة بياناته.
 
-## 10. خصوصية الأطفال
-التطبيق غير مخصص للأطفال دون السن المسموح به وفقًا للقوانين المعمول بها. ولا نجمع بيانات الأطفال بصورة تخالف المتطلبات القانونية أو سياسات المتجر.
-
-## 11. التعديلات على السياسة
+## 10. التعديلات على السياسة
 قد نحدّث هذه السياسة عند تغيير خدمات التطبيق أو ممارسات معالجة البيانات. وسيتم نشر النسخة الجديدة مع تحديث تاريخ المراجعة.
 
-## 12. التواصل
+## 11. التواصل
 اسم التطبيق: My Hatō
 
 يمكنك التواصل معنا عبر رقم الدعم الموضح أسفل هذه الصفحة لتقديم استفسار أو طلب يتعلق بالخصوصية.
@@ -92,7 +89,7 @@ We use information to:
 - Process orders and payments and follow up on deliveries.
 - Provide repair services and communicate with customers.
 - Handle complaints, returns and refunds.
-- Protect accounts, prevent fraud and improve the app's performance.
+- Keep accounts safe and improve the app's performance.
 
 ## 3. Signing in
 The app may allow sign-in with email, phone number, or third-party sign-in services such as Google or Facebook, where these options are enabled.
@@ -102,7 +99,7 @@ Data processed through those services is subject to their own policies, in addit
 ## 4. Payments
 The app may use approved payment providers to process online payments. Payment data collected by those providers is subject to their policies and terms.
 
-We do not claim to store full card details in our systems unless that function is actually implemented in a secure way that meets the applicable requirements.
+Card details are processed through the approved payment provider.
 
 ## 5. Protecting information
 We take appropriate technical and organisational measures to protect information from unauthorised access, alteration, disclosure or loss.
@@ -115,23 +112,20 @@ We do not sell customers' personal data. Information may be shared to the extent
 Any dealings with service providers are subject to appropriate data protection controls.
 
 ## 7. Keeping data
-We keep information only for as long as needed to provide the services and achieve the purposes described in this policy, or for as long as legal obligations, dispute resolution and fraud prevention require.
+We keep information only for as long as needed to provide the services and achieve the purposes described in this policy, or for as long as legal obligations, protecting your account require.
 
 ## 8. Deleting your account and data
 A user may request deletion of their account and related data through the delete account option inside the app.
 
-When we receive the request, deletion is processed within a reasonable time and the data covered by the request is deleted, except for information we must keep for legitimate legal or security reasons. Any exceptions and retention periods are explained where they apply.
+When we receive the request, deletion is processed within a reasonable time and the data covered by the request is deleted, except for information we must keep for legal reasons. Any exceptions and retention periods are explained where they apply.
 
 ## 9. User rights
 A user may request access to, correction of, or deletion of their data, in accordance with applicable laws. They may contact us about any privacy question or how their data is handled.
 
-## 10. Children's privacy
-The app is not intended for children below the age permitted by applicable laws. We do not collect children's data in a way that breaches legal requirements or store policies.
-
-## 11. Changes to this policy
+## 10. Changes to this policy
 We may update this policy when the app's services or data handling practices change. The new version will be published with an updated review date.
 
-## 12. Contact
+## 11. Contact
 App name: My Hatō
 
 You can contact us through the support number shown at the bottom of this page for any question or request about privacy.
