@@ -5,7 +5,9 @@ bool addressHasLocation(Map<String, dynamic>? a) {
   if (a == null) return false;
   final pin = a['latitude'] != null && a['longitude'] != null;
   final note = (a['location_note'] as String?)?.trim().isNotEmpty ?? false;
-  return pin || note;
+  // a typed location only counts once the customer confirmed it (and gave a landmark)
+  final landmark = (a['landmark'] as String?)?.trim().isNotEmpty ?? false;
+  return pin || (note && a['location_confirmed'] == true && landmark);
 }
 
 /// Asks for the location permission if needed and returns the current position, or null when

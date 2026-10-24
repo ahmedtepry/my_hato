@@ -494,6 +494,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   late bool _default = widget.existing?['is_default'] == true;
   bool _busy = false;
   bool _locating = false;
+  late bool _confirmed = widget.existing?['location_confirmed'] == true;
   late double? _lat = (widget.existing?['latitude'] as num?)?.toDouble();
   late double? _lng = (widget.existing?['longitude'] as num?)?.toDouble();
 
@@ -564,7 +565,11 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
           const SizedBox(height: 12),
           TextFormField(controller: _c['building'], decoration: InputDecoration(labelText: context.tr('building'))),
           const SizedBox(height: 12),
-          TextFormField(controller: _c['landmark'], decoration: InputDecoration(labelText: context.tr('landmark'))),
+          TextFormField(
+            controller: _c['landmark'],
+            decoration: InputDecoration(labelText: context.tr('landmark'), helperText: _lat == null ? context.tr('landmark_help') : null),
+            validator: (v) => _lat == null && (v == null || v.trim().isEmpty) ? context.tr('required') : null,
+          ),
           const SizedBox(height: 20),
           Text(context.tr('location_title'), style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
@@ -579,6 +584,14 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
           ),
           const SizedBox(height: 12),
           TextFormField(controller: _c['location_note'], maxLength: 500, maxLines: 2, decoration: InputDecoration(labelText: context.tr('location_note'))),
+          if (_lat == null)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _confirmed,
+              onChanged: (v) => setState(() => _confirmed = v ?? false),
+              title: Text(context.tr('location_confirm'), style: const TextStyle(fontSize: 14)),
+            ),
           SwitchListTile(contentPadding: EdgeInsets.zero, value: _default, onChanged: (v) => setState(() => _default = v), title: Text(context.tr('make_default'))),
           const SizedBox(height: 12),
           FilledButton(
@@ -590,6 +603,10 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                       showSnack(context, context.tr('location_required'), error: true);
                       return;
                     }
+                    if (_lat == null && !_confirmed) {
+                      showSnack(context, context.tr('location_confirm_needed'), error: true);
+                      return;
+                    }
                     setState(() => _busy = true);
                     try {
                       await ref.read(profileRepoProvider).saveAddress({
@@ -598,6 +615,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                         'governorate': _gov,
                         'latitude': _lat,
                         'longitude': _lng,
+                        'location_confirmed': _lat != null || _confirmed,
                         'is_default': _default,
                       }, id: widget.existing?['id'] as String?);
                       if (context.mounted) context.pop();

@@ -462,6 +462,9 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
         SelectableText('${o['customer_phone']}', style: const TextStyle(fontWeight: FontWeight.w700)),
         if (addr != null) Text('${addr['governorate']} — ${addr['city']} — ${addr['street']} ${addr['building'] ?? ''}'),
         if (addr != null && (addr['location_note'] as String?)?.isNotEmpty == true) Text('${addr['location_note']}'),
+        if (addr != null && (addr['landmark'] as String?)?.isNotEmpty == true) Text('📍 ${addr['landmark']}'),
+        if (addr != null && addr['location_confirmed'] == true && addr['latitude'] == null)
+          Text('✓ ${context.tr('location_confirmed_by')}', style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w700)),
         if (addr != null)
           Wrap(spacing: 8, children: [
             OutlinedButton.icon(
