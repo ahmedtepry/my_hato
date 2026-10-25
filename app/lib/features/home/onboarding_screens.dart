@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/appearance.dart';
 import '../../core/l10n.dart';
+import '../../shared/launch_animation.dart';
 import '../../core/theme.dart';
 import '../../shared/brand_logo.dart';
 
@@ -14,13 +16,11 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..forward();
-
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    Future.delayed(const Duration(milliseconds: 1700), () {
       if (!mounted) return;
       // no intro slides: straight to the store (language can be changed from My account)
       context.go('/');
@@ -28,24 +28,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   }
 
   @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: BrandColors.navy,
-        body: Center(
-          child: AnimatedBuilder(
-            animation: _c,
-            builder: (_, __) => Column(mainAxisSize: MainAxisSize.min, children: [
-              BrandMark(size: 96, onDark: true, progress: Curves.easeOut.transform(_c.value)),
-              const SizedBox(height: 24),
-              Opacity(opacity: _c.value, child: const BrandWordmark(size: 30, onDark: true, showSlogan: true)),
-            ]),
-          ),
-        ),
+        body: Center(child: LaunchAnimation(variant: ref.read(appearanceProvider).animation)),
       );
 }
 

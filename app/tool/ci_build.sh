@@ -11,6 +11,12 @@ step "flutter create (android)"
 flutter create --platforms=android --org com.myhato --project-name myhato . || exit 1
 rm -f test/widget_test.dart   # template test from flutter create (we ship our own tests)
 cp tool/android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+cp -r tool/android_overrides/res/. android/app/src/main/res/
+MA=$(find android/app/src/main -name MainActivity.kt | head -1)
+[ -n "$MA" ] || { echo "FAILURE: MainActivity.kt not found"; exit 1; }
+PKG=$(grep -m1 '^package ' "$MA" | awk '{print $2}')
+sed "s/__PKG__/$PKG/" tool/android_overrides/MainActivity.kt.tpl > "$MA"
+echo "MainActivity patched (package $PKG)"
 G=android/app/build.gradle; [ -f "$G.kts" ] && G="$G.kts"
 sed -i -E 's/applicationId ?=? ?"[^"]+"/applicationId = "com.myhato.app"/' "$G"
 sed -i -E 's/minSdk ?=? ?flutter\.minSdkVersion/minSdk = 23/' "$G"

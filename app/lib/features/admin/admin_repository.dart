@@ -16,6 +16,10 @@ class AdminRepository {
 
   /// The signed-in member's roles + permissions (the console shows only what they can use;
   /// the database still checks every action).
+  Future<void> setAppearance(Map<String, String> palette, String animation, String icon) async {
+    await _db.rpc('set_appearance', params: {'p_palette': palette, 'p_animation': animation, 'p_icon': icon});
+  }
+
   Future<Map<String, dynamic>> salesReport(String period) async =>
       Map<String, dynamic>.from(await _db.rpc('sales_report', params: {'p_period': period}) as Map);
 
@@ -415,6 +419,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     'overview',
     if (p.contains('orders.view')) 'orders',
     if (p.contains('sales.view')) 'sales',
+    if (p.contains('appearance.manage')) 'appearance',
     if (p.contains('repairs.view')) 'repairs',
     if (p.contains('products.manage')) 'products',
     if (p.contains('products.manage')) 'reviews',

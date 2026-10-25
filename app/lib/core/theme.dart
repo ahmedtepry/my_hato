@@ -2,17 +2,67 @@ import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Brand palette — taken from the My Hatō brand board.
+/// The colours the owner can change from the console (primary, accent, background, success, danger).
+/// [LiveColor] reads these at paint time, so a change shows everywhere without touching the 400+ places that use [BrandColors].
+class AppPalette {
+  static const defaults = <String, String>{
+    'primary': '#0B2D5B',
+    'accent': '#00A3FF',
+    'background': '#F8F9FA',
+    'success': '#12B76A',
+    'danger': '#D92D20',
+  };
+  // slots: 0 navy, 1 navyDeep (derived from primary), 2 electric, 3 offWhite, 4 success, 5 error
+  static List<int> argb = [0xFF0B2D5B, 0xFF071C3A, 0xFF00A3FF, 0xFFF8F9FA, 0xFF12B76A, 0xFFD92D20];
+
+  static int? _parse(Object? v) {
+    if (v is! String || !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(v)) return null;
+    return 0xFF000000 | int.parse(v.substring(1), radix: 16);
+  }
+
+  /// Applies a palette map; unknown or invalid entries keep the default. Returns true when something changed.
+  static bool apply(Map<String, dynamic>? json) {
+    int pick(String k) => _parse(json?[k]) ?? _parse(defaults[k])!;
+    final primary = pick('primary');
+    final hsl = HSLColor.fromColor(Color(primary));
+    final deep = hsl.withLightness((hsl.lightness * 0.62).clamp(0.0, 1.0)).toColor().toARGB32();
+    final next = [primary, deep, pick('accent'), pick('background'), pick('success'), pick('danger')];
+    var changed = false;
+    for (var i = 0; i < next.length; i++) {
+      if (argb[i] != next[i]) changed = true;
+    }
+    argb = next;
+    return changed;
+  }
+}
+
+class LiveColor extends Color {
+  const LiveColor(this.slot) : super(0xFF000000);
+  final int slot;
+  int get _v => AppPalette.argb[slot];
+  @override
+  double get a => ((_v >> 24) & 0xFF) / 255.0;
+  @override
+  double get r => ((_v >> 16) & 0xFF) / 255.0;
+  @override
+  double get g => ((_v >> 8) & 0xFF) / 255.0;
+  @override
+  double get b => (_v & 0xFF) / 255.0;
+  @override
+  int toARGB32() => _v;
+}
+
+/// Brand palette — taken from the My Hatō brand board. navy / electric / offWhite / success / error follow the owner's palette.
 class BrandColors {
-  static const navy = Color(0xFF0B2D5B);
-  static const navyDeep = Color(0xFF071C3A);
-  static const electric = Color(0xFF00A3FF);
-  static const offWhite = Color(0xFFF8F9FA);
+  static const Color navy = LiveColor(0);
+  static const Color navyDeep = LiveColor(1);
+  static const Color electric = LiveColor(2);
+  static const Color offWhite = LiveColor(3);
   static const white = Color(0xFFFFFFFF);
   static const gray = Color(0xFF667085);
   static const border = Color(0xFFE4E7EC);
-  static const error = Color(0xFFD92D20);
-  static const success = Color(0xFF12B76A);
+  static const Color error = LiveColor(5);
+  static const Color success = LiveColor(4);
   static const warning = Color(0xFFF79009);
 }
 

@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config.dart';
 import 'core/l10n.dart';
 import 'core/router.dart';
+import 'core/appearance.dart';
 import 'core/theme.dart';
 import 'shared/connection_gate.dart';
 import 'shared/phone_notifications.dart';
@@ -61,6 +62,7 @@ Future<bool> _startSupabase() async {
 
 Future<void> _launch(SharedPreferences prefs) async {
   await PhoneNotifications.init();
+  applySavedPalette(prefs);
   runApp(ProviderScope(
     overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
     child: const MyHatoApp(),
@@ -154,6 +156,7 @@ class MyHatoApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
+    ref.watch(appearanceProvider); // rebuilds the theme when the owner changes the colours
     return MaterialApp.router(
       title: 'My Hatō',
       debugShowCheckedModeBanner: false,
