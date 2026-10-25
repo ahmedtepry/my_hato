@@ -182,6 +182,45 @@ final _pendingReviewsProvider = FutureProvider.autoDispose((ref) => ref.watch(ad
 final _reviewFilterProvider = StateProvider<String>((_) => 'pending');
 final _reviewsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).reviews(ref.watch(_reviewFilterProvider)));
 
+// ---- console sections: how each one looks in the bottom bar and in the arrange list
+class _SectionInfo {
+  const _SectionInfo(this.icon, this.color, this.ar, this.en, this.descAr, this.descEn);
+  final IconData icon;
+  final Color color;
+  final String ar, en, descAr, descEn;
+}
+
+const _sectionInfo = <String, _SectionInfo>{
+  'overview': _SectionInfo(Icons.dashboard_outlined, Color(0xFF00A3FF), 'نظرة عامة', 'Overview', 'أرقام اليوم والتنبيهات', 'Today\'s numbers and alerts'),
+  'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
+  'repairs': _SectionInfo(Icons.build_outlined, Color(0xFF566380), 'الصيانة', 'Repairs', 'طلبات الصيانة والموافقة على التكلفة', 'Repair requests and cost approval'),
+  'products': _SectionInfo(Icons.inventory_2_outlined, Color(0xFF2F6FE0), 'المنتجات', 'Products', 'الأسعار والمخزون والصور', 'Prices, stock and pictures'),
+  'reviews': _SectionInfo(Icons.star_outline_rounded, Color(0xFFD99A00), 'التقييمات', 'Reviews', 'مراجعة التقييمات قبل ظهورها', 'Check reviews before they show'),
+  'accounts': _SectionInfo(Icons.how_to_reg_outlined, Color(0xFF14A671), 'الحسابات', 'Accounts', 'توثيق الحسابات الجديدة', 'Verify new accounts'),
+  'gifts': _SectionInfo(Icons.card_giftcard_rounded, Color(0xFFE0338A), 'الهدايا', 'Gifts', 'المكافآت والمستويات والنقاط', 'Rewards, levels and points'),
+  'offers': _SectionInfo(Icons.campaign_outlined, Color(0xFFEA5A14), 'العروض وأكواد الخصم', 'Offers & codes', 'العروض والكوبونات', 'Offers and coupons'),
+  'team': _SectionInfo(Icons.groups_rounded, Color(0xFF5253D6), 'فريق العمل', 'Team', 'الأدوار والصلاحيات', 'Roles and permissions'),
+};
+
+/// Sections that open as their own screen instead of a page inside the console.
+const _routeSections = {'offers', 'team'};
+
+/// Saved layout cleaned against what this member may see, with sensible defaults for a new member.
+ConsoleLayout _resolveLayout(List<String> available, ConsoleLayout? saved) {
+  final order = [
+    for (final k in saved?.order ?? const <String>[])
+      if (available.contains(k)) k,
+    for (final k in available)
+      if (!(saved?.order ?? const <String>[]).contains(k)) k,
+  ];
+  var pinned = [
+    for (final k in saved?.pinned ?? const <String>[])
+      if (available.contains(k)) k,
+  ];
+  if (pinned.isEmpty) pinned = available.where((k) => !_routeSections.contains(k)).take(4).toList();
+  return ConsoleLayout(order, pinned.take(4).toList());
+}
+
 class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
 
@@ -190,82 +229,219 @@ class AdminHomeScreen extends ConsumerWidget {
     final tabs = ref.watch(consoleTabsProvider);
     if (StaffPresence.area == 'store') StaffPresence.area = 'overview';
     final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    final available = [
+      ...tabs,
+      if (perms.contains('orders.manage')) 'offers',
+      if (perms.contains('staff.manage')) 'team',
+    ];
+    final layout = _resolveLayout(available, ref.watch(consoleLayoutProvider).valueOrNull);
+    final consoleIdx = tabs.length;
     return DefaultTabController(
-        key: ValueKey(tabs.join(',')),
-        length: tabs.length,
-        child: Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.home_rounded),
-              onPressed: () {
-                StaffPresence.area = 'store';
-                context.go('/');
+      key: ValueKey(tabs.join(',')),
+      length: tabs.length + 1, // the sections, then the arrange page
+      child: Builder(builder: (ctx) {
+        final c = DefaultTabController.of(ctx);
+        void open(String k) {
+          StaffPresence.area = k;
+          if (k == 'offers') {
+            openPromotions(ctx);
+          } else if (k == 'team') {
+            openTeam(ctx);
+          } else {
+            c.animateTo(tabs.indexOf(k));
+          }
+        }
+
+        return AnimatedBuilder(
+          animation: c,
+          builder: (ctx, _) {
+            final onConsole = c.index >= consoleIdx;
+            final current = onConsole ? null : tabs[c.index];
+            final selected = current == null ? layout.pinned.length : layout.pinned.indexOf(current);
+            return PopScope(
+              // back from a section that is not in the bar returns to the arrange page first
+              canPop: current == null || layout.pinned.contains(current),
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop) c.animateTo(consoleIdx);
               },
-            ),
-            title: Text(_t(context, 'لوحة المسؤول', 'Admin console')),
-            actions: [
-              if (perms.contains('staff.manage'))
-                IconButton(
-                  tooltip: _t(context, 'فريق العمل', 'Team'),
-                  icon: const Icon(Icons.groups_rounded),
-                  onPressed: () {
-                    StaffPresence.area = 'team';
-                    openTeam(context);
+              child: Scaffold(
+                appBar: AppBar(
+                  leading: IconButton(
+                    icon: const Icon(Icons.home_rounded),
+                    onPressed: () {
+                      StaffPresence.area = 'store';
+                      context.go('/');
+                    },
+                  ),
+                  title: Text(current == null ? _t(context, 'لوحة التحكم', 'Control panel') : _t(context, _sectionInfo[current]!.ar, _sectionInfo[current]!.en)),
+                  actions: [
+                    if (perms.contains('orders.view') || perms.contains('repairs.view'))
+                      IconButton(
+                        tooltip: _t(context, 'بحث برقم الطلب', 'Search by number'),
+                        icon: const Icon(Icons.search_rounded),
+                        onPressed: () => _openSearch(context, ref),
+                      ),
+                    IconButton(
+                      tooltip: _t(context, 'خروج', 'Sign out'),
+                      icon: const Icon(Icons.logout_rounded),
+                      onPressed: () async {
+                        await staffWentOffline(ref);
+                        await ref.read(authRepoProvider).signOut();
+                        ref.invalidate(staffContextProvider);
+                        if (context.mounted) context.go('/');
+                      },
+                    ),
+                  ],
+                ),
+                body: TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
+                  for (final t in tabs)
+                    switch (t) {
+                      'orders' => const _OrdersTab(),
+                      'repairs' => const _RepairsTab(),
+                      'products' => const _ProductsTab(),
+                      'reviews' => const _ReviewsTab(),
+                      'accounts' => const AccountsTab(),
+                      'gifts' => const GiftsPanel(),
+                      _ => const _Overview(),
+                    },
+                  _ConsolePage(layout: layout, onOpen: open),
+                ]),
+                bottomNavigationBar: NavigationBar(
+                  selectedIndex: selected < 0 ? layout.pinned.length : selected,
+                  onDestinationSelected: (i) {
+                    if (i >= layout.pinned.length) {
+                      StaffPresence.area = 'console';
+                      c.animateTo(consoleIdx);
+                    } else {
+                      open(layout.pinned[i]);
+                    }
                   },
+                  destinations: [
+                    for (final k in layout.pinned)
+                      NavigationDestination(icon: _sectionIcon(k), label: _t(context, _sectionInfo[k]!.ar, _sectionInfo[k]!.en)),
+                    NavigationDestination(icon: const Icon(Icons.dashboard_customize_outlined), label: _t(context, 'لوحة التحكم', 'Control panel')),
+                  ],
                 ),
-              if (perms.contains('orders.manage'))
-                IconButton(
-                  tooltip: _t(context, 'العروض وأكواد الخصم', 'Offers & codes'),
-                  icon: const Icon(Icons.campaign_outlined),
-                  onPressed: () {
-                    StaffPresence.area = 'offers';
-                    openPromotions(context);
-                  },
-                ),
-              if (perms.contains('orders.view') || perms.contains('repairs.view'))
-                IconButton(
-                  tooltip: _t(context, 'بحث برقم الطلب', 'Search by number'),
-                  icon: const Icon(Icons.search_rounded),
-                  onPressed: () => _openSearch(context, ref),
-                ),
-              IconButton(
-                tooltip: _t(context, 'خروج', 'Sign out'),
-                icon: const Icon(Icons.logout_rounded),
-                onPressed: () async {
-                  await staffWentOffline(ref);
-                  await ref.read(authRepoProvider).signOut();
-                  ref.invalidate(staffContextProvider);
-                  if (context.mounted) context.go('/');
-                },
               ),
-            ],
-            bottom: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, onTap: (i) => StaffPresence.area = tabs[i], tabs: [
-              for (final t in tabs)
-                switch (t) {
-                  'orders' => Tab(icon: const Icon(Icons.receipt_long_outlined), text: _t(context, 'الطلبات', 'Orders')),
-                  'repairs' => Tab(icon: const Icon(Icons.build_outlined), text: _t(context, 'الصيانة', 'Repairs')),
-                  'products' => Tab(icon: const Icon(Icons.inventory_2_outlined), text: _t(context, 'المنتجات', 'Products')),
-                  'reviews' => Tab(icon: const _ReviewsTabIcon(), text: _t(context, 'التقييمات', 'Reviews')),
-                  'accounts' => Tab(icon: const AccountsTabIcon(), text: _t(context, 'الحسابات', 'Accounts')),
-                  'gifts' => Tab(icon: const Icon(Icons.card_giftcard_rounded), text: _t(context, 'الهدايا', 'Gifts')),
-                  _ => Tab(icon: const Icon(Icons.dashboard_outlined), text: _t(context, 'نظرة عامة', 'Overview')),
-                },
-            ]),
-          ),
-          body: TabBarView(children: [
-            for (final t in tabs)
-              switch (t) {
-                'orders' => const _OrdersTab(),
-                'repairs' => const _RepairsTab(),
-                'products' => const _ProductsTab(),
-                'reviews' => const _ReviewsTab(),
-                'accounts' => const AccountsTab(),
-                'gifts' => const GiftsPanel(),
-                _ => const _Overview(),
-              },
-          ]),
+            );
+          },
+        );
+      }),
+    );
+  }
+}
+
+/// Icon of a section, with its live badge where it has one.
+Widget _sectionIcon(String k, {double? size}) => switch (k) {
+      'reviews' => const _ReviewsTabIcon(),
+      'accounts' => const AccountsTabIcon(),
+      _ => Icon(_sectionInfo[k]!.icon, size: size),
+    };
+
+/// The arrange page: drag a section to reorder, tap the pin to put it in the bottom bar (up to 4).
+class _ConsolePage extends ConsumerWidget {
+  const _ConsolePage({required this.layout, required this.onOpen});
+  final ConsoleLayout layout;
+  final void Function(String key) onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ctl = ref.read(consoleLayoutProvider.notifier);
+    int badge(String k) => switch (k) {
+          'accounts' => ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0,
+          'reviews' => ref.watch(_pendingReviewsProvider).valueOrNull ?? 0,
+          _ => 0,
+        };
+    void togglePin(String k) {
+      final pinned = [...layout.pinned];
+      if (pinned.contains(k)) {
+        if (pinned.length <= 1) {
+          showSnack(context, _t(context, 'لازم يفضل قسم واحد على الأقل في الشريط.', 'Keep at least one section in the bar.'));
+          return;
+        }
+        pinned.remove(k);
+      } else {
+        if (pinned.length >= 4) {
+          showSnack(context, _t(context, 'الشريط بيشيل ٤ أقسام بس. شيل قسم الأول.', 'The bar holds 4 sections. Remove one first.'));
+          return;
+        }
+        pinned.add(k);
+      }
+      ctl.set(ConsoleLayout(layout.order, pinned));
+    }
+
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      buildDefaultDragHandles: false,
+      header: Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Text(
+          _t(context, 'اسحب أي قسم علشان ترتّبه، وادوس على الدبوس علشان يظهر في الشريط اللي تحت (لحد ٤). الباقي هتلاقيه هنا.',
+              'Drag a section to reorder it, and tap the pin to show it in the bottom bar (up to 4). The rest stay here.'),
+          style: const TextStyle(color: BrandColors.gray, height: 1.7),
         ),
-      );
+      ),
+      itemCount: layout.order.length,
+      onReorder: (from, to) {
+        if (to > from) to -= 1;
+        final order = [...layout.order];
+        order.insert(to, order.removeAt(from));
+        ctl.set(ConsoleLayout(order, layout.pinned));
+      },
+      itemBuilder: (ctx, i) {
+        final k = layout.order[i];
+        final info = _sectionInfo[k]!;
+        final pinned = layout.pinned.contains(k);
+        final n = badge(k);
+        return Padding(
+          key: ValueKey(k),
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Material(
+            color: Theme.of(context).cardColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: pinned ? BrandColors.electric : BrandColors.border, width: pinned ? 1.6 : 1),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => onOpen(k),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(4, 8, 8, 8),
+                child: Row(children: [
+                  ReorderableDragStartListener(
+                    index: i,
+                    child: const Padding(padding: EdgeInsets.all(10), child: Icon(Icons.drag_indicator_rounded, color: BrandColors.gray)),
+                  ),
+                  Badge(
+                    isLabelVisible: n > 0,
+                    label: Text('$n'),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(color: info.color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(13)),
+                      child: Icon(info.icon, color: info.color, size: 23),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(_t(context, info.ar, info.en), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                      Text(_t(context, info.descAr, info.descEn), style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+                    ]),
+                  ),
+                  IconButton(
+                    tooltip: pinned ? _t(context, 'شيل التثبيت', 'Unpin') : _t(context, 'ثبّت في الشريط', 'Pin to the bar'),
+                    style: pinned ? IconButton.styleFrom(backgroundColor: BrandColors.electric.withValues(alpha: 0.12)) : null,
+                    icon: Icon(pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined, color: pinned ? BrandColors.electric : BrandColors.gray),
+                    onPressed: () => togglePin(k),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

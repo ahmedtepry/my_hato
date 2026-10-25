@@ -16,6 +16,27 @@ class AdminRepository {
 
   /// The signed-in member's roles + permissions (the console shows only what they can use;
   /// the database still checks every action).
+  /// The member's own console layout (section order + pinned sections), or null when never changed.
+  Future<ConsoleLayout?> consoleLayout() async {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return null;
+    final r = await _db.from('staff_console_prefs').select('section_order, pinned').eq('user_id', uid).maybeSingle();
+    if (r == null) return null;
+    List<String> l(Object? v) => List<String>.from((v as List? ?? const []).map((e) => '$e'));
+    return ConsoleLayout(l(r['section_order']), l(r['pinned']));
+  }
+
+  Future<void> saveConsoleLayout(ConsoleLayout layout) async {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return;
+    await _db.from('staff_console_prefs').upsert({
+      'user_id': uid,
+      'section_order': layout.order,
+      'pinned': layout.pinned,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
   Future<StaffContext> staffContext() async {
     if (_db.auth.currentUser == null) return const StaffContext({}, {});
     final r = Map<String, dynamic>.from(await _db.rpc('my_staff_context') as Map);
@@ -341,6 +362,32 @@ class AdminRepository {
 }
 
 final adminRepoProvider = Provider((ref) => AdminRepository(ref.watch(supabaseProvider)));
+
+class ConsoleLayout {
+  const ConsoleLayout(this.order, this.pinned);
+  final List<String> order, pinned;
+}
+
+class ConsoleLayoutController extends AsyncNotifier<ConsoleLayout> {
+  @override
+  Future<ConsoleLayout> build() async {
+    try {
+      return await ref.read(adminRepoProvider).consoleLayout() ?? const ConsoleLayout([], []);
+    } catch (_) {
+      return const ConsoleLayout([], []); // never block the console because the layout could not load
+    }
+  }
+
+  /// Shows the change at once, then saves it on the account.
+  Future<void> set(ConsoleLayout layout) async {
+    state = AsyncData(layout);
+    try {
+      await ref.read(adminRepoProvider).saveConsoleLayout(layout);
+    } catch (_) {}
+  }
+}
+
+final consoleLayoutProvider = AsyncNotifierProvider<ConsoleLayoutController, ConsoleLayout>(ConsoleLayoutController.new);
 
 class StaffContext {
   const StaffContext(this.roles, this.permissions);
