@@ -16,6 +16,12 @@ class AdminRepository {
 
   /// The signed-in member's roles + permissions (the console shows only what they can use;
   /// the database still checks every action).
+  Future<Map<String, dynamic>> salesReport(String period) async =>
+      Map<String, dynamic>.from(await _db.rpc('sales_report', params: {'p_period': period}) as Map);
+
+  Future<Map<String, dynamic>> salesExport(String period) async =>
+      Map<String, dynamic>.from(await _db.rpc('sales_export', params: {'p_period': period}) as Map);
+
   /// The member's own console layout (section order + pinned sections), or null when never changed.
   Future<ConsoleLayout?> consoleLayout() async {
     final uid = _db.auth.currentUser?.id;
@@ -408,6 +414,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
   return [
     'overview',
     if (p.contains('orders.view')) 'orders',
+    if (p.contains('sales.view')) 'sales',
     if (p.contains('repairs.view')) 'repairs',
     if (p.contains('products.manage')) 'products',
     if (p.contains('products.manage')) 'reviews',
