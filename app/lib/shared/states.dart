@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -86,7 +89,8 @@ class ErrorView extends StatelessWidget {
   final VoidCallback onRetry;
   @override
   Widget build(BuildContext context) => EmptyState(
-        icon: Icons.wifi_off_rounded,
+        // the no-connection icon only for real connection problems; anything else is a general error
+        icon: (error is SocketException || error is TimeoutException) ? Icons.wifi_off_rounded : Icons.error_outline_rounded,
         title: friendlyError(context, error),
         action: context.tr('retry'),
         onAction: onRetry,

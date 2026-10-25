@@ -26,21 +26,36 @@ String fmtDate(BuildContext context, String iso) =>
     DateFormat.yMMMd(context.lang).add_jm().format(DateTime.parse(iso).toLocal());
 
 /// "Orders" tab: product orders + repair requests.
-class OrdersTab extends StatelessWidget {
+class OrdersTab extends ConsumerWidget {
   const OrdersTab({super.key, this.initialIndex = 0});
   final int initialIndex;
   @override
-  Widget build(BuildContext context) => DefaultTabController(
-        length: 2,
-        initialIndex: initialIndex.clamp(0, 1).toInt(),
-        child: Scaffold(
-          appBar: AppBar(
-            title: Text(context.tr('my_orders')),
-            bottom: TabBar(tabs: [Tab(text: context.tr('my_orders')), Tab(text: context.tr('repairs'))]),
-          ),
-          body: const TabBarView(children: [MyOrdersList(), MyRepairsList()]),
+  Widget build(BuildContext context, WidgetRef ref) {
+    // a visitor who is not signed in gets a clear sign-in prompt, not a connection error
+    if (ref.watch(currentUserProvider) == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(context.tr('my_orders'))),
+        body: EmptyState(
+          icon: Icons.lock_outline_rounded,
+          title: context.tr('orders_login_title'),
+          body: context.tr('orders_login_body'),
+          action: context.tr('login'),
+          onAction: () => context.push('/auth/login?redirect=${Uri.encodeComponent('/orders')}'),
         ),
       );
+    }
+    return DefaultTabController(
+      length: 2,
+      initialIndex: initialIndex.clamp(0, 1).toInt(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(context.tr('my_orders')),
+          bottom: TabBar(tabs: [Tab(text: context.tr('my_orders')), Tab(text: context.tr('repairs'))]),
+        ),
+        body: const TabBarView(children: [MyOrdersList(), MyRepairsList()]),
+      ),
+    );
+  }
 }
 
 class MyOrdersList extends ConsumerWidget {

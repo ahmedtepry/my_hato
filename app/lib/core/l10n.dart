@@ -362,6 +362,8 @@ const Map<String, Map<String, String>> _strings = {
   'no_internet_retry': {'ar': 'إعادة المحاولة', 'en': 'Try again'},
   'no_internet_checking': {'ar': 'جارٍ التحقق…', 'en': 'Checking…'},
   'no_internet_auto': {'ar': 'سنُعيد الاتصال تلقائيًا فور عودة الإنترنت.', 'en': 'We will reconnect automatically as soon as you are back online.'},
+  'orders_login_title': {'ar': 'سجّل دخولك علشان تشوف طلباتك', 'en': 'Sign in to see your orders'},
+  'orders_login_body': {'ar': 'بعد تسجيل الدخول هتلاقي طلباتك وطلبات الصيانة وتتابع حالة كل طلب.', 'en': 'Once signed in you can see your orders and repairs and follow each one.'},
   'open_map': {'ar': 'افتح الخريطة', 'en': 'Open map'},
   'make_default': {'ar': 'العنوان الافتراضي', 'en': 'Default address'},
   'support_subject': {'ar': 'الموضوع', 'en': 'Subject'},
