@@ -1,5 +1,6 @@
 // New accounts can browse and fill the cart right away; ordering, repair requests and reviews open
 // once the team approves the account. This shows the customer where they stand.
+import '../core/appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -65,7 +66,7 @@ class _PendingSheet extends StatelessWidget {
             icon: const Icon(Icons.chat_rounded),
             label: Text(ar ? 'سرّع التوثيق على واتساب' : 'Speed it up on WhatsApp'),
             onPressed: () => launchUrl(
-              whatsappUri(ar ? 'أهلاً My Hatō، عملت حساب جديد وعايز أوثّقه.' : 'Hello My Hatō, I created an account and would like it verified.'),
+              whatsappUri(ar ? 'أهلاً ${AppName.ar}، عملت حساب جديد وعايز أوثّقه.' : 'Hello ${AppName.en}, I created an account and would like it verified.'),
               mode: LaunchMode.externalApplication,
             ),
           ),
@@ -96,7 +97,7 @@ class PendingAccountBanner extends ConsumerWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => rejected
-              ? launchUrl(whatsappUri(ar ? 'أهلاً My Hatō، بخصوص حسابي.' : 'Hello My Hatō, about my account.'), mode: LaunchMode.externalApplication)
+              ? launchUrl(whatsappUri(ar ? 'أهلاً ${AppName.ar}، بخصوص حسابي.' : 'Hello ${AppName.en}, about my account.'), mode: LaunchMode.externalApplication)
               : showAccountPendingSheet(context),
           child: Container(
             padding: const EdgeInsets.all(12),

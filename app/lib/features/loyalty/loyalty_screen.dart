@@ -1,3 +1,4 @@
+import '../../core/appearance.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -118,7 +119,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> {
         appBar: AppBar(
           backgroundColor: BrandColors.navyDeep,
           foregroundColor: Colors.white,
-          title: Text(_t(context, 'مكافآت My Hatō', 'My Hatō Rewards'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)),
+          title: Text(_t(context, 'مكافآت ${AppName.ar}', '${AppName.en} Rewards'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)),
           actions: [IconButton(tooltip: _t(context, 'تحديث', 'Refresh'), onPressed: () => ref.invalidate(loyaltyProvider), icon: const Icon(Icons.refresh_rounded))],
           bottom: TabBar(
             indicatorColor: BrandColors.electric,
@@ -430,7 +431,7 @@ class _AwardRevealState extends State<_AwardReveal> with SingleTickerProviderSta
               Text(_t(context, 'مبروك! وصلت لمستوى', 'Congratulations! You reached'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
               Text(context.pick(a, 'name'), style: const TextStyle(color: _gold, fontSize: 36, fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
-              Text(_t(context, 'وعندك هدية من My Hatō 🎁', 'and you have a gift from My Hatō 🎁'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+              Text(_t(context, 'وعندك هدية من ${AppName.ar} 🎁', 'and you have a gift from ${AppName.en} 🎁'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
               const SizedBox(height: 16),
               _CodeChip(code: a['code'] as String),
               const SizedBox(height: 12),

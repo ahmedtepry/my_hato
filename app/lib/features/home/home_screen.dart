@@ -1,3 +1,4 @@
+import '../../core/appearance.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -251,7 +252,7 @@ class _HomeHeader extends ConsumerWidget {
                       Text('$greet 👋', style: const TextStyle(color: Colors.white70, fontSize: 14)),
                       const SizedBox(height: 2),
                       Text(
-                        signedIn && first.isNotEmpty ? first : (ar ? 'أهلاً بيك في My Hatō' : 'Welcome to My Hatō'),
+                        signedIn && first.isNotEmpty ? first : (ar ? 'أهلاً بيك في ${AppName.ar}' : 'Welcome to ${AppName.en}'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),

@@ -1,3 +1,4 @@
+import '../../core/appearance.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -708,7 +709,7 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
         if ((o['customer_phone'] as String?)?.isNotEmpty == true)
           ContactButtons(
             phone: o['customer_phone'] as String,
-            message: 'أهلاً ${o['customer_name'] ?? ''}، معاك فريق المبيعات في My Hatō بخصوص طلبك رقم ${o['reference']}.',
+            message: 'أهلاً ${o['customer_name'] ?? ''}، معاك فريق المبيعات في ${AppName.ar} بخصوص طلبك رقم ${o['reference']}.',
           ),
         DocumentButtons(fileName: 'MyHato-${o['reference']}', build: () => orderInvoicePdf(o)),
         const SizedBox(height: 16),
@@ -888,7 +889,7 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
         if ((r['contact_phone'] as String?)?.isNotEmpty == true)
           ContactButtons(
             phone: r['contact_phone'] as String,
-            message: 'أهلاً ${r['contact_name'] ?? ''}، معاك فريق الصيانة في My Hatō بخصوص طلب الصيانة رقم ${r['reference']} (${r['device_brand']} ${r['device_model']}).',
+            message: 'أهلاً ${r['contact_name'] ?? ''}، معاك فريق الصيانة في ${AppName.ar} بخصوص طلب الصيانة رقم ${r['reference']} (${r['device_brand']} ${r['device_model']}).',
           ),
         DocumentButtons(
           fileName: 'MyHato-${r['reference']}',

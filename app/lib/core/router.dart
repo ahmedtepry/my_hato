@@ -1,3 +1,4 @@
+import 'appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -163,7 +164,7 @@ void _announceNew(List<Map<String, dynamic>> list, bool ar) {
     if (_announced.add(id) && n['read_at'] == null) {
       PhoneNotifications.show(
         id: id,
-        title: (ar ? n['title_ar'] : n['title_en']) as String? ?? 'My Hatō',
+        title: (ar ? n['title_ar'] : n['title_en']) as String? ?? (ar ? AppName.ar : AppName.en),
         body: (ar ? n['body_ar'] : n['body_en']) as String? ?? '',
         link: n['deep_link'] as String?,
       );

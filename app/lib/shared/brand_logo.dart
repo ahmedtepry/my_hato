@@ -1,3 +1,4 @@
+import '../core/appearance.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
@@ -76,6 +77,15 @@ class BrandWordmark extends StatelessWidget {
   final bool onDark;
   final bool showSlogan;
 
+  /// The name split into (text, highlighted) pieces: all words but the last in the main colour, the last one highlighted.
+  static List<(String, bool)> _nameParts() {
+    final name = AppName.en.trim();
+    if (name == 'My Hatō') return const [('My', false), ('Hatō', true)]; // the original logo is tight, no space
+    final words = name.split(RegExp(r'\s+'));
+    if (words.length == 1) return [(name, true)];
+    return [('${words.sublist(0, words.length - 1).join(' ')} ', false), (words.last, true)];
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = onDark ? BrandColors.white : BrandColors.navy;
@@ -88,8 +98,7 @@ class BrandWordmark extends StatelessWidget {
             BrandMark(size: size * 1.25, onDark: onDark),
             SizedBox(width: size * 0.3),
             Text.rich(TextSpan(children: [
-              TextSpan(text: 'My', style: TextStyle(color: color)),
-              const TextSpan(text: 'Hatō', style: TextStyle(color: BrandColors.electric)),
+              for (final part in _nameParts()) TextSpan(text: part.$1, style: TextStyle(color: part.$2 ? BrandColors.electric : color)),
             ]), style: TextStyle(fontSize: size, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
           ]),
           if (showSlogan) ...[
@@ -168,7 +177,7 @@ class _HomeLogoButtonState extends State<HomeLogoButton> with SingleTickerProvid
     final size = widget.size;
     return Semantics(
       button: true,
-      label: 'My Hatō',
+      label: AppName.en,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _tap,

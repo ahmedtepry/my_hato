@@ -158,7 +158,7 @@ class MyHatoApp extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
     ref.watch(appearanceProvider); // rebuilds the theme when the owner changes the colours
     return MaterialApp.router(
-      title: 'My Hatō',
+      title: AppName.en,
       debugShowCheckedModeBanner: false,
       locale: locale,
       supportedLocales: supportedLocales,

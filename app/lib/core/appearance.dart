@@ -13,9 +13,18 @@ import 'theme.dart';
 const launchAnimations = ['classic', 'zoom', 'slide'];
 const appIcons = ['default', 'a', 'b', 'c'];
 
+/// The app's name, set by the owner. Read wherever the app writes its own name.
+class AppName {
+  static String ar = 'My Hatō';
+  static String en = 'My Hatō';
+  static String of(String languageCode) => languageCode == 'ar' ? ar : en;
+}
+
 /// What the owner chose in the console: five colours, the opening animation and the launcher icon.
 class Appearance {
-  const Appearance({this.palette = AppPalette.defaults, this.animation = 'classic', this.icon = 'default'});
+  const Appearance({this.palette = AppPalette.defaults, this.animation = 'classic', this.icon = 'default', this.nameAr = 'My Hatō', this.nameEn = 'My Hatō'});
+  final String nameAr;
+  final String nameEn;
   final Map<String, String> palette;
   final String animation;
   final String icon;
@@ -32,12 +41,21 @@ class Appearance {
       palette: pal,
       animation: launchAnimations.contains(anim) ? anim! : 'classic',
       icon: appIcons.contains(icon) ? icon! : 'default',
+      nameAr: _cleanName(p.getString('appearance_name_ar')),
+      nameEn: _cleanName(p.getString('appearance_name_en')),
     );
   }
 }
 
+String _cleanName(String? v) => (v == null || v.trim().isEmpty) ? 'My Hatō' : v.trim();
+
 /// Paints the saved colours before the first frame, so the app never flashes the old ones.
-void applySavedPalette(SharedPreferences prefs) => AppPalette.apply(Appearance.fromPrefs(prefs).palette);
+void applySavedPalette(SharedPreferences prefs) {
+  final a = Appearance.fromPrefs(prefs);
+  AppPalette.apply(a.palette);
+  AppName.ar = a.nameAr;
+  AppName.en = a.nameEn;
+}
 
 class AppearanceController extends Notifier<Appearance> {
   static const _iconChannel = MethodChannel('myhato/icon');
@@ -65,15 +83,23 @@ class AppearanceController extends Notifier<Appearance> {
   /// Reads the owner's choices and applies them. Silent on failure: the app keeps the last known look.
   Future<void> refresh() async {
     try {
-      final rows = await ref.read(supabaseProvider).from('application_settings').select('key, value').inFilter('key', ['theme_palette', 'launch_animation', 'app_icon']);
+      final rows = await ref.read(supabaseProvider).from('application_settings').select('key, value').inFilter('key', ['theme_palette', 'launch_animation', 'app_icon', 'app_name']);
       final m = {for (final r in rows) r['key'] as String: r['value']};
       final pal = m['theme_palette'];
       final anim = m['launch_animation'];
       final icon = m['app_icon'];
+      final name = m['app_name'];
+      String pickName(String k, String keep) {
+        final v = name is Map ? name[k] : null;
+        return v is String && v.trim().isNotEmpty ? v.trim() : keep;
+      }
+
       _apply(Appearance(
         palette: pal is Map ? {for (final e in pal.entries) '${e.key}': '${e.value}'} : state.palette,
         animation: launchAnimations.contains(anim) ? anim as String : state.animation,
         icon: appIcons.contains(icon) ? icon as String : state.icon,
+        nameAr: pickName('ar', state.nameAr),
+        nameEn: pickName('en', state.nameEn),
       ));
     } catch (_) {}
   }
@@ -81,11 +107,16 @@ class AppearanceController extends Notifier<Appearance> {
   Future<void> _apply(Appearance a) async {
     final prefs = ref.read(sharedPrefsProvider);
     final paletteChanged = AppPalette.apply(a.palette);
+    final nameChanged = AppName.ar != a.nameAr || AppName.en != a.nameEn;
+    AppName.ar = a.nameAr;
+    AppName.en = a.nameEn;
+    await prefs.setString('appearance_name_ar', a.nameAr);
+    await prefs.setString('appearance_name_en', a.nameEn);
     await prefs.setString('appearance_palette', jsonEncode(a.palette));
     await prefs.setString('appearance_animation', a.animation);
     await prefs.setString('appearance_icon', a.icon);
     state = a;
-    if (paletteChanged) {
+    if (paletteChanged || nameChanged) {
       // repaint everything, including widgets that were built once with const colours
       WidgetsBinding.instance.addPostFrameCallback((_) {
         try {

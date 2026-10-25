@@ -1,6 +1,7 @@
 // Team (owner only): live board of the team — who is online right now, who is away, who is offline,
 // last sign-in, what each member did today — plus creating accounts with any login name + password,
 // changing roles, new passwords, instant suspend / resume and removal.
+import '../../core/appearance.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -929,7 +930,7 @@ Future<void> _addMember(BuildContext context, WidgetRef ref) async {
   );
   if (creds == null || !context.mounted) return;
   ref.invalidate(_teamProvider);
-  final text = 'أهلاً 👋 ده حسابك في فريق My Hatō (${roleOf(creds.role).ar})\n'
+  final text = 'أهلاً 👋 ده حسابك في فريق ${AppName.ar} (${roleOf(creds.role).ar})\n'
       'اسم الدخول: ${creds.login}\nكلمة السر: ${creds.password}\n'
       'ادخل من صفحة تسجيل الدخول في التطبيق، وبعدها هتلاقي "لوحة الفريق" في حسابك.';
   await showDialog<void>(

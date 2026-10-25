@@ -1,3 +1,4 @@
+import '../../core/appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
@@ -91,7 +92,7 @@ pw.Widget _header(String title, String reference, String date, pw.Font bold) => 
           pw.Text(date, style: const pw.TextStyle(fontSize: 10, color: PdfColors.white)),
         ]),
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-          pw.Text('My Hatō', style: pw.TextStyle(font: bold, fontSize: 20, color: _blue)),
+          pw.Text(AppName.en, style: pw.TextStyle(font: bold, fontSize: 20, color: _blue)),
           pw.SizedBox(height: 4),
           pw.Text(reference, textDirection: pw.TextDirection.ltr, style: pw.TextStyle(font: bold, fontSize: 13, color: PdfColors.white)),
         ]),
@@ -108,7 +109,7 @@ pw.Widget _kv(String k, String v, {pw.Font? bold}) => pw.Padding(
 
 pw.Widget _footer() => pw.Column(children: [
       pw.Divider(color: _line),
-      pw.Text('شكرًا لاختيارك My Hatō — للدعم واتساب ${AppConfig.supportPhone.replaceFirst('+20', '0')}',
+      pw.Text('شكرًا لاختيارك ${AppName.ar} — للدعم واتساب ${AppConfig.supportPhone.replaceFirst('+20', '0')}',
           style: const pw.TextStyle(color: _grey, fontSize: 10)),
     ]);
 

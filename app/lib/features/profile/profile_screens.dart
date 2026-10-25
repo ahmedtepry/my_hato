@@ -1,3 +1,4 @@
+import '../../core/appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -187,7 +188,7 @@ class ProfileScreen extends ConsumerWidget {
                 _tile(context, Icons.build_rounded, 'repairs', '/orders?tab=1', const Color(0xFF566380)),
                 ListTile(
                   leading: _iconTile(Icons.emoji_events_rounded, const Color(0xFFD99A00)),
-                  title: Text(context.isAr ? 'مكافآت My Hatō' : 'My Hatō Rewards'),
+                  title: Text(context.isAr ? 'مكافآت ${AppName.ar}' : '${AppName.en} Rewards'),
                   subtitle: Text(context.isAr ? 'مهام ونقاط وجوايز' : 'Missions, points and prizes', style: const TextStyle(fontSize: 12)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/loyalty'),
@@ -853,7 +854,7 @@ class LegalScreen extends ConsumerWidget {
     return [
         Text(ar ? 'باختصار' : 'In short', style: theme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 2),
-        Text(ar ? 'My Hatō · آخر تحديث $_updated' : 'My Hatō · Updated $_updated', style: theme.bodySmall?.copyWith(color: BrandColors.gray)),
+        Text(ar ? '${AppName.ar} · آخر تحديث $_updated' : '${AppName.en} · Updated $_updated', style: theme.bodySmall?.copyWith(color: BrandColors.gray)),
         const SizedBox(height: 14),
         for (final c in _cards)
           Padding(

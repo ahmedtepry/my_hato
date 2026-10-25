@@ -1,3 +1,4 @@
+import '../../core/appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -71,7 +72,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         IconButton(
           tooltip: context.tr('share'),
           icon: const Icon(Icons.ios_share_rounded),
-          onPressed: () => Share.share('${context.pick(p, 'name')} — ${formatEgp(price, context.lang)}\nMy Hatō'),
+          onPressed: () => Share.share('${context.pick(p, 'name')} — ${formatEgp(price, context.lang)}\n${AppName.en}'),
         ),
         IconButton(
           icon: Icon(isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: isFav ? BrandColors.error : null),

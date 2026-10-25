@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../../core/appearance.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
+import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/launch_animation.dart';
 import '../../shared/states.dart';
@@ -33,6 +35,9 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
   late String _icon;
   int _replay = 0;
   bool _saving = false;
+  bool _renaming = false;
+  late final _nameAr = TextEditingController(text: AppName.ar);
+  late final _nameEn = TextEditingController(text: AppName.en);
 
   @override
   void initState() {
@@ -41,6 +46,56 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
     _palette = {...AppPalette.defaults, ...a.palette};
     _anim = a.animation;
     _icon = a.icon;
+  }
+
+  @override
+  void dispose() {
+    _nameAr.dispose();
+    _nameEn.dispose();
+    super.dispose();
+  }
+
+  /// Renames the app for everyone. Asks for the owner's password first.
+  Future<void> _rename() async {
+    final ar = _nameAr.text.trim(), en = _nameEn.text.trim();
+    if (ar.isEmpty || en.isEmpty || ar.length > 30 || en.length > 30) {
+      showSnack(context, _t(context, 'اكتب الاسم بالعربي والإنجليزي (لحد ٣٠ حرف).', 'Write the name in Arabic and English (up to 30 characters).'), error: true);
+      return;
+    }
+    final pass = TextEditingController();
+    final password = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_t(ctx, 'تأكيد بالرقم السري', 'Confirm with your password')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_t(ctx, 'هيتغيّر اسم التطبيق عند كل العملاء فورًا إلى:\n«$ar» / «$en»', 'The app name will change for every customer right away to:\n"$ar" / "$en"')),
+          const SizedBox(height: 12),
+          TextField(controller: pass, obscureText: true, autofocus: true, decoration: InputDecoration(labelText: _t(ctx, 'الرقم السري بتاعك', 'Your password'))),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_t(ctx, 'إلغاء', 'Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, pass.text), child: Text(_t(ctx, 'غيّر الاسم', 'Change name'))),
+        ],
+      ),
+    );
+    pass.dispose();
+    if (password == null || password.isEmpty || !mounted) return;
+    setState(() => _renaming = true);
+    try {
+      final auth = ref.read(supabaseProvider).auth;
+      final email = auth.currentUser?.email;
+      if (email == null) throw StateError('no-email');
+      await auth.signInWithPassword(email: email, password: password);
+      await ref.read(adminRepoProvider).setAppName(ar, en);
+      await ref.read(appearanceProvider.notifier).refresh();
+      if (mounted) showSnack(context, _t(context, 'اتغيّر اسم التطبيق.', 'The app name was changed.'));
+    } on AuthException {
+      if (mounted) showSnack(context, _t(context, 'الرقم السري غلط. الاسم ما اتغيّرش.', 'Wrong password. The name was not changed.'), error: true);
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _renaming = false);
+    }
   }
 
   String _slotName(BuildContext c, String k) => switch (k) {
@@ -136,7 +191,7 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(color: p['primary'], borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
-              Text('My Hatō', style: TextStyle(color: onPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+              Text(AppName.en, style: TextStyle(color: onPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
               const Spacer(),
               Icon(Icons.shopping_bag_outlined, color: p['accent'], size: 20),
             ]),
@@ -187,6 +242,21 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
           icon: const Icon(Icons.restart_alt_rounded, size: 18),
           label: Text(_t(context, 'رجّع الألوان الأصلية', 'Back to the original colours')),
         ),
+      ),
+      const Divider(height: 28),
+      Text(_t(context, 'اسم التطبيق', 'App name'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+      const SizedBox(height: 4),
+      Text(_t(context, 'بيتغيّر جوه التطبيق عند كل العملاء فورًا، وبتأكّد بالرقم السري. اسم أيقونة التطبيق على الشاشة الرئيسية ثابت، ومحتاج نسخة جديدة عشان يتغيّر.',
+          'It changes inside the app for every customer at once, and needs your password. The name under the icon on the home screen is fixed and needs a new app version to change.'),
+          style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+      const SizedBox(height: 10),
+      TextField(controller: _nameAr, maxLength: 30, decoration: InputDecoration(labelText: _t(context, 'الاسم بالعربي', 'Name in Arabic'))),
+      TextField(controller: _nameEn, maxLength: 30, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: _t(context, 'الاسم بالإنجليزي', 'Name in English'))),
+      const SizedBox(height: 6),
+      OutlinedButton.icon(
+        onPressed: _renaming ? null : _rename,
+        icon: _renaming ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.lock_outline_rounded, size: 18),
+        label: Text(_t(context, 'غيّر الاسم (بالرقم السري)', 'Change name (needs password)')),
       ),
       const Divider(height: 28),
       Text(_t(context, 'أيقونة التطبيق', 'App icon'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),

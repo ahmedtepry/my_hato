@@ -1,4 +1,5 @@
 // New customer accounts waiting for approval: accept (activates sign-in right away) or reject.
+import '../../core/appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -127,7 +128,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
             : SnackBarAction(
                 label: _t(context, 'بلّغه واتساب', 'Tell on WhatsApp'),
                 onPressed: () => launchUrl(
-                  Uri.parse('https://wa.me/${waDigits(phone)}?text=${Uri.encodeComponent('أهلاً ${_firstName()} 👋\nحسابك على My Hatō اتوثّق ✅ تقدر تطلب دلوقتي من التطبيق.')}'),
+                  Uri.parse('https://wa.me/${waDigits(phone)}?text=${Uri.encodeComponent('أهلاً ${_firstName()} 👋\nحسابك على ${AppName.ar} اتوثّق ✅ تقدر تطلب دلوقتي من التطبيق.')}'),
                   mode: LaunchMode.externalApplication,
                 ),
               ),
@@ -292,7 +293,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
                         icon: const Icon(Icons.chat_rounded, size: 18),
                         label: Text(_t(context, 'واتساب', 'WhatsApp')),
                         onPressed: () => launchUrl(
-                          Uri.parse('https://wa.me/${waDigits(phone)}?text=${Uri.encodeComponent('أهلاً ${_firstName()} 👋 معاك My Hatō بخصوص حسابك الجديد.')}'),
+                          Uri.parse('https://wa.me/${waDigits(phone)}?text=${Uri.encodeComponent('أهلاً ${_firstName()} 👋 معاك ${AppName.ar} بخصوص حسابك الجديد.')}'),
                           mode: LaunchMode.externalApplication,
                         ),
                       ),

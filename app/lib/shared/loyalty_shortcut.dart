@@ -1,6 +1,7 @@
 // A floating gold trophy on the home screen: tap = open the rewards page, drag = put it anywhere.
 // Drag it down to the bottom edge (next to the bottom bar) and it is thrown away; it stays gone until the app is
 // closed and opened again.
+import '../core/appearance.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -131,7 +132,7 @@ class _LoyaltyShortcutState extends ConsumerState<LoyaltyShortcut> with SingleTi
             },
             child: Semantics(
               button: true,
-              label: ar ? 'مكافآت My Hatō' : 'My Hatō Rewards',
+              label: ar ? 'مكافآت ${AppName.ar}' : '${AppName.en} Rewards',
               child: AnimatedScale(
                 scale: _dragging ? 1.12 : 1,
                 duration: const Duration(milliseconds: 150),

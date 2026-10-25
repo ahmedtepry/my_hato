@@ -1,5 +1,6 @@
 // Offers & discount codes: create codes, and send an offer notification (optionally with a code)
 // that lands in every customer's notifications; tapping it opens the cart with the code ready.
+import '../../core/appearance.dart';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -469,7 +470,7 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
     final p = c['percent_off'] as num?;
     final v = p != null ? '${p.toInt()}%' : formatEgp((c['amount_off_minor'] as num).toInt(), 'ar');
     _title.text = '🎁 خصم $v مستنيك!';
-    _body.text = 'استخدم الكود ${c['code']} عند الدفع ووفّر $v على طلبك من My Hatō. العرض لفترة محدودة ⏳';
+    _body.text = 'استخدم الكود ${c['code']} عند الدفع ووفّر $v على طلبك من ${AppName.ar}. العرض لفترة محدودة ⏳';
   }
 
   @override

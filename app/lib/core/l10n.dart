@@ -1,3 +1,4 @@
+import 'appearance.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,7 +31,7 @@ extension Tr on BuildContext {
   String tr(String key, [Map<String, String> args = const {}]) {
     var s = (_strings[key]?[lang]) ?? _strings[key]?['ar'] ?? key;
     args.forEach((k, v) => s = s.replaceAll('{$k}', v));
-    return s;
+    return s.replaceAll('My Hatō', AppName.of(lang));
   }
 
   /// Picks the right column of a bilingual DB row: name_ar / name_en.

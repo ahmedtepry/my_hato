@@ -16,6 +16,10 @@ class AdminRepository {
 
   /// The signed-in member's roles + permissions (the console shows only what they can use;
   /// the database still checks every action).
+  Future<void> setAppName(String ar, String en) async {
+    await _db.rpc('set_app_name', params: {'p_ar': ar, 'p_en': en});
+  }
+
   Future<void> setAppearance(Map<String, String> palette, String animation, String icon) async {
     await _db.rpc('set_appearance', params: {'p_palette': palette, 'p_animation': animation, 'p_icon': icon});
   }
