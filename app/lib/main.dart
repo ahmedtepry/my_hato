@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -11,6 +12,7 @@ import 'core/config.dart';
 import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'shared/connection_gate.dart';
 import 'shared/phone_notifications.dart';
 import 'shared/staff_presence.dart';
 
@@ -30,19 +32,121 @@ Future<void> main() async {
     runApp(const _MisconfiguredApp());
     return;
   }
-  await Supabase.initialize(
-    url: AppConfig.supabaseUrl,
-    anonKey: AppConfig.supabaseAnonKey,
-    authOptions: const FlutterAuthClientOptions(authFlowType: AuthFlowType.pkce),
-    debug: false, // never log auth/session details in release
-  );
+  if (!await _startSupabase()) {
+    // no connection at launch: show the offline page and keep retrying until the server is reachable
+    runApp(_StartupOffline(onReady: () => _launch(prefs)));
+    return;
+  }
+  await _launch(prefs);
+}
 
+Future<bool> _startSupabase() async {
+  try {
+    await Supabase.initialize(
+      url: AppConfig.supabaseUrl,
+      anonKey: AppConfig.supabaseAnonKey,
+      authOptions: const FlutterAuthClientOptions(authFlowType: AuthFlowType.pkce),
+      debug: false, // never log auth/session details in release
+    ).timeout(const Duration(seconds: 10));
+    return true;
+  } catch (_) {
+    try {
+      final _ = Supabase.instance.client; // already initialised (only the session refresh failed)
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+Future<void> _launch(SharedPreferences prefs) async {
   await PhoneNotifications.init();
-
   runApp(ProviderScope(
     overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
     child: const MyHatoApp(),
   ));
+}
+
+/// Shown when the app is opened with no internet, before anything could be loaded.
+class _StartupOffline extends StatefulWidget {
+  const _StartupOffline({required this.onReady});
+  final Future<void> Function() onReady;
+  @override
+  State<_StartupOffline> createState() => _StartupOfflineState();
+}
+
+class _StartupOfflineState extends State<_StartupOffline> {
+  Timer? _timer;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 4), (_) => _retry());
+  }
+
+  Future<void> _retry() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final ok = await _startSupabase();
+    if (!mounted) return;
+    if (ok) {
+      _timer?.cancel();
+      await widget.onReady();
+    } else {
+      setState(() => _busy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(const Locale('ar')),
+      locale: const Locale('ar'),
+      supportedLocales: supportedLocales,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.10), shape: BoxShape.circle),
+                  child: const Icon(Icons.wifi_off_rounded, size: 42, color: BrandColors.electric),
+                ),
+                const SizedBox(height: 24),
+                Builder(builder: (c) => Text(c.tr('no_internet_title'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: BrandColors.navy))),
+                const SizedBox(height: 10),
+                Builder(builder: (c) => Text(c.tr('no_internet_body'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.7, color: BrandColors.gray))),
+                const SizedBox(height: 28),
+                Builder(
+                  builder: (c) => FilledButton.icon(
+                    onPressed: _busy ? null : _retry,
+                    icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.refresh_rounded),
+                    label: Text(c.tr(_busy ? 'no_internet_checking' : 'no_internet_retry')),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyHatoApp extends ConsumerWidget {
@@ -63,7 +167,7 @@ class MyHatoApp extends ConsumerWidget {
       ],
       theme: AppTheme.light(locale),
       routerConfig: ref.watch(routerProvider),
-      builder: (context, child) => StaffPresenceScope(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => StaffPresenceScope(child: ConnectionGate(child: child ?? const SizedBox.shrink())),
     );
   }
 }
