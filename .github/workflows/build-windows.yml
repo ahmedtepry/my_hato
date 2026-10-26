@@ -1,8 +1,10 @@
 # Builds the Windows TEAM app (console only, no customer store): an installer (.exe) and a zip, published as a GitHub release "team-win-N".
-# Run it manually from the Actions tab.
+# Start it by pushing the branch `windows-build` (or manually from the Actions tab once this file is on main).
 name: Build Windows team app
 on:
   workflow_dispatch:
+  push:
+    branches: [windows-build]   # push this branch to start a build (workflow_dispatch needs the file on main)
 permissions:
   contents: write
 concurrency:
