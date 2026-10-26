@@ -42,10 +42,19 @@ jobs:
         run: |
           VER=$(grep -m1 '^version:' app/pubspec.yaml | awk '{print $2}')
           TAG="build-${{ github.run_number }}"
-          gh release create "$TAG" dist/myhato-release.apk --target "${{ github.sha }}" \
-            --title "My Hatō ${VER} (build ${{ github.run_number }})" \
-            --notes "Release APK built from ${{ github.sha }}. Install on Android: download myhato-release.apk and open it (allow installing from this source)." \
-            --latest
+          ls -la dist || true
+          for i in 1 2 3; do
+            if gh release create "$TAG" dist/myhato-release.apk --target "${{ github.sha }}" \
+                 --title "My Hatō ${VER} (build ${{ github.run_number }})" \
+                 --notes "Release APK built from ${{ github.sha }}. Install on Android: download myhato-release.apk and open it (allow installing from this source)." \
+                 --latest 2> release_err.txt; then
+              exit 0
+            fi
+            echo "::warning::release attempt $i failed: $(tr '\n' ' ' < release_err.txt)"
+            sleep 10
+          done
+          echo "::error::release failed: $(tr '\n' ' ' < release_err.txt)"
+          exit 1
       - name: Publish build log to ci-logs branch
         if: always()
         run: |
