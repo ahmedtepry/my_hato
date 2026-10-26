@@ -1,12 +1,18 @@
 // New customer accounts waiting for approval: accept (activates sign-in right away) or reject.
 import '../../core/appearance.dart';
+import 'dart:typed_data';
+
+import 'package:excel/excel.dart' as xl;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart' hide TextDirection;
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
+import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
@@ -16,7 +22,12 @@ String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
 final accountsFilterProvider = StateProvider<String>((_) => 'pending');
 final pendingAccountsCountProvider = FutureProvider.autoDispose<int>((ref) => ref.watch(adminRepoProvider).pendingAccountsCount());
-final _accountsProvider = FutureProvider.autoDispose((ref) => ref.watch(adminRepoProvider).accounts(ref.watch(accountsFilterProvider)));
+final customersSearchProvider = StateProvider<String>((_) => '');
+final _accountsProvider = FutureProvider.autoDispose((ref) {
+  final filter = ref.watch(accountsFilterProvider);
+  final repo = ref.watch(adminRepoProvider);
+  return filter == 'all' ? repo.customers(ref.watch(customersSearchProvider)) : repo.accounts(filter);
+});
 
 String _ago(BuildContext context, String iso) {
   final d = DateTime.now().difference(DateTime.parse(iso).toLocal());
@@ -59,8 +70,10 @@ class AccountsTab extends ConsumerWidget {
           chip('pending', '${_t(context, 'مستني التوثيق', 'Waiting')}${pending > 0 ? ' ($pending)' : ''}', Icons.hourglass_top_rounded),
           chip('approved', _t(context, 'اتوثّقت', 'Verified'), Icons.verified_user_outlined),
           chip('rejected', _t(context, 'مرفوضة', 'Rejected'), Icons.block_rounded),
+          chip('all', _t(context, 'كل العملاء', 'All customers'), Icons.groups_2_outlined),
         ]),
       ),
+      if (filter == 'all') const _CustomersToolbar(),
       Expanded(
         child: RefreshIndicator(
           onRefresh: () async {
@@ -85,7 +98,7 @@ class AccountsTab extends ConsumerWidget {
                     padding: const EdgeInsets.all(12),
                     itemCount: list.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (_, i) => _AccountCard(key: ValueKey(list[i]['user_id']), account: list[i]),
+                    itemBuilder: (_, i) => filter == 'all' ? _CustomerTile(key: ValueKey(list[i]['user_id']), c: list[i]) : _AccountCard(key: ValueKey(list[i]['user_id']), account: list[i]),
                   ),
           ),
         ),
@@ -365,6 +378,220 @@ class _RejectSheetState extends State<_RejectSheet> {
           child: Text(_t(context, 'تأكيد الرفض', 'Confirm reject')),
         ),
       ]),
+    );
+  }
+}
+
+
+/// Search box and "copy all emails" for the full customers list.
+class _CustomersToolbar extends ConsumerStatefulWidget {
+  const _CustomersToolbar();
+  @override
+  ConsumerState<_CustomersToolbar> createState() => _CustomersToolbarState();
+}
+
+class _CustomersToolbarState extends ConsumerState<_CustomersToolbar> {
+  final _c = TextEditingController();
+  bool _busy = false;
+  bool _exporting = false;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  /// Every customer with all the details, as an Excel file (the current search is ignored: it is the whole list).
+  Future<void> _export() async {
+    setState(() => _exporting = true);
+    try {
+      final repo = ref.read(adminRepoProvider);
+      final rows = <Map<String, dynamic>>[];
+      for (var offset = 0; offset < 20000; offset += 500) {
+        final page = await repo.customers(null, offset: offset, limit: 500);
+        rows.addAll(page);
+        if (page.length < 500) break;
+      }
+      final book = xl.Excel.createExcel();
+      final name = _t(context, 'العملاء', 'Customers');
+      final sheet = book['Sheet1'];
+      book.rename('Sheet1', name);
+      final heads = [
+        _t(context, 'الاسم', 'Name'), _t(context, 'الإيميل', 'Email'), _t(context, 'الإيميل متأكد منه', 'Email confirmed'),
+        _t(context, 'الموبايل', 'Phone'), _t(context, 'اسم المستخدم', 'User name'), _t(context, 'كود العميل', 'Customer code'),
+        _t(context, 'الحالة', 'Status'), _t(context, 'بيدخل بـ', 'Signs in with'), _t(context, 'تاريخ التسجيل', 'Registered'),
+        _t(context, 'آخر دخول', 'Last sign-in'), _t(context, 'عدد الطلبات', 'Orders'), _t(context, 'اشترى بـ (ج.م)', 'Bought (EGP)'), _t(context, 'آخر طلب', 'Last order'),
+      ];
+      sheet.appendRow([for (final h in heads) xl.TextCellValue(h)]);
+      String d(Object? iso) => iso == null ? '' : DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse('$iso').toLocal());
+      for (final c in rows) {
+        final email = (c['email'] as String?) ?? '';
+        final status = switch (c['review_status']) {
+          'approved' => _t(context, 'موثّق', 'Verified'),
+          'rejected' => _t(context, 'مرفوض', 'Rejected'),
+          _ => _t(context, 'مستني التوثيق', 'Waiting'),
+        };
+        sheet.appendRow([
+          xl.TextCellValue('${c['full_name'] ?? ''}'),
+          xl.TextCellValue(email.endsWith('.myhato.app') ? '' : email),
+          xl.TextCellValue(c['email_confirmed'] == true ? _t(context, 'أيوه', 'Yes') : _t(context, 'لأ', 'No')),
+          xl.TextCellValue('${c['phone'] ?? ''}'),
+          xl.TextCellValue('${c['username'] ?? ''}'),
+          xl.TextCellValue('${c['customer_code'] ?? ''}'),
+          xl.TextCellValue(status),
+          xl.TextCellValue('${c['provider'] ?? ''}'),
+          xl.TextCellValue(d(c['created_at'])),
+          xl.TextCellValue(d(c['last_sign_in_at'])),
+          xl.IntCellValue(((c['orders_count'] as num?) ?? 0).toInt()),
+          xl.DoubleCellValue((((c['delivered_total_minor'] as num?) ?? 0) / 100).toDouble()),
+          xl.TextCellValue(d(c['last_order_at'])),
+        ]);
+      }
+      final bytes = book.save();
+      if (bytes == null) throw StateError('empty file');
+      final file = 'myhato-customers-${DateFormat('yyyyMMdd').format(DateTime.now())}.xlsx';
+      await Share.shareXFiles(
+        [XFile.fromData(Uint8List.fromList(bytes), name: file, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+        fileNameOverrides: [file],
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _copyAll() async {
+    setState(() => _busy = true);
+    try {
+      final emails = await ref.read(adminRepoProvider).customerEmails();
+      await Clipboard.setData(ClipboardData(text: emails.join('\n')));
+      if (mounted) showSnack(context, _t(context, 'اتنسخ ${emails.length} إيميل.', 'Copied ${emails.length} emails.'));
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        child: Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _c,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (v) => ref.read(customersSearchProvider.notifier).state = v,
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.search_rounded),
+                hintText: _t(context, 'ابحث بالاسم أو الإيميل أو الموبايل', 'Search name, email or phone'),
+                suffixIcon: _c.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        onPressed: () {
+                          _c.clear();
+                          ref.read(customersSearchProvider.notifier).state = '';
+                          setState(() {});
+                        }),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            tooltip: _t(context, 'نسخ كل الإيميلات', 'Copy all emails'),
+            onPressed: _busy ? null : _copyAll,
+            icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.alternate_email_rounded),
+          ),
+          const SizedBox(width: 4),
+          IconButton.filledTonal(
+            tooltip: _t(context, 'تصدير كل العملاء Excel', 'Export all customers to Excel'),
+            onPressed: _exporting ? null : _export,
+            icon: _exporting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_rounded),
+          ),
+        ]),
+      );
+}
+
+/// One customer in the full list: name and email on top, everything else when opened.
+class _CustomerTile extends StatelessWidget {
+  const _CustomerTile({super.key, required this.c});
+  final Map<String, dynamic> c;
+
+  String _date(BuildContext context, String? iso) => iso == null ? '—' : DateFormat('yyyy-MM-dd HH:mm', context.lang).format(DateTime.parse(iso).toLocal());
+
+  Widget _row(BuildContext context, String label, String? value, {bool copy = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: 108, child: Text(label, style: const TextStyle(color: BrandColors.gray, fontSize: 12.5))),
+          Expanded(child: SelectableText(value == null || value.isEmpty ? '—' : value, textDirection: copy ? TextDirection.ltr : null, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600))),
+          if (copy && value != null && value.isNotEmpty)
+            InkWell(
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: value));
+                if (context.mounted) showSnack(context, _t(context, 'اتنسخ', 'Copied'));
+              },
+              child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.copy_rounded, size: 16, color: BrandColors.gray)),
+            ),
+        ]),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final name = ((c['full_name'] as String?) ?? '').trim();
+    final email = c['email'] as String?;
+    final hasEmail = email != null && email.isNotEmpty && !email.endsWith('.myhato.app');
+    final status = c['review_status'] as String? ?? 'pending';
+    final (Color color, String label) = switch (status) {
+      'approved' => (BrandColors.success, _t(context, 'موثّق', 'Verified')),
+      'rejected' => (BrandColors.error, _t(context, 'مرفوض', 'Rejected')),
+      _ => (BrandColors.warning, _t(context, 'مستني التوثيق', 'Waiting')),
+    };
+    final provider = switch (c['provider']) {
+      'google' => 'Google',
+      'facebook' => 'Facebook',
+      'email' => _t(context, 'إيميل وكلمة سر', 'Email and password'),
+      final p? => '$p',
+      _ => null,
+    };
+    final orders = (c['orders_count'] as num?)?.toInt() ?? 0;
+    final spent = (c['delivered_total_minor'] as num?)?.toInt() ?? 0;
+    return Material(
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          title: Text(name.isEmpty ? _t(context, 'بدون اسم', 'No name') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(hasEmail ? email : _t(context, 'دخول باسم مستخدم، من غير إيميل', 'Signs in with a user name, no email'),
+              maxLines: 1, overflow: TextOverflow.ellipsis, textDirection: hasEmail ? TextDirection.ltr : null, style: TextStyle(fontSize: 13, color: hasEmail ? BrandColors.navy : BrandColors.gray)),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+            child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 11.5)),
+          ),
+          children: [
+            _row(context, _t(context, 'الإيميل', 'Email'), hasEmail ? email : null, copy: true),
+            _row(context, _t(context, 'الإيميل متأكد منه', 'Email confirmed'), hasEmail ? (c['email_confirmed'] == true ? _t(context, 'أيوه', 'Yes') : _t(context, 'لأ', 'No')) : null),
+            _row(context, _t(context, 'الموبايل', 'Phone'), c['phone'] as String?, copy: true),
+            _row(context, _t(context, 'اسم المستخدم', 'User name'), c['username'] as String?, copy: true),
+            _row(context, _t(context, 'كود العميل', 'Customer code'), c['customer_code'] as String?, copy: true),
+            _row(context, _t(context, 'بيدخل بـ', 'Signs in with'), provider),
+            _row(context, _t(context, 'اتسجّل', 'Registered'), _date(context, c['created_at'] as String?)),
+            _row(context, _t(context, 'آخر دخول', 'Last sign-in'), _date(context, c['last_sign_in_at'] as String?)),
+            _row(context, _t(context, 'عدد الطلبات', 'Orders'), '$orders'),
+            _row(context, _t(context, 'اشترى بـ', 'Bought (delivered)'), orders == 0 ? '—' : formatEgp(spent, context.lang)),
+            _row(context, _t(context, 'آخر طلب', 'Last order'), _date(context, c['last_order_at'] as String?)),
+          ],
+        ),
+      ),
     );
   }
 }

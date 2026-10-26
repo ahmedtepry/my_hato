@@ -16,6 +16,11 @@ class AdminRepository {
 
   /// The signed-in member's roles + permissions (the console shows only what they can use;
   /// the database still checks every action).
+  Future<List<Map<String, dynamic>>> customers(String? search, {int offset = 0, int limit = 200}) async => List<Map<String, dynamic>>.from(
+      await _db.rpc('staff_customers', params: {'p_search': (search ?? '').trim().isEmpty ? null : search!.trim(), 'p_limit': limit, 'p_offset': offset}) as List);
+
+  Future<List<String>> customerEmails() async => List<String>.from(await _db.rpc('staff_customer_emails') as List);
+
   Future<void> setOccasion(String key, String stamp) async {
     await _db.rpc('set_occasion', params: {'p_key': key, 'p_stamp': stamp});
   }
