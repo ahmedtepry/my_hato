@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/config.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/money.dart';
@@ -93,6 +94,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
       await ref.read(authRepoProvider).signInWithIdentifier(_user.text, _pass.text);
       ref.invalidate(staffContextProvider);
       final ok = await ref.read(adminRepoProvider).isStaff();
+      if (!ok && AppConfig.teamOnly) await ref.read(authRepoProvider).signOut(); // the team app never keeps a customer signed in
       if (!ok && mounted) setState(() => _error = _t(context, 'الحساب ده مالوش صلاحية دخول المساحة دي.', 'This account has no access to this area.'));
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(context, e));
@@ -107,7 +109,8 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          leading: CloseButton(onPressed: () => context.canPop() ? context.pop() : context.go('/')),
+          automaticallyImplyLeading: false,
+          leading: AppConfig.teamOnly ? null : CloseButton(onPressed: () => context.canPop() ? context.pop() : context.go('/')),
         ),
         body: SafeArea(
           child: ListView(padding: const EdgeInsets.fromLTRB(28, 8, 28, 28), children: [
@@ -273,13 +276,16 @@ class AdminHomeScreen extends ConsumerWidget {
               },
               child: Scaffold(
                 appBar: AppBar(
-                  leading: IconButton(
-                    icon: const Icon(Icons.home_rounded),
-                    onPressed: () {
-                      StaffPresence.area = 'store';
-                      context.go('/');
-                    },
-                  ),
+                  automaticallyImplyLeading: false,
+                  leading: AppConfig.teamOnly
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.home_rounded),
+                          onPressed: () {
+                            StaffPresence.area = 'store';
+                            context.go('/');
+                          },
+                        ),
                   title: Text(current == null ? _t(context, 'لوحة التحكم', 'Control panel') : _t(context, _sectionInfo[current]!.ar, _sectionInfo[current]!.en)),
                   actions: [
                     if (perms.contains('orders.view') || perms.contains('repairs.view'))

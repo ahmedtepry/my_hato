@@ -1,0 +1,77 @@
+# Builds the Windows TEAM app (console only, no customer store): an installer (.exe) and a zip, published as a GitHub release "team-win-N".
+# Run it manually from the Actions tab.
+name: Build Windows team app
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: win-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - name: Build Windows app
+        working-directory: app
+        run: |
+          flutter --version
+          flutter config --enable-windows-desktop
+          flutter create --platforms=windows --org com.myhato --project-name myhato .
+          rm -f test/widget_test.dart
+          mkdir -p assets/google_fonts
+          for w in Regular Medium Bold ExtraBold Black; do
+            curl -sSfL "https://github.com/google/fonts/raw/main/ofl/tajawal/Tajawal-$w.ttf" -o "assets/google_fonts/Tajawal-$w.ttf" || echo "WARN: Tajawal-$w failed"
+          done
+          for w in Regular Medium SemiBold Bold ExtraBold Black; do
+            curl -sSfL "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-$w.ttf" -o "assets/google_fonts/Poppins-$w.ttf" || echo "WARN: Poppins-$w failed"
+          done
+          flutter pub get
+          # window title + app icon (non-fatal)
+          sed -i 's/L"myhato"/L"My Hato Team"/' windows/runner/main.cpp || true
+          pip install pillow >/dev/null 2>&1 && python -c "
+from PIL import Image
+im=Image.open('assets/brand/app_icon.png').convert('RGBA')
+im.save('windows/runner/resources/app_icon.ico', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
+" || echo "WARN: icon step failed"
+          flutter build windows --release \
+            --dart-define=TEAM_ONLY=true \
+            --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
+            --dart-define=APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" \
+            --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
+          REL=build/windows/x64/runner/Release
+          ls "$REL"
+          # the Visual C++ runtime, so it also starts on a clean Windows
+          for d in msvcp140.dll vcruntime140.dll vcruntime140_1.dll; do cp "/c/Windows/System32/$d" "$REL/" || echo "WARN: $d not copied"; done
+      - name: Installer (.exe) and zip
+        working-directory: app
+        run: |
+          mkdir -p ../dist
+          choco install innosetup -y --no-progress || echo "WARN: innosetup install failed"
+          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          if [ -f "$ISCC" ]; then
+            (cd tool/windows && "$ISCC" installer.iss) && cp tool/windows/out/MyHatoTeam-Setup.exe ../dist/MyHatoTeam-Setup.exe
+          else
+            echo "WARN: Inno Setup not found, only the zip will be published"
+          fi
+          powershell -NoProfile -Command "Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath '../dist/MyHatoTeam-windows.zip' -Force"
+          ls -la ../dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: myhato-team-windows
+          path: dist/*
+          if-no-files-found: error
+      - name: Publish as a GitHub release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release create "team-win-${{ github.run_number }}" dist/* --target "${{ github.sha }}" \
+            --title "My Hatō Team for Windows (build ${{ github.run_number }})" \
+            --notes "Windows team app: console only, sign in with a team account. Run MyHatoTeam-Setup.exe (or unzip MyHatoTeam-windows.zip and run myhato.exe)." \
+            --latest=false

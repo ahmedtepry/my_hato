@@ -13,5 +13,8 @@ class AppConfig {
   static const supportPhone = String.fromEnvironment('SUPPORT_PHONE', defaultValue: '+201118819464');
   static const supportWhatsapp = String.fromEnvironment('SUPPORT_WHATSAPP', defaultValue: '201118819464');
 
+  /// Windows team app: only the team console (sign in with a team account), no store for customers.
+  static const teamOnly = bool.fromEnvironment('TEAM_ONLY');
+
   static bool get isConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

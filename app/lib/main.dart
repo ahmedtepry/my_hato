@@ -170,7 +170,14 @@ class MyHatoApp extends ConsumerWidget {
       ],
       theme: AppTheme.light(locale),
       routerConfig: ref.watch(routerProvider),
-      builder: (context, child) => StaffPresenceScope(child: ConnectionGate(child: child ?? const SizedBox.shrink())),
+      builder: (context, child) {
+        Widget app = StaffPresenceScope(child: ConnectionGate(child: child ?? const SizedBox.shrink()));
+        if (AppConfig.teamOnly) {
+          // wide desktop window: keep the console in a comfortable centred column
+          app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1100), child: app)));
+        }
+        return app;
+      },
     );
   }
 }

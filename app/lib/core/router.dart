@@ -28,6 +28,7 @@ import '../features/payments/payments_screens.dart';
 import '../features/profile/profile_screens.dart';
 import '../features/repairs/repairs_screens.dart';
 import '../shared/phone_notifications.dart';
+import 'config.dart';
 import 'l10n.dart';
 import 'supabase_providers.dart';
 
@@ -47,11 +48,13 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(refresh.dispose);
 
   router = GoRouter(
-    initialLocation: '/splash',
+    initialLocation: AppConfig.teamOnly ? '/hato-console' : '/splash',
     refreshListenable: refresh,
     redirect: (context, state) {
       final signedIn = ref.read(supabaseProvider).auth.currentSession != null;
       final loc = state.matchedLocation;
+      // team app for Windows: nothing but the console
+      if (AppConfig.teamOnly && loc != '/hato-console' && loc != '/auth/new-password') return '/hato-console';
       // offer notification: /cart?coupon=CODE -> remember the code; checkout applies it automatically
       final coupon = state.uri.queryParameters['coupon'];
       if (loc == '/cart' && coupon != null && coupon.isNotEmpty) {
@@ -65,7 +68,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       return null;
     },
-    errorBuilder: (_, __) => const HomeScreen(),
+    errorBuilder: (_, __) => AppConfig.teamOnly ? const AdminGateScreen() : const HomeScreen(),
     routes: [
       // OAuth / magic-link deep link (com.myhato.app://login-callback). supabase_flutter
       // consumes the auth code itself; the router just lands the user on home.
