@@ -38,11 +38,7 @@ jobs:
           flutter pub get
           # window title + app icon (non-fatal)
           sed -i 's/L"myhato"/L"My Hato Team"/' windows/runner/main.cpp || true
-          pip install pillow >/dev/null 2>&1 && python -c "
-from PIL import Image
-im=Image.open('assets/brand/app_icon.png').convert('RGBA')
-im.save('windows/runner/resources/app_icon.ico', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
-" || echo "WARN: icon step failed"
+          (pip install pillow >/dev/null 2>&1 && python tool/windows/make_ico.py) || echo "WARN: icon step failed"
           flutter build windows --release \
             --dart-define=TEAM_ONLY=true \
             --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
