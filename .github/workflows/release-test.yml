@@ -1,0 +1,19 @@
+name: Release test
+on:
+  push:
+    branches: [release-test]
+permissions:
+  contents: write
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Try creating a release like the APK build does
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          mkdir -p dist && echo hi > dist/myhato-release.apk
+          if ! gh release create "zz-test-${{ github.run_number }}" dist/myhato-release.apk --target "${{ github.sha }}" --title "t" --notes "t" --latest=false 2> err.txt; then
+            echo "::error::RELEASE FAIL: $(tr '\n' ' ' < err.txt)"; exit 1
+          fi
+          gh release delete "zz-test-${{ github.run_number }}" --cleanup-tag -y
