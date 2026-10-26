@@ -1,5 +1,7 @@
 // New customer accounts waiting for approval: accept (activates sign-in right away) or reject.
 import '../../core/appearance.dart';
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart' as xl;
@@ -394,9 +396,11 @@ class _CustomersToolbarState extends ConsumerState<_CustomersToolbar> {
   final _c = TextEditingController();
   bool _busy = false;
   bool _exporting = false;
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _c.dispose();
     super.dispose();
   }
@@ -486,7 +490,7 @@ class _CustomersToolbarState extends ConsumerState<_CustomersToolbar> {
               decoration: InputDecoration(
                 isDense: true,
                 prefixIcon: const Icon(Icons.search_rounded),
-                hintText: _t(context, 'ابحث بالاسم أو الإيميل أو الموبايل', 'Search name, email or phone'),
+                hintText: _t(context, 'ابحث بالموبايل أو الإيميل أو الاسم', 'Search phone, email or name'),
                 suffixIcon: _c.text.isEmpty
                     ? null
                     : IconButton(
@@ -497,7 +501,11 @@ class _CustomersToolbarState extends ConsumerState<_CustomersToolbar> {
                           setState(() {});
                         }),
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (v) {
+                setState(() {});
+                _debounce?.cancel();
+                _debounce = Timer(const Duration(milliseconds: 450), () => ref.read(customersSearchProvider.notifier).state = v);
+              },
             ),
           ),
           const SizedBox(width: 8),
@@ -517,7 +525,7 @@ class _CustomersToolbarState extends ConsumerState<_CustomersToolbar> {
 }
 
 /// One customer in the full list: name and email on top, everything else when opened.
-class _CustomerTile extends StatelessWidget {
+class _CustomerTile extends ConsumerWidget {
   const _CustomerTile({super.key, required this.c});
   final Map<String, dynamic> c;
 
@@ -540,7 +548,8 @@ class _CustomerTile extends StatelessWidget {
       );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canReset = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('customers.reset_password') ?? false;
     final name = ((c['full_name'] as String?) ?? '').trim();
     final email = c['email'] as String?;
     final hasEmail = email != null && email.isNotEmpty && !email.endsWith('.myhato.app');
@@ -589,9 +598,130 @@ class _CustomerTile extends StatelessWidget {
             _row(context, _t(context, 'عدد الطلبات', 'Orders'), '$orders'),
             _row(context, _t(context, 'اشترى بـ', 'Bought (delivered)'), orders == 0 ? '—' : formatEgp(spent, context.lang)),
             _row(context, _t(context, 'آخر طلب', 'Last order'), _date(context, c['last_order_at'] as String?)),
+            if (canReset) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => showDialog<void>(context: context, builder: (_) => _ResetPasswordDialog(customer: c)),
+                icon: const Icon(Icons.lock_reset_rounded, size: 18),
+                label: Text(_t(context, 'تغيير الرقم السري', 'Change password')),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// Sets a new password for a customer. The owner types one or taps Generate, and can pass it on by WhatsApp.
+class _ResetPasswordDialog extends ConsumerStatefulWidget {
+  const _ResetPasswordDialog({required this.customer});
+  final Map<String, dynamic> customer;
+  @override
+  ConsumerState<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+}
+
+class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
+  final _pw = TextEditingController();
+  bool _show = true;
+  bool _busy = false;
+  String? _done;
+
+  @override
+  void dispose() {
+    _pw.dispose();
+    super.dispose();
+  }
+
+  void _generate() {
+    const letters = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+    const digits = '23456789';
+    final r = math.Random.secure();
+    final chars = [for (var i = 0; i < 7; i++) letters[r.nextInt(letters.length)], for (var i = 0; i < 3; i++) digits[r.nextInt(digits.length)]]..shuffle(r);
+    setState(() => _pw.text = chars.join());
+  }
+
+  bool get _valid {
+    final v = _pw.text;
+    return v.length >= 8 && v.length <= 72 && RegExp(r'[A-Za-z؀-ۿ]').hasMatch(v) && RegExp(r'\d').hasMatch(v);
+  }
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(adminRepoProvider).setCustomerPassword(widget.customer['user_id'] as String, _pw.text);
+      if (mounted) setState(() => _done = _pw.text);
+    } catch (e) {
+      if (mounted) {
+        showSnack(context, friendlyError(context, e), error: true);
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = ((widget.customer['full_name'] as String?) ?? '').trim();
+    final phone = widget.customer['phone'] as String?;
+    if (_done != null) {
+      return AlertDialog(
+        title: Text(_t(context, 'اتغيّر الرقم السري', 'Password changed')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_t(context, 'العميل اتسجّل خروج من كل أجهزته. ابعتله الرقم الجديد:', 'The customer was signed out everywhere. Send them the new password:')),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: BrandColors.offWhite, borderRadius: BorderRadius.circular(12), border: Border.all(color: BrandColors.border)),
+            child: SelectableText(_done!, textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1)),
+          ),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: _done!));
+              if (context.mounted) showSnack(context, _t(context, 'اتنسخ', 'Copied'));
+            },
+            child: Text(_t(context, 'نسخ', 'Copy')),
+          ),
+          if (phone != null && phone.isNotEmpty)
+            TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse('https://wa.me/${waDigits(phone)}?text=${Uri.encodeComponent('أهلاً ${name.isEmpty ? '' : name} 👋\nكلمة السر الجديدة لحسابك على ${AppName.ar}: $_done\nادخل بيها وغيّرها من حسابك.')}'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: Text(_t(context, 'ابعت واتساب', 'Send on WhatsApp')),
+            ),
+          FilledButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تم', 'Done'))),
+        ],
+      );
+    }
+    return AlertDialog(
+      title: Text(_t(context, 'رقم سري جديد', 'New password')),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(name.isEmpty ? '${widget.customer['email'] ?? ''}' : name, style: const TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _pw,
+          obscureText: !_show,
+          textDirection: TextDirection.ltr,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            labelText: _t(context, 'الرقم السري الجديد', 'New password'),
+            helperText: _t(context, '٨ حروف على الأقل، فيها حرف ورقم', 'At least 8 characters with a letter and a digit'),
+            suffixIcon: IconButton(icon: Icon(_show ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _show = !_show)),
+          ),
+        ),
+        Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _generate, icon: const Icon(Icons.auto_fix_high_rounded, size: 18), label: Text(_t(context, 'اعمل رقم سري عشوائي', 'Generate one')))),
+        Text(_t(context, 'العميل هيتسجّل خروج من كل أجهزته وهيوصله إشعار.', 'The customer is signed out everywhere and gets a notification.'), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+      ]),
+      actions: [
+        TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: Text(_t(context, 'إلغاء', 'Cancel'))),
+        FilledButton(
+          onPressed: _busy || !_valid ? null : _save,
+          child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(_t(context, 'غيّر الرقم السري', 'Change password')),
+        ),
+      ],
     );
   }
 }

@@ -19,6 +19,10 @@ class AdminRepository {
   Future<List<Map<String, dynamic>>> customers(String? search, {int offset = 0, int limit = 200}) async => List<Map<String, dynamic>>.from(
       await _db.rpc('staff_customers', params: {'p_search': (search ?? '').trim().isEmpty ? null : search!.trim(), 'p_limit': limit, 'p_offset': offset}) as List);
 
+  Future<void> setCustomerPassword(String userId, String password) async {
+    await _db.rpc('staff_set_customer_password', params: {'p_user': userId, 'p_password': password});
+  }
+
   Future<List<String>> customerEmails() async => List<String>.from(await _db.rpc('staff_customer_emails') as List);
 
   Future<void> setOccasion(String key, String stamp) async {
