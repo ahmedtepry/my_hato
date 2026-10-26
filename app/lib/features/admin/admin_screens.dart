@@ -29,6 +29,7 @@ import 'accounts_tab.dart';
 import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
+import 'occasions_panel.dart';
 import 'sales_panel.dart';
 import 'team.dart';
 import 'admin_repository.dart';
@@ -197,6 +198,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'overview': _SectionInfo(Icons.dashboard_outlined, Color(0xFF00A3FF), 'نظرة عامة', 'Overview', 'أرقام اليوم والتنبيهات', 'Today\'s numbers and alerts'),
   'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
+  'occasions': _SectionInfo(Icons.auto_awesome_rounded, Color(0xFFE8A317), 'إضافة مؤثر مناسبة على اللوجو', 'Add an occasion effect to the logo', 'رمضان والأعياد و٦ أكتوبر: ختم على الشعار وتهنئة بكود أو كوينات', 'Ramadan, Eids and 6 October: a logo stamp and a greeting with a code or coins'),
   'appearance': _SectionInfo(Icons.palette_outlined, Color(0xFF9E77ED), 'المظهر', 'Appearance', 'ألوان التطبيق وأيقونته وحركة الفتح', 'App colours, icon and opening animation'),
   'repairs': _SectionInfo(Icons.build_outlined, Color(0xFF566380), 'الصيانة', 'Repairs', 'طلبات الصيانة والموافقة على التكلفة', 'Repair requests and cost approval'),
   'products': _SectionInfo(Icons.inventory_2_outlined, Color(0xFF2F6FE0), 'المنتجات', 'Products', 'الأسعار والمخزون والصور', 'Prices, stock and pictures'),
@@ -304,6 +306,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'orders' => const _OrdersTab(),
                       'sales' => const SalesPanel(),
                       'appearance' => const AppearancePanel(),
+                      'occasions' => const OccasionsPanel(),
                       'repairs' => const _RepairsTab(),
                       'products' => const _ProductsTab(),
                       'reviews' => const _ReviewsTab(),

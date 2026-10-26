@@ -1,4 +1,5 @@
 import '../core/appearance.dart';
+import 'occasion_stamp.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
@@ -17,11 +18,20 @@ class BrandMark extends StatelessWidget {
   final double progress;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: size,
-        height: size * 0.82,
-        child: CustomPaint(painter: _MPainter(onDark: onDark, progress: progress)),
-      );
+  Widget build(BuildContext context) {
+    final mark = SizedBox(
+      width: size,
+      height: size * 0.82,
+      child: CustomPaint(painter: _MPainter(onDark: onDark, progress: progress)),
+    );
+    // seasonal stamp (Ramadan, Eid, 6 October) while the owner has an occasion running; not on tiny logos
+    if (AppOccasion.key.isEmpty || AppOccasion.stamp.isEmpty || size < 28) return mark;
+    final st = size * 0.46;
+    return Stack(clipBehavior: Clip.none, children: [
+      mark,
+      PositionedDirectional(end: -st * 0.35, top: -st * 0.55, child: IgnorePointer(child: OccasionStamp(kind: AppOccasion.stamp, size: st))),
+    ]);
+  }
 }
 
 class _MPainter extends CustomPainter {

@@ -16,6 +16,36 @@ class AdminRepository {
 
   /// The signed-in member's roles + permissions (the console shows only what they can use;
   /// the database still checks every action).
+  Future<void> setOccasion(String key, String stamp) async {
+    await _db.rpc('set_occasion', params: {'p_key': key, 'p_stamp': stamp});
+  }
+
+  Future<int> occasionSend({
+    required String key,
+    required int year,
+    required String title,
+    required String body,
+    required String gift,
+    String? code,
+    int? percent,
+    int? validDays,
+    int? coins,
+    String scope = 'all',
+  }) async =>
+      ((await _db.rpc('occasion_send', params: {
+        'p_key': key,
+        'p_year': year,
+        'p_title': title,
+        'p_body': body,
+        'p_gift': gift,
+        'p_code': gift == 'code' ? code : null,
+        'p_percent': gift == 'code' ? percent : null,
+        'p_valid_days': gift == 'code' ? validDays : null,
+        'p_coins': gift == 'coins' ? coins : null,
+        'p_scope': scope,
+      })) as num)
+          .toInt();
+
   Future<void> setAppName(String ar, String en) async {
     await _db.rpc('set_app_name', params: {'p_ar': ar, 'p_en': en});
   }
@@ -424,6 +454,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('orders.view')) 'orders',
     if (p.contains('sales.view')) 'sales',
     if (p.contains('appearance.manage')) 'appearance',
+    if (p.contains('occasions.manage')) 'occasions',
     if (p.contains('repairs.view')) 'repairs',
     if (p.contains('products.manage')) 'products',
     if (p.contains('products.manage')) 'reviews',
