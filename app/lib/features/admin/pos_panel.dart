@@ -505,7 +505,8 @@ class _RegisterState extends ConsumerState<_Register> {
       child: Focus(
         autofocus: true,
         child: LayoutBuilder(builder: (context, c) {
-          final wide = c.maxWidth >= 900;
+          final wide = c.maxWidth >= 600; // products and cart together on one page; only a phone-sized window stacks them
+          final cartW = c.maxWidth >= 900 ? 400.0 : 340.0;
           return Padding(
             padding: const EdgeInsets.all(14),
             child: Column(children: [
@@ -528,7 +529,7 @@ class _RegisterState extends ConsumerState<_Register> {
                     ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Expanded(child: _productsPane()),
                         const SizedBox(width: 14),
-                        SizedBox(width: 400, child: _cartPane()),
+                        SizedBox(width: cartW, child: _cartPane()),
                       ])
                     : (_showCart ? _cartPane() : _productsPane()),
               ),
@@ -564,9 +565,9 @@ class _RegisterState extends ConsumerState<_Register> {
                 : _products.isEmpty
                     ? Center(child: Text(_t(context, 'مفيش منتجات', 'No products'), style: const TextStyle(color: BrandColors.gray)))
                     : GridView.builder(
-                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 210, mainAxisExtent: 168, crossAxisSpacing: 12, mainAxisSpacing: 12),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 210, mainAxisExtent: 190, crossAxisSpacing: 12, mainAxisSpacing: 12),
                         itemCount: _products.length,
-                        itemBuilder: (_, i) => _ProductCard(p: _products[i], inCart: _cart[_products[i]['id']]?.q ?? 0, onTap: () => _add(_products[i])),
+                        itemBuilder: (_, i) => _ProductCard(p: _products[i], inCart: _cart[_products[i]['id']]?.q ?? 0, onTap: () => _add(_products[i]), onMinus: () => _change(_products[i]['id'] as String, -1)),
                       ),
       ),
     ]);
@@ -701,10 +702,10 @@ class _RegisterState extends ConsumerState<_Register> {
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.p, required this.inCart, required this.onTap});
+  const _ProductCard({required this.p, required this.inCart, required this.onTap, required this.onMinus});
   final Map<String, dynamic> p;
   final int inCart;
-  final VoidCallback onTap;
+  final VoidCallback onTap, onMinus;
 
   @override
   Widget build(BuildContext context) {
@@ -726,7 +727,28 @@ class _ProductCard extends StatelessWidget {
                 child: const Icon(Icons.shopping_bag_outlined, color: BrandColors.electric),
               ),
               const Spacer(),
-              if (inCart > 0) CircleAvatar(radius: 12, backgroundColor: BrandColors.electric, child: Text('$inCart', style: const TextStyle(color: Colors.white, fontSize: 12))),
+              if (inCart > 0) ...[
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: onMinus,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(color: BrandColors.error.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.remove_rounded, size: 16, color: BrandColors.error),
+                      const SizedBox(width: 2),
+                      Text(_t(context, 'ناقص', 'Less'), style: const TextStyle(color: BrandColors.error, fontSize: 12, fontWeight: FontWeight.w800)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 28),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(color: BrandColors.electric, borderRadius: BorderRadius.circular(10)),
+                  child: Text('$inCart', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+                ),
+              ],
             ]),
             const SizedBox(height: 8),
             Expanded(child: Text(_t(context, '${p['name_ar']}', '${p['name_en']}'), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700))),

@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config.dart';
+import '../../core/dark_mode.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/money.dart';
@@ -540,8 +541,9 @@ class AdminHomeScreen extends ConsumerWidget {
                               Positioned(
                                 left: 10,
                                 top: 10,
+                                bottom: 6,
                                 width: 80,
-                                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
                                   if (_navBack.isNotEmpty) ...[
                                     _RailTile(
                                       tooltip: _t(ctx, 'رجوع للصفحة اللي قبلها', 'Back to the previous page'),
@@ -563,7 +565,24 @@ class AdminHomeScreen extends ConsumerWidget {
                                     label: 'UI mode',
                                     badge: _t(ctx, 'قريبًا', 'Soon'),
                                   ),
-                                ]),
+                                  const SizedBox(height: 8),
+                                  _RailTile(
+                                    tooltip: _t(ctx, 'تغيير اللغة', 'Switch language'),
+                                    onTap: () => ref.read(localeProvider.notifier).set(Locale(ctx.isAr ? 'en' : 'ar')),
+                                    child: const Icon(Icons.translate_rounded, size: 32, color: BrandColors.electric),
+                                    label: ctx.isAr ? 'English' : 'عربي',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Builder(builder: (_) {
+                                    final dark = ref.watch(darkModeProvider);
+                                    return _RailTile(
+                                      tooltip: dark ? _t(ctx, 'الوضع الفاتح', 'Light mode') : _t(ctx, 'الوضع الداكن', 'Dark mode'),
+                                      onTap: () => ref.read(darkModeProvider.notifier).toggle(),
+                                      child: Icon(dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 32, color: BrandColors.electric),
+                                      label: dark ? _t(ctx, 'فاتح', 'Light') : _t(ctx, 'داكن', 'Dark'),
+                                    );
+                                  }),
+                                ])),
                               ),
                             ]),
                           ),

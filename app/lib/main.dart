@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config.dart';
+import 'core/dark_mode.dart';
 import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/appearance.dart';
@@ -157,6 +158,7 @@ class MyHatoApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
+    final dark = ref.watch(darkModeProvider);
     ref.watch(appearanceProvider); // rebuilds the theme when the owner changes the colours
     if (AppConfig.teamOnly) ref.watch(teamThemeProvider); // the team app's own colour theme
     return MaterialApp.router(
@@ -178,7 +180,7 @@ class MyHatoApp extends ConsumerWidget {
           // wide desktop window: keep the console in a comfortable centred column
           app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1100), child: app)));
         }
-        return app;
+        return applyDarkMode(dark, app);
       },
     );
   }
