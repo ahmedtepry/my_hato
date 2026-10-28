@@ -147,6 +147,10 @@ select public._expect('refund after approval = discounted net 240000', format($q
 reset role;
 select public._expect('refund restocked the phone (5 -> 5)', $q$select 1/(case when (select stock_quantity from public.products where sku='T-BIG') = 5 then 1 else 0 end)$q$, null);
 
+select public._expect('find invoice by number (own)', format($q$select public.pos_find_sale((select number from public.pos_sales where id = %L))$q$, :'sale1'), null);
+reset role; select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
+select public._expect('other branch cannot find the invoice', format($q$select public.pos_find_sale((select number from public.pos_sales where id = %L))$q$, :'sale1'), 'NOT_FOUND');
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
 -- ---------- shift close
 select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
 select public.pos_shift_summary(:'shift_a') ->> 'expected_minor' as exp_a \gset

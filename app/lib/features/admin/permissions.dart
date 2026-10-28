@@ -68,7 +68,7 @@ const _perms = <String, _PermInfo>{
   'branches.manage': _PermInfo('system', 'يعدّل الفروع ومناطق التوصيل', 'Edit branches and delivery zones', inert: true),
 };
 
-const _groupOrder = ['orders', 'products', 'repairs', 'system', 'other'];
+const _groupOrder = ['orders', 'products', 'repairs', 'pos', 'system', 'other'];
 
 _PermInfo _infoOf(String key) {
   final c = _serverCatalog[key];
@@ -97,6 +97,7 @@ String _groupLabel(BuildContext c, String g) => switch (g) {
       'orders' => _s(c, 'grp_orders', 'الطلبات والعملاء', 'Orders and customers'),
       'products' => _s(c, 'grp_products', 'المنتجات', 'Products'),
       'repairs' => _s(c, 'grp_repairs', 'الصيانة', 'Repairs'),
+      'pos' => _s(c, 'grp_pos', 'الكاشير والورديات', 'Cashier and shifts'),
       'system' => _s(c, 'grp_system', 'النظام', 'System'),
       _ => _s(c, 'grp_other', 'أخرى', 'Other'),
     };

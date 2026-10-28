@@ -460,6 +460,8 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
   final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
   return [
     'overview',
+    if (p.contains('pos.sell')) 'pos',
+    if (p.contains('pos.approve') || p.contains('shifts.review')) 'shifts',
     if (p.contains('orders.view')) 'orders',
     if (p.contains('sales.view')) 'sales',
     if (p.contains('appearance.manage')) 'appearance',

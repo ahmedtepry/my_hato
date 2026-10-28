@@ -31,7 +31,9 @@ import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
 import 'occasions_panel.dart';
+import 'pos_panel.dart';
 import 'sales_panel.dart';
+import 'shifts_panel.dart';
 import 'team.dart';
 import 'admin_repository.dart';
 import 'documents.dart';
@@ -199,6 +201,8 @@ class _SectionInfo {
 
 const _sectionInfo = <String, _SectionInfo>{
   'overview': _SectionInfo(Icons.dashboard_outlined, Color(0xFF00A3FF), 'نظرة عامة', 'Overview', 'أرقام اليوم والتنبيهات', 'Today\'s numbers and alerts'),
+  'pos': _SectionInfo(Icons.point_of_sale_rounded, Color(0xFF00A3FF), 'الكاشير', 'Cashier', 'بيع سريع بالباركود وسلة وفاتورة نقدية', 'Fast barcode sales with a cart and a cash invoice'),
+  'shifts': _SectionInfo(Icons.fact_check_outlined, Color(0xFF7A5AF8), 'الورديات والموافقات', 'Shifts & approvals', 'موافقات الخصم والمرتجع وفروق الدرج ومقارنة الفروع', 'Discount and refund approvals, drawer differences, branch comparison'),
   'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
   'occasions': _SectionInfo(Icons.auto_awesome_rounded, Color(0xFFE8A317), 'إضافة مؤثر مناسبة على اللوجو', 'Add an occasion effect to the logo', 'رمضان والأعياد و٦ أكتوبر: ختم على الشعار وتهنئة بكود أو كوينات', 'Ramadan, Eids and 6 October: a logo stamp and a greeting with a code or coins'),
@@ -310,6 +314,8 @@ class AdminHomeScreen extends ConsumerWidget {
                   for (final t in tabs)
                     switch (t) {
                       'orders' => const _OrdersTab(),
+                      'pos' => const PosPanel(),
+                      'shifts' => const ShiftsPanel(),
                       'sales' => const SalesPanel(),
                       'appearance' => const AppearancePanel(),
                       'occasions' => const OccasionsPanel(),

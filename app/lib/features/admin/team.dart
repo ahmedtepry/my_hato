@@ -69,6 +69,16 @@ class TeamRepository {
 
   Future<void> remove(String userId) => _db.rpc('staff_remove_member', params: {'p_user_id': userId});
 
+  Future<List<Map<String, dynamic>>> branches() async =>
+      [for (final e in (await _db.rpc('staff_my_branches') as List? ?? const [])) Map<String, dynamic>.from(e as Map)];
+
+  Future<List<String>> memberBranches(String userId) async =>
+      [for (final e in (await _db.rpc('staff_get_branches', params: {'p_user': userId}) as List? ?? const [])) '$e'];
+
+  Future<void> setMemberBranches(String userId, List<String> ids) async {
+    await _db.rpc('staff_set_branches', params: {'p_user': userId, 'p_branches': ids});
+  }
+
   Future<void> _fn(Map<String, dynamic> body) async {
     try {
       final res = await _db.functions.invoke('admin-staff', body: body);
@@ -140,12 +150,22 @@ String areaLabel(BuildContext context, String? area) => switch (area) {
       'team' => _t(context, 'في الفريق', 'in Team'),
       'offers' => _t(context, 'في العروض', 'in Offers'),
       'store' => _t(context, 'في المتجر', 'in the store'),
+      'pos' => _t(context, 'في الكاشير', 'at the cashier'),
+      'shifts' => _t(context, 'في الورديات', 'in Shifts'),
       _ => '',
     };
 
 String actionLabel(BuildContext context, String? a) {
   final ar = context.isAr;
   const m = {
+    'pos.sale': ['عمل فاتورة بيع', 'Made a sale'],
+    'pos.refund': ['عمل مرتجع', 'Made a refund'],
+    'pos.limits': ['غيّر حدود الموافقة', 'Changed approval limits'],
+    'shift.open': ['فتح وردية', 'Opened a shift'],
+    'shift.close': ['قفل وردية', 'Closed a shift'],
+    'approval.request': ['طلب موافقة', 'Asked for approval'],
+    'approval.decide': ['قرر في طلب موافقة', 'Decided an approval'],
+    'staff.branches': ['غيّر فروع موظف', 'Changed staff branches'],
     'order.status': ['غيّر حالة طلب', 'Changed an order status'],
     'order.update': ['عدّل طلب', 'Edited an order'],
     'order.closed': ['قفل عملية طلب', 'Closed an order'],
@@ -557,6 +577,20 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
     }, _t(context, 'اتغيّرت الصلاحية لـ ${roleOf(role).ar} ✅', 'Role changed to ${roleOf(role).en} ✅'));
   }
 
+  Future<void> _changeBranches() async {
+    try {
+      final repo = ref.read(teamRepoProvider);
+      final all = await repo.branches();
+      final mine = (await repo.memberBranches(_id)).toSet();
+      if (!mounted) return;
+      final picked = await showDialog<Set<String>>(context: context, builder: (_) => _BranchesDialog(all: all, selected: mine));
+      if (picked == null || !mounted) return;
+      await _run(() => repo.setMemberBranches(_id, picked.toList()), _t(context, 'اتحدّدت فروع الموظف ✅', 'Branches saved ✅'));
+    } catch (e) {
+      if (mounted) showSnack(context, _teamError(context, e), error: true);
+    }
+  }
+
   Future<void> _newPassword() async {
     final pw = await showDialog<String>(context: context, builder: (_) => const _PasswordDialog());
     if (pw == null || !mounted) return;
@@ -718,6 +752,14 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
                 color: _suspended ? BrandColors.success : BrandColors.warning),
             action(Icons.person_remove_rounded, _t(context, 'إزالة', 'Remove'), _remove, color: BrandColors.error),
           ]),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.store_mall_directory_outlined, size: 18),
+              label: Text(_t(context, 'الفروع اللي يشوف بياناتها', 'Branches he can see')),
+              onPressed: _busy ? null : _changeBranches,
+            ),
+          ),
           if (phone != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -1255,4 +1297,41 @@ class _AddMemberSheetState extends ConsumerState<_AddMemberSheet> {
       ]),
     );
   }
+}
+
+
+/// Which branches a member may work in and see. Empty = none (he sees no branch data until the owner picks).
+class _BranchesDialog extends StatefulWidget {
+  const _BranchesDialog({required this.all, required this.selected});
+  final List<Map<String, dynamic>> all;
+  final Set<String> selected;
+  @override
+  State<_BranchesDialog> createState() => _BranchesDialogState();
+}
+
+class _BranchesDialogState extends State<_BranchesDialog> {
+  late final Set<String> _s = {...widget.selected};
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(_t(context, 'فروع الموظف', 'Employee branches')),
+        content: SizedBox(
+          width: 380,
+          child: widget.all.isEmpty
+              ? Text(_t(context, 'مفيش فروع متاحة', 'No branches'))
+              : Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(_t(context, 'الموظف مش هيشوف غير بيانات الفروع اللي هتعلّم عليها.', 'He only sees data of the branches you tick.'), style: const TextStyle(color: BrandColors.gray)),
+                  for (final b in widget.all)
+                    CheckboxListTile(
+                      value: _s.contains(b['id']),
+                      title: Text(_t(context, '${b['name_ar']}', '${b['name_en']}')),
+                      onChanged: (v) => setState(() => v == true ? _s.add(b['id'] as String) : _s.remove(b['id'])),
+                    ),
+                ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'رجوع', 'Back'))),
+          FilledButton(onPressed: () => Navigator.pop(context, _s), child: Text(_t(context, 'حفظ', 'Save'))),
+        ],
+      );
 }

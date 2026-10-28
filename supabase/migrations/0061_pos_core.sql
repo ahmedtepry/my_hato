@@ -725,6 +725,21 @@ begin
   return jsonb_build_object('refund_id', v_id, 'amount_minor', v_total, 'sale', public._pos_sale_json(s.id));
 end $$;
 
+-- find an invoice by its number (for refunds): the cashier's own, or any invoice of a branch he may refund in
+create or replace function public.pos_find_sale(p_number text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare s public.pos_sales%rowtype;
+begin
+  perform public.require_auth();
+  select * into s from public.pos_sales where number = upper(btrim(coalesce(p_number, '')));
+  if not found then raise exception 'NOT_FOUND'; end if;
+  if not (s.cashier_id = auth.uid()
+          or ((public.has_permission('shifts.review') or public.has_permission('pos.refund')) and public._branch_ok(s.branch_id))) then
+    raise exception 'NOT_FOUND';
+  end if;
+  return public._pos_sale_json(s.id);
+end $$;
+
 -- ============================================================ owner dashboard: branches side by side
 create or replace function public.pos_branch_report(p_from timestamptz default null, p_to timestamptz default null)
 returns table (branch_id uuid, branch_name_ar text, sales_count bigint, sales_minor bigint, refunds_minor bigint, net_minor bigint,
@@ -768,7 +783,7 @@ begin
     'pos_get_limits()','pos_set_limits(numeric,bigint,boolean)','staff_my_branches()','staff_get_branches(uuid)','staff_set_branches(uuid,uuid[])',
     'pos_open_shift(uuid,bigint)','pos_current_shift()','pos_shift_summary(uuid)','pos_close_shift(uuid,bigint,text)',
     'pos_shift_list(uuid,timestamptz,timestamptz,int)','pos_search_products(text,int)','pos_request_approval(text,bigint,text,uuid,jsonb)',
-    'pos_pending_approvals()','pos_decide_approval(uuid,boolean,text)','pos_sale_get(uuid)',
+    'pos_pending_approvals()','pos_decide_approval(uuid,boolean,text)','pos_sale_get(uuid)','pos_find_sale(text)',
     'pos_create_sale(text,uuid,jsonb,bigint,bigint,uuid,uuid)','pos_refund(uuid,jsonb,text,boolean,uuid)','pos_branch_report(timestamptz,timestamptz)',
     'owner_data_snapshot()'] loop
     execute format('revoke all on function public.%s from public, anon', f);
