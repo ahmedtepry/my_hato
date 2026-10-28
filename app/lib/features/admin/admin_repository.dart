@@ -490,7 +490,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('support.manage')) 'accounts',
     if (p.contains('gifts.manage')) 'gifts',
   ];
-  // what each job needs first; anything else he has been allowed still follows
+  // the pages of each job, in order
   final List<String> first;
   switch (workspaceOf(ctx?.roles ?? const <String>{})) {
     case Workspace.full:
@@ -506,8 +506,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     case Workspace.support:
       first = const ['orders', 'repairs', 'accounts'];
   }
-  // a focused job has no "overview" and no duplicate of the books screen
-  final rest = all.where((k) => k != 'overview' && !first.contains(k) && !(k == 'shifts' && first.contains('books')));
-  final out = [...first.where(all.contains), ...rest];
+  // a focused job sees only its own pages: nothing else is shown, even if the owner allowed more (the database still decides every action)
+  final out = first.where(all.contains).toList();
   return out.isEmpty ? ['overview'] : out;
 });

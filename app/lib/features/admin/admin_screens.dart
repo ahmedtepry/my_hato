@@ -245,10 +245,11 @@ class AdminHomeScreen extends ConsumerWidget {
     final tabs = ref.watch(consoleTabsProvider);
     if (StaffPresence.area == 'store') StaffPresence.area = tabs.first;
     final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    final fullConsole = ref.watch(workspaceProvider) == Workspace.full;
     final available = [
       ...tabs,
-      if (perms.contains('orders.manage')) 'offers',
-      if (perms.contains('staff.manage')) 'team',
+      if (fullConsole && perms.contains('orders.manage')) 'offers',
+      if (fullConsole && perms.contains('staff.manage')) 'team',
     ];
     final layout = _resolveLayout(available, ref.watch(consoleLayoutProvider).valueOrNull);
     final consoleIdx = tabs.length;
