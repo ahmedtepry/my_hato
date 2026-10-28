@@ -399,7 +399,7 @@ class _Bubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fromStaff = m['from_staff'] == true;
-    final mine = fromStaff == staffSide;
+    final mine = m['mine'] is bool ? m['mine'] as bool : fromStaff == staffSide;
     final read = m['read'] == true;
     return Align(
       alignment: mine ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
@@ -633,7 +633,7 @@ class _ChatLogsDialogState extends ConsumerState<ChatLogsDialog> {
                                         Expanded(
                                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                             Row(children: [
-                                              Flexible(child: Text('${r['staff_name']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
+                                              Flexible(child: Text(r['peer_name'] == null ? '${r['staff_name']}' : '${r['staff_name']}  ↔  ${r['peer_name']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
                                               if (r['closed_at'] == null)
                                                 Container(
                                                   margin: const EdgeInsetsDirectional.only(start: 6),
@@ -689,7 +689,7 @@ class _LogLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('${fromStaff ? _t(context, 'الموظف', 'Member') : _t(context, 'الإدارة', 'Office')} · ${_stamp(m['created_at'])}', style: TextStyle(fontSize: 11, color: fromStaff ? BrandColors.warning : BrandColors.electric, fontWeight: FontWeight.w800)),
+        Text('${m['sender_name'] ?? (fromStaff ? _t(context, 'الموظف', 'Member') : _t(context, 'الإدارة', 'Office'))} · ${_stamp(m['created_at'])}', style: TextStyle(fontSize: 11, color: fromStaff ? BrandColors.warning : BrandColors.electric, fontWeight: FontWeight.w800)),
         Text('${m['body']}', style: const TextStyle(fontSize: 14)),
       ]),
     );

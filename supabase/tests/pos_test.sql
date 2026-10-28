@@ -459,6 +459,17 @@ reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role
 select public._expect('technician cannot read KPIs', $q$select public.kpi_employees(now() - interval '30 days', now())$q$, 'FORBIDDEN');
 reset role; delete from public.product_commissions;
 
+-- ---------- 0079: office users message each other
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner writes to a manager', format($q$select public.chat_manager_send(%L::uuid, 'ازيك')$q$, :'MGR'), null);
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('manager sees one unread from the owner', $q$select 1/(case when (public.chat_unread()->>'count')::int = 1 and (public.chat_unread()->>'staff_id') = current_setting('request.jwt.claim.sub')::text is false then 1 else 0 end)$q$, null);
+select public._expect('manager answers the owner', format($q$select public.chat_manager_send(%L::uuid, 'تمام يا باشا')$q$, :'OWNER'), null);
+select public._expect('manager sees both messages, one of them his', format($q$select 1/(case when jsonb_array_length(public.chat_manager_fetch(%L::uuid)->'messages') = 2 and (select count(*) from jsonb_array_elements(public.chat_manager_fetch(%L::uuid)->'messages') e where (e->>'mine')::boolean) = 1 then 1 else 0 end)$q$, :'OWNER', :'OWNER'), null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner gets the manager''s answer', $q$select 1/(case when (public.chat_unread()->>'count')::int >= 1 then 1 else 0 end)$q$, null);
+reset role; delete from public.chat_threads;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;
