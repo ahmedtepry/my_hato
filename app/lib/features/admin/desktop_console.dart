@@ -61,6 +61,30 @@ class DesktopSidebar extends ConsumerWidget {
               ),
             ),
           ),
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.12)))),
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: BrandColors.electric,
+                child: Text(name.isEmpty ? '؟' : String.fromCharCode(name.runes.first).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(role.label(context), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                ]),
+              ),
+              IconButton(
+                tooltip: _t(context, 'خروج', 'Sign out'),
+                icon: const Icon(Icons.logout_rounded, color: Colors.white70, size: 20),
+                onPressed: onSignOut,
+              ),
+            ]),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: InkWell(
@@ -81,30 +105,6 @@ class DesktopSidebar extends ConsumerWidget {
           Expanded(
             child: ListView(padding: const EdgeInsets.fromLTRB(12, 4, 12, 12), children: [
               for (final it in items) _NavTile(item: it, selected: it.keyName == selected, onTap: () => onSelect(it.keyName)),
-            ]),
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.12)))),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Row(children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: BrandColors.electric,
-                child: Text(name.isEmpty ? '؟' : String.fromCharCode(name.runes.first).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-                  Text(role.label(context), style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                ]),
-              ),
-              IconButton(
-                tooltip: _t(context, 'خروج', 'Sign out'),
-                icon: const Icon(Icons.logout_rounded, color: Colors.white70, size: 20),
-                onPressed: onSignOut,
-              ),
             ]),
           ),
         ]),
