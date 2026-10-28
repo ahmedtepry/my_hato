@@ -1473,6 +1473,8 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   late final _desc = TextEditingController();
   late final _sku = TextEditingController(text: p?['sku'] as String? ?? widget.initialSku ?? '');
   late final _model = TextEditingController(text: p?['model'] as String? ?? '');
+  final _commission = TextEditingController();
+  bool _canCommission = false;
   late String? _brandId = p?['brand_id'] as String?;
   late String? _categoryId = p?['category_id'] as String?;
   late bool _published = (p?['status'] ?? 'published') == 'published';
@@ -1481,8 +1483,31 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    _canCommission = ref.read(staffContextProvider).valueOrNull?.permissions.contains('commission.set') ?? false;
+    if (_canCommission && p != null) {
+      () async {
+        try {
+          final v = await ref.read(supabaseProvider).rpc('commission_get', params: {'p_product': p!['id']});
+          if (mounted && v is num && v > 0) _commission.text = v % 100 == 0 ? '${v ~/ 100}' : (v / 100).toStringAsFixed(2);
+        } catch (_) {}
+      }();
+    }
+  }
+
+  /// Saves the seller's commission for this product (whole or fractional EGP); empty = none.
+  Future<void> _saveCommission(String productId) async {
+    if (!_canCommission) return;
+    final t = _commission.text.trim();
+    final minor = t.isEmpty ? 0 : parseEgpToMinor(t);
+    if (minor == null) return;
+    await ref.read(supabaseProvider).rpc('commission_set', params: {'p_product': productId, 'p_amount_minor': minor});
+  }
+
+  @override
   void dispose() {
-    for (final c in [_nameAr, _nameEn, _price, _compare, _stock, _desc, _sku, _model]) {
+    for (final c in [_nameAr, _nameEn, _price, _compare, _stock, _desc, _sku, _model, _commission]) {
       c.dispose();
     }
     super.dispose();
@@ -1499,7 +1524,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
       final compare = _egp(_compare.text);
       final stock = _egp(_stock.text) ?? 0;
       if (p == null) {
-        await repo.createProduct(
+        final newId = await repo.createProduct(
           categoryId: _categoryId!,
           nameAr: _nameAr.text,
           nameEn: _nameEn.text,
@@ -1511,6 +1536,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
           brandId: _brandId,
           model: _model.text,
         );
+        await _saveCommission(newId);
       } else {
         final sku = _sku.text.trim();
         if (sku.isNotEmpty && sku != p!['sku'] && await repo.skuTaken(sku, exceptId: p!['id'] as String)) throw Exception('SKU_TAKEN');
@@ -1527,6 +1553,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
           'is_featured': _featured,
         });
         await repo.setStock(p!['id'] as String, (p!['stock_quantity'] as num).toInt(), stock);
+        await _saveCommission(p!['id'] as String);
         if (_image != null) await repo.addImage(p!['id'] as String, _image!, 9);
       }
       ref.invalidate(_productsProvider);
@@ -1732,6 +1759,18 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
               decoration: InputDecoration(labelText: _t(context, 'الكمية في المخزن', 'Stock quantity')),
               validator: (v) => _egp(v ?? '') == null ? context.tr('required') : null,
             ),
+            if (_canCommission) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _commission,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: _t(context, 'عمولة البياع على القطعة (فاضي = من غير)', 'Seller commission per unit (empty = none)'),
+                  suffixText: 'ج.م',
+                  prefixIcon: const Icon(Icons.card_giftcard_rounded),
+                ),
+              ),
+            ],
             if (p == null) ...[
               const SizedBox(height: 12),
               TextFormField(controller: _desc, maxLines: 3, decoration: InputDecoration(labelText: _t(context, 'وصف (اختياري)', 'Description (optional)'))),

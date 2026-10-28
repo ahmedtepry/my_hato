@@ -1019,8 +1019,9 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
         }
       }
       if (res == null || !mounted) return;
-      Navigator.pop(context);
+      // the message first: after the dialog is closed its context can no longer be used (that raised a false "error" after a saved refund)
       showSnack(context, _t(context, 'تم المرتجع ${_money(context, res['amount_minor'] as num)} — رجّعهم للعميل من الدرج', 'Refunded ${_money(context, res['amount_minor'] as num)} — pay it from the drawer'));
+      Navigator.pop(context);
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
     } finally {
