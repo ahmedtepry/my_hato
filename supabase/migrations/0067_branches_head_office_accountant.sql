@@ -25,17 +25,23 @@ revoke all on function public._branch_view_ok(uuid) from public, anon;
 grant execute on function public._branch_view_ok(uuid) to authenticated;
 
 -- the read-only functions use the wider check; selling, opening shifts, approvals and refunds keep the strict one
-create or replace function public._use_view_scope(p_fn regprocedure) returns void language plpgsql as $$
-begin execute replace(pg_get_functiondef(p_fn), '_branch_ok(', '_branch_view_ok('); end $$;
-select public._use_view_scope('public.pos_add_shift_correction(uuid,bigint,text)'::regprocedure);
-select public._use_view_scope('public.pos_branch_report(timestamptz,timestamptz)'::regprocedure);
-select public._use_view_scope('public.pos_find_sale(text)'::regprocedure);
-select public._use_view_scope('public.pos_sale_get(uuid)'::regprocedure);
-select public._use_view_scope('public.pos_shift_list(uuid,timestamptz,timestamptz,integer)'::regprocedure);
-select public._use_view_scope('public.pos_shift_report_get(uuid)'::regprocedure);
-select public._use_view_scope('public.pos_shift_report_list(uuid,timestamptz,timestamptz,integer)'::regprocedure);
-select public._use_view_scope('public.pos_shift_summary(uuid)'::regprocedure);
-drop function public._use_view_scope(regprocedure);
+create or replace function public._use_view_scope(p_sig text) returns void language plpgsql as $$
+declare v_fn regprocedure := to_regprocedure(p_sig); d text;
+begin
+  if v_fn is null then return; end if; -- not present in this database: nothing to widen
+  d := pg_get_functiondef(v_fn);
+  if position('_branch_ok(' in d) = 0 then return; end if;
+  execute replace(d, '_branch_ok(', '_branch_view_ok(');
+end $$;
+select public._use_view_scope('public.pos_add_shift_correction(uuid,bigint,text)');
+select public._use_view_scope('public.pos_branch_report(timestamptz,timestamptz)');
+select public._use_view_scope('public.pos_find_sale(text)');
+select public._use_view_scope('public.pos_sale_get(uuid)');
+select public._use_view_scope('public.pos_shift_list(uuid,timestamptz,timestamptz,integer)');
+select public._use_view_scope('public.pos_shift_report_get(uuid)');
+select public._use_view_scope('public.pos_shift_report_list(uuid,timestamptz,timestamptz,integer)');
+select public._use_view_scope('public.pos_shift_summary(uuid)');
+drop function public._use_view_scope(text);
 
 drop policy if exists shifts_read on public.shifts;
 create policy shifts_read on public.shifts for select to authenticated
