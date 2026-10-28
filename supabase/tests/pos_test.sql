@@ -232,6 +232,10 @@ select public._expect('accountant sees shifts', $q$select * from public.pos_shif
 select public._expect('accountant cannot sell', $q$select public.pos_search_products('x')$q$, 'FORBIDDEN');
 select public._expect('accountant cannot open a shift', format($q$select public.pos_open_shift(%L, 0)$q$, :'A'), 'FORBIDDEN');
 select public._expect('accountant has no price/stock rights', $q$select 1/(case when public.has_permission('products.manage') or public.has_permission('inventory.manage') then 0 else 1 end)$q$, null);
+select public._expect('accountant has no remember-login right', $q$select 1/(case when public.has_permission('pos.remember_login') then 0 else 1 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'NCASH', false); set role authenticated;
+select public._expect('cashier may remember his username', $q$select 1/(case when public.has_permission('pos.remember_login') then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticated;
 select public._expect('accountant cannot change the log', $q$update public.audit_logs set action = 'x'$q$, 'permission denied');
 reset role;
 

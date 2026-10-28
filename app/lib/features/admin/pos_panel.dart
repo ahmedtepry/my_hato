@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/appearance.dart';
@@ -13,6 +14,7 @@ import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../shared/barcode_scanner.dart';
 import '../../shared/states.dart';
+import 'admin_repository.dart';
 import 'pos_receipt.dart';
 import 'pos_repository.dart';
 
@@ -60,13 +62,46 @@ class _OpenShiftCard extends ConsumerStatefulWidget {
 }
 
 class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
+  static const _kLogin = 'pos_remembered_login';
   final _cash = TextEditingController(text: '0');
+  final _login = TextEditingController();
+  final _pass = TextEditingController();
   String? _branch;
   bool _busy = false;
+  bool _remember = false;
+  bool _obscure = true;
+
+  bool get _mayRemember => ref.read(staffContextProvider).valueOrNull?.permissions.contains('pos.remember_login') ?? false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRemembered();
+  }
+
+  Future<void> _loadRemembered() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final saved = p.getString(_kLogin) ?? '';
+      if (saved.isEmpty) return;
+      if (!_mayRemember) {
+        await p.remove(_kLogin); // the owner switched the right off: forget it
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _login.text = saved;
+          _remember = true;
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
     _cash.dispose();
+    _login.dispose();
+    _pass.dispose();
     super.dispose();
   }
 
@@ -77,9 +112,27 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
       showSnack(context, _t(context, 'اختار الفرع واكتب العهدة (ممكن صفر)', 'Pick the branch and type the opening cash (0 is fine)'), error: true);
       return;
     }
+    if (_login.text.trim().isEmpty || _pass.text.isEmpty) {
+      showSnack(context, _t(context, 'اكتب اسم المستخدم والباسورد علشان تفتح الوردية', 'Type your username and password to open the shift'), error: true);
+      return;
+    }
     setState(() => _busy = true);
     try {
-      await ref.read(posRepoProvider).openShift(b, minor);
+      final repo = ref.read(posRepoProvider);
+      if (!await repo.verifyLogin(_login.text, _pass.text)) {
+        if (mounted) showSnack(context, _t(context, 'اسم المستخدم أو الباسورد غلط، أو مش بتاعك', 'Wrong username or password, or not yours'), error: true);
+        return;
+      }
+      try {
+        final p = await SharedPreferences.getInstance();
+        if (_remember && _mayRemember) {
+          await p.setString(_kLogin, _login.text.trim());
+        } else {
+          await p.remove(_kLogin);
+        }
+      } catch (_) {}
+      _pass.clear();
+      await repo.openShift(b, minor);
       ref.invalidate(posShiftProvider);
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
@@ -132,7 +185,36 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
                     decoration: InputDecoration(labelText: _t(context, 'العهدة في الدرج (ج.م)', 'Opening cash (EGP)')),
                     onSubmitted: (_) => _open(list),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
+                  Text(_t(context, 'تأكيد هويتك', 'Confirm it is you'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _login,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.username],
+                    decoration: InputDecoration(labelText: _t(context, 'اسم المستخدم', 'Username'), prefixIcon: const Icon(Icons.person_outline_rounded)),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _pass,
+                    obscureText: _obscure,
+                    onSubmitted: (_) => _open(list),
+                    decoration: InputDecoration(
+                      labelText: _t(context, 'الباسورد', 'Password'),
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined), onPressed: () => setState(() => _obscure = !_obscure)),
+                    ),
+                  ),
+                  if (_mayRemember)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(_t(context, 'احفظ اسم المستخدم على الجهاز ده', 'Remember my username on this device')),
+                      subtitle: Text(_t(context, 'الباسورد مبيتحفظش أبدًا', 'The password is never saved'), style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+                      value: _remember,
+                      onChanged: (v) => setState(() => _remember = v ?? false),
+                    ),
+                  const SizedBox(height: 12),
                   FilledButton(onPressed: _busy ? null : () => _open(list), child: Text(_busy ? '…' : _t(context, 'فتح الوردية', 'Open shift'))),
                 ],
               ]),

@@ -23,6 +23,14 @@ class PosRepository {
     await _db.rpc('pos_open_shift', params: {'p_branch': branchId, 'p_opening_minor': openingMinor});
   }
 
+  /// Proves the person at the keyboard is the signed-in member: the database checks the typed password (rate-limited) and
+  /// returns the account email only when it is right; it must be this session's own account. Nothing is signed in or out.
+  Future<bool> verifyLogin(String login, String password) async {
+    final email = await _db.rpc('login_email_for', params: {'p_identifier': login.trim(), 'p_password': password}) as String?;
+    final mine = _db.auth.currentUser?.email;
+    return email != null && mine != null && email.toLowerCase() == mine.toLowerCase();
+  }
+
   Future<Map<String, dynamic>> shiftSummary(String shiftId) async => _m(await _db.rpc('pos_shift_summary', params: {'p_shift': shiftId}));
 
   Future<Map<String, dynamic>> closeShift(String shiftId, int countedMinor, String? note) async =>
@@ -132,6 +140,7 @@ String posErrorText(Object e, bool ar, String Function(Object) fallback) {
   if (m.contains('REFUND_EXCEEDS_SOLD')) return pick('الكمية أو المبلغ أكبر من اللي اتباع', 'More than was sold');
   if (m.contains('ALREADY_DECIDED')) return pick('الطلب ده اتقرر فيه قبل كده', 'Already decided');
   if (m.contains('TOO_MANY_PENDING')) return pick('عندك طلبات موافقة كتير مستنية', 'Too many pending requests');
+  if (m.contains('RATE_LIMITED')) return pick('محاولات غلط كتير، استنى شوية وجرّب تاني', 'Too many wrong attempts, wait a bit');
   if (m.contains('NOT_FOUND')) return pick('مش لاقي الفاتورة أو المنتج', 'Not found');
   if (m.contains('FORBIDDEN')) return pick('مش مسموحلك بالعملية دي', 'Not allowed');
   if (m.contains('INVALID_INPUT')) return pick('البيانات مش صحيحة', 'Invalid input');
