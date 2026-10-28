@@ -470,6 +470,16 @@ reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set rol
 select public._expect('owner gets the manager''s answer', $q$select 1/(case when (public.chat_unread()->>'count')::int >= 1 then 1 else 0 end)$q$, null);
 reset role; delete from public.chat_threads;
 
+-- ---------- 0081: today's commission products
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner sets a commission running today', $q$select public.commission_set((select id from public.products where sku='T-CASE'), 2500, current_date - 1, current_date + 1)$q$, null);
+select public._expect('owner sees it in today''s list', $q$select 1/(case when exists (select 1 from jsonb_array_elements(public.commission_today_products()) e where e->>'sku' = 'T-CASE' and (e->>'amount_minor')::int = 2500) then 1 else 0 end)$q$, null);
+select public._expect('an ended commission is not listed', $q$select public.commission_set((select id from public.products where sku='T-CASE'), 2500, current_date - 5, current_date - 2)$q$, null);
+select public._expect('list is empty for it now', $q$select 1/(case when not exists (select 1 from jsonb_array_elements(public.commission_today_products()) e where e->>'sku' = 'T-CASE') then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician has no permission to the list', $q$select public.commission_today_products()$q$, 'FORBIDDEN');
+reset role; delete from public.product_commissions;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

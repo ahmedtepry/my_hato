@@ -440,12 +440,24 @@ class _RegisterState extends ConsumerState<_Register> {
           if (mounted) showSnack(context, _t(context, 'البيعة اتسجلت لكن البقشيش ماتسجلش، سجّله من الفاتورة', 'The sale was saved but the tip was not recorded'), error: true);
         }
       }
+      // commission earned on this sale (products with a commission running today), for the cheer on the receipt
+      var bonus = 0;
+      if (ref.read(staffContextProvider).valueOrNull?.permissions.contains('commission.today') ?? false) {
+        try {
+          final list = await ref.read(commissionTodayProvider.future).timeout(const Duration(seconds: 3));
+          final per = {for (final r in list) '${r['product_id']}': (r['amount_minor'] as num).toInt()};
+          for (final e in _cart.entries) {
+            bonus += (per[e.key] ?? 0) * e.value.q;
+          }
+        } catch (_) {}
+      }
       setState(_reset);
       ref.invalidate(posShiftProvider);
+      ref.invalidate(commissionTodayProvider);
       _loadProducts(_search.text);
       if (await receiptAutoPrintOn() && mounted) unawaited(printReceipt(context, done));
       if (!mounted) return;
-      await showDialog<void>(context: context, builder: (_) => _ReceiptDialog(sale: done));
+      await showDialog<void>(context: context, builder: (_) => _ReceiptDialog(sale: done, bonusMinor: bonus));
       if (mounted) _searchFocus.requestFocus();
     } catch (e) {
       if (!mounted) return;
@@ -841,8 +853,9 @@ String receiptText(BuildContext c, Map<String, dynamic> sale) {
 }
 
 class _ReceiptDialog extends StatelessWidget {
-  const _ReceiptDialog({required this.sale});
+  const _ReceiptDialog({required this.sale, this.bonusMinor = 0});
   final Map<String, dynamic> sale;
+  final int bonusMinor;
 
   @override
   Widget build(BuildContext context) {
@@ -852,7 +865,18 @@ class _ReceiptDialog extends StatelessWidget {
       content: SizedBox(
         width: 380,
         child: SingleChildScrollView(
-          child: ReceiptPaper(sale: sale),
+          child: Column(children: [
+            if (bonusMinor > 0)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: BrandColors.success.withValues(alpha: .12), borderRadius: BorderRadius.circular(12), border: Border.all(color: BrandColors.success)),
+                child: Text(_t(context, 'عاش كده! 🎉 كوميشن ${_money(context, bonusMinor)}، شد حيلك 💪', 'Well done! 🎉 ${_money(context, bonusMinor)} commission, keep it up 💪'),
+                    textAlign: TextAlign.center, style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w900, fontSize: 16)),
+              ),
+            ReceiptPaper(sale: sale),
+          ]),
         ),
       ),
       actions: [

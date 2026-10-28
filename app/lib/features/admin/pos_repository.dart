@@ -162,6 +162,16 @@ class PosRepository {
 
 final posRepoProvider = Provider((ref) => PosRepository(ref.watch(supabaseProvider)));
 
+/// Products with a commission running today (needs commission.today). Empty when not allowed or on any error.
+final commissionTodayProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  try {
+    final r = await ref.watch(supabaseProvider).rpc('commission_today_products');
+    return [for (final e in (r as List? ?? const [])) Map<String, dynamic>.from(e as Map)];
+  } catch (_) {
+    return const [];
+  }
+});
+
 /// The signed-in member's open shift with live totals (null = no open shift).
 final posShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) => ref.watch(posRepoProvider).currentShift());
 final posLimitsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) => ref.watch(posRepoProvider).limits());

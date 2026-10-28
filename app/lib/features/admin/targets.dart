@@ -13,7 +13,7 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
-import 'pos_repository.dart' show posErrorText;
+import 'pos_repository.dart' show posErrorText, commissionTodayProvider;
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
@@ -472,10 +472,55 @@ class _MyTargetPanelState extends ConsumerState<MyTargetPanel> {
         const SizedBox(width: 10),
         Expanded(child: _CommissionTile(label: _t(context, 'عمولتك الشهر ده', 'Your commission this month'), minor: d['commission_month_minor'] as num, icon: Icons.savings_outlined)),
       ]),
+      if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('commission.today') ?? false) ...[
+        const SizedBox(height: 10),
+        const _TodayCommissionProducts(),
+      ],
       const SizedBox(height: 10),
       Text(_t(context, 'الأرقام بتتحدّث لوحدها كل لحظة. أي مرتجع بيتخصم من العمولة.', 'Numbers refresh on their own. A refund reduces the commission.'),
           textAlign: TextAlign.center, style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
     ]);
+  }
+}
+
+class _TodayCommissionProducts extends ConsumerWidget {
+  const _TodayCommissionProducts();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rows = ref.watch(commissionTodayProvider).valueOrNull ?? const <Map<String, dynamic>>[];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.local_fire_department_rounded, color: Color(0xFFE8A317)),
+            const SizedBox(width: 6),
+            Expanded(child: Text(_t(context, 'منتجات عليها كوميشن النهارده', 'Products with a commission today'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+          ]),
+          const SizedBox(height: 8),
+          if (rows.isEmpty)
+            Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(_t(context, 'مفيش منتجات عليها كوميشن النهارده', 'No product has a commission today'), style: const TextStyle(color: BrandColors.gray)))
+          else
+            for (final r in rows)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${context.isAr ? r['name_ar'] : (r['name_en'] ?? r['name_ar'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Text('${r['sku'] ?? ''}${r['ends_on'] == null ? '' : '  ·  ${_t(context, 'لحد', 'until')} ${r['ends_on']}'}', style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+                    ]),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(color: BrandColors.success.withValues(alpha: .12), borderRadius: BorderRadius.circular(20)),
+                    child: Text('+${_money(context, r['amount_minor'] as num)}', style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w900)),
+                  ),
+                ]),
+              ),
+        ]),
+      ),
+    );
   }
 }
 
