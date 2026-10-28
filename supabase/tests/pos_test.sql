@@ -307,6 +307,24 @@ select public._expect('owner downloads the log as CSV', $q$select 1/(case when p
 select public._expect('the download is itself logged', $q$select 1/(case when exists (select 1 from public.audit_logs where action = 'audit.export') then 1 else 0 end)$q$, null);
 reset role;
 
+-- ---------- 0067: head office, accountant sees every branch
+reset role;
+select public._expect('head office exists and is a branch', $q$select 1/(case when (select count(*) from public.branches where is_hq) = 1 then 1 else 0 end)$q$, null);
+select set_config('request.jwt.claim.sub', '', false); set role anon;
+select public._expect('customers never see head office', $q$select 1/(case when exists (select 1 from public.branches where is_hq) then 0 else 1 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticated;
+select public._expect('accountant has no branch assigned yet still lists every branch', $q$select 1/(case when (select count(*) from public.staff_view_branches()) >= 3 then 1 else 0 end)$q$, null);
+select public._expect('accountant reads shifts of every branch', $q$select 1/(case when (select count(distinct branch_id) from public.pos_shift_list()) >= 1 then 1 else 0 end)$q$, null);
+select public._expect('accountant branch report lists all branches', $q$select 1/(case when (select count(*) from public.pos_branch_report()) >= 3 then 1 else 0 end)$q$, null);
+select public._expect('accountant gets the sales list', $q$select 1/(case when (select count(*) from public.books_sales()) >= 1 then 1 else 0 end)$q$, null);
+select public._expect('seeing a branch does not let him work in it', format($q$select public.pos_open_shift(%L, 0)$q$, :'B'), 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('a manager of one branch does not see the other branch', $q$select 1/(case when (select count(*) from public.pos_branch_report()) >= 3 then 0 else 1 end)$q$, null);
+reset role; insert into public.user_permission_overrides(user_id, permission, effect) values (:'MGR', 'branches.all', 'grant');
+select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('owner can give "see every branch" to one person and it works at once', $q$select 1/(case when (select count(*) from public.pos_branch_report()) >= 3 then 1 else 0 end)$q$, null);
+reset role; delete from public.user_permission_overrides where user_id = :'MGR' and permission = 'branches.all';
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

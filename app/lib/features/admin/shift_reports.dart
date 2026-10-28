@@ -21,15 +21,18 @@ final shiftReportsProvider = FutureProvider.autoDispose.family<List<Map<String, 
 /// Closing reports (final, numbered) for the accountant, the manager and the owner. Visible only with the "shifts.reports" right,
 /// which the owner gives or takes away.
 class ShiftReportsList extends ConsumerWidget {
-  const ShiftReportsList({super.key, required this.days});
+  const ShiftReportsList({super.key, required this.days, this.branchId});
   final int days;
+  final String? branchId; // null = every branch
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ref.watch(shiftReportsProvider(days)).when(
           loading: () => const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
           error: (e, _) => Text(_err(context, e)),
-          data: (list) => list.isEmpty
+          data: (all) {
+            final list = branchId == null ? all : all.where((r) => r['branch_id'] == branchId).toList();
+            return list.isEmpty
               ? Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_t(context, 'مفيش تقارير إقفال في الفترة دي', 'No closing reports in this period'), style: const TextStyle(color: BrandColors.gray))))
               : Column(children: [
                   for (final r in list)
@@ -54,7 +57,8 @@ class ShiftReportsList extends ConsumerWidget {
                         ),
                       );
                     }),
-                ]),
+                ]);
+          },
         );
   }
 }

@@ -313,3 +313,6 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80}) a
   ));
   return doc.save();
 }
+
+/// Arabic PDF fonts for other documents (accountant reports).
+Future<(pw.Font, pw.Font)> pdfFonts() => _fonts();

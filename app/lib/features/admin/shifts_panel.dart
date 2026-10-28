@@ -15,6 +15,8 @@ import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'pos_repository.dart';
 import 'shift_reports.dart';
+import 'books_export.dart';
+import 'package:printing/printing.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
@@ -450,9 +452,60 @@ class AccountantPanel extends ConsumerStatefulWidget {
   ConsumerState<AccountantPanel> createState() => _AccountantPanelState();
 }
 
+final _viewBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) => ref.watch(posRepoProvider).viewBranches());
+
 class _AccountantPanelState extends ConsumerState<AccountantPanel> {
   int _days = 7;
   bool _onlyDiff = false;
+  String? _branch; // null = every branch
+  bool _exporting = false;
+
+  String _periodLabel() => switch (_days) {
+        1 => _t(context, 'النهارده', 'Today'),
+        7 => _t(context, 'آخر ٧ أيام', 'Last 7 days'),
+        30 => _t(context, 'آخر ٣٠ يوم', 'Last 30 days'),
+        _ => _t(context, 'آخر $_days يوم', 'Last $_days days'),
+      };
+
+  String _branchLabel(List<Map<String, dynamic>> all) {
+    if (_branch == null) return _t(context, 'كل الفروع', 'All branches');
+    for (final b in all) {
+      if (b['id'] == _branch) return '${b['name_ar']}';
+    }
+    return '';
+  }
+
+  /// Excel or PDF of exactly what is on screen: the chosen branch (or all) for the chosen period.
+  Future<void> _export(bool pdf) async {
+    setState(() => _exporting = true);
+    try {
+      final repo = ref.read(posRepoProvider);
+      final branches = (await repo.branchReport(_days)).where((b) => _branch == null || b['branch_id'] == _branch).toList();
+      final shifts = await repo.booksShifts(_branch, _days);
+      final sales = await repo.booksSales(_branch, _days);
+      final canReports = ref.read(staffContextProvider).valueOrNull?.permissions.contains('shifts.reports') ?? false;
+      final reports = canReports ? await repo.booksReports(_branch, _days) : <Map<String, dynamic>>[];
+      final all = ref.read(_viewBranchesProvider).valueOrNull ?? const <Map<String, dynamic>>[];
+      if (!mounted) return;
+      final data = BooksData(
+        ar: context.isAr, periodLabel: _periodLabel(), branchLabel: _branchLabel(all),
+        branches: branches, shifts: shifts, sales: sales, reports: reports,
+      );
+      final stamp = DateFormat('yyyyMMdd').format(DateTime.now());
+      if (pdf) {
+        final bytes = await booksPdf(data);
+        await Printing.sharePdf(bytes: bytes, filename: 'myhato-accounts-$stamp.pdf');
+      } else {
+        final bytes = booksXlsx(data);
+        final name = 'myhato-accounts-$stamp.xlsx';
+        await Share.shareXFiles([XFile.fromData(bytes, name: name, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')], fileNameOverrides: [name]);
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, _err(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   num _sum(List<Map<String, dynamic>> l, String k) => l.fold<num>(0, (a, b) => a + ((b[k] as num?) ?? 0));
 
@@ -517,12 +570,25 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
                 ButtonSegment(value: 1, label: Text(_t(context, 'النهارده', 'Today'))),
                 ButtonSegment(value: 7, label: Text(_t(context, '٧ أيام', '7d'))),
                 ButtonSegment(value: 30, label: Text(_t(context, '٣٠ يوم', '30d'))),
+                ButtonSegment(value: 90, label: Text(_t(context, '٩٠ يوم', '90d'))),
               ],
               selected: {_days},
               onSelectionChanged: (v) => setState(() => _days = v.first),
             ),
           ),
           const SizedBox(width: 8),
+          if (_exporting)
+            const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4)))
+          else
+            PopupMenuButton<bool>(
+              tooltip: _t(context, 'تصدير', 'Export'),
+              icon: const Icon(Icons.file_download_outlined),
+              onSelected: _export,
+              itemBuilder: (_) => [
+                PopupMenuItem(value: false, child: Text(_t(context, 'ملف Excel', 'Excel file'))),
+                PopupMenuItem(value: true, child: Text(_t(context, 'ملف PDF', 'PDF file'))),
+              ],
+            ),
           IconButton.filledTonal(
             tooltip: _t(context, 'انسخ التقرير', 'Copy the report'),
             icon: const Icon(Icons.copy_all_rounded),
@@ -535,10 +601,29 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
           ),
         ]),
         const SizedBox(height: 10),
+        ref.watch(_viewBranchesProvider).maybeWhen(
+              data: (all) => all.length <= 1
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Wrap(spacing: 8, runSpacing: 8, children: [
+                        ChoiceChip(label: Text(_t(context, 'كل الفروع', 'All branches')), selected: _branch == null, onSelected: (_) => setState(() => _branch = null)),
+                        for (final b in all)
+                          ChoiceChip(
+                            avatar: b['is_hq'] == true ? const Icon(Icons.apartment_rounded, size: 18) : null,
+                            label: Text(_t(context, '${b['name_ar']}', '${b['name_en']}')),
+                            selected: _branch == b['id'],
+                            onSelected: (_) => setState(() => _branch = b['id'] as String),
+                          ),
+                      ]),
+                    ),
+              orElse: () => const SizedBox.shrink(),
+            ),
         report.when(
           loading: () => const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator())),
           error: (e, _) => Text(_err(context, e)),
-          data: (list) {
+          data: (allRows) {
+            final list = allRows.where((b) => _branch == null || b['branch_id'] == _branch).toList();
             final variance = _sum(list, 'variance_minor');
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -579,7 +664,7 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
             padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
             child: Text(_t(context, 'تقارير إقفال الورديات', 'Shift closing reports'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
           ),
-          ShiftReportsList(days: _days),
+          ShiftReportsList(days: _days, branchId: _branch),
         ],
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
@@ -597,7 +682,8 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
           loading: () => const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
           error: (e, _) => Text(_err(context, e)),
           data: (all) {
-            final list = _onlyDiff ? all.where((s) => s['status'] == 'closed' && ((s['variance_minor'] as num?) ?? 0) != 0).toList() : all;
+            final inBranch = all.where((s) => _branch == null || s['branch_id'] == _branch).toList();
+            final list = _onlyDiff ? inBranch.where((s) => s['status'] == 'closed' && ((s['variance_minor'] as num?) ?? 0) != 0).toList() : inBranch;
             return list.isEmpty
                 ? Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_t(context, 'مفيش ورديات في الفترة دي', 'No shifts in this period'), style: const TextStyle(color: BrandColors.gray))))
                 : Column(children: [for (final s in list) _ShiftTile(s: s)]);

@@ -66,6 +66,8 @@ const _perms = <String, _PermInfo>{
   'payments.manage': _PermInfo('system', 'يدير الدفع والاسترداد', 'Manage payments and refunds', sensitive: true),
   'roles.assign': _PermInfo('system', 'يغيّر أدوار الناس', 'Change people roles', sensitive: true),
   'branches.manage': _PermInfo('system', 'يعدّل الفروع ومناطق التوصيل', 'Edit branches and delivery zones'),
+  'branches.all': _PermInfo('system', 'يشوف حسابات كل الفروع', 'See the accounts of every branch',
+      descAr: 'يشوف الورديات والمبيعات والتقارير لكل الفروع والإدارة، مش فرعه بس', descEn: 'See shifts, sales and reports of every branch and head office'),
 };
 
 const _groupOrder = ['orders', 'products', 'repairs', 'pos', 'system', 'other'];
@@ -456,6 +458,88 @@ class _AccountSheet extends ConsumerStatefulWidget {
 
 class _AccountSheetState extends ConsumerState<_AccountSheet> {
   final Set<String> _busy = <String>{};
+  List<Map<String, dynamic>>? _branches; // every branch + head office
+  Set<String> _mine = <String>{}; // the ones this person works in
+  bool _savingBranches = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBranches();
+  }
+
+  Future<void> _loadBranches() async {
+    try {
+      final repo = ref.read(teamRepoProvider);
+      final all = await repo.branches();
+      final mine = (await repo.memberBranches(widget.member['user_id'].toString())).toSet();
+      if (mounted) setState(() {
+        _branches = all;
+        _mine = mine;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _branches = const []);
+    }
+  }
+
+  /// Ticking a branch saves at once; the person's app picks it up within seconds.
+  Future<void> _toggleBranch(String id) async {
+    final next = {..._mine};
+    next.contains(id) ? next.remove(id) : next.add(id);
+    setState(() {
+      _mine = next;
+      _savingBranches = true;
+    });
+    try {
+      await ref.read(teamRepoProvider).setMemberBranches(widget.member['user_id'].toString(), next.toList());
+      if (mounted) showSnack(context, _s(context, 'saved', 'اتحفظ', 'Saved'));
+    } catch (e) {
+      if (mounted) {
+        showSnack(context, _permError(context, e), error: true);
+        _loadBranches();
+      }
+    } finally {
+      if (mounted) setState(() => _savingBranches = false);
+    }
+  }
+
+  Widget _branchBar(BuildContext context, bool seesAll) {
+    final all = _branches;
+    if (all == null) return const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: LinearProgressIndicator());
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(14)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.store_mall_directory_outlined, size: 20),
+          const SizedBox(width: 6),
+          Text(_s(context, 'branch_title', 'الفرع اللي بيشتغل فيه', 'Branch he works in'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          if (_savingBranches) const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))),
+        ]),
+        const SizedBox(height: 8),
+        if (all.isEmpty)
+          Text(_s(context, 'branch_none', 'مفيش فروع متاحة', 'No branches'), style: const TextStyle(color: BrandColors.gray))
+        else
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final b in all)
+              FilterChip(
+                selected: _mine.contains(b['id']),
+                avatar: b['is_hq'] == true ? const Icon(Icons.apartment_rounded, size: 18) : null,
+                label: Text(_t(context, '${b['name_ar']}', '${b['name_en']}')),
+                onSelected: _savingBranches ? null : (_) => _toggleBranch(b['id'] as String),
+              ),
+          ]),
+        const SizedBox(height: 6),
+        Text(
+          seesAll
+              ? _s(context, 'branch_all_hint', 'بيشوف حسابات كل الفروع من صلاحية «يشوف حسابات كل الفروع»، والفرع هنا للشغل الفعلي (بيع ووردية).', 'He sees the accounts of every branch through the "every branch" permission; the branch here is where he actually works.')
+              : _s(context, 'branch_hint', 'مش هيشوف غير بيانات الفروع اللي معلّم عليها. لو مفيش، مش هيقدر يفتح وردية.', 'He only sees the branches ticked. With none, he cannot open a shift.'),
+          style: const TextStyle(color: BrandColors.gray, fontSize: 12.5),
+        ),
+      ]),
+    );
+  }
 
   Future<void> _set(String perm, String value) async {
     final info = _infoOf(perm);
@@ -492,6 +576,7 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
     return ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), children: [
       Text(name.isEmpty ? '—' : name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       Text(role.label(context), style: const TextStyle(color: BrandColors.gray)),
+      _branchBar(context, mine['branches.all'] == 'grant' || (mine['branches.all'] == null && rolePerms.contains('branches.all'))),
       for (final g in _grouped(_stringList(ov['permissions']))) ...[
         Padding(
           padding: const EdgeInsets.only(top: 18, bottom: 4),

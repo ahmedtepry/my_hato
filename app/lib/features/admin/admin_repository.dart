@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -448,12 +449,36 @@ class StaffContext {
   final Set<String> permissions;
 }
 
-final staffContextProvider = FutureProvider<StaffContext>((ref) async {
-  ref.watch(currentUserProvider);
-  return ref.watch(adminRepoProvider).staffContext();
-});
+/// The signed-in member's roles and permissions. Re-read every few seconds, so whatever the owner switches on or off
+/// reaches the person's screen almost at once (no need to close and reopen the app). It only publishes a change when something differs.
+class StaffContextController extends AsyncNotifier<StaffContext> {
+  Timer? _timer;
 
-final isStaffProvider = FutureProvider<bool>((ref) async => (await ref.watch(staffContextProvider.future)).roles.isNotEmpty);
+  bool _same(StaffContext a, StaffContext b) =>
+      a.roles.length == b.roles.length && a.roles.containsAll(b.roles) && a.permissions.length == b.permissions.length && a.permissions.containsAll(b.permissions);
+
+  @override
+  Future<StaffContext> build() async {
+    final user = ref.watch(currentUserProvider);
+    ref.onDispose(() => _timer?.cancel());
+    _timer?.cancel();
+    final first = await ref.read(adminRepoProvider).staffContext();
+    if (user != null && first.roles.isNotEmpty) {
+      _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
+        try {
+          final now = await ref.read(adminRepoProvider).staffContext();
+          final cur = state.valueOrNull;
+          if (cur == null || !_same(cur, now)) state = AsyncData(now);
+        } catch (_) {/* offline for a moment: keep what we have */}
+      });
+    }
+    return first;
+  }
+}
+
+final staffContextProvider = AsyncNotifierProvider<StaffContextController, StaffContext>(StaffContextController.new);
+
+final isStaffProvider = Provider<AsyncValue<bool>>((ref) => ref.watch(staffContextProvider).whenData((c) => c.roles.isNotEmpty));
 
 /// What a team member works in after signing in. Decided by his role, never by what he types or picks:
 /// a cashier lands on the cashier screen only, an accountant on the books, and so on. Owner and manager keep the full console.

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -127,6 +128,20 @@ class PosRepository {
   Future<List<Map<String, dynamic>>> branchReportSince(DateTime from) async =>
       _l(await _db.rpc('pos_branch_report', params: {'p_from': from.toUtc().toIso8601String()}));
 
+  /// Every branch (and head office) this person may look at.
+  Future<List<Map<String, dynamic>>> viewBranches() async => _l(await _db.rpc('staff_view_branches'));
+
+  String _from(int days) => DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String();
+
+  Future<List<Map<String, dynamic>>> booksShifts(String? branch, int days) async =>
+      _l(await _db.rpc('pos_shift_list', params: {'p_branch': branch, 'p_from': _from(days), 'p_limit': 300}));
+
+  Future<List<Map<String, dynamic>>> booksSales(String? branch, int days) async =>
+      _l(await _db.rpc('books_sales', params: {'p_branch': branch, 'p_from': _from(days), 'p_limit': 5000}));
+
+  Future<List<Map<String, dynamic>>> booksReports(String? branch, int days) async =>
+      _l(await _db.rpc('pos_shift_report_list', params: {'p_branch': branch, 'p_from': _from(days), 'p_limit': 300}));
+
   Future<String> auditExport(int days) async => (await _db.rpc('audit_export', params: {'p_days': days})) as String;
   Future<Map<String, dynamic>> auditVerify() async => _m(await _db.rpc('audit_verify'));
 
@@ -145,7 +160,15 @@ final posRepoProvider = Provider((ref) => PosRepository(ref.watch(supabaseProvid
 /// The signed-in member's open shift with live totals (null = no open shift).
 final posShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) => ref.watch(posRepoProvider).currentShift());
 final posLimitsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) => ref.watch(posRepoProvider).limits());
-final posBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) => ref.watch(posRepoProvider).branches());
+/// The branches this cashier may work in. While there are none, ask again every few seconds, so a branch the owner assigns appears on its own.
+final posBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final r = await ref.watch(posRepoProvider).branches();
+  if (r.isEmpty) {
+    final t = Timer(const Duration(seconds: 5), ref.invalidateSelf);
+    ref.onDispose(t.cancel);
+  }
+  return r;
+});
 
 /// Which machine is doing this (recorded with the shift closing): system + computer name.
 String deviceLabel() {
