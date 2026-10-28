@@ -203,6 +203,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'overview': _SectionInfo(Icons.dashboard_outlined, Color(0xFF00A3FF), 'نظرة عامة', 'Overview', 'أرقام اليوم والتنبيهات', 'Today\'s numbers and alerts'),
   'pos': _SectionInfo(Icons.point_of_sale_rounded, Color(0xFF00A3FF), 'الكاشير', 'Cashier', 'بيع سريع بالباركود وسلة وفاتورة نقدية', 'Fast barcode sales with a cart and a cash invoice'),
   'shifts': _SectionInfo(Icons.fact_check_outlined, Color(0xFF7A5AF8), 'الورديات والموافقات', 'Shifts & approvals', 'موافقات الخصم والمرتجع وفروق الدرج ومقارنة الفروع', 'Discount and refund approvals, drawer differences, branch comparison'),
+  'books': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFF12B76A), 'المحاسبة', 'Accounting', 'صافي المبيعات والمرتجعات وفروق الدرج ومقارنة الفروع', 'Net sales, refunds, drawer differences and branch comparison'),
   'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
   'occasions': _SectionInfo(Icons.auto_awesome_rounded, Color(0xFFE8A317), 'إضافة مؤثر مناسبة على اللوجو', 'Add an occasion effect to the logo', 'رمضان والأعياد و٦ أكتوبر: ختم على الشعار وتهنئة بكود أو كوينات', 'Ramadan, Eids and 6 October: a logo stamp and a greeting with a code or coins'),
@@ -241,7 +242,7 @@ class AdminHomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tabs = ref.watch(consoleTabsProvider);
-    if (StaffPresence.area == 'store') StaffPresence.area = 'overview';
+    if (StaffPresence.area == 'store') StaffPresence.area = tabs.first;
     final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
     final available = [
       ...tabs,
@@ -316,6 +317,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'orders' => const _OrdersTab(),
                       'pos' => const PosPanel(),
                       'shifts' => const ShiftsPanel(),
+                      'books' => const AccountantPanel(),
                       'sales' => const SalesPanel(),
                       'appearance' => const AppearancePanel(),
                       'occasions' => const OccasionsPanel(),
@@ -328,7 +330,10 @@ class AdminHomeScreen extends ConsumerWidget {
                     },
                   _ConsolePage(layout: layout, onOpen: open),
                 ]),
-                bottomNavigationBar: NavigationBar(
+                // a single-purpose job (the cashier) has nothing to switch to, so no bar
+                bottomNavigationBar: tabs.length <= 1
+                    ? null
+                    : NavigationBar(
                   selectedIndex: selected < 0 ? layout.pinned.length : selected,
                   onDestinationSelected: (i) {
                     if (i >= layout.pinned.length) {

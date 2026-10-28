@@ -308,7 +308,7 @@ class _RolesTabState extends ConsumerState<_RolesTab> {
         ),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final key in const ['owner', 'manager', 'sales', 'technician', 'support'])
+          for (final key in const ['owner', 'manager', 'accountant', 'cashier', 'sales', 'technician', 'support'])
             ChoiceChip(
               label: Text(roleOf(key).label(context)),
               selected: _role == key,

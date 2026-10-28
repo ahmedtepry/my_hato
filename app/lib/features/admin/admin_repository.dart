@@ -455,13 +455,31 @@ final staffContextProvider = FutureProvider<StaffContext>((ref) async {
 
 final isStaffProvider = FutureProvider<bool>((ref) async => (await ref.watch(staffContextProvider.future)).roles.isNotEmpty);
 
-/// Console tabs for the signed-in member, in order.
+/// What a team member works in after signing in. Decided by his role, never by what he types or picks:
+/// a cashier lands on the cashier screen only, an accountant on the books, and so on. Owner and manager keep the full console.
+enum Workspace { full, cashier, accountant, sales, repairs, support }
+
+Workspace workspaceOf(Set<String> roles) {
+  if (roles.contains('owner') || roles.contains('manager')) return Workspace.full;
+  if (roles.contains('accountant')) return Workspace.accountant;
+  if (roles.contains('cashier')) return Workspace.cashier;
+  if (roles.contains('sales')) return Workspace.sales;
+  if (roles.contains('technician')) return Workspace.repairs;
+  if (roles.contains('support')) return Workspace.support;
+  return Workspace.full;
+}
+
+final workspaceProvider = Provider<Workspace>((ref) => workspaceOf(ref.watch(staffContextProvider).valueOrNull?.roles ?? const <String>{}));
+
+/// Console tabs for the signed-in member, in order. The first one is where he lands.
 final consoleTabsProvider = Provider<List<String>>((ref) {
-  final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
-  return [
+  final ctx = ref.watch(staffContextProvider).valueOrNull;
+  final p = ctx?.permissions ?? const <String>{};
+  final all = [
     'overview',
     if (p.contains('pos.sell')) 'pos',
     if (p.contains('pos.approve') || p.contains('shifts.review')) 'shifts',
+    if (p.contains('shifts.review') || p.contains('sales.view')) 'books',
     if (p.contains('orders.view')) 'orders',
     if (p.contains('sales.view')) 'sales',
     if (p.contains('appearance.manage')) 'appearance',
@@ -472,4 +490,24 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('support.manage')) 'accounts',
     if (p.contains('gifts.manage')) 'gifts',
   ];
+  // what each job needs first; anything else he has been allowed still follows
+  final List<String> first;
+  switch (workspaceOf(ctx?.roles ?? const <String>{})) {
+    case Workspace.full:
+      return all.where((k) => k != 'books').toList(); // owner / manager: the full console, unchanged
+    case Workspace.cashier:
+      first = const ['pos'];
+    case Workspace.accountant:
+      first = const ['books', 'sales', 'orders'];
+    case Workspace.sales:
+      first = const ['orders', 'pos', 'products', 'sales'];
+    case Workspace.repairs:
+      first = const ['repairs', 'orders'];
+    case Workspace.support:
+      first = const ['orders', 'repairs', 'accounts'];
+  }
+  // a focused job has no "overview" and no duplicate of the books screen
+  final rest = all.where((k) => k != 'overview' && !first.contains(k) && !(k == 'shifts' && first.contains('books')));
+  final out = [...first.where(all.contains), ...rest];
+  return out.isEmpty ? ['overview'] : out;
 });

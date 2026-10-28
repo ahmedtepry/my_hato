@@ -2,7 +2,7 @@
 // Public sign-up NEVER grants staff roles; this is the only provisioning path.
 import { callerClient, corsHeaders, json, serviceClient } from "../_shared/util.ts";
 
-const ROLES = ["owner", "manager", "sales", "technician", "support"];
+const ROLES = ["owner", "manager", "accountant", "cashier", "sales", "technician", "support"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });

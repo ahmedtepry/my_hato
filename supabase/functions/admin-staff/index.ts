@@ -6,7 +6,7 @@
 // Roles are always granted through the audited SQL functions, as the calling owner.
 import { callerClient, corsHeaders, json, serviceClient } from "../_shared/util.ts";
 
-const ROLES = ["owner", "manager", "sales", "technician", "support"];
+const ROLES = ["owner", "manager", "accountant", "cashier", "sales", "technician", "support"];
 
 function egMobile(p: string): string | null {
   let d = p.replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660)).replace(/\D/g, "");

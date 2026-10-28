@@ -413,3 +413,170 @@ class _OwnerToolsState extends ConsumerState<_OwnerTools> {
     ]);
   }
 }
+
+final _booksShiftsProvider =
+    FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int>((ref, days) => ref.watch(posRepoProvider).shifts(days: days));
+
+/// The accountant's own screen: the money of the period at a glance, branch by branch, and every shift with its cash difference.
+/// View only: nothing here sells, refunds or changes a price or stock.
+class AccountantPanel extends ConsumerStatefulWidget {
+  const AccountantPanel({super.key});
+  @override
+  ConsumerState<AccountantPanel> createState() => _AccountantPanelState();
+}
+
+class _AccountantPanelState extends ConsumerState<AccountantPanel> {
+  int _days = 7;
+  bool _onlyDiff = false;
+
+  num _sum(List<Map<String, dynamic>> l, String k) => l.fold<num>(0, (a, b) => a + ((b[k] as num?) ?? 0));
+
+  String _text(List<Map<String, dynamic>> branches, List<Map<String, dynamic>> shifts) {
+    final b = StringBuffer()
+      ..writeln(_t(context, 'تقرير المحاسبة — آخر $_days يوم', 'Accounting report — last $_days days'))
+      ..writeln(
+          '${_t(context, 'صافي المبيعات', 'Net sales')}: ${_money(context, _sum(branches, 'net_minor'))}  |  ${_t(context, 'المرتجعات', 'Refunds')}: ${_money(context, _sum(branches, 'refunds_minor'))}  |  ${_t(context, 'فرق الدرج', 'Drawer difference')}: ${_money(context, _sum(branches, 'variance_minor'))}')
+      ..writeln();
+    for (final x in branches) {
+      b.writeln('${x['branch_name_ar']}: ${_t(context, 'صافي', 'net')} ${_money(context, x['net_minor'] as num)} · ${_t(context, 'مبيعات', 'sales')} ${_money(context, x['sales_minor'] as num)} (${x['sales_count']}) · ${_t(context, 'مرتجع', 'refunds')} ${_money(context, x['refunds_minor'] as num)} · ${_t(context, 'فرق', 'diff')} ${_money(context, x['variance_minor'] as num)}');
+    }
+    final diff = shifts.where((s) => s['status'] == 'closed' && ((s['variance_minor'] as num?) ?? 0) != 0);
+    if (diff.isNotEmpty) {
+      b
+        ..writeln()
+        ..writeln(_t(context, 'ورديات فيها فرق:', 'Shifts with a difference:'));
+      for (final s in diff) {
+        b.writeln('${_when(s['opened_at'] as String?)} · ${s['cashier_name']} · ${s['branch_name_ar']} · ${_money(context, s['variance_minor'] as num)}');
+      }
+    }
+    return b.toString();
+  }
+
+  Widget _kpi(String label, String value, IconData icon, Color color) => SizedBox(
+        width: 172,
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(width: 6),
+                Expanded(child: Text(label, style: const TextStyle(color: BrandColors.gray, fontSize: 12.5))),
+              ]),
+              const SizedBox(height: 6),
+              Text(value, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: color)),
+            ]),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final report = ref.watch(_branchReportProvider(_days));
+    final shifts = ref.watch(_booksShiftsProvider(_days));
+    final branches = report.valueOrNull;
+    final shiftList = shifts.valueOrNull ?? const <Map<String, dynamic>>[];
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(_branchReportProvider);
+        ref.invalidate(_booksShiftsProvider);
+      },
+      child: ListView(padding: const EdgeInsets.all(14), children: [
+        Row(children: [
+          Expanded(
+            child: SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(value: 1, label: Text(_t(context, 'النهارده', 'Today'))),
+                ButtonSegment(value: 7, label: Text(_t(context, '٧ أيام', '7d'))),
+                ButtonSegment(value: 30, label: Text(_t(context, '٣٠ يوم', '30d'))),
+              ],
+              selected: {_days},
+              onSelectionChanged: (v) => setState(() => _days = v.first),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            tooltip: _t(context, 'انسخ التقرير', 'Copy the report'),
+            icon: const Icon(Icons.copy_all_rounded),
+            onPressed: branches == null
+                ? null
+                : () async {
+                    await Clipboard.setData(ClipboardData(text: _text(branches, shiftList)));
+                    if (context.mounted) showSnack(context, _t(context, 'اتنسخ التقرير', 'Report copied'));
+                  },
+          ),
+        ]),
+        const SizedBox(height: 10),
+        report.when(
+          loading: () => const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator())),
+          error: (e, _) => Text(_err(context, e)),
+          data: (list) {
+            final variance = _sum(list, 'variance_minor');
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                _kpi(_t(context, 'صافي المبيعات', 'Net sales'), _money(context, _sum(list, 'net_minor')), Icons.account_balance_wallet_rounded, BrandColors.navy),
+                _kpi(_t(context, 'إجمالي المبيعات', 'Total sales'), _money(context, _sum(list, 'sales_minor')), Icons.trending_up_rounded, BrandColors.success),
+                _kpi(_t(context, 'عدد الفواتير', 'Invoices'), '${_sum(list, 'sales_count')}', Icons.receipt_long_rounded, BrandColors.electric),
+                _kpi(_t(context, 'المرتجعات', 'Refunds'), _money(context, _sum(list, 'refunds_minor')), Icons.assignment_return_outlined, BrandColors.warning),
+                _kpi(_t(context, 'ورديات مقفولة', 'Closed shifts'), '${_sum(list, 'shifts_closed')}', Icons.lock_outline_rounded, BrandColors.gray),
+                _kpi(_t(context, 'فرق الدرج', 'Drawer difference'), variance == 0 ? _t(context, 'مظبوط ✅', 'Matches ✅') : _money(context, variance), Icons.balance_rounded,
+                    variance == 0 ? BrandColors.success : BrandColors.error),
+              ]),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+                child: Text(_t(context, 'الفروع', 'Branches'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              ),
+              for (final b in list)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${b['branch_name_ar']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                      const SizedBox(height: 6),
+                      Wrap(spacing: 18, runSpacing: 6, children: [
+                        _mini(_t(context, 'صافي', 'Net'), _money(context, b['net_minor'] as num), BrandColors.navy),
+                        _mini(_t(context, 'مبيعات', 'Sales'), '${_money(context, b['sales_minor'] as num)} (${b['sales_count']})', null),
+                        _mini(_t(context, 'مرتجعات', 'Refunds'), _money(context, b['refunds_minor'] as num), null),
+                        _mini(_t(context, 'فرق الدرج', 'Drawer difference'), _money(context, b['variance_minor'] as num),
+                            (b['variance_minor'] as num) == 0 ? BrandColors.success : BrandColors.error),
+                      ]),
+                    ]),
+                  ),
+                ),
+            ]);
+          },
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+          child: Row(children: [
+            Text(_t(context, 'الورديات', 'Shifts'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const Spacer(),
+            FilterChip(
+              label: Text(_t(context, 'اللي فيها فرق بس', 'Only with a difference')),
+              selected: _onlyDiff,
+              onSelected: (v) => setState(() => _onlyDiff = v),
+            ),
+          ]),
+        ),
+        shifts.when(
+          loading: () => const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
+          error: (e, _) => Text(_err(context, e)),
+          data: (all) {
+            final list = _onlyDiff ? all.where((s) => s['status'] == 'closed' && ((s['variance_minor'] as num?) ?? 0) != 0).toList() : all;
+            return list.isEmpty
+                ? Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_t(context, 'مفيش ورديات في الفترة دي', 'No shifts in this period'), style: const TextStyle(color: BrandColors.gray))))
+                : Column(children: [for (final s in list) _ShiftTile(s: s)]);
+          },
+        ),
+        const SizedBox(height: 30),
+      ]),
+    );
+  }
+
+  Widget _mini(String l, String v, Color? color) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(l, style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+        Text(v, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: color)),
+      ]);
+}

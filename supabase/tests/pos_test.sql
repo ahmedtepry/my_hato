@@ -203,6 +203,38 @@ select public.audit_verify() ->> 'ok' as chain_ok2 \gset
 select public._expect('tampering is detected', format($q$select 1/(case when %L = 'false' then 1 else 0 end)$q$, :'chain_ok2'), null);
 reset role;
 
+-- ---------- new roles: cashier and accountant (0062/0063)
+reset role;
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000a7', 'cashier2@t'), ('00000000-0000-0000-0000-0000000000a8', 'acct@t') on conflict do nothing;
+insert into public.profiles (id, full_name) values ('00000000-0000-0000-0000-0000000000a7', 'cashier2'), ('00000000-0000-0000-0000-0000000000a8', 'acct') on conflict do nothing;
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner can make a cashier', $q$select public.staff_assign_role('00000000-0000-0000-0000-0000000000a7', 'cashier')$q$, null);
+select public._expect('owner can make an accountant', $q$select public.staff_assign_role('00000000-0000-0000-0000-0000000000a8', 'accountant')$q$, null);
+select public._expect('team list shows the new roles',
+  $q$select 1/(case when (select count(*) from public.staff_team_live() where role in ('cashier','accountant')) = 2 then 1 else 0 end)$q$, null);
+reset role;
+insert into public.staff_branches (user_id, branch_id) values ('00000000-0000-0000-0000-0000000000a7', :'A'), ('00000000-0000-0000-0000-0000000000a8', :'A') on conflict do nothing;
+\set NCASH '00000000-0000-0000-0000-0000000000a7'
+\set ACCT '00000000-0000-0000-0000-0000000000a8'
+
+select set_config('request.jwt.claim.sub', :'NCASH', false); set role authenticated;
+select public._expect('cashier role can sell', $q$select public.pos_search_products('x')$q$, null);
+select public._expect('cashier role has no price/stock rights', $q$select 1/(case when public.has_permission('products.manage') or public.has_permission('inventory.manage') then 0 else 1 end)$q$, null);
+select public._expect('cashier role cannot see branch report', $q$select * from public.pos_branch_report()$q$, 'FORBIDDEN');
+select public._expect('cashier role cannot approve', $q$select * from public.pos_pending_approvals()$q$, 'FORBIDDEN');
+select public._expect('cashier role cannot manage the team', $q$select * from public.staff_team_live()$q$, 'FORBIDDEN');
+select public.pos_open_shift(:'A', 0) as ncash_shift \gset
+select public._expect('cashier role opens and closes a shift', format($q$select public.pos_close_shift(%L, 0, null)$q$, :'ncash_shift'), null);
+
+reset role; select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticated;
+select public._expect('accountant sees the branch report', $q$select * from public.pos_branch_report()$q$, null);
+select public._expect('accountant sees shifts', $q$select * from public.pos_shift_list()$q$, null);
+select public._expect('accountant cannot sell', $q$select public.pos_search_products('x')$q$, 'FORBIDDEN');
+select public._expect('accountant cannot open a shift', format($q$select public.pos_open_shift(%L, 0)$q$, :'A'), 'FORBIDDEN');
+select public._expect('accountant has no price/stock rights', $q$select 1/(case when public.has_permission('products.manage') or public.has_permission('inventory.manage') then 0 else 1 end)$q$, null);
+select public._expect('accountant cannot change the log', $q$update public.audit_logs set action = 'x'$q$, 'permission denied');
+reset role;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;
