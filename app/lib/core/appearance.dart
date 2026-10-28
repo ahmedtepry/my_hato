@@ -12,8 +12,8 @@ import 'team_theme.dart';
 import 'supabase_providers.dart';
 import 'theme.dart';
 
-const launchAnimations = ['classic', 'zoom', 'slide'];
-const appIcons = ['default', 'a', 'b', 'c'];
+const launchAnimations = ['classic', 'zoom', 'slide', 'liquid', 'orbit', 'phone', 'neon', 'pulse', 'bird'];
+const appIcons = ['default', 'a', 'b', 'c', 'liquid', 'orbit', 'phone', 'neon', 'pulse', 'bird'];
 
 /// The app's name, set by the owner. Read wherever the app writes its own name.
 class AppName {

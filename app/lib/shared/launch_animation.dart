@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import 'brand_logo.dart';
+import 'launch_art.dart';
 
-/// The three opening animations the owner can choose from the console (classic, zoom, slide).
+/// The opening animations the owner can choose from the console (classic, zoom, slide, plus the six artwork ones).
 class LaunchAnimation extends StatefulWidget {
   const LaunchAnimation({super.key, required this.variant, this.scale = 1});
   final String variant;
@@ -58,6 +59,13 @@ class _LaunchAnimationState extends State<LaunchAnimation> with SingleTickerProv
               Container(width: 120 * s * word, height: 3, decoration: BoxDecoration(color: BrandColors.electric, borderRadius: BorderRadius.circular(2))),
               SizedBox(height: 16 * s),
               Transform.translate(offset: Offset(0, 24 * s * (1 - word)), child: Opacity(opacity: word, child: BrandWordmark(size: 30 * s, onDark: true, showSlogan: true))),
+            ]);
+          case 'liquid' || 'orbit' || 'phone' || 'neon' || 'pulse' || 'bird':
+            final w = _iv(0.55, 1, Curves.easeOutCubic);
+            return Column(mainAxisSize: MainAxisSize.min, children: [
+              LaunchArt(id: widget.variant, t: _c.value, size: 112 * s),
+              SizedBox(height: 20 * s),
+              Transform.translate(offset: Offset(0, 10 * s * (1 - w)), child: Opacity(opacity: w, child: BrandWordmark(size: 30 * s, onDark: true, showSlogan: true))),
             ]);
           default:
             return Column(mainAxisSize: MainAxisSize.min, children: [

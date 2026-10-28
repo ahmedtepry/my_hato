@@ -7,7 +7,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val aliases = mapOf("default" to "IconDefault", "a" to "IconA", "b" to "IconB", "c" to "IconC")
+    private val aliases = mapOf("default" to "IconDefault", "a" to "IconA", "b" to "IconB", "c" to "IconC",
+        "bird" to "IconBird", "pulse" to "IconPulse", "phone" to "IconPhone", "neon" to "IconNeon", "orbit" to "IconOrbit", "liquid" to "IconLiquid")
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

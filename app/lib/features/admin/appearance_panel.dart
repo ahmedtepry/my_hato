@@ -265,24 +265,22 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
           'It changes on each customer\'s home screen the next time they open the app. Some phones take a moment, and it will not change for someone who has not opened the app.'),
           style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
       const SizedBox(height: 10),
-      Row(children: [
+      Wrap(spacing: 8, runSpacing: 8, children: [
         for (final i in appIcons)
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _icon = i),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _icon == i ? BrandColors.electric : BrandColors.border, width: _icon == i ? 2.5 : 1),
-                ),
-                child: Column(children: [
-                  ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.asset(i == 'default' ? 'assets/brand/app_icon.png' : 'assets/brand/icon_$i.png', width: 60, height: 60, fit: BoxFit.cover)),
-                  const SizedBox(height: 6),
-                  Text(i == 'default' ? _t(context, 'الحالية', 'Current') : _t(context, 'شكل ${{'a': 'ا', 'b': 'ب', 'c': 'ج'}[i]}', 'Style ${i.toUpperCase()}'), style: TextStyle(fontSize: 12, fontWeight: _icon == i ? FontWeight.w900 : FontWeight.w500)),
-                ]),
+          GestureDetector(
+            onTap: () => setState(() => _icon = i),
+            child: Container(
+              width: 84,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _icon == i ? BrandColors.electric : BrandColors.border, width: _icon == i ? 2.5 : 1),
               ),
+              child: Column(children: [
+                ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.asset(i == 'default' ? 'assets/brand/app_icon.png' : 'assets/brand/icon_$i.png', width: 60, height: 60, fit: BoxFit.cover)),
+                const SizedBox(height: 6),
+                Text(_iconName(context, i), textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: _icon == i ? FontWeight.w900 : FontWeight.w500)),
+              ]),
             ),
           ),
       ]),
@@ -304,19 +302,17 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
         ]),
       ),
       const SizedBox(height: 10),
-      SegmentedButton<String>(
-        showSelectedIcon: false,
-        segments: [
-          ButtonSegment(value: 'classic', label: Text(_t(context, 'كلاسيك', 'Classic'))),
-          ButtonSegment(value: 'zoom', label: Text(_t(context, 'تكبير', 'Zoom'))),
-          ButtonSegment(value: 'slide', label: Text(_t(context, 'انزلاق', 'Slide'))),
-        ],
-        selected: {_anim},
-        onSelectionChanged: (s) => setState(() {
-          _anim = s.first;
-          _replay++;
-        }),
-      ),
+      Wrap(spacing: 8, runSpacing: 4, children: [
+        for (final v in launchAnimations)
+          ChoiceChip(
+            label: Text(_animName(context, v)),
+            selected: _anim == v,
+            onSelected: (_) => setState(() {
+              _anim = v;
+              _replay++;
+            }),
+          ),
+      ]),
       const SizedBox(height: 22),
       FilledButton.icon(
         onPressed: _saving ? null : _save,
@@ -326,4 +322,16 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
       const SizedBox(height: 24),
     ]);
   }
+}
+
+String _iconName(BuildContext context, String i) {
+  const ar = {'default': 'الحالية', 'a': 'شكل ا', 'b': 'شكل ب', 'c': 'شكل ج', 'liquid': 'السائل', 'orbit': 'الأولوية', 'phone': 'الجوال', 'neon': 'النيون', 'pulse': 'النبض', 'bird': 'الحمامة'};
+  const en = {'default': 'Current', 'a': 'Style A', 'b': 'Style B', 'c': 'Style C', 'liquid': 'Liquid', 'orbit': 'Priority', 'phone': 'Phone', 'neon': 'Neon', 'pulse': 'Pulse', 'bird': 'Dove'};
+  return _t(context, ar[i] ?? i, en[i] ?? i);
+}
+
+String _animName(BuildContext context, String v) {
+  const ar = {'classic': 'كلاسيك', 'zoom': 'تكبير', 'slide': 'انزلاق', 'liquid': 'السائل', 'orbit': 'الأولوية', 'phone': 'الجوال', 'neon': 'النيون', 'pulse': 'النبض', 'bird': 'الحمامة'};
+  const en = {'classic': 'Classic', 'zoom': 'Zoom', 'slide': 'Slide', 'liquid': 'Liquid', 'orbit': 'Priority', 'phone': 'Phone', 'neon': 'Neon', 'pulse': 'Pulse', 'bird': 'Dove'};
+  return _t(context, ar[v] ?? v, en[v] ?? v);
 }
