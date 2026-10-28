@@ -279,7 +279,8 @@ final List<String> _navBack = [];
 
 /// Pages that live inside another page's tabs, so they leave the sidebar when that page is there.
 bool _hiddenInSidebar(String k, List<String> tabs) =>
-    (k == 'repairs' && tabs.contains('orders')) || (k == 'occasions' && tabs.contains('appearance')) || (k == 'team' && tabs.contains('accounts'));
+    (k == 'repairs' && tabs.contains('orders')) || (k == 'occasions' && tabs.contains('appearance')) || (k == 'team' && tabs.contains('accounts')) ||
+    (tabs.contains('sales') && (k == 'products' || k == 'reviews' || k == 'offers'));
 
 class _HostTabs extends StatelessWidget {
   const _HostTabs({required this.tabs});
@@ -314,6 +315,21 @@ class _OrdersHost extends ConsumerWidget {
     return _HostTabs(tabs: [
       if (p.contains('orders.view')) ('طلبات المبيعات', 'Sales orders', Icons.shopping_bag_outlined, const _OrdersTab()),
       if (p.contains('repairs.view')) ('طلبات الصيانة', 'Repair orders', Icons.build_outlined, const _RepairsTab()),
+    ]);
+  }
+}
+
+class _SalesHost extends ConsumerWidget {
+  const _SalesHost();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    return _HostTabs(tabs: [
+      ('المبيعات', 'Sales', Icons.trending_up_rounded, const SalesPanel()),
+      if (p.contains('products.manage')) ('المنتجات', 'Products', Icons.inventory_2_outlined, const _ProductsTab()),
+      if (p.contains('orders.manage') || p.contains('coupons.manage') || p.contains('notifications.broadcast'))
+        ('العروض وأكواد الخصم', 'Offers & codes', Icons.campaign_outlined, const PromotionsScreen()),
+      if (p.contains('products.manage')) ('التقييمات', 'Reviews', Icons.star_outline_rounded, const _ReviewsTab()),
     ]);
   }
 }
@@ -393,9 +409,9 @@ class AdminHomeScreen extends ConsumerWidget {
                       'pos' => const PosPanel(),
                       'shifts' => const ShiftsPanel(),
                       'books' => const AccountantPanel(),
-                      'sales' => const SalesPanel(),
                       'ops' => const OpsPanel(),
                       'orders' => const _OrdersHost(),
+                      'sales' => const _SalesHost(),
                       'accounts' => const _AccountsHost(),
                       'appearance' => const _AppearanceHost(),
                       'targets' => const TargetsPanel(),
