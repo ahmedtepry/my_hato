@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -33,8 +35,27 @@ class PosRepository {
 
   Future<Map<String, dynamic>> shiftSummary(String shiftId) async => _m(await _db.rpc('pos_shift_summary', params: {'p_shift': shiftId}));
 
-  Future<Map<String, dynamic>> closeShift(String shiftId, int countedMinor, String? note) async =>
-      _m(await _db.rpc('pos_close_shift', params: {'p_shift': shiftId, 'p_counted_minor': countedMinor, 'p_note': note}));
+  /// Closes the shift. The database asks for the closer's own password again and answers `{ok:false, error:'WRONG_PASSWORD'}` when it is wrong.
+  /// On success `report` is the final, numbered closing report (it can never be changed afterwards).
+  Future<Map<String, dynamic>> closeShift(String shiftId, int countedMinor, String? note, String password) async =>
+      _m(await _db.rpc('pos_close_shift', params: {
+        'p_shift': shiftId,
+        'p_counted_minor': countedMinor,
+        'p_password': password,
+        'p_note': note,
+        'p_device': deviceLabel(),
+      }));
+
+  Future<List<Map<String, dynamic>>> shiftReports(int days) async => _l(await _db.rpc('pos_shift_report_list', params: {
+        'p_from': DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String(),
+        'p_limit': 200,
+      }));
+
+  Future<Map<String, dynamic>> shiftReport(String shiftId) async => _m(await _db.rpc('pos_shift_report_get', params: {'p_shift': shiftId}));
+
+  Future<void> addCorrection(String shiftId, int amountMinor, String reason) async {
+    await _db.rpc('pos_add_shift_correction', params: {'p_shift': shiftId, 'p_amount_minor': amountMinor, 'p_reason': reason});
+  }
 
   Future<List<Map<String, dynamic>>> searchProducts(String q) async =>
       _l(await _db.rpc('pos_search_products', params: {'p_q': q.trim().isEmpty ? null : q.trim(), 'p_limit': 40}));
@@ -121,6 +142,15 @@ final posShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref)
 final posLimitsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) => ref.watch(posRepoProvider).limits());
 final posBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) => ref.watch(posRepoProvider).branches());
 
+/// Which machine is doing this (recorded with the shift closing): system + computer name.
+String deviceLabel() {
+  try {
+    return '${Platform.operatingSystem} · ${Platform.localHostname}';
+  } catch (_) {
+    return 'unknown';
+  }
+}
+
 /// Backend error code -> message for the cashier (Egyptian Arabic / English).
 String posErrorText(Object e, bool ar, String Function(Object) fallback) {
   final m = e is PostgrestException ? '${e.message} ${e.details ?? ''}' : e.toString();
@@ -140,6 +170,8 @@ String posErrorText(Object e, bool ar, String Function(Object) fallback) {
   if (m.contains('REFUND_EXCEEDS_SOLD')) return pick('الكمية أو المبلغ أكبر من اللي اتباع', 'More than was sold');
   if (m.contains('ALREADY_DECIDED')) return pick('الطلب ده اتقرر فيه قبل كده', 'Already decided');
   if (m.contains('TOO_MANY_PENDING')) return pick('عندك طلبات موافقة كتير مستنية', 'Too many pending requests');
+  if (m.contains('WRONG_PASSWORD')) return pick('الباسورد غلط', 'Wrong password');
+  if (m.contains('SHIFT_NOT_CLOSED')) return pick('الوردية لسه مفتوحة', 'The shift is still open');
   if (m.contains('RATE_LIMITED')) return pick('محاولات غلط كتير، استنى شوية وجرّب تاني', 'Too many wrong attempts, wait a bit');
   if (m.contains('NOT_FOUND')) return pick('مش لاقي الفاتورة أو المنتج', 'Not found');
   if (m.contains('FORBIDDEN')) return pick('مش مسموحلك بالعملية دي', 'Not allowed');

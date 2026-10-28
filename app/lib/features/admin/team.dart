@@ -169,6 +169,7 @@ String actionLabel(BuildContext context, String? a) {
     'pos.limits': ['غيّر حدود الموافقة', 'Changed approval limits'],
     'shift.open': ['فتح وردية', 'Opened a shift'],
     'shift.close': ['قفل وردية', 'Closed a shift'],
+    'shift.correct': ['سجّل تصحيح على وردية مقفولة', 'Added a correction to a closed shift'],
     'approval.request': ['طلب موافقة', 'Asked for approval'],
     'approval.decide': ['قرر في طلب موافقة', 'Decided an approval'],
     'staff.branches': ['غيّر فروع موظف', 'Changed staff branches'],

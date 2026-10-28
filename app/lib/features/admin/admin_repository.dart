@@ -479,7 +479,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     'overview',
     if (p.contains('pos.sell')) 'pos',
     if (p.contains('pos.approve') || p.contains('shifts.review')) 'shifts',
-    if (p.contains('shifts.review') || p.contains('sales.view')) 'books',
+    if (p.contains('shifts.review') || p.contains('sales.view') || p.contains('shifts.reports')) 'books',
     if (p.contains('orders.view')) 'orders',
     if (p.contains('sales.view')) 'sales',
     if (p.contains('appearance.manage')) 'appearance',

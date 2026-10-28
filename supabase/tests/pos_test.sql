@@ -28,6 +28,7 @@ insert into auth.users (id, email) values
  ('00000000-0000-0000-0000-0000000000a5', 'cashB@t'), ('00000000-0000-0000-0000-0000000000a6', 'mgrB@t')
 on conflict do nothing;
 insert into public.profiles (id, full_name) select id, split_part(email, '@', 1) from auth.users where id::text like '00000000-0000-0000-0000-0000000000a%' on conflict do nothing;
+update auth.users set encrypted_password = extensions.crypt('pw-test-1', extensions.gen_salt('bf')) where id::text like '00000000-0000-0000-0000-0000000000a%';
 insert into public.user_roles (user_id, role) values
  ('00000000-0000-0000-0000-0000000000a1', 'owner'), ('00000000-0000-0000-0000-0000000000a2', 'manager'),
  ('00000000-0000-0000-0000-0000000000a3', 'sales'), ('00000000-0000-0000-0000-0000000000a4', 'technician'),
@@ -160,12 +161,43 @@ select public._expect('cashier B cannot see shift A summary', format($q$select p
 select public._expect('cashier B sees zero shifts of A via REST', format($q$select 1/(case when (select count(*) from public.shifts where branch_id = %L) = 0 then 1 else 0 end)$q$, :'A'), null);
 select public._expect('cashier B sees zero sales of A via REST', $q$select 1/(case when (select count(*) from public.pos_sales) = 0 then 1 else 0 end)$q$, null);
 reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
-select public._expect('closing with a difference needs a note', format($q$select public.pos_close_shift(%L, 1000, null)$q$, :'shift_a'), 'NOTE_REQUIRED');
-select public.pos_close_shift(:'shift_a', :'exp_a'::bigint - 500, 'ناقص ٥ جنيه') ->> 'variance_minor' as var_a \gset
+select public._expect('wrong password does not close the shift', format($q$select 1/(case when public.pos_close_shift(%L, 1000, 'nope', 'x y z', null) ->> 'error' = 'WRONG_PASSWORD' and (select status from public.shifts where id = %L) = 'open' then 1 else 0 end)$q$, :'shift_a', :'shift_a'), null);
+select public._expect('missing password does not close the shift', format($q$select 1/(case when public.pos_close_shift(%L, 1000, null, 'x y z', null) ->> 'error' = 'WRONG_PASSWORD' then 1 else 0 end)$q$, :'shift_a'), null);
+select public._expect('closing with a difference needs a note', format($q$select public.pos_close_shift(%L, 1000, 'pw-test-1', null)$q$, :'shift_a'), 'NOTE_REQUIRED');
+select public.pos_close_shift(:'shift_a', :'exp_a'::bigint - 500, 'pw-test-1', 'ناقص ٥ جنيه', 'windows · TILL-1') -> 'report' ->> 'variance_minor' as var_a \gset
 select public._expect('variance recorded (-500)', format($q$select 1/(case when %s = -500 then 1 else 0 end)$q$, :'var_a'), null);
 select public._expect('closed shift cannot sell', format($q$select public.pos_create_sale('idem-0011-aaaa', %L, '[{"product_id":"d0000000-0000-0000-0000-000000000001","quantity":1}]', 0, 10000)$q$, :'shift_a'), 'NO_OPEN_SHIFT');
 reset role;
 select public._expect('closed shift cannot be edited', format($q$update public.shifts set counted_cash_minor = 1 where id = %L$q$, :'shift_a'), 'RECORD_IS_FINAL');
+
+-- ---------- final closing report + corrections
+select public._expect('closing report records who, where and on which device', format($q$select 1/(case when exists (select 1 from public.shift_reports where shift_id = %L and closed_by_name is not null and closed_device = 'windows · TILL-1' and branch_name_ar is not null and report_no like 'SR-%%' and variance_minor = -500) then 1 else 0 end)$q$, :'shift_a'), null);
+select public._expect('shift row also records the device', format($q$select 1/(case when (select closed_device from public.shifts where id = %L) = 'windows · TILL-1' then 1 else 0 end)$q$, :'shift_a'), null);
+select public._expect('report cannot be edited', format($q$update public.shift_reports set counted_minor = 1 where shift_id = %L$q$, :'shift_a'), 'RECORD_IS_FINAL');
+select public._expect('report cannot be deleted', format($q$delete from public.shift_reports where shift_id = %L$q$, :'shift_a'), 'RECORD_IS_FINAL');
+select public._expect('reports cannot be truncated', $q$truncate public.shift_reports$q$, 'RECORD_IS_FINAL');
+select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('cashier reads his own final report', format($q$select public.pos_shift_report_get(%L)$q$, :'shift_a'), null);
+select public._expect('cashier cannot list all reports', $q$select * from public.pos_shift_report_list()$q$, 'FORBIDDEN');
+select public._expect('cashier cannot add a correction', format($q$select public.pos_add_shift_correction(%L, 500, 'تصحيح عد الدرج')$q$, :'shift_a'), 'FORBIDDEN');
+select public._expect('report tables are not readable directly', $q$select * from public.shift_reports$q$, 'permission denied');
+reset role; select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
+select public._expect('other branch cashier cannot read the report', format($q$select public.pos_shift_report_get(%L)$q$, :'shift_a'), 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician cannot list reports', $q$select * from public.pos_shift_report_list()$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'MGRB', false); set role authenticated;
+select public._expect('manager of another branch sees no report of branch A', format($q$select 1/(case when (select count(*) from public.pos_shift_report_list()) = 0 then 1 else 0 end)$q$, null), null);
+select public._expect('manager of another branch cannot correct it', format($q$select public.pos_add_shift_correction(%L, 500, 'تصحيح عد الدرج')$q$, :'shift_a'), 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('manager sees the report list', $q$select 1/(case when (select count(*) from public.pos_shift_report_list()) >= 1 then 1 else 0 end)$q$, null);
+select public._expect('correction needs a real reason', format($q$select public.pos_add_shift_correction(%L, 500, 'x')$q$, :'shift_a'), 'INVALID_INPUT');
+select public._expect('manager adds a correction', format($q$select public.pos_add_shift_correction(%L, 500, 'عدّ الدرج غلط والفرق اتصحح')$q$, :'shift_a'), null);
+select public._expect('original shift unchanged, corrected result shown', format($q$select 1/(case when (public.pos_shift_report_get(%L) ->> 'variance_minor')::bigint = -500 and (public.pos_shift_report_get(%L) ->> 'variance_after_corrections_minor')::bigint = 0 then 1 else 0 end)$q$, :'shift_a', :'shift_a'), null);
+reset role;
+select public._expect('correction cannot be edited', $q$update public.shift_corrections set amount_minor = 1$q$, 'RECORD_IS_FINAL');
+select public._expect('correction cannot be deleted', $q$delete from public.shift_corrections$q$, 'RECORD_IS_FINAL');
+select public._expect('closing and correcting are in the log', $q$select 1/(case when exists (select 1 from public.audit_logs where action = 'shift.close' and details ->> 'device' = 'windows · TILL-1') and exists (select 1 from public.audit_logs where action = 'shift.correct') then 1 else 0 end)$q$, null);
+select set_config('request.jwt.claim.sub', :'CASH', false);
 
 -- ---------- disabled employee
 update public.team_members set suspended_at = now() where user_id = :'CASH'::uuid;
@@ -207,6 +239,7 @@ reset role;
 reset role;
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000a7', 'cashier2@t'), ('00000000-0000-0000-0000-0000000000a8', 'acct@t') on conflict do nothing;
 insert into public.profiles (id, full_name) values ('00000000-0000-0000-0000-0000000000a7', 'cashier2'), ('00000000-0000-0000-0000-0000000000a8', 'acct') on conflict do nothing;
+update auth.users set encrypted_password = extensions.crypt('pw-test-1', extensions.gen_salt('bf')) where id::text like '00000000-0000-0000-0000-0000000000a_';
 select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
 select public._expect('owner can make a cashier', $q$select public.staff_assign_role('00000000-0000-0000-0000-0000000000a7', 'cashier')$q$, null);
 select public._expect('owner can make an accountant', $q$select public.staff_assign_role('00000000-0000-0000-0000-0000000000a8', 'accountant')$q$, null);
@@ -224,11 +257,23 @@ select public._expect('cashier role cannot see branch report', $q$select * from 
 select public._expect('cashier role cannot approve', $q$select * from public.pos_pending_approvals()$q$, 'FORBIDDEN');
 select public._expect('cashier role cannot manage the team', $q$select * from public.staff_team_live()$q$, 'FORBIDDEN');
 select public.pos_open_shift(:'A', 0) as ncash_shift \gset
-select public._expect('cashier role opens and closes a shift', format($q$select public.pos_close_shift(%L, 0, null)$q$, :'ncash_shift'), null);
+select public._expect('cashier role opens and closes a shift', format($q$select public.pos_close_shift(%L, 0, 'pw-test-1', null)$q$, :'ncash_shift'), null);
+select public.pos_open_shift(:'A', 0) as ncash_shift2 \gset
+select public._expect('a wrong password is counted', format($q$select 1/(case when public.pos_close_shift(%L, 0, 'bad-1', null) ->> 'error' = 'WRONG_PASSWORD' then 1 else 0 end)$q$, :'ncash_shift2'), null);
+select public.pos_close_shift(:'ncash_shift2', 0, 'bad-2', null);
+select public.pos_close_shift(:'ncash_shift2', 0, 'bad-3', null);
+select public.pos_close_shift(:'ncash_shift2', 0, 'bad-4', null);
+select public.pos_close_shift(:'ncash_shift2', 0, 'bad-5', null);
+select public.pos_close_shift(:'ncash_shift2', 0, 'bad-6', null);
+select public.pos_close_shift(:'ncash_shift2', 0, 'bad-7', null);
+select public.pos_close_shift(:'ncash_shift2', 0, 'bad-8', null);
+select public._expect('too many wrong passwords are blocked', format($q$select public.pos_close_shift(%L, 0, 'pw-test-1', null)$q$, :'ncash_shift2'), 'RATE_LIMITED');
 
 reset role; select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticated;
 select public._expect('accountant sees the branch report', $q$select * from public.pos_branch_report()$q$, null);
 select public._expect('accountant sees shifts', $q$select * from public.pos_shift_list()$q$, null);
+select public._expect('accountant sees the closing reports', $q$select 1/(case when (select count(*) from public.pos_shift_report_list()) >= 1 then 1 else 0 end)$q$, null);
+select public._expect('accountant cannot add a correction unless the owner allows it', format($q$select public.pos_add_shift_correction(%L, 500, 'محاولة تصحيح')$q$, :'shift_a'), 'FORBIDDEN');
 select public._expect('accountant cannot sell', $q$select public.pos_search_products('x')$q$, 'FORBIDDEN');
 select public._expect('accountant cannot open a shift', format($q$select public.pos_open_shift(%L, 0)$q$, :'A'), 'FORBIDDEN');
 select public._expect('accountant has no price/stock rights', $q$select 1/(case when public.has_permission('products.manage') or public.has_permission('inventory.manage') then 0 else 1 end)$q$, null);

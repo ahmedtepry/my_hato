@@ -16,6 +16,7 @@ import '../../shared/barcode_scanner.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'pos_receipt.dart';
+import 'shift_reports.dart';
 import 'pos_repository.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -1089,6 +1090,8 @@ class _CloseShiftDialog extends ConsumerStatefulWidget {
 class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
   final _counted = TextEditingController();
   final _note = TextEditingController();
+  final _pass = TextEditingController();
+  bool _obscure = true;
   late final Future<Map<String, dynamic>> _summary = ref.read(posRepoProvider).shiftSummary(widget.shiftId);
   bool _busy = false;
 
@@ -1096,17 +1099,24 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
   void dispose() {
     _counted.dispose();
     _note.dispose();
+    _pass.dispose();
     super.dispose();
   }
 
   Future<void> _close(int counted) async {
     setState(() => _busy = true);
     try {
-      final r = await ref.read(posRepoProvider).closeShift(widget.shiftId, counted, _note.text.trim().isEmpty ? null : _note.text.trim());
+      final r = await ref.read(posRepoProvider).closeShift(widget.shiftId, counted, _note.text.trim().isEmpty ? null : _note.text.trim(), _pass.text);
       if (!mounted) return;
-      final v = (r['variance_minor'] as num).toInt();
-      Navigator.pop(context, true);
-      showSnack(context, v == 0 ? _t(context, 'اتقفلت الوردية والدرج مظبوط ✅', 'Shift closed, the drawer matches ✅') : _t(context, 'اتقفلت الوردية. الفرق ${_money(context, v)} واتسجّل.', 'Shift closed. Difference ${_money(context, v)} recorded.'));
+      if (r['ok'] != true) {
+        showSnack(context, _t(context, 'الباسورد غلط، الوردية لسه مفتوحة', 'Wrong password, the shift is still open'), error: true);
+        _pass.clear();
+        return;
+      }
+      _pass.clear();
+      // the final closing report: shown at once, and kept for the accountant, the manager and the owner
+      await showDialog<void>(context: context, builder: (_) => ShiftReportDialog(shiftId: widget.shiftId, justClosed: true));
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
     } finally {
@@ -1117,6 +1127,7 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: Text(_t(context, 'إقفال الوردية', 'Close shift')),
       content: SizedBox(
         width: 420,
@@ -1153,6 +1164,20 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
                     c: diff == 0 ? BrandColors.success : BrandColors.error, b: true),
                 if (diff != 0) TextField(controller: _note, maxLength: 200, decoration: InputDecoration(labelText: _t(context, 'سبب الفرق (مطلوب)', 'Reason for the difference (required)'))),
               ],
+              const SizedBox(height: 10),
+              TextField(
+                controller: _pass,
+                obscureText: _obscure,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: _t(context, 'الباسورد بتاعك (تأكيد الإقفال)', 'Your password (confirms the closing)'),
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined), onPressed: () => setState(() => _obscure = !_obscure)),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(_t(context, 'بعد القفل بيتعمل تقرير نهائي مبيتعدّلش ولا بيتمسح، واسمك والجهاز والوقت بيتسجّلوا.', 'Closing creates a final report that cannot be edited or deleted; your name, the device and the time are recorded.'),
+                  style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
             ]);
           },
         ),
@@ -1160,7 +1185,7 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t(context, 'رجوع', 'Back'))),
         FilledButton(
-          onPressed: _busy || parseEgpToMinor(_counted.text) == null ? null : () => _close(parseEgpToMinor(_counted.text)!),
+          onPressed: _busy || parseEgpToMinor(_counted.text) == null || _pass.text.isEmpty ? null : () => _close(parseEgpToMinor(_counted.text)!),
           child: Text(_t(context, 'قفل الوردية', 'Close shift')),
         ),
       ],

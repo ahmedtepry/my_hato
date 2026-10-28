@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'pos_repository.dart';
+import 'shift_reports.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
@@ -87,6 +88,7 @@ class _ShiftsPanelState extends ConsumerState<ShiftsPanel> {
         ref.invalidate(_approvalsProvider);
         ref.invalidate(_shiftsProvider);
         ref.invalidate(_branchReportProvider);
+        ref.invalidate(shiftReportsProvider);
       },
       child: ListView(padding: const EdgeInsets.all(14), children: [
         if (canApprove) ...[
@@ -149,6 +151,10 @@ class _ShiftsPanelState extends ConsumerState<ShiftsPanel> {
                   ? Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_t(context, 'مفيش ورديات في آخر ٧ أيام', 'No shifts in the last 7 days'), style: const TextStyle(color: BrandColors.gray))))
                   : Column(children: [for (final s in list) _ShiftTile(s: s)]),
             ),
+        ],
+        if (perms.contains('shifts.reports')) ...[
+          title('تقارير إقفال الورديات', 'Shift closing reports'),
+          ShiftReportsList(days: _days),
         ],
         if (canReport) ...[
           title('مقارنة الفروع', 'Branches side by side',
@@ -481,6 +487,7 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
       onRefresh: () async {
         ref.invalidate(_branchReportProvider);
         ref.invalidate(_booksShiftsProvider);
+        ref.invalidate(shiftReportsProvider);
       },
       child: ListView(padding: const EdgeInsets.all(14), children: [
         Row(children: [
@@ -548,6 +555,13 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
             ]);
           },
         ),
+        if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('shifts.reports') ?? false) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+            child: Text(_t(context, 'تقارير إقفال الورديات', 'Shift closing reports'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          ),
+          ShiftReportsList(days: _days),
+        ],
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
           child: Row(children: [
