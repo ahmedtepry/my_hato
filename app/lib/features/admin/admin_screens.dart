@@ -275,6 +275,43 @@ ConsoleLayout _resolveLayout(List<String> available, ConsoleLayout? saved) {
   return ConsoleLayout(order, pinned.take(4).toList());
 }
 
+/// A small tile in the left control column: icon, tiny label, optional badge.
+class _RailTile extends StatelessWidget {
+  const _RailTile({required this.child, required this.label, required this.tooltip, required this.onTap, this.badge});
+  final Widget child;
+  final String label, tooltip;
+  final String? badge;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: tooltip,
+        child: Material(
+          color: Colors.white,
+          elevation: onTap == null ? 0 : 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: BrandColors.border)),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                child,
+                const SizedBox(height: 2),
+                Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: onTap == null ? BrandColors.gray : BrandColors.navy)),
+                if (badge != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(color: BrandColors.warning.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                    child: Text(badge!, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: BrandColors.warning)),
+                  ),
+              ]),
+            ),
+          ),
+        ),
+      );
+}
+
 /// Pages visited in the desktop console, so the back button next to the colours button can return to the previous one.
 final List<String> _navBack = [];
 
@@ -498,57 +535,35 @@ class AdminHomeScreen extends ConsumerWidget {
                           ),
                           Expanded(
                             child: Stack(children: [
-                              pages,
-                              // top-left corner: the colour theme of this device (the owner can also set it for everyone)
+                              // a gutter on the left holds the device controls in one tidy column
+                              Padding(padding: const EdgeInsets.only(left: 68), child: pages),
                               Positioned(
-                                left: 12,
+                                left: 8,
                                 top: 10,
-                                child: Directionality(
-                                  textDirection: TextDirection.ltr,
-                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                    TeamThemeButton(isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
-                                    const SizedBox(width: 8),
-                                    const AppUpdateButton(),
-                                    const SizedBox(width: 8),
-                                    Tooltip(
-                                      message: _t(ctx, 'قريبًا: هنحدد الخدمة دي بعدين', 'Coming soon'),
-                                      child: Container(
-                                        height: 40,
-                                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.85),
-                                          borderRadius: BorderRadius.circular(20),
-                                          border: Border.all(color: BrandColors.border),
-                                        ),
-                                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                          const Text('🤖', style: TextStyle(fontSize: 18)),
-                                          const SizedBox(width: 6),
-                                          const Text('UI mode', style: TextStyle(fontWeight: FontWeight.w800, color: BrandColors.gray)),
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(color: BrandColors.warning.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-                                            child: Text(_t(ctx, 'قريبًا', 'Soon'), style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: BrandColors.warning)),
-                                          ),
-                                        ]),
-                                      ),
+                                width: 54,
+                                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                  if (_navBack.isNotEmpty) ...[
+                                    _RailTile(
+                                      tooltip: _t(ctx, 'رجوع للصفحة اللي قبلها', 'Back to the previous page'),
+                                      onTap: back,
+                                      child: Directionality(textDirection: Directionality.of(context), child: const Icon(Icons.arrow_back_rounded, color: BrandColors.electric)),
+                                      label: _t(ctx, 'رجوع', 'Back'),
                                     ),
-                                    if (_navBack.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Material(
-                                        color: Colors.white,
-                                        elevation: 2,
-                                        shape: const CircleBorder(),
-                                        child: IconButton(
-                                          tooltip: _t(ctx, 'رجوع للصفحة اللي قبلها', 'Back to the previous page'),
-                                          icon: Directionality(textDirection: Directionality.of(context), child: const Icon(Icons.arrow_back_rounded)),
-                                          color: BrandColors.electric,
-                                          onPressed: back,
-                                        ),
-                                      ),
-                                    ],
-                                  ]),
-                                ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  // the colour theme of this device (the owner can also set it for everyone)
+                                  TeamThemeButton(isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
+                                  const SizedBox(height: 8),
+                                  const AppUpdateButton(),
+                                  const SizedBox(height: 8),
+                                  _RailTile(
+                                    tooltip: _t(ctx, 'قريبًا: هنحدد الخدمة دي بعدين', 'Coming soon'),
+                                    onTap: null,
+                                    child: const Text('🤖', style: TextStyle(fontSize: 22)),
+                                    label: 'UI mode',
+                                    badge: _t(ctx, 'قريبًا', 'Soon'),
+                                  ),
+                                ]),
                               ),
                             ]),
                           ),

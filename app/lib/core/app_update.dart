@@ -131,39 +131,46 @@ class AppUpdateButton extends ConsumerWidget {
     final st = ref.watch(appUpdateProvider);
     final info = st.available;
     final ar = context.isAr;
-    if (info == null) {
-      return Tooltip(
-        message: ar ? 'البرنامج محدّث (نسخة $kBuildNumber). اضغط للتأكد من وجود تحديث' : 'Up to date (build $kBuildNumber). Tap to check',
-        child: Material(
-          color: Colors.white,
-          elevation: 2,
-          shape: const CircleBorder(),
-          child: IconButton(
-            icon: st.checking
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.system_update_alt_rounded),
-            color: BrandColors.gray,
-            onPressed: st.checking ? null : () => ref.read(appUpdateProvider.notifier).check(),
+    Widget tile({required Widget icon, required String label, required Color bg, required Color fg, required VoidCallback? onTap, required String tip, bool glow = false}) => Tooltip(
+          message: tip,
+          child: Material(
+            color: bg,
+            elevation: glow ? 5 : 2,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  icon,
+                  const SizedBox(height: 2),
+                  Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: fg, height: 1.15)),
+                ]),
+              ),
+            ),
           ),
-        ),
+        );
+    if (info == null) {
+      return tile(
+        tip: ar ? 'البرنامج محدّث (نسخة $kBuildNumber). اضغط للتأكد من وجود تحديث' : 'Up to date (build $kBuildNumber). Tap to check',
+        icon: st.checking
+            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.system_update_alt_rounded, color: BrandColors.gray),
+        label: ar ? 'محدّث' : 'Updated',
+        bg: Colors.white,
+        fg: BrandColors.gray,
+        onTap: st.checking ? null : () => ref.read(appUpdateProvider.notifier).check(),
       );
     }
-    return Material(
-      color: BrandColors.warning,
-      elevation: 4,
-      borderRadius: BorderRadius.circular(22),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: () => showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _UpdateDialog(info: info)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.system_update_alt_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 6),
-            Text(ar ? 'تحديث البرنامج' : 'Update the app', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-          ]),
-        ),
-      ),
+    return tile(
+      tip: ar ? 'نسخة جديدة جاهزة، اضغط لتحديث البرنامج' : 'A new version is ready',
+      icon: const Icon(Icons.system_update_alt_rounded, color: Colors.white),
+      label: ar ? 'تحديث\nالبرنامج' : 'Update\nthe app',
+      bg: BrandColors.warning,
+      fg: Colors.white,
+      glow: true,
+      onTap: () => showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _UpdateDialog(info: info)),
     );
   }
 }
