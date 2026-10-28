@@ -67,6 +67,7 @@ const _perms = <String, _PermInfo>{
   'roles.assign': _PermInfo('system', 'يغيّر أدوار الناس', 'Change people roles', sensitive: true),
   'branches.manage': _PermInfo('system', 'يعدّل الفروع ومناطق التوصيل', 'Edit branches and delivery zones'),
   'books.period': _PermInfo('pos', 'يختار فترة التقرير (يوم/شهر/سنة)', 'Pick the report period (day / month / year)'),
+  'branches.rename': _PermInfo('system', 'يعدّل أسماء الفروع', 'Rename branches'),
   'ops.live': _PermInfo('system', 'غرفة العمليات المباشرة', 'Live operations room', sensitive: true),
   'targets.view': _PermInfo('pos', 'يشوف تارجت الفروع', 'See branch targets'),
   'targets.manage': _PermInfo('pos', 'يحدد التارجت (فروع وموظفين)', 'Set targets (branches and employees)'),
@@ -522,6 +523,16 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
           const SizedBox(width: 6),
           Text(_s(context, 'branch_title', 'الفرع اللي بيشتغل فيه', 'Branch he works in'), style: const TextStyle(fontWeight: FontWeight.w800)),
           if (_savingBranches) const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))),
+          const Spacer(),
+          if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('branches.rename') ?? false)
+            TextButton.icon(
+              onPressed: () async {
+                await showDialog<void>(context: context, builder: (_) => const _RenameBranchesDialog());
+                if (mounted) _loadBranches();
+              },
+              icon: const Icon(Icons.edit_rounded, size: 16),
+              label: Text(_s(context, 'rename_branches', 'تعديل أسماء الفروع', 'Rename branches')),
+            ),
         ]),
         const SizedBox(height: 8),
         if (all.isEmpty)
@@ -630,4 +641,95 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
       ],
     ]);
   }
+}
+
+
+/// Renames the branches (needs the "branches.rename" permission).
+class _RenameBranchesDialog extends ConsumerStatefulWidget {
+  const _RenameBranchesDialog();
+  @override
+  ConsumerState<_RenameBranchesDialog> createState() => _RenameBranchesDialogState();
+}
+
+class _RenameBranchesDialogState extends ConsumerState<_RenameBranchesDialog> {
+  List<Map<String, dynamic>>? _all;
+  final _ctl = <String, TextEditingController>{};
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    () async {
+      try {
+        final all = await ref.read(teamRepoProvider).branches();
+        for (final b in all) {
+          _ctl['${b['id']}'] = TextEditingController(text: '${b['name_ar']}');
+        }
+        if (mounted) setState(() => _all = all);
+      } catch (_) {
+        if (mounted) setState(() => _all = const []);
+      }
+    }();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctl.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    try {
+      for (final b in _all!) {
+        final id = '${b['id']}';
+        final name = _ctl[id]!.text.trim();
+        if (name.isNotEmpty && name != '${b['name_ar']}') {
+          await ref.read(supabaseProvider).rpc('staff_rename_branch', params: {'p_branch': id, 'p_name_ar': name});
+        }
+      }
+      if (mounted) {
+        showSnack(context, _s(context, 'saved', 'اتحفظ', 'Saved'));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        showSnack(context, _permError(context, e), error: true);
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(_s(context, 'rename_branches', 'تعديل أسماء الفروع', 'Rename branches')),
+        content: SizedBox(
+          width: 380,
+          child: _all == null
+              ? const SizedBox(height: 80, child: Center(child: CircularProgressIndicator()))
+              : SingleChildScrollView(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    for (final b in _all!)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: TextField(
+                          controller: _ctl['${b['id']}'],
+                          maxLength: 40,
+                          decoration: InputDecoration(
+                            counterText: '',
+                            prefixIcon: Icon(b['is_hq'] == true ? Icons.apartment_rounded : Icons.store_rounded),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                  ]),
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: Text(_s(context, 'cancel', 'إلغاء', 'Cancel'))),
+          FilledButton(onPressed: _busy || _all == null ? null : _save, child: Text(_s(context, 'save', 'حفظ', 'Save'))),
+        ],
+      );
 }

@@ -378,7 +378,15 @@ class AdminHomeScreen extends ConsumerWidget {
     return DefaultTabController(
       key: ValueKey(tabs.join(',')),
       length: tabs.length + 1, // the sections, then the arrange page
-      child: Builder(builder: (ctx) {
+      child: Stack(fit: StackFit.expand, children: [
+        _homeBody(context, ref, tabs, available, layout, consoleIdx),
+        const _WelcomeToast(),
+      ]),
+    );
+  }
+
+  Widget _homeBody(BuildContext context, WidgetRef ref, List<String> tabs, List<String> available, ConsoleLayout layout, int consoleIdx) {
+    return Builder(builder: (ctx) {
         final c = DefaultTabController.of(ctx);
         void open(String k) {
           final cur = c.index < consoleIdx ? tabs[c.index] : null;
@@ -497,6 +505,30 @@ class AdminHomeScreen extends ConsumerWidget {
                                   textDirection: TextDirection.ltr,
                                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                                     TeamThemeButton(isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
+                                    const SizedBox(width: 8),
+                                    Tooltip(
+                                      message: _t(ctx, 'قريبًا: هنحدد الخدمة دي بعدين', 'Coming soon'),
+                                      child: Container(
+                                        height: 40,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                          borderRadius: BorderRadius.circular(20),
+                                          border: Border.all(color: BrandColors.border),
+                                        ),
+                                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                          const Text('🤖', style: TextStyle(fontSize: 18)),
+                                          const SizedBox(width: 6),
+                                          const Text('UI mode', style: TextStyle(fontWeight: FontWeight.w800, color: BrandColors.gray)),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(color: BrandColors.warning.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                                            child: Text(_t(ctx, 'قريبًا', 'Soon'), style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: BrandColors.warning)),
+                                          ),
+                                        ]),
+                                      ),
+                                    ),
                                     if (_navBack.isNotEmpty) ...[
                                       const SizedBox(width: 8),
                                       Material(
@@ -582,7 +614,72 @@ class AdminHomeScreen extends ConsumerWidget {
             );
           },
         );
-      }),
+    });
+  }
+}
+
+/// A short welcome ("أهلاً يا أحمد") shown once when a member opens the console after signing in.
+class _WelcomeToast extends ConsumerStatefulWidget {
+  const _WelcomeToast();
+  static String? _doneFor;
+  @override
+  ConsumerState<_WelcomeToast> createState() => _WelcomeToastState();
+}
+
+class _WelcomeToastState extends ConsumerState<_WelcomeToast> {
+  bool _show = false;
+  Timer? _timer;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _start(String uid) {
+    _WelcomeToast._doneFor = uid;
+    _show = true;
+    _timer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _show = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = ref.watch(currentUserProvider)?.id;
+    final profile = ref.watch(profileProvider);
+    if (uid != null && _WelcomeToast._doneFor != uid && profile.hasValue) _start(uid);
+    final full = ((profile.valueOrNull?['full_name'] as String?) ?? '').trim();
+    final first = full.isEmpty ? '' : full.split(RegExp(r'\s+')).first;
+    return Positioned(
+      top: 14,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        child: AnimatedSlide(
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          offset: _show ? Offset.zero : const Offset(0, -2),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 350),
+            opacity: _show ? 1 : 0,
+            child: Center(
+              child: Material(
+                color: BrandColors.navy,
+                elevation: 6,
+                borderRadius: BorderRadius.circular(24),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                  child: Text(
+                    first.isEmpty ? _t(context, 'أهلاً بيك 👋', 'Welcome 👋') : _t(context, 'أهلاً يا $first 👋', 'Welcome, $first 👋'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

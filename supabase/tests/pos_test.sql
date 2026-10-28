@@ -390,6 +390,16 @@ reset role; select set_config('request.jwt.claim.sub', :'ACCT', false); set role
 select public._expect('accountant has no live room', $q$select public.ops_actions()$q$, 'FORBIDDEN');
 reset role;
 
+-- ---------- 0072: branch assignment and renaming
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner puts the accountant in head office', format($q$select public.staff_set_branches(%L, array[(select id from public.branches where is_hq)])$q$, :'ACCT'), null);
+select public._expect('owner puts the cashier in two branches', format($q$select public.staff_set_branches(%L, array[%L::uuid, %L::uuid])$q$, :'CASH', :'A', :'B'), null);
+select public._expect('there are four ordinary branches', $q$select 1/(case when (select count(*) from public.branches where not is_hq) >= 4 then 1 else 0 end)$q$, null);
+select public._expect('owner renames a branch', format($q$select public.staff_rename_branch(%L, 'فرع تجريبي', null)$q$, :'A'), null);
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('manager cannot rename without the right', format($q$select public.staff_rename_branch(%L, 'x', null)$q$, :'A'), 'FORBIDDEN');
+reset role;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;
