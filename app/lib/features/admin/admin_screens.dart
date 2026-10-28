@@ -543,6 +543,9 @@ class AdminHomeScreen extends ConsumerWidget {
                     'reviews' => ref.watch(_pendingReviewsProvider).valueOrNull ?? 0,
                     _ => 0,
                   };
+              // the chat panel takes the free strip at the far left: everything else moves right by its width
+              final chatShown = ref.watch(chatOpenProvider) && _chatKind(ref) != null;
+              final shift = chatShown ? chatPanelSpace : 0.0;
               return Scaffold(
                 backgroundColor: const Color(0xFFF4F6FA),
                 body: CallbackShortcuts(
@@ -578,9 +581,9 @@ class AdminHomeScreen extends ConsumerWidget {
                           Expanded(
                             child: Stack(children: [
                               // a gutter on the left holds the device controls in one tidy column
-                              Padding(padding: const EdgeInsets.only(left: 100), child: pages),
+                              Padding(padding: EdgeInsets.only(left: 100 + shift), child: pages),
                               Positioned(
-                                left: 10,
+                                left: 10 + shift,
                                 top: 10,
                                 bottom: 6,
                                 width: 80,
@@ -627,8 +630,20 @@ class AdminHomeScreen extends ConsumerWidget {
                                 ])),
                               ),
                               const ChatWatcher(),
-                              if (ref.watch(chatOpenProvider) && _chatKind(ref) != null)
-                                Positioned(left: 100, top: 10, bottom: 10, width: 350, child: DirectChatPanel(manager: _chatKind(ref) == 'manager')),
+                              if (chatShown)
+                                Positioned(
+                                  left: 8,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: chatPanelSpace - 16,
+                                  child: Align(
+                                    alignment: Alignment.center,
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(maxHeight: 640),
+                                      child: Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: DirectChatPanel(manager: _chatKind(ref) == 'manager')),
+                                    ),
+                                  ),
+                                ),
 
                             ]),
                           ),

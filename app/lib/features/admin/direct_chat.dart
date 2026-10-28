@@ -105,6 +105,9 @@ class ChatWatcher extends ConsumerWidget {
   }
 }
 
+/// Width reserved at the far left of the console while the chat is open.
+const double chatPanelSpace = 374;
+
 /// The panel in the free space on the left. [manager] = the office's side.
 class DirectChatPanel extends ConsumerWidget {
   const DirectChatPanel({super.key, required this.manager});

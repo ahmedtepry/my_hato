@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config.dart';
 import 'core/dark_mode.dart';
+import 'features/admin/direct_chat.dart' show chatOpenProvider, chatPanelSpace;
 import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/appearance.dart';
@@ -159,6 +160,7 @@ class MyHatoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
     final dark = ref.watch(darkModeProvider);
+    final chatOpen = AppConfig.teamOnly && ref.watch(chatOpenProvider);
     ref.watch(appearanceProvider); // rebuilds the theme when the owner changes the colours
     if (AppConfig.teamOnly) ref.watch(teamThemeProvider); // the team app's own colour theme
     return MaterialApp.router(
@@ -178,7 +180,7 @@ class MyHatoApp extends ConsumerWidget {
         Widget app = StaffPresenceScope(child: ConnectionGate(child: child ?? const SizedBox.shrink()));
         if (AppConfig.teamOnly) {
           // wide desktop window: keep the console in a comfortable centred column
-          app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1100), child: app)));
+          app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chatOpen ? 1100 + chatPanelSpace : 1100), child: app)));
         }
         return applyDarkMode(dark, app);
       },
