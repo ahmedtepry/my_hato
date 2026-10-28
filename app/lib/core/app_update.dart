@@ -136,16 +136,16 @@ class AppUpdateButton extends ConsumerWidget {
           child: Material(
             color: bg,
             elevation: glow ? 5 : 2,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             child: InkWell(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               onTap: onTap,
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   icon,
                   const SizedBox(height: 2),
-                  Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: fg, height: 1.15)),
+                  Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: fg, height: 1.15)),
                 ]),
               ),
             ),
@@ -155,8 +155,8 @@ class AppUpdateButton extends ConsumerWidget {
       return tile(
         tip: ar ? 'البرنامج محدّث (نسخة $kBuildNumber). اضغط للتأكد من وجود تحديث' : 'Up to date (build $kBuildNumber). Tap to check',
         icon: st.checking
-            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.system_update_alt_rounded, color: BrandColors.gray),
+            ? const SizedBox(width: 30, height: 30, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.system_update_alt_rounded, size: 32, color: BrandColors.gray),
         label: ar ? 'محدّث' : 'Updated',
         bg: Colors.white,
         fg: BrandColors.gray,
@@ -165,7 +165,7 @@ class AppUpdateButton extends ConsumerWidget {
     }
     return tile(
       tip: ar ? 'نسخة جديدة جاهزة، اضغط لتحديث البرنامج' : 'A new version is ready',
-      icon: const Icon(Icons.system_update_alt_rounded, color: Colors.white),
+      icon: const Icon(Icons.system_update_alt_rounded, size: 32, color: Colors.white),
       label: ar ? 'تحديث\nالبرنامج' : 'Update\nthe app',
       bg: BrandColors.warning,
       fg: Colors.white,

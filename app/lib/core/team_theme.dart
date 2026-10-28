@@ -134,21 +134,49 @@ final teamThemeProvider = NotifierProvider<TeamThemeController, String>(TeamThem
 
 /// The colour button in the top corner of the console.
 class TeamThemeButton extends ConsumerWidget {
-  const TeamThemeButton({super.key, required this.isOwner});
+  const TeamThemeButton({super.key, required this.isOwner, this.tile = false});
   final bool isOwner;
 
+  /// A large labelled tile (for the left control column) instead of the small round button.
+  final bool tile;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Material(
-        color: Colors.white,
-        elevation: 2,
-        shape: const CircleBorder(),
-        child: IconButton(
-          tooltip: context.isAr ? 'ألوان البرنامج' : 'App colours',
-          icon: const Icon(Icons.palette_outlined),
-          color: BrandColors.electric,
-          onPressed: () => showDialog<void>(context: context, builder: (_) => _ThemeDialog(isOwner: isOwner)),
+  Widget build(BuildContext context, WidgetRef ref) {
+    void open() => showDialog<void>(context: context, builder: (_) => _ThemeDialog(isOwner: isOwner));
+    if (tile) {
+      return Tooltip(
+        message: context.isAr ? 'ألوان البرنامج' : 'App colours',
+        child: Material(
+          color: Colors.white,
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: open,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.palette_outlined, size: 32, color: BrandColors.electric),
+                const SizedBox(height: 4),
+                Text(context.isAr ? 'الألوان' : 'Colours', textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: BrandColors.navy)),
+              ]),
+            ),
+          ),
         ),
       );
+    }
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      shape: const CircleBorder(),
+      child: IconButton(
+        tooltip: context.isAr ? 'ألوان البرنامج' : 'App colours',
+        icon: const Icon(Icons.palette_outlined),
+        color: BrandColors.electric,
+        onPressed: open,
+      ),
+    );
+  }
 }
 
 /// The colour choice as a page (inside Appearance): opens the same picker as the button in the corner.

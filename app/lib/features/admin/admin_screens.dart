@@ -288,22 +288,22 @@ class _RailTile extends StatelessWidget {
         child: Material(
           color: Colors.white,
           elevation: onTap == null ? 0 : 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: BrandColors.border)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 child,
                 const SizedBox(height: 2),
-                Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: onTap == null ? BrandColors.gray : BrandColors.navy)),
+                Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: onTap == null ? BrandColors.gray : BrandColors.navy)),
                 if (badge != null)
                   Container(
                     margin: const EdgeInsets.only(top: 2),
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     decoration: BoxDecoration(color: BrandColors.warning.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-                    child: Text(badge!, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: BrandColors.warning)),
+                    child: Text(badge!, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: BrandColors.warning)),
                   ),
               ]),
             ),
@@ -536,30 +536,30 @@ class AdminHomeScreen extends ConsumerWidget {
                           Expanded(
                             child: Stack(children: [
                               // a gutter on the left holds the device controls in one tidy column
-                              Padding(padding: const EdgeInsets.only(left: 68), child: pages),
+                              Padding(padding: const EdgeInsets.only(left: 100), child: pages),
                               Positioned(
-                                left: 8,
+                                left: 10,
                                 top: 10,
-                                width: 54,
+                                width: 80,
                                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                                   if (_navBack.isNotEmpty) ...[
                                     _RailTile(
                                       tooltip: _t(ctx, 'رجوع للصفحة اللي قبلها', 'Back to the previous page'),
                                       onTap: back,
-                                      child: Directionality(textDirection: Directionality.of(context), child: const Icon(Icons.arrow_back_rounded, color: BrandColors.electric)),
+                                      child: Directionality(textDirection: Directionality.of(context), child: const Icon(Icons.arrow_back_rounded, size: 32, color: BrandColors.electric)),
                                       label: _t(ctx, 'رجوع', 'Back'),
                                     ),
                                     const SizedBox(height: 8),
                                   ],
                                   // the colour theme of this device (the owner can also set it for everyone)
-                                  TeamThemeButton(isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
+                                  TeamThemeButton(tile: true, isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
                                   const SizedBox(height: 8),
                                   const AppUpdateButton(),
                                   const SizedBox(height: 8),
                                   _RailTile(
                                     tooltip: _t(ctx, 'قريبًا: هنحدد الخدمة دي بعدين', 'Coming soon'),
                                     onTap: null,
-                                    child: const Text('🤖', style: TextStyle(fontSize: 22)),
+                                    child: const Text('🤖', style: TextStyle(fontSize: 32)),
                                     label: 'UI mode',
                                     badge: _t(ctx, 'قريبًا', 'Soon'),
                                   ),
