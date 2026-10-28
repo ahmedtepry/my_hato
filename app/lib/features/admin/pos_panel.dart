@@ -812,11 +812,7 @@ class _ReceiptDialog extends StatelessWidget {
       content: SizedBox(
         width: 380,
         child: SingleChildScrollView(
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(12), border: Border.all(color: BrandColors.border)),
-            child: Text(receiptText(context, sale), style: const TextStyle(height: 1.6)),
-          ),
+          child: ReceiptPaper(sale: sale),
         ),
       ),
       actions: [
