@@ -263,12 +263,15 @@ class _DocumentButtonsState extends State<DocumentButtons> {
 
 PdfPageFormat posReceiptFormat(int mm) => (mm <= 58 ? PdfPageFormat.roll57 : PdfPageFormat.roll80).copyWith(marginLeft: 3 * PdfPageFormat.mm, marginRight: 3 * PdfPageFormat.mm, marginTop: 3 * PdfPageFormat.mm, marginBottom: 6 * PdfPageFormat.mm);
 
-/// The receipt looks the cashier can choose from (settings of the print dialog).
+/// The invoice looks. One of them is chosen for the whole shop by whoever has the receipt.style permission.
 const receiptStyles = <String, (String, String, String)>{
-  'classic': ('كلاسيك', 'Classic', 'بسيط ونضيف، يناسب أي طابعة'),
-  'modern': ('عصري', 'Modern', 'شريط باسم المحل وإجمالي كبير وQR للفاتورة'),
-  'compact': ('مضغوط', 'Compact', 'صغير وموفّر للورق، يناسب ٥٨ مم'),
+  'clean': ('نظيف', 'Clean', 'أبيض وأسود وجدول بسيط، الأنسب للطابعة الحرارية'),
+  'banner': ('الشريط', 'Banner', 'هيدر باسم المحل وإجمالي بارز وكود واتساب'),
+  'cards': ('بطاقات', 'Cards', 'أقسام ناعمة ومبلغ التوفير ظاهر'),
 };
+
+/// Maps a stored value (including the old looks) to one that exists.
+String normReceiptStyle(String? s) => receiptStyles.containsKey(s) ? s! : (s == 'modern' ? 'banner' : 'clean');
 
 /// A made-up sale used for the preview in the settings.
 Map<String, dynamic> sampleReceiptSale() => {
@@ -287,160 +290,208 @@ Map<String, dynamic> sampleReceiptSale() => {
       'tip_minor': 200,
     };
 
-Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, String style = 'classic'}) async {
+Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, String style = 'clean'}) async {
   final (regular, bold) = await _fonts();
   final doc = pw.Document(theme: pw.ThemeData.withFont(base: regular, bold: bold));
+  final st = normReceiptStyle(style);
   final items = List<Map<String, dynamic>>.from(sale['items'] as List? ?? const []);
   final discount = (sale['discount_minor'] as num?) ?? 0;
   final refunded = (sale['refunded_minor'] as num?) ?? 0;
   final tip = (sale['tip_minor'] as num?) ?? 0;
   final change = ((sale['change_minor'] as num?) ?? 0) - tip;
+  final subtotal = items.fold<num>(0, (a, i) => a + ((i['line_total_minor'] as num?) ?? 0));
   final phone = AppConfig.supportPhone.replaceFirst('+20', '0');
   // the Arabic font has no "ō": print the name with a plain o so no empty box shows
   final brand = AppName.ar.replaceAll('ō', 'o').replaceAll('Ō', 'O');
   final branch = '${sale['branch_name_ar'] ?? ''}';
   final cashier = '${sale['cashier_name'] ?? ''}';
-  final compact = style == 'compact';
-  final modern = style == 'modern';
-  final small = pw.TextStyle(fontSize: compact ? 7.5 : 8.5, color: _grey);
+  final number = '${sale['number']}';
+  final when = _date('${sale['created_at']}');
   const ink = PdfColor.fromInt(0xFF111827);
-  const accent = PdfColor.fromInt(0xFF0B2D5B);
+  const soft = PdfColor.fromInt(0xFFEEF2F7);
+  const green = PdfColor.fromInt(0xFF0F9D58);
+  const greenSoft = PdfColor.fromInt(0xFFE7F6EE);
 
-  pw.Widget kv(String k, String v, {bool strong = false, double? size}) => pw.Padding(
-        padding: pw.EdgeInsets.symmetric(vertical: compact ? 0.8 : 1.5),
+  pw.TextStyle ts(double size, {bool b = false, PdfColor? c}) => pw.TextStyle(font: b ? bold : regular, fontSize: size, color: c ?? ink);
+  pw.Widget kv(String k, String v, {bool b = false, double size = 9.5, PdfColor? c}) => pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1.2),
         child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text(k, style: pw.TextStyle(font: strong ? bold : regular, fontSize: size ?? (strong ? 12 : (compact ? 8.5 : 10)))),
-          pw.Text(v, style: pw.TextStyle(font: strong ? bold : regular, fontSize: size ?? (strong ? 12 : (compact ? 8.5 : 10))), textDirection: pw.TextDirection.rtl),
+          pw.Text(k, style: ts(size, b: b, c: c)),
+          pw.Text(v, textDirection: pw.TextDirection.rtl, style: ts(size, b: b, c: c)),
         ]),
       );
-  pw.Widget rule() => modern
-      ? pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 4), child: pw.Divider(color: _grey, thickness: 0.5, borderStyle: pw.BorderStyle.dashed))
-      : pw.Divider(color: _grey, thickness: 0.6, height: compact ? 6 : 10);
-
-  pw.Widget header() {
-    if (modern) {
-      return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        pw.Container(
-          padding: const pw.EdgeInsets.symmetric(vertical: 8),
-          decoration: pw.BoxDecoration(color: accent, borderRadius: pw.BorderRadius.circular(6)),
-          child: pw.Center(child: pw.Text(brand, textDirection: pw.TextDirection.ltr, style: pw.TextStyle(font: bold, fontSize: 17, color: PdfColors.white))),
-        ),
-        pw.SizedBox(height: 5),
-        if (branch.isNotEmpty) pw.Center(child: pw.Text(branch, style: pw.TextStyle(font: bold, fontSize: 10))),
-        pw.Center(child: pw.Text(_date('${sale['created_at']}'), textDirection: pw.TextDirection.ltr, style: small)),
-        pw.SizedBox(height: 3),
-        pw.Center(child: pw.Text('${sale['number']}', textDirection: pw.TextDirection.ltr, style: pw.TextStyle(font: bold, fontSize: 10.5))),
-        if (cashier.isNotEmpty) pw.Center(child: pw.Text('الكاشير: $cashier', style: small)),
-      ]);
-    }
-    return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-      pw.Center(child: pw.Text(brand, textDirection: pw.TextDirection.ltr, style: pw.TextStyle(font: bold, fontSize: compact ? 12 : 15))),
-      if (branch.isNotEmpty) pw.Center(child: pw.Text(branch, style: pw.TextStyle(fontSize: compact ? 8.5 : 10))),
-      pw.SizedBox(height: compact ? 2 : 4),
-      pw.Center(child: pw.Text('فاتورة ${sale['number']}', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: bold, fontSize: compact ? 9 : 11))),
-      pw.Center(child: pw.Text(_date('${sale['created_at']}'), textDirection: pw.TextDirection.ltr, style: small)),
-      if (cashier.isNotEmpty) pw.Center(child: pw.Text('الكاشير: $cashier', style: small)),
-    ]);
-  }
-
-  pw.Widget itemRow(Map<String, dynamic> it) {
-    final qty = '${it['quantity']}';
-    final unit = _egp(it['unit_price_minor'] as num);
-    final line = _egp(it['line_total_minor'] as num);
-    if (modern) {
-      return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
-        child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Container(
-            width: 16,
-            padding: const pw.EdgeInsets.symmetric(vertical: 1),
-            decoration: pw.BoxDecoration(color: const PdfColor.fromInt(0xFFEEF2F7), borderRadius: pw.BorderRadius.circular(3)),
-            child: pw.Center(child: pw.Text(qty, style: pw.TextStyle(font: bold, fontSize: 9))),
-          ),
-          pw.SizedBox(width: 6),
-          pw.Expanded(
-            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              pw.Text('${it['name_ar']}', style: pw.TextStyle(font: bold, fontSize: 10)),
-              pw.Text(unit, style: small),
-            ]),
-          ),
-          pw.Text(line, style: pw.TextStyle(font: bold, fontSize: 10)),
-        ]),
-      );
-    }
-    if (compact) {
-      return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 1),
-        child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Expanded(child: pw.Text('$qty × ${it['name_ar']}', style: pw.TextStyle(fontSize: 8.5))),
-          pw.SizedBox(width: 4),
-          pw.Text(line, style: pw.TextStyle(font: bold, fontSize: 8.5)),
-        ]),
-      );
-    }
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
-      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Expanded(child: pw.Text('${it['name_ar']}', style: pw.TextStyle(font: bold, fontSize: 10))),
-          pw.SizedBox(width: 6),
-          pw.Text(line, style: pw.TextStyle(font: bold, fontSize: 10)),
-        ]),
-        pw.Text('$qty × $unit', style: small),
-      ]),
-    );
-  }
-
-  pw.Widget totals() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        if (discount > 0) kv('خصم', '- ${_egp(discount)}'),
-        if (modern)
-          pw.Container(
-            margin: const pw.EdgeInsets.symmetric(vertical: 4),
-            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: pw.BoxDecoration(color: const PdfColor.fromInt(0xFFEEF2F7), borderRadius: pw.BorderRadius.circular(6)),
-            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Text('الإجمالي', style: pw.TextStyle(font: bold, fontSize: 12)),
-              pw.Text(_egp(sale['total_minor'] as num), textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: bold, fontSize: 15, color: accent)),
-            ]),
-          )
-        else
-          kv('الإجمالي', _egp(sale['total_minor'] as num), strong: true),
+  pw.Widget dashed() => pw.Divider(color: _grey, thickness: 0.6, height: 9, borderStyle: pw.BorderStyle.dashed);
+  pw.Widget solid() => pw.Divider(color: ink, thickness: 0.9, height: 8);
+  pw.Widget center(String t, pw.TextStyle s) => pw.Center(child: pw.Text(t, style: s, textAlign: pw.TextAlign.center));
+  pw.Widget ltr(String t, pw.TextStyle s) => pw.Text(t, textDirection: pw.TextDirection.ltr, style: s);
+  pw.Widget payRows() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
         kv('المستلم', _egp(sale['cash_received_minor'] as num)),
         if (change > 0) kv('الباقي', _egp(change)),
         if (tip > 0) kv('بقشيش', _egp(tip)),
         if (refunded > 0) kv('مرتجع', _egp(refunded)),
       ]);
-
-  pw.Widget footer() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        pw.Center(child: pw.Text('شكرًا لثقتكم', style: pw.TextStyle(font: bold, fontSize: compact ? 9 : 11))),
+  pw.Widget footer({bool navy = false}) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        center('شكرًا لثقتكم', ts(11, b: true, c: navy ? _navy : ink)),
         pw.SizedBox(height: 2),
-        pw.Center(
-          child: pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
-            pw.Text('واتساب: ', style: small),
-            pw.Text(phone, textDirection: pw.TextDirection.ltr, style: small),
+        center('واتساب $phone', ts(8, c: _grey)),
+        center('الاسترجاع والاستبدال بالفاتورة', ts(8, c: _grey)),
+      ]);
+
+  // ---- 1: clean (black and white, thermal friendly)
+  List<pw.Widget> clean() => [
+        center(brand, ts(19, b: true)),
+        if (branch.isNotEmpty) center(branch, ts(9, c: _grey)),
+        dashed(),
+        kv('فاتورة', number, b: true),
+        kv('التاريخ', when, c: _grey, size: 8.5),
+        if (cashier.isNotEmpty) kv('الكاشير', cashier, c: _grey, size: 8.5),
+        dashed(),
+        pw.Row(children: [
+          pw.Expanded(child: pw.Text('الصنف', style: ts(8, c: _grey))),
+          pw.SizedBox(width: 26, child: pw.Center(child: pw.Text('كمية', style: ts(8, c: _grey)))),
+          pw.SizedBox(width: 50, child: pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('الإجمالي', style: ts(8, c: _grey)))),
+        ]),
+        solid(),
+        for (final it in items)
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+            child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text('${it['name_ar']}', style: ts(10, b: true)),
+                pw.Text('${_egp(it['unit_price_minor'] as num)} للقطعة', style: ts(7.5, c: _grey)),
+              ])),
+              pw.SizedBox(width: 26, child: pw.Center(child: pw.Text('${it['quantity']}', style: ts(10)))),
+              pw.SizedBox(width: 50, child: pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text(_egp(it['line_total_minor'] as num), textDirection: pw.TextDirection.rtl, style: ts(10, b: true)))),
+            ]),
+          ),
+        solid(),
+        if (discount > 0) ...[kv('المجموع', _egp(subtotal)), kv('خصم', '- ${_egp(discount)}')],
+        pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 3), child: kv('الإجمالي', _egp(sale['total_minor'] as num), b: true, size: 14)),
+        solid(),
+        payRows(),
+        dashed(),
+        footer(),
+      ];
+
+  // ---- 2: banner
+  List<pw.Widget> banner() => [
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(vertical: 9),
+          decoration: pw.BoxDecoration(color: _navy, borderRadius: pw.BorderRadius.circular(5)),
+          child: pw.Column(children: [
+            pw.Text(brand, textDirection: pw.TextDirection.ltr, style: ts(19, b: true, c: PdfColors.white)),
+            pw.Text('${branch.isEmpty ? '' : '$branch · '}خدمة جوالات', style: ts(8.5, c: PdfColors.white)),
           ]),
         ),
-        if (!compact) pw.Center(child: pw.Text('الاسترجاع والاستبدال بالفاتورة', style: small)),
-        if (modern) ...[
-          pw.SizedBox(height: 6),
-          pw.Center(child: pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: '${sale['number']}', width: 52, height: 52, drawText: false)),
-        ],
-      ]);
+        pw.SizedBox(height: 6),
+        pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [pw.Text('رقم الفاتورة', style: ts(7.5, c: _grey)), ltr(number, ts(9, b: true))])),
+          pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [pw.Text('التاريخ', style: ts(7.5, c: _grey)), ltr(when, ts(9))])),
+        ]),
+        pw.SizedBox(height: 3),
+        pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [pw.Text('الكاشير', style: ts(7.5, c: _grey)), pw.Text(cashier.isEmpty ? '-' : cashier, style: ts(9))])),
+          pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [pw.Text('طريقة الدفع', style: ts(7.5, c: _grey)), pw.Text('كاش', style: ts(9))])),
+        ]),
+        pw.SizedBox(height: 6),
+        for (var i = 0; i < items.length; i++)
+          pw.Container(
+            color: i.isEven ? soft : null,
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text('${items[i]['quantity']}×', style: ts(10, b: true, c: _navy)),
+              pw.SizedBox(width: 5),
+              pw.Expanded(child: pw.Text('${items[i]['name_ar']}', style: ts(10))),
+              pw.Text(_egp(items[i]['line_total_minor'] as num), textDirection: pw.TextDirection.rtl, style: ts(10, b: true)),
+            ]),
+          ),
+        pw.SizedBox(height: 5),
+        if (discount > 0) ...[kv('المجموع', _egp(subtotal)), kv('خصم', '- ${_egp(discount)}')],
+        pw.Container(
+          margin: const pw.EdgeInsets.symmetric(vertical: 4),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: pw.BoxDecoration(color: _navy, borderRadius: pw.BorderRadius.circular(5)),
+          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Text('الإجمالي', style: ts(11, b: true, c: PdfColors.white)),
+            pw.Text(_egp(sale['total_minor'] as num), textDirection: pw.TextDirection.rtl, style: ts(16, b: true, c: PdfColors.white)),
+          ]),
+        ),
+        payRows(),
+        pw.SizedBox(height: 7),
+        pw.Row(children: [
+          pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: 'https://wa.me/2$phone', width: 46, height: 46, drawText: false),
+          pw.SizedBox(width: 8),
+          pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text('كلّمنا على واتساب', style: ts(9, b: true)),
+            ltr(phone, ts(9)),
+            pw.Text('الاسترجاع والاستبدال بالفاتورة', style: ts(7.5, c: _grey)),
+          ])),
+        ]),
+      ];
+
+  // ---- 5: cards
+  pw.Widget chip(String t, {bool isLtr = false}) => pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+        decoration: pw.BoxDecoration(border: pw.Border.all(color: _grey, width: 0.5), borderRadius: pw.BorderRadius.circular(8)),
+        child: isLtr ? ltr(t, ts(8)) : pw.Text(t, style: ts(8)),
+      );
+  pw.Widget card(List<pw.Widget> children) => pw.Container(
+        margin: const pw.EdgeInsets.symmetric(vertical: 3),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: pw.BoxDecoration(border: pw.Border.all(color: _grey, width: 0.5), borderRadius: pw.BorderRadius.circular(6)),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: children),
+      );
+  List<pw.Widget> cards() => [
+        center(brand, ts(19, b: true, c: _navy)),
+        if (branch.isNotEmpty) center(branch, ts(9, c: _grey)),
+        pw.SizedBox(height: 4),
+        pw.Wrap(alignment: pw.WrapAlignment.center, spacing: 4, runSpacing: 3, children: [chip(number, isLtr: true), chip(when, isLtr: true), if (cashier.isNotEmpty) chip(cashier)]),
+        card([
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) pw.Divider(color: _line, thickness: 0.5, height: 7),
+            pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+              pw.Container(
+                width: 17,
+                padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                decoration: pw.BoxDecoration(color: soft, borderRadius: pw.BorderRadius.circular(3)),
+                child: pw.Center(child: pw.Text('${items[i]['quantity']}', style: ts(9.5, b: true))),
+              ),
+              pw.SizedBox(width: 6),
+              pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text('${items[i]['name_ar']}', style: ts(10)),
+                pw.Text(_egp(items[i]['unit_price_minor'] as num), style: ts(7.5, c: _grey)),
+              ])),
+              pw.Text(_egp(items[i]['line_total_minor'] as num), textDirection: pw.TextDirection.rtl, style: ts(10, b: true)),
+            ]),
+          ],
+        ]),
+        if (discount > 0)
+          pw.Container(
+            margin: const pw.EdgeInsets.symmetric(vertical: 3),
+            padding: const pw.EdgeInsets.symmetric(vertical: 4),
+            decoration: pw.BoxDecoration(color: greenSoft, borderRadius: pw.BorderRadius.circular(5)),
+            child: center('وفّرت ${_egp(discount)} في الفاتورة دي', ts(9, b: true, c: green)),
+          ),
+        pw.Container(
+          margin: const pw.EdgeInsets.symmetric(vertical: 3),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: pw.BoxDecoration(color: _navy, borderRadius: pw.BorderRadius.circular(6)),
+          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Text('الإجمالي', style: ts(11, b: true, c: PdfColors.white)),
+            pw.Text(_egp(sale['total_minor'] as num), textDirection: pw.TextDirection.rtl, style: ts(16, b: true, c: PdfColors.white)),
+          ]),
+        ),
+        card([if (discount > 0) kv('المجموع', _egp(subtotal)), payRows()]),
+        pw.SizedBox(height: 4),
+        footer(navy: true),
+      ];
 
   doc.addPage(pw.Page(
     pageFormat: posReceiptFormat(widthMm),
     textDirection: pw.TextDirection.rtl,
     build: (_) => pw.DefaultTextStyle(
       style: const pw.TextStyle(color: ink),
-      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        header(),
-        rule(),
-        for (final it in items) itemRow(it),
-        rule(),
-        totals(),
-        rule(),
-        footer(),
-      ]),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: st == 'banner' ? banner() : (st == 'cards' ? cards() : clean())),
     ),
   ));
   return doc.save();

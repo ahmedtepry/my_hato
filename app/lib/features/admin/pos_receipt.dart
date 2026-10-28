@@ -1,15 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/appearance.dart';
+import '../../core/config.dart';
 import '../../core/save_file.dart';
 import '../../core/l10n.dart';
+import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+import 'admin_repository.dart' show staffContextProvider;
 import 'documents.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -19,6 +23,20 @@ const _kPrinter = 'pos_printer_name';
 const _kWidth = 'pos_receipt_mm';
 const _kAuto = 'pos_auto_print';
 const _kStyle = 'pos_receipt_style';
+
+/// The invoice look chosen for the whole shop (kept on this computer too, so printing still works offline).
+final receiptStyleProvider = FutureProvider.autoDispose<String>((ref) async {
+  final p = await SharedPreferences.getInstance();
+  try {
+    final v = normReceiptStyle(await ref.watch(supabaseProvider).rpc('receipt_style_get') as String?);
+    await p.setString(_kStyle, v);
+    return v;
+  } catch (_) {
+    return normReceiptStyle(p.getString(_kStyle));
+  }
+});
+
+Future<String> _currentStyle(BuildContext context) => ProviderScope.containerOf(context).read(receiptStyleProvider.future);
 
 Future<bool> receiptAutoPrintOn() async {
   try {
@@ -35,7 +53,7 @@ Future<void> printReceipt(BuildContext context, Map<String, dynamic> sale) async
     final p = await SharedPreferences.getInstance();
     final mm = p.getInt(_kWidth) ?? 80;
     final name = p.getString(_kPrinter) ?? '';
-    final bytes = await posReceiptPdf(sale, widthMm: mm, style: p.getString(_kStyle) ?? 'classic');
+    final bytes = await posReceiptPdf(sale, widthMm: mm, style: await _currentStyle(context));
     final format = posReceiptFormat(mm);
     final job = 'receipt-${sale['number']}';
     if (name.isNotEmpty) {
@@ -54,7 +72,7 @@ Future<void> printReceipt(BuildContext context, Map<String, dynamic> sale) async
 Future<void> shareReceiptPdf(BuildContext context, Map<String, dynamic> sale) async {
   try {
     final p = await SharedPreferences.getInstance();
-    final bytes = await posReceiptPdf(sale, widthMm: p.getInt(_kWidth) ?? 80, style: p.getString(_kStyle) ?? 'classic');
+    final bytes = await posReceiptPdf(sale, widthMm: p.getInt(_kWidth) ?? 80, style: await _currentStyle(context));
     if (context.mounted) await deliverFile(context, bytes, 'receipt-${sale['number']}.pdf', 'application/pdf');
   } catch (e) {
     if (context.mounted) showSnack(context, '$e', error: true);
@@ -203,46 +221,7 @@ class _ReceiptSettingsState extends State<_ReceiptSettings> {
                   },
                 ),
                 const SizedBox(height: 14),
-                Text(_t(context, 'شكل الفاتورة', 'Receipt look'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                for (final e in receiptStyles.entries)
-                  RadioListTile<String>(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    value: e.key,
-                    groupValue: p.getString(_kStyle) ?? 'classic',
-                    title: Text(_t(context, e.value.$1, e.value.$2), style: const TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: Text(e.value.$3, style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
-                    onChanged: (v) async {
-                      await p.setString(_kStyle, v ?? 'classic');
-                      if (mounted) setState(() {});
-                    },
-                  ),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.visibility_outlined, size: 18),
-                    label: Text(_t(context, 'معاينة الشكل المختار', 'Preview')),
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => Dialog(
-                        child: SizedBox(
-                          width: 420,
-                          height: 620,
-                          child: PdfPreview(
-                            build: (_) => posReceiptPdf(sampleReceiptSale(), widthMm: mm, style: p.getString(_kStyle) ?? 'classic'),
-                            pageFormats: {'receipt': posReceiptFormat(mm)},
-                            canChangePageFormat: false,
-                            canChangeOrientation: false,
-                            canDebug: false,
-                            allowPrinting: false,
-                            allowSharing: false,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                _StylePicker(mm: mm),
                 const SizedBox(height: 8),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -264,171 +243,272 @@ class _ReceiptSettingsState extends State<_ReceiptSettings> {
   }
 }
 
-/// The invoice as a nice paper on the screen, in the look the cashier chose (classic / modern / compact). The look can be switched right here.
-class ReceiptPaper extends StatefulWidget {
-  const ReceiptPaper({super.key, required this.sale});
-  final Map<String, dynamic> sale;
+/// Lets the owner (receipt.style) choose the invoice look for the whole shop; everybody else just sees which one is on.
+class _StylePicker extends ConsumerWidget {
+  const _StylePicker({required this.mm});
+  final int mm;
+
   @override
-  State<ReceiptPaper> createState() => _ReceiptPaperState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(receiptStyleProvider).valueOrNull ?? 'clean';
+    final can = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('receipt.style') ?? false;
+    Future<void> choose(String v) async {
+      try {
+        await ref.read(supabaseProvider).rpc('receipt_style_set', params: {'p_style': v});
+        ref.invalidate(receiptStyleProvider);
+        if (context.mounted) showSnack(context, _t(context, 'اتغيّر شكل الفاتورة لكل الكاشيرات ✅', 'Invoice look changed for every cashier ✅'));
+      } catch (e) {
+        if (context.mounted) showSnack(context, '$e', error: true);
+      }
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(_t(context, 'شكل الفاتورة', 'Invoice look'), style: const TextStyle(fontWeight: FontWeight.w700)),
+      if (!can)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text('${_t(context, receiptStyles[current]!.$1, receiptStyles[current]!.$2)} — ${_t(context, 'المالك هو اللي بيغيّره', 'the owner changes it')}', style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+        )
+      else
+        for (final e in receiptStyles.entries)
+          RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: e.key,
+            groupValue: current,
+            title: Text(_t(context, e.value.$1, e.value.$2), style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(e.value.$3, style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+            onChanged: (v) => v == null ? null : choose(v),
+          ),
+      Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.visibility_outlined, size: 18),
+          label: Text(_t(context, 'معاينة الشكل الحالي', 'Preview')),
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (_) => Dialog(
+              child: SizedBox(
+                width: 420,
+                height: 620,
+                child: PdfPreview(
+                  build: (_) => posReceiptPdf(sampleReceiptSale(), widthMm: mm, style: current),
+                  pageFormats: {'receipt': posReceiptFormat(mm)},
+                  canChangePageFormat: false,
+                  canChangeOrientation: false,
+                  canDebug: false,
+                  allowPrinting: false,
+                  allowSharing: false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ]);
+  }
 }
 
-class _ReceiptPaperState extends State<ReceiptPaper> {
-  String _style = 'classic';
+/// The invoice as a paper on the screen, in the look chosen for the shop (clean / banner / cards).
+class ReceiptPaper extends ConsumerWidget {
+  const ReceiptPaper({super.key, required this.sale});
+  final Map<String, dynamic> sale;
+
+  static String _egp(BuildContext c, num minor) => '${(minor / 100).toStringAsFixed(minor % 100 == 0 ? 0 : 2)} ${_t(c, 'ج.م', 'EGP')}';
 
   @override
-  void initState() {
-    super.initState();
-    SharedPreferences.getInstance().then((p) {
-      if (mounted) setState(() => _style = p.getString(_kStyle) ?? 'classic');
-    }).catchError((_) {});
-  }
-
-  Future<void> _pick(String v) async {
-    setState(() => _style = v);
-    try {
-      (await SharedPreferences.getInstance()).setString(_kStyle, v);
-    } catch (_) {}
-  }
-
-  String _egp(BuildContext c, num minor) => '${(minor / 100).toStringAsFixed(minor % 100 == 0 ? 0 : 2)} ${_t(c, 'ج.م', 'EGP')}';
-
-  @override
-  Widget build(BuildContext context) {
-    final sale = widget.sale;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(receiptStyleProvider).valueOrNull ?? 'clean';
     final items = [for (final i in (sale['items'] as List? ?? const [])) Map<String, dynamic>.from(i as Map)];
     final discount = (sale['discount_minor'] as num?) ?? 0;
     final refunded = (sale['refunded_minor'] as num?) ?? 0;
     final tip = (sale['tip_minor'] as num?) ?? 0;
     final change = ((sale['change_minor'] as num?) ?? 0) - tip;
-    final modern = _style == 'modern';
-    final compact = _style == 'compact';
+    final subtotal = items.fold<num>(0, (a, i) => a + ((i['line_total_minor'] as num?) ?? 0));
     final dt = DateTime.tryParse('${sale['created_at']}')?.toLocal();
-    final when = dt == null ? '' : '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}  ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    String two(int n) => n.toString().padLeft(2, '0');
+    final when = dt == null ? '' : '${dt.year}/${two(dt.month)}/${two(dt.day)}  ${two(dt.hour)}:${two(dt.minute)}';
     final brand = AppName.ar;
+    final branch = '${sale['branch_name_ar'] ?? ''}';
+    final cashier = '${sale['cashier_name'] ?? ''}';
+    final number = '${sale['number']}';
     const navy = BrandColors.navy;
-    TextStyle t(double s, {bool b = false, Color? c}) => TextStyle(fontSize: s, fontWeight: b ? FontWeight.w800 : FontWeight.w500, color: c ?? const Color(0xFF111827), height: 1.35);
-    Widget kv(String k, String v, {bool strong = false}) => Padding(
-          padding: EdgeInsets.symmetric(vertical: compact ? 1 : 2.5),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(k, style: t(strong ? 15 : (compact ? 12 : 13.5), b: strong)),
-            Text(v, style: t(strong ? 15 : (compact ? 12 : 13.5), b: strong)),
-          ]),
+    const ink = Color(0xFF111827);
+    const soft = Color(0xFFEEF2F7);
+    TextStyle t(double s, {bool b = false, Color? c}) => TextStyle(fontSize: s, fontWeight: b ? FontWeight.w800 : FontWeight.w500, color: c ?? ink, height: 1.35);
+    Widget kv(String k, String v, {bool b = false, double s = 13.5, Color? c}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(k, style: t(s, b: b, c: c)), Text(v, style: t(s, b: b, c: c))]),
         );
-    Widget rule() => Padding(
-          padding: EdgeInsets.symmetric(vertical: compact ? 5 : 9),
-          child: modern
-              ? Row(children: [for (var i = 0; i < 40; i++) Expanded(child: Container(height: 1, margin: const EdgeInsets.symmetric(horizontal: 1.5), color: i.isEven ? BrandColors.border : Colors.transparent))])
-              : const Divider(height: 1, color: BrandColors.border),
+    Widget ltr(String v, TextStyle st) => Text(v, textDirection: TextDirection.ltr, style: st);
+    Widget dashed() => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(children: [for (var i = 0; i < 44; i++) Expanded(child: Container(height: 1.2, margin: const EdgeInsets.symmetric(horizontal: 1.2), color: i.isEven ? BrandColors.border : Colors.transparent))]),
         );
-
-    final header = modern
-        ? Column(children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(12)),
-              child: Center(child: Text(brand, textDirection: TextDirection.ltr, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 0.5))),
-            ),
-            const SizedBox(height: 8),
-            if ('${sale['branch_name_ar'] ?? ''}'.isNotEmpty) Text('${sale['branch_name_ar']}', style: t(14, b: true)),
-            Text(when, textDirection: TextDirection.ltr, style: t(12, c: BrandColors.gray)),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(color: const Color(0xFFEEF2F7), borderRadius: BorderRadius.circular(20)),
-              child: Text('${sale['number']}', textDirection: TextDirection.ltr, style: t(13, b: true)),
-            ),
-          ])
-        : Column(children: [
-            Text(brand, textDirection: TextDirection.ltr, style: t(compact ? 17 : 21, b: true, c: navy)),
-            if ('${sale['branch_name_ar'] ?? ''}'.isNotEmpty) Text('${sale['branch_name_ar']}', style: t(compact ? 12 : 13.5)),
-            const SizedBox(height: 4),
-            Text('${_t(context, 'فاتورة', 'Invoice')} ${sale['number']}', textDirection: TextDirection.ltr, style: t(compact ? 12.5 : 14, b: true)),
-            Text(when, textDirection: TextDirection.ltr, style: t(12, c: BrandColors.gray)),
-          ]);
-
-    Widget itemRow(Map<String, dynamic> i) {
-      final qty = '${i['quantity']}';
-      final line = _egp(context, i['line_total_minor'] as num);
-      final unit = _egp(context, i['unit_price_minor'] as num);
-      if (modern) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 26,
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              decoration: BoxDecoration(color: const Color(0xFFEEF2F7), borderRadius: BorderRadius.circular(6)),
-              child: Center(child: Text(qty, style: t(13, b: true))),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${i['name_ar']}', style: t(14, b: true)), Text(unit, style: t(12, c: BrandColors.gray))])),
-            Text(line, style: t(14, b: true)),
-          ]),
-        );
-      }
-      if (compact) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 1.5),
-          child: Row(children: [Expanded(child: Text('$qty × ${i['name_ar']}', style: t(12.5))), Text(line, style: t(12.5, b: true))]),
-        );
-      }
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Expanded(child: Text('${i['name_ar']}', style: t(14, b: true))), Text(line, style: t(14, b: true))]),
-          Text('$qty × $unit', style: t(12, c: BrandColors.gray)),
-        ]),
-      );
-    }
-
-    final total = modern
-        ? Container(
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: const Color(0xFFEEF2F7), borderRadius: BorderRadius.circular(12)),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(_t(context, 'الإجمالي', 'Total'), style: t(16, b: true)),
-              Text(_egp(context, sale['total_minor'] as num), style: t(22, b: true, c: navy)),
-            ]),
-          )
-        : kv(_t(context, 'الإجمالي', 'Total'), _egp(context, sale['total_minor'] as num), strong: true);
-
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(compact ? 12 : 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: BrandColors.border),
-          boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 3))],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Center(child: header),
-          rule(),
-          for (final i in items) itemRow(i),
-          rule(),
-          if (discount > 0) kv(_t(context, 'خصم', 'Discount'), '- ${_egp(context, discount)}'),
-          total,
+    Widget solid() => const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Divider(height: 1.5, thickness: 1.5, color: ink));
+    Widget pay() => Column(children: [
           kv(_t(context, 'المستلم', 'Cash'), _egp(context, sale['cash_received_minor'] as num)),
           if (change > 0) kv(_t(context, 'الباقي', 'Change'), _egp(context, change)),
           if (tip > 0) kv(_t(context, 'بقشيش', 'Tip'), _egp(context, tip)),
           if (refunded > 0) kv(_t(context, 'مرتجع', 'Refunded'), _egp(context, refunded)),
-          rule(),
-          Center(child: Text(_t(context, 'شكرًا لثقتكم 💙', 'Thank you 💙'), style: t(compact ? 12.5 : 14.5, b: true, c: navy))),
-          if (!compact)
-            Center(child: Text(_t(context, 'الاسترجاع والاستبدال بالفاتورة', 'Returns and exchanges need this invoice'), style: t(11.5, c: BrandColors.gray))),
+        ]);
+    Widget footer({Color? c}) => Column(children: [
+          Text(_t(context, 'شكرًا لثقتكم', 'Thank you'), style: t(15, b: true, c: c)),
+          Text('${_t(context, 'واتساب', 'WhatsApp')} ${AppConfig.supportPhone.replaceFirst('+20', '0')}', style: t(11.5, c: BrandColors.gray)),
+          Text(_t(context, 'الاسترجاع والاستبدال بالفاتورة', 'Returns and exchanges need this invoice'), style: t(11.5, c: BrandColors.gray)),
+        ]);
+
+    List<Widget> body;
+    if (style == 'banner') {
+      body = [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(10)),
+          child: Column(children: [
+            ltr(brand, t(23, b: true, c: Colors.white)),
+            Text('${branch.isEmpty ? '' : '$branch · '}${_t(context, 'خدمة جوالات', 'Mobile service')}', style: t(12, c: Colors.white70)),
+          ]),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_t(context, 'رقم الفاتورة', 'Invoice'), style: t(10.5, c: BrandColors.gray)), ltr(number, t(12.5, b: true))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_t(context, 'التاريخ', 'Date'), style: t(10.5, c: BrandColors.gray)), ltr(when, t(12.5))])),
         ]),
+        const SizedBox(height: 4),
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_t(context, 'الكاشير', 'Cashier'), style: t(10.5, c: BrandColors.gray)), Text(cashier.isEmpty ? '-' : cashier, style: t(12.5))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_t(context, 'الدفع', 'Payment'), style: t(10.5, c: BrandColors.gray)), Text(_t(context, 'كاش', 'Cash'), style: t(12.5))])),
+        ]),
+        const SizedBox(height: 8),
+        for (var i = 0; i < items.length; i++)
+          Container(
+            color: i.isEven ? soft : null,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${items[i]['quantity']}×', style: t(14, b: true, c: navy)),
+              const SizedBox(width: 8),
+              Expanded(child: Text('${items[i]['name_ar']}', style: t(14))),
+              Text(_egp(context, items[i]['line_total_minor'] as num), style: t(14, b: true)),
+            ]),
+          ),
+        const SizedBox(height: 6),
+        if (discount > 0) ...[kv(_t(context, 'المجموع', 'Subtotal'), _egp(context, subtotal)), kv(_t(context, 'خصم', 'Discount'), '- ${_egp(context, discount)}')],
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(10)),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(_t(context, 'الإجمالي', 'Total'), style: t(15, b: true, c: Colors.white)),
+            Text(_egp(context, sale['total_minor'] as num), style: t(23, b: true, c: Colors.white)),
+          ]),
+        ),
+        pay(),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_t(context, 'كلّمنا على واتساب', 'Chat with us'), style: t(13, b: true)),
+            ltr(AppConfig.supportPhone.replaceFirst('+20', '0'), t(12.5)),
+            Text(_t(context, 'الاسترجاع والاستبدال بالفاتورة', 'Returns need this invoice'), style: t(11, c: BrandColors.gray)),
+          ])),
+        ]),
+      ];
+    } else if (style == 'cards') {
+      Widget chip(String v, {bool isLtr = false}) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: BrandColors.border)),
+            child: isLtr ? ltr(v, t(11.5)) : Text(v, style: t(11.5)),
+          );
+      Widget card(List<Widget> c) => Container(
+            margin: const EdgeInsets.symmetric(vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: BrandColors.border)),
+            child: Column(children: c),
+          );
+      body = [
+        Center(child: ltr(brand, t(23, b: true, c: navy))),
+        if (branch.isNotEmpty) Center(child: Text(branch, style: t(12, c: BrandColors.gray))),
+        const SizedBox(height: 6),
+        Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 4, children: [chip(number, isLtr: true), chip(when, isLtr: true), if (cashier.isNotEmpty) chip(cashier)]),
+        card([
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const Divider(height: 1, color: soft),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: soft, borderRadius: BorderRadius.circular(8)), child: Text('${items[i]['quantity']}', style: t(13, b: true))),
+                const SizedBox(width: 9),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${items[i]['name_ar']}', style: t(14)), Text(_egp(context, items[i]['unit_price_minor'] as num), style: t(11, c: BrandColors.gray))])),
+                Text(_egp(context, items[i]['line_total_minor'] as num), style: t(14, b: true)),
+              ]),
+            ),
+          ],
+        ]),
+        if (discount > 0)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(color: const Color(0xFFE7F6EE), borderRadius: BorderRadius.circular(10)),
+            child: Text(_t(context, 'وفّرت ${_egp(context, discount)} في الفاتورة دي', 'You saved ${_egp(context, discount)} on this invoice'), textAlign: TextAlign.center, style: t(13, b: true, c: BrandColors.success)),
+          ),
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(12)),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(_t(context, 'الإجمالي', 'Total'), style: t(15, b: true, c: Colors.white)),
+            Text(_egp(context, sale['total_minor'] as num), style: t(23, b: true, c: Colors.white)),
+          ]),
+        ),
+        card([if (discount > 0) kv(_t(context, 'المجموع', 'Subtotal'), _egp(context, subtotal)), pay()]),
+        const SizedBox(height: 6),
+        footer(c: navy),
+      ];
+    } else {
+      body = [
+        Center(child: ltr(brand, t(26, b: true))),
+        if (branch.isNotEmpty) Center(child: Text(branch, style: t(12.5, c: BrandColors.gray))),
+        dashed(),
+        kv(_t(context, 'فاتورة', 'Invoice'), number, b: true),
+        kv(_t(context, 'التاريخ', 'Date'), when, s: 12, c: BrandColors.gray),
+        if (cashier.isNotEmpty) kv(_t(context, 'الكاشير', 'Cashier'), cashier, s: 12, c: BrandColors.gray),
+        dashed(),
+        Row(children: [
+          Expanded(child: Text(_t(context, 'الصنف', 'Item'), style: t(11, c: BrandColors.gray))),
+          SizedBox(width: 34, child: Center(child: Text(_t(context, 'كمية', 'Qty'), style: t(11, c: BrandColors.gray)))),
+          SizedBox(width: 80, child: Align(alignment: AlignmentDirectional.centerEnd, child: Text(_t(context, 'الإجمالي', 'Total'), style: t(11, c: BrandColors.gray)))),
+        ]),
+        solid(),
+        for (final i in items)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${i['name_ar']}', style: t(14, b: true)), Text('${_egp(context, i['unit_price_minor'] as num)} ${_t(context, 'للقطعة', 'each')}', style: t(11, c: BrandColors.gray))])),
+              SizedBox(width: 34, child: Center(child: Text('${i['quantity']}', style: t(14)))),
+              SizedBox(width: 80, child: Align(alignment: AlignmentDirectional.centerEnd, child: Text(_egp(context, i['line_total_minor'] as num), style: t(14, b: true)))),
+            ]),
+          ),
+        solid(),
+        if (discount > 0) ...[kv(_t(context, 'المجموع', 'Subtotal'), _egp(context, subtotal)), kv(_t(context, 'خصم', 'Discount'), '- ${_egp(context, discount)}')],
+        Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: kv(_t(context, 'الإجمالي', 'Total'), _egp(context, sale['total_minor'] as num), b: true, s: 20)),
+        solid(),
+        pay(),
+        dashed(),
+        footer(),
+      ];
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: style == 'cards' ? const Color(0xFFF6F8FB) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: BrandColors.border),
+        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 3))],
       ),
-      const SizedBox(height: 10),
-      SegmentedButton<String>(
-        showSelectedIcon: false,
-        style: const ButtonStyle(visualDensity: VisualDensity.compact),
-        segments: [for (final e in receiptStyles.entries) ButtonSegment(value: e.key, label: Text(_t(context, e.value.$1, e.value.$2)))],
-        selected: {_style},
-        onSelectionChanged: (v) => _pick(v.first),
-      ),
-    ]);
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: body),
+    );
   }
 }

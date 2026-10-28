@@ -73,6 +73,7 @@ const _perms = <String, _PermInfo>{
   'ops.live': _PermInfo('system', 'غرفة العمليات المباشرة', 'Live operations room', sensitive: true),
   'commission.view': _PermInfo('pos', 'عمولات و KPI الموظفين', 'Employee commissions & KPIs', sensitive: true),
   'commission.today': _PermInfo('pos', 'يشوف المنتجات اللي عليها كوميشن النهارده', 'See today\'s commission products'),
+  'receipt.style': _PermInfo('pos', 'يغيّر شكل الفاتورة', 'Change the invoice look'),
   'chat.use': _PermInfo('system', 'شات مباشر مع الإدارة', 'Direct chat with the office'),
   'chat.manage': _PermInfo('system', 'الرسايل المباشرة مع الموظفين', 'Direct messages with members', sensitive: true),
   'chat.logs': _PermInfo('system', 'سجل الرسايل المباشرة', 'Direct message logs', sensitive: true),

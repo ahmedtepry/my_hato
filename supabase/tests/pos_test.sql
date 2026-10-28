@@ -487,6 +487,15 @@ select public._expect('owner changes the free amount', $q$select public.pos_set_
 select public._expect('new free amount is read back', $q$select 1/(case when (public.pos_get_limits()->>'discount_free_minor')::int = 2000 then 1 else 0 end)$q$, null);
 reset role;
 select public._expect('sale function honours the free amount', $q$select 1/(case when pg_get_functiondef('public.pos_create_sale(text,uuid,jsonb,bigint,bigint,uuid,uuid)'::regprocedure) like '%pos_discount_free_minor%' then 1 else 0 end)$q$, null);
+-- ---------- 0083: invoice look
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('default look is clean', $q$select 1/(case when public.receipt_style_get() = 'clean' then 1 else 0 end)$q$, null);
+select public._expect('owner picks banner', $q$select public.receipt_style_set('banner')$q$, null);
+select public._expect('a bad look is refused', $q$select public.receipt_style_set('fancy')$q$, 'INVALID_INPUT');
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('staff reads the shop look', $q$select 1/(case when public.receipt_style_get() = 'banner' then 1 else 0 end)$q$, null);
+select public._expect('technician cannot change it', $q$select public.receipt_style_set('cards')$q$, 'FORBIDDEN');
+reset role;
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;
