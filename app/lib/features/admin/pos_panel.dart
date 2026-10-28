@@ -391,8 +391,14 @@ class _RegisterState extends ConsumerState<_Register> {
       return;
     }
     if (cash == null || cash < _total) {
-      showSnack(context, _t(context, 'المبلغ المستلم أقل من الإجمالي', 'Cash received is less than the total'), error: true);
+      final missing = _total - (cash ?? 0);
+      showSnack(context, _t(context, 'لسه ناقص ${_money(context, missing)}، خد المبلغ كامل من العميل', 'Still ${_money(context, missing)} short, take the full amount'), error: true);
       return;
+    }
+    // more than the total: the cashier must hand the change back, and confirms he did, before the sale is completed
+    if (cash > _total && _key == null) {
+      final ok = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
+      if (ok != true || !mounted) return;
     }
     setState(() => _busy = true);
     try {
@@ -723,6 +729,32 @@ class _ProductCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The customer paid more than the total: tell the cashier exactly how much to give back and ask him to confirm it.
+class _ChangeDialog extends StatelessWidget {
+  const _ChangeDialog({required this.change});
+  final int change;
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        icon: const Icon(Icons.payments_rounded, color: BrandColors.warning, size: 44),
+        title: Text(_t(context, 'رجّع للعميل', 'Give the customer back'), textAlign: TextAlign.center),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(_money(context, change), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+          const SizedBox(height: 10),
+          Text(_t(context, 'رجعت الفلوس للعميل؟', 'Did you hand the change back?'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+        ]),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t(context, 'لأ، رجوع', 'No, go back'))),
+          FilledButton(
+            autofocus: true,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(_t(context, 'أيوه رجعت', 'Yes, done')),
+          ),
+        ],
+      );
 }
 
 // ---------------------------------------------------------------- receipt
