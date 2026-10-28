@@ -428,6 +428,25 @@ select public._expect('a team member gets the newest build', $q$select 1/(case w
 select public._expect('the table itself is closed', $q$select * from public.app_releases$q$, 'permission denied');
 reset role; delete from public.app_releases;
 
+-- ---------- 0077: direct chat
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician sends a message to the office', $q$select public.chat_staff_send('محتاج خصم ١٠ جنيه')$q$, null);
+select public._expect('technician cannot answer members', $q$select public.chat_directory()$q$, 'FORBIDDEN');
+select public._expect('technician cannot read logs', $q$select public.chat_logs()$q$, 'FORBIDDEN');
+select public._expect('technician sees his message', $q$select 1/(case when jsonb_array_length(public.chat_staff_fetch()->'messages') = 1 then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner sees one unread', $q$select 1/(case when (public.chat_unread()->>'count')::int = 1 then 1 else 0 end)$q$, null);
+select public._expect('owner answers', format($q$select public.chat_manager_send(%L::uuid, 'تمام')$q$, :'TECH'), null);
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician clears his view', $q$select public.chat_staff_clear()$q$, null);
+select public._expect('technician sees nothing after clearing', $q$select 1/(case when jsonb_array_length(public.chat_staff_fetch()->'messages') = 0 then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner still has the record', $q$select 1/(case when (select count(*) from jsonb_array_elements(public.chat_logs())) = 1 then 1 else 0 end)$q$, null);
+reset role; update public.chat_threads set closed_at = now();
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner deletes all closed logs', $q$select 1/(case when public.chat_logs_delete(null, true) = 1 then 1 else 0 end)$q$, null);
+reset role;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

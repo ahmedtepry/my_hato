@@ -31,6 +31,7 @@ import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
 import 'accounts_tab.dart';
 import '../../core/team_theme.dart';
 import 'desktop_console.dart';
+import 'direct_chat.dart';
 import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
@@ -274,6 +275,43 @@ ConsoleLayout _resolveLayout(List<String> available, ConsoleLayout? saved) {
   ];
   if (pinned.isEmpty) pinned = available.where((k) => !_routeSections.contains(k)).take(4).toList();
   return ConsoleLayout(order, pinned.take(4).toList());
+}
+
+/// 'manager' (the office), 'staff' (a member who can write to the office) or null (no chat for this person).
+String? _chatKind(WidgetRef ref) {
+  final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+  if (p.contains('chat.manage')) return 'manager';
+  if (p.contains('chat.use')) return 'staff';
+  return null;
+}
+
+/// The chat tiles of the left column: the live chat (member) or direct messages (office), and the owner's log.
+List<Widget> _chatTiles(BuildContext ctx, WidgetRef ref) {
+  final kind = _chatKind(ref);
+  final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+  final unread = chatUnreadCount(ref);
+  final open = ref.watch(chatOpenProvider);
+  return [
+    if (kind != null) ...[
+      const SizedBox(height: 8),
+      _RailTile(
+        tooltip: kind == 'manager' ? _t(ctx, 'الرسايل المباشرة مع الموظفين', 'Direct messages with members') : _t(ctx, 'شات مباشر مع المدير', 'Direct chat with the manager'),
+        onTap: () => ref.read(chatOpenProvider.notifier).set(!open),
+        label: kind == 'manager' ? _t(ctx, 'رسايل الموظفين', 'Member chats') : _t(ctx, 'شات مباشر', 'Live chat'),
+        badge: unread > 0 ? _t(ctx, '$unread جديد', '$unread new') : null,
+        child: Icon(open ? Icons.chat_rounded : Icons.chat_bubble_outline_rounded, size: 32, color: unread > 0 ? BrandColors.error : BrandColors.electric),
+      ),
+    ],
+    if (perms.contains('chat.logs')) ...[
+      const SizedBox(height: 8),
+      _RailTile(
+        tooltip: _t(ctx, 'سجل الرسايل المباشرة (للرجوع ليها)', 'Direct message log'),
+        onTap: () => showDialog<void>(context: ctx, builder: (_) => ChatLogsDialog(canPurge: perms.contains('chat.purge'))),
+        label: _t(ctx, 'سجل الشات', 'Chat log'),
+        child: const Icon(Icons.history_rounded, size: 32, color: BrandColors.electric),
+      ),
+    ],
+  ];
 }
 
 /// A small tile in the left control column: icon, tiny label, optional badge.
@@ -582,8 +620,13 @@ class AdminHomeScreen extends ConsumerWidget {
                                       label: dark ? _t(ctx, 'فاتح', 'Light') : _t(ctx, 'داكن', 'Dark'),
                                     );
                                   }),
+                                  ..._chatTiles(ctx, ref),
                                 ])),
                               ),
+                              const ChatWatcher(),
+                              if (ref.watch(chatOpenProvider) && _chatKind(ref) != null)
+                                Positioned(left: 100, top: 10, bottom: 10, width: 350, child: DirectChatPanel(manager: _chatKind(ref) == 'manager')),
+
                             ]),
                           ),
                         ]),
