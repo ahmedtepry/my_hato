@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
+import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
@@ -595,6 +596,8 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
       Text(name.isEmpty ? '—' : name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       Text(role.label(context), style: const TextStyle(color: BrandColors.gray)),
       _branchBar(context, mine['branches.all'] == 'grant' || (mine['branches.all'] == null && rolePerms.contains('branches.all'))),
+      if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('targets.manage') ?? false)
+        _TargetBar(userId: widget.member['user_id'].toString(), name: name),
       Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Text(
@@ -733,4 +736,106 @@ class _RenameBranchesDialogState extends ConsumerState<_RenameBranchesDialog> {
           FilledButton(onPressed: _busy || _all == null ? null : _save, child: Text(_s(context, 'save', 'حفظ', 'Save'))),
         ],
       );
+}
+
+/// The monthly target of this employee: shown and changed right from his account screen. He gets a notification at once.
+class _TargetBar extends ConsumerStatefulWidget {
+  const _TargetBar({required this.userId, required this.name});
+  final String userId, name;
+  @override
+  ConsumerState<_TargetBar> createState() => _TargetBarState();
+}
+
+class _TargetBarState extends ConsumerState<_TargetBar> {
+  int? _minor;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final v = await ref.read(supabaseProvider).rpc('targets_get_user', params: {'p_user': widget.userId});
+      if (mounted) setState(() => _minor = (v as num).toInt());
+    } catch (_) {
+      if (mounted) setState(() => _minor = 0);
+    }
+  }
+
+  Future<void> _edit() async {
+    final ctl = TextEditingController(text: (_minor ?? 0) > 0 ? ((_minor ?? 0) / 100).toStringAsFixed((_minor ?? 0) % 100 == 0 ? 0 : 2) : '');
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_s(context, 'target_title', 'تارجت ${widget.name} الشهري', 'Monthly target')),
+        content: TextField(
+          controller: ctl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: _s(context, 'target_amount', 'المبلغ بالجنيه (فاضي = من غير تارجت)', 'Amount in EGP (empty = no target)'),
+            suffixText: 'ج.م',
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_s(context, 'cancel', 'إلغاء', 'Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text), child: Text(_s(context, 'save', 'حفظ', 'Save'))),
+        ],
+      ),
+    );
+    ctl.dispose();
+    if (text == null || !mounted) return;
+    final t = text.trim();
+    final minor = t.isEmpty ? 0 : parseEgpToMinor(t);
+    if (minor == null) {
+      showSnack(context, _s(context, 'bad_amount', 'المبلغ مش مظبوط', 'Invalid amount'), error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(supabaseProvider).rpc('targets_set_user', params: {'p_user': widget.userId, 'p_monthly_minor': minor});
+      if (mounted) {
+        setState(() => _minor = minor);
+        showSnack(context, _s(context, 'target_saved', 'اتحفظ التارجت واتبعتله إشعار', 'Target saved and he was notified'));
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, _permError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = _minor;
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color(0xFFE8A317).withValues(alpha: 0.10), borderRadius: BorderRadius.circular(14)),
+      child: Row(children: [
+        const Icon(Icons.flag_rounded, size: 20, color: Color(0xFFE8A317)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_s(context, 'target_row', 'تارجت الموظف الشهري', 'Monthly target'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text(
+              v == null
+                  ? '…'
+                  : (v == 0 ? _s(context, 'target_none', 'من غير تارجت', 'No target') : '${(v / 100).toStringAsFixed(v % 100 == 0 ? 0 : 2)} ج.م'),
+              style: const TextStyle(color: BrandColors.gray),
+            ),
+          ]),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: _busy || v == null ? null : _edit,
+          icon: const Icon(Icons.edit_rounded, size: 16),
+          label: Text(_s(context, 'target_edit', 'تعديل التارجت', 'Edit target')),
+        ),
+      ]),
+    );
+  }
 }

@@ -405,6 +405,15 @@ select public._expect('tip column exists with a guard', $q$select 1/(case when e
 select public._expect('shift totals carry the tips', $q$select 1/(case when pg_get_functiondef('public._shift_totals(uuid)'::regprocedure) like '%tips_minor%' then 1 else 0 end)$q$, null);
 select public._expect('a stranger cannot mark a tip', $q$select public.pos_mark_tip('00000000-0000-0000-0000-000000000000')$q$, 'NOT_FOUND');
 
+-- ---------- 0074: employee target from the account screen
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner sets an employee target', format($q$select public.targets_set_user(%L, 3000000)$q$, :'CASH'), null);
+select public._expect('owner reads it back', format($q$select 1/(case when public.targets_get_user(%L) = 3000000 then 1 else 0 end)$q$, :'CASH'), null);
+select public._expect('the employee got a notification', format($q$select 1/(case when exists (select 1 from public.notifications where user_id = %L and title_ar like '%%تارجت%%') then 1 else 0 end)$q$, :'CASH'), null);
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician cannot read targets', format($q$select public.targets_get_user(%L)$q$, :'CASH'), 'FORBIDDEN');
+reset role;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;
