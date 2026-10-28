@@ -22,3 +22,5 @@ Name: "{autodesktop}\My Hato Team"; Filename: "{app}\myhato.exe"
 
 [Run]
 Filename: "{app}\myhato.exe"; Description: "Open My Hato Team"; Flags: nowait postinstall skipifsilent
+; after an in-app update (silent install) the app opens again by itself
+Filename: "{app}\myhato.exe"; Flags: nowait; Check: WizardSilent

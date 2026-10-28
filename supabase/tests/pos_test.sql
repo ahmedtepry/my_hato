@@ -421,6 +421,13 @@ reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role
 select public._expect('technician cannot list them', $q$select * from public.staff_members_branches()$q$, 'FORBIDDEN');
 reset role;
 
+-- ---------- 0076: app updates
+reset role; insert into public.app_releases (platform, build, path, sha256) values ('windows', 5, 'windows/MyHatoTeam-Setup-5.exe', repeat('a', 64)), ('windows', 7, 'windows/MyHatoTeam-Setup-7.exe', repeat('b', 64));
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('a team member gets the newest build', $q$select 1/(case when (select build from public.latest_app_update('windows')) = 7 then 1 else 0 end)$q$, null);
+select public._expect('the table itself is closed', $q$select * from public.app_releases$q$, 'permission denied');
+reset role; delete from public.app_releases;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

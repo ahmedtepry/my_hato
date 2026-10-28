@@ -1,3 +1,4 @@
+import '../../core/app_update.dart';
 import '../../core/appearance.dart';
 import 'dart:async';
 import 'dart:typed_data';
@@ -506,6 +507,8 @@ class AdminHomeScreen extends ConsumerWidget {
                                   textDirection: TextDirection.ltr,
                                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                                     TeamThemeButton(isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
+                                    const SizedBox(width: 8),
+                                    const AppUpdateButton(),
                                     const SizedBox(width: 8),
                                     Tooltip(
                                       message: _t(ctx, 'قريبًا: هنحدد الخدمة دي بعدين', 'Coming soon'),

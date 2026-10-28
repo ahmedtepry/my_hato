@@ -43,6 +43,7 @@ jobs:
             --dart-define=TEAM_ONLY=true \
             --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
             --dart-define=APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" \
+            --dart-define=BUILD_NUMBER=${{ github.run_number }} \
             --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
           REL=build/windows/x64/runner/Release
           ls "$REL"
@@ -73,3 +74,21 @@ jobs:
             --title "My Hatō Team for Windows (build ${{ github.run_number }})" \
             --notes "Windows team app: console only, sign in with a team account. Run MyHatoTeam-Setup.exe (or unzip MyHatoTeam-windows.zip and run myhato.exe)." \
             --latest=false
+      # Publishes the installer for the in-app "update" button (the app downloads it, checks its SHA-256 and installs it).
+      # Not fatal: a failure here never blocks the release above.
+      - name: Publish the in-app update
+        continue-on-error: true
+        env:
+          PUSH_SECRET: ${{ secrets.UPDATE_PUSH_SECRET || '7e313cbe41776ed16d2b05d25af020378a45b98535a651fca1038664626e4cf1' }}
+        run: |
+          FN=https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/app-update
+          FILE=dist/MyHatoTeam-Setup.exe
+          BUILD=${{ github.run_number }}
+          SHA=$(sha256sum "$FILE" | cut -d' ' -f1)
+          NOTES=$(git log -1 --pretty=%s | head -c 280)
+          PREP=$(curl -sS -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d "{\"action\":\"prepare\",\"platform\":\"windows\",\"build\":$BUILD}")
+          echo "prepare: ${PREP:0:120}"
+          URL=$(echo "$PREP" | python -c "import sys,json;print(json.load(sys.stdin)['url'])")
+          curl -sS -f -X PUT "$URL" -H "Content-Type: application/octet-stream" -H "x-upsert: true" --data-binary @"$FILE"
+          BODY=$(python -c "import json,sys;print(json.dumps({'action':'publish','platform':'windows','build':int(sys.argv[1]),'sha256':sys.argv[2],'notes':sys.argv[3]}))" "$BUILD" "$SHA" "$NOTES")
+          curl -sS -f -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d "$BODY"
