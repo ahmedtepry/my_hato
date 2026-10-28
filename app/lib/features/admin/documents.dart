@@ -263,54 +263,185 @@ class _DocumentButtonsState extends State<DocumentButtons> {
 
 PdfPageFormat posReceiptFormat(int mm) => (mm <= 58 ? PdfPageFormat.roll57 : PdfPageFormat.roll80).copyWith(marginLeft: 3 * PdfPageFormat.mm, marginRight: 3 * PdfPageFormat.mm, marginTop: 3 * PdfPageFormat.mm, marginBottom: 6 * PdfPageFormat.mm);
 
-Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80}) async {
+/// The receipt looks the cashier can choose from (settings of the print dialog).
+const receiptStyles = <String, (String, String, String)>{
+  'classic': ('كلاسيك', 'Classic', 'بسيط ونضيف، يناسب أي طابعة'),
+  'modern': ('عصري', 'Modern', 'شريط باسم المحل وإجمالي كبير وQR للفاتورة'),
+  'compact': ('مضغوط', 'Compact', 'صغير وموفّر للورق، يناسب ٥٨ مم'),
+};
+
+/// A made-up sale used for the preview in the settings.
+Map<String, dynamic> sampleReceiptSale() => {
+      'number': 'POS-000000-00001',
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'branch_name_ar': 'فرع ١',
+      'cashier_name': 'أحمد',
+      'items': [
+        {'name_ar': 'إسكرينة زجاج كاملة', 'quantity': 2, 'unit_price_minor': 4900, 'line_total_minor': 9800},
+        {'name_ar': 'جراب شفاف', 'quantity': 1, 'unit_price_minor': 15000, 'line_total_minor': 15000},
+      ],
+      'discount_minor': 500,
+      'total_minor': 24300,
+      'cash_received_minor': 25000,
+      'change_minor': 700,
+      'tip_minor': 200,
+    };
+
+Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, String style = 'classic'}) async {
   final (regular, bold) = await _fonts();
   final doc = pw.Document(theme: pw.ThemeData.withFont(base: regular, bold: bold));
   final items = List<Map<String, dynamic>>.from(sale['items'] as List? ?? const []);
   final discount = (sale['discount_minor'] as num?) ?? 0;
   final refunded = (sale['refunded_minor'] as num?) ?? 0;
-  const small = pw.TextStyle(fontSize: 8.5, color: _grey);
-  pw.Widget row(String k, String v, {bool strong = false}) => pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+  final tip = (sale['tip_minor'] as num?) ?? 0;
+  final change = ((sale['change_minor'] as num?) ?? 0) - tip;
+  final phone = AppConfig.supportPhone.replaceFirst('+20', '0');
+  // the Arabic font has no "ō": print the name with a plain o so no empty box shows
+  final brand = AppName.ar.replaceAll('ō', 'o').replaceAll('Ō', 'O');
+  final branch = '${sale['branch_name_ar'] ?? ''}';
+  final cashier = '${sale['cashier_name'] ?? ''}';
+  final compact = style == 'compact';
+  final modern = style == 'modern';
+  final small = pw.TextStyle(fontSize: compact ? 7.5 : 8.5, color: _grey);
+  const ink = PdfColor.fromInt(0xFF111827);
+  const accent = PdfColor.fromInt(0xFF0B2D5B);
+
+  pw.Widget kv(String k, String v, {bool strong = false, double? size}) => pw.Padding(
+        padding: pw.EdgeInsets.symmetric(vertical: compact ? 0.8 : 1.5),
         child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text(k, style: pw.TextStyle(font: strong ? bold : regular, fontSize: strong ? 12 : 10)),
-          pw.Text(v, style: pw.TextStyle(font: strong ? bold : regular, fontSize: strong ? 12 : 10)),
+          pw.Text(k, style: pw.TextStyle(font: strong ? bold : regular, fontSize: size ?? (strong ? 12 : (compact ? 8.5 : 10)))),
+          pw.Text(v, style: pw.TextStyle(font: strong ? bold : regular, fontSize: size ?? (strong ? 12 : (compact ? 8.5 : 10))), textDirection: pw.TextDirection.rtl),
         ]),
       );
+  pw.Widget rule() => modern
+      ? pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 4), child: pw.Divider(color: _grey, thickness: 0.5, borderStyle: pw.BorderStyle.dashed))
+      : pw.Divider(color: _grey, thickness: 0.6, height: compact ? 6 : 10);
+
+  pw.Widget header() {
+    if (modern) {
+      return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(vertical: 8),
+          decoration: pw.BoxDecoration(color: accent, borderRadius: pw.BorderRadius.circular(6)),
+          child: pw.Center(child: pw.Text(brand, textDirection: pw.TextDirection.ltr, style: pw.TextStyle(font: bold, fontSize: 17, color: PdfColors.white))),
+        ),
+        pw.SizedBox(height: 5),
+        if (branch.isNotEmpty) pw.Center(child: pw.Text(branch, style: pw.TextStyle(font: bold, fontSize: 10))),
+        pw.Center(child: pw.Text(_date('${sale['created_at']}'), textDirection: pw.TextDirection.ltr, style: small)),
+        pw.SizedBox(height: 3),
+        pw.Center(child: pw.Text('${sale['number']}', textDirection: pw.TextDirection.ltr, style: pw.TextStyle(font: bold, fontSize: 10.5))),
+        if (cashier.isNotEmpty) pw.Center(child: pw.Text('الكاشير: $cashier', style: small)),
+      ]);
+    }
+    return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+      pw.Center(child: pw.Text(brand, textDirection: pw.TextDirection.ltr, style: pw.TextStyle(font: bold, fontSize: compact ? 12 : 15))),
+      if (branch.isNotEmpty) pw.Center(child: pw.Text(branch, style: pw.TextStyle(fontSize: compact ? 8.5 : 10))),
+      pw.SizedBox(height: compact ? 2 : 4),
+      pw.Center(child: pw.Text('فاتورة ${sale['number']}', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: bold, fontSize: compact ? 9 : 11))),
+      pw.Center(child: pw.Text(_date('${sale['created_at']}'), textDirection: pw.TextDirection.ltr, style: small)),
+      if (cashier.isNotEmpty) pw.Center(child: pw.Text('الكاشير: $cashier', style: small)),
+    ]);
+  }
+
+  pw.Widget itemRow(Map<String, dynamic> it) {
+    final qty = '${it['quantity']}';
+    final unit = _egp(it['unit_price_minor'] as num);
+    final line = _egp(it['line_total_minor'] as num);
+    if (modern) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+        child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Container(
+            width: 16,
+            padding: const pw.EdgeInsets.symmetric(vertical: 1),
+            decoration: pw.BoxDecoration(color: const PdfColor.fromInt(0xFFEEF2F7), borderRadius: pw.BorderRadius.circular(3)),
+            child: pw.Center(child: pw.Text(qty, style: pw.TextStyle(font: bold, fontSize: 9))),
+          ),
+          pw.SizedBox(width: 6),
+          pw.Expanded(
+            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text('${it['name_ar']}', style: pw.TextStyle(font: bold, fontSize: 10)),
+              pw.Text(unit, style: small),
+            ]),
+          ),
+          pw.Text(line, style: pw.TextStyle(font: bold, fontSize: 10)),
+        ]),
+      );
+    }
+    if (compact) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1),
+        child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Expanded(child: pw.Text('$qty × ${it['name_ar']}', style: pw.TextStyle(fontSize: 8.5))),
+          pw.SizedBox(width: 4),
+          pw.Text(line, style: pw.TextStyle(font: bold, fontSize: 8.5)),
+        ]),
+      );
+    }
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Expanded(child: pw.Text('${it['name_ar']}', style: pw.TextStyle(font: bold, fontSize: 10))),
+          pw.SizedBox(width: 6),
+          pw.Text(line, style: pw.TextStyle(font: bold, fontSize: 10)),
+        ]),
+        pw.Text('$qty × $unit', style: small),
+      ]),
+    );
+  }
+
+  pw.Widget totals() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        if (discount > 0) kv('خصم', '- ${_egp(discount)}'),
+        if (modern)
+          pw.Container(
+            margin: const pw.EdgeInsets.symmetric(vertical: 4),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: pw.BoxDecoration(color: const PdfColor.fromInt(0xFFEEF2F7), borderRadius: pw.BorderRadius.circular(6)),
+            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text('الإجمالي', style: pw.TextStyle(font: bold, fontSize: 12)),
+              pw.Text(_egp(sale['total_minor'] as num), textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: bold, fontSize: 15, color: accent)),
+            ]),
+          )
+        else
+          kv('الإجمالي', _egp(sale['total_minor'] as num), strong: true),
+        kv('المستلم', _egp(sale['cash_received_minor'] as num)),
+        if (change > 0) kv('الباقي', _egp(change)),
+        if (tip > 0) kv('بقشيش', _egp(tip)),
+        if (refunded > 0) kv('مرتجع', _egp(refunded)),
+      ]);
+
+  pw.Widget footer() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        pw.Center(child: pw.Text('شكرًا لثقتكم', style: pw.TextStyle(font: bold, fontSize: compact ? 9 : 11))),
+        pw.SizedBox(height: 2),
+        pw.Center(
+          child: pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
+            pw.Text('واتساب: ', style: small),
+            pw.Text(phone, textDirection: pw.TextDirection.ltr, style: small),
+          ]),
+        ),
+        if (!compact) pw.Center(child: pw.Text('الاسترجاع والاستبدال بالفاتورة', style: small)),
+        if (modern) ...[
+          pw.SizedBox(height: 6),
+          pw.Center(child: pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: '${sale['number']}', width: 52, height: 52, drawText: false)),
+        ],
+      ]);
+
   doc.addPage(pw.Page(
     pageFormat: posReceiptFormat(widthMm),
     textDirection: pw.TextDirection.rtl,
-    build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-      pw.Center(child: pw.Text(AppName.ar, style: pw.TextStyle(font: bold, fontSize: 15))),
-      if ('${sale['branch_name_ar'] ?? ''}'.isNotEmpty) pw.Center(child: pw.Text('${sale['branch_name_ar']}', style: const pw.TextStyle(fontSize: 10))),
-      pw.SizedBox(height: 4),
-      pw.Center(child: pw.Text('فاتورة ${sale['number']}', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: bold, fontSize: 11))),
-      pw.Center(child: pw.Text(_date('${sale['created_at']}'), textDirection: pw.TextDirection.ltr, style: small)),
-      if ('${sale['cashier_name'] ?? ''}'.isNotEmpty) pw.Center(child: pw.Text('الكاشير: ${sale['cashier_name']}', style: small)),
-      pw.Divider(color: _grey, thickness: 0.6),
-      for (final it in items)
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 2),
-          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-            pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Expanded(child: pw.Text('${it['name_ar']}', style: pw.TextStyle(font: bold, fontSize: 10))),
-              pw.SizedBox(width: 6),
-              pw.Text(_egp(it['line_total_minor'] as num), style: pw.TextStyle(font: bold, fontSize: 10)),
-            ]),
-            pw.Text('${it['quantity']} × ${_egp(it['unit_price_minor'] as num)}', style: small),
-          ]),
-        ),
-      pw.Divider(color: _grey, thickness: 0.6),
-      if (discount > 0) row('خصم', _egp(discount)),
-      row('الإجمالي', _egp(sale['total_minor'] as num), strong: true),
-      row('المستلم', _egp(sale['cash_received_minor'] as num)),
-      row('الباقي', _egp(sale['change_minor'] as num)),
-      if (refunded > 0) row('مرتجع', _egp(refunded)),
-      pw.Divider(color: _grey, thickness: 0.6),
-      pw.Center(child: pw.Text('شكرًا لثقتكم', style: pw.TextStyle(font: bold, fontSize: 11))),
-      pw.Center(child: pw.Text('واتساب ${AppConfig.supportPhone.replaceFirst('+20', '0')}', textDirection: pw.TextDirection.ltr, style: small)),
-      pw.Center(child: pw.Text('الاسترجاع بالفاتورة', style: small)),
-    ]),
+    build: (_) => pw.DefaultTextStyle(
+      style: const pw.TextStyle(color: ink),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        header(),
+        rule(),
+        for (final it in items) itemRow(it),
+        rule(),
+        totals(),
+        rule(),
+        footer(),
+      ]),
+    ),
   ));
   return doc.save();
 }

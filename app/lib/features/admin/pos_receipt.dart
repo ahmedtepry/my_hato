@@ -17,6 +17,7 @@ String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 const _kPrinter = 'pos_printer_name';
 const _kWidth = 'pos_receipt_mm';
 const _kAuto = 'pos_auto_print';
+const _kStyle = 'pos_receipt_style';
 
 Future<bool> receiptAutoPrintOn() async {
   try {
@@ -33,7 +34,7 @@ Future<void> printReceipt(BuildContext context, Map<String, dynamic> sale) async
     final p = await SharedPreferences.getInstance();
     final mm = p.getInt(_kWidth) ?? 80;
     final name = p.getString(_kPrinter) ?? '';
-    final bytes = await posReceiptPdf(sale, widthMm: mm);
+    final bytes = await posReceiptPdf(sale, widthMm: mm, style: p.getString(_kStyle) ?? 'classic');
     final format = posReceiptFormat(mm);
     final job = 'receipt-${sale['number']}';
     if (name.isNotEmpty) {
@@ -52,7 +53,7 @@ Future<void> printReceipt(BuildContext context, Map<String, dynamic> sale) async
 Future<void> shareReceiptPdf(BuildContext context, Map<String, dynamic> sale) async {
   try {
     final p = await SharedPreferences.getInstance();
-    final bytes = await posReceiptPdf(sale, widthMm: p.getInt(_kWidth) ?? 80);
+    final bytes = await posReceiptPdf(sale, widthMm: p.getInt(_kWidth) ?? 80, style: p.getString(_kStyle) ?? 'classic');
     if (context.mounted) await deliverFile(context, bytes, 'receipt-${sale['number']}.pdf', 'application/pdf');
   } catch (e) {
     if (context.mounted) showSnack(context, '$e', error: true);
@@ -199,6 +200,47 @@ class _ReceiptSettingsState extends State<_ReceiptSettings> {
                     await p.setInt(_kWidth, v.first);
                     if (mounted) setState(() {});
                   },
+                ),
+                const SizedBox(height: 14),
+                Text(_t(context, 'شكل الفاتورة', 'Receipt look'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                for (final e in receiptStyles.entries)
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: e.key,
+                    groupValue: p.getString(_kStyle) ?? 'classic',
+                    title: Text(_t(context, e.value.$1, e.value.$2), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(e.value.$3, style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+                    onChanged: (v) async {
+                      await p.setString(_kStyle, v ?? 'classic');
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                    label: Text(_t(context, 'معاينة الشكل المختار', 'Preview')),
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => Dialog(
+                        child: SizedBox(
+                          width: 420,
+                          height: 620,
+                          child: PdfPreview(
+                            build: (_) => posReceiptPdf(sampleReceiptSale(), widthMm: mm, style: p.getString(_kStyle) ?? 'classic'),
+                            pageFormats: {'receipt': posReceiptFormat(mm)},
+                            canChangePageFormat: false,
+                            canChangeOrientation: false,
+                            canDebug: false,
+                            allowPrinting: false,
+                            allowSharing: false,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 SwitchListTile(
