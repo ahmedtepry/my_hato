@@ -21,4 +21,7 @@ jobs:
         run: |
           flutter pub get
           flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee /tmp/analyze.txt
-          if grep -E "^\s*error •" /tmp/analyze.txt; then echo "::error::analyzer found errors"; exit 1; fi
+          if grep -E "^\s*error •" /tmp/analyze.txt; then
+            grep -E "^\s*error •" /tmp/analyze.txt | while IFS= read -r l; do echo "::error::$l"; done
+            echo "::error::analyzer found errors"; exit 1
+          fi
