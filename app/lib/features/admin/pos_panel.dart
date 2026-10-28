@@ -506,7 +506,7 @@ class _RegisterState extends ConsumerState<_Register> {
         autofocus: true,
         child: LayoutBuilder(builder: (context, c) {
           final wide = c.maxWidth >= 600; // products and cart together on one page; only a phone-sized window stacks them
-          final cartW = c.maxWidth >= 900 ? 400.0 : 340.0;
+          final cartW = c.maxWidth >= 900 ? 380.0 : 310.0;
           return Padding(
             padding: const EdgeInsets.all(14),
             child: Column(children: [
@@ -564,11 +564,15 @@ class _RegisterState extends ConsumerState<_Register> {
                 ? const Center(child: CircularProgressIndicator())
                 : _products.isEmpty
                     ? Center(child: Text(_t(context, 'مفيش منتجات', 'No products'), style: const TextStyle(color: BrandColors.gray)))
-                    : GridView.builder(
-                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 210, mainAxisExtent: 190, crossAxisSpacing: 12, mainAxisSpacing: 12),
-                        itemCount: _products.length,
-                        itemBuilder: (_, i) => _ProductCard(p: _products[i], inCart: _cart[_products[i]['id']]?.q ?? 0, onTap: () => _add(_products[i]), onMinus: () => _change(_products[i]['id'] as String, -1)),
-                      ),
+                    : LayoutBuilder(builder: (_, g) {
+                        // 4 products across and 3 rows fill the pane exactly; scroll for more
+                        final rowH = ((g.maxHeight - 16) / 3).clamp(132.0, 230.0);
+                        return GridView.builder(
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, mainAxisExtent: rowH, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                          itemCount: _products.length,
+                          itemBuilder: (_, i) => _ProductCard(p: _products[i], inCart: _cart[_products[i]['id']]?.q ?? 0, onTap: () => _add(_products[i]), onMinus: () => _change(_products[i]['id'] as String, -1)),
+                        );
+                      }),
       ),
     ]);
   }
@@ -711,52 +715,66 @@ class _ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final stock = (p['stock_quantity'] as num).toInt();
     final low = stock <= 3;
+    final sku = '${p['sku'] ?? ''}'.trim();
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
+      color: inCart > 0 ? const Color(0xFFF0F8FF) : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(7),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), gradient: const LinearGradient(colors: [Color(0xFFDFF2FF), Color(0xFFE8EEFF)])),
-                child: const Icon(Icons.shopping_bag_outlined, color: BrandColors.electric),
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(9), gradient: const LinearGradient(colors: [Color(0xFFDFF2FF), Color(0xFFE8EEFF)])),
+                child: const Icon(Icons.shopping_bag_outlined, size: 17, color: BrandColors.electric),
               ),
               const Spacer(),
-              if (inCart > 0) ...[
-                InkWell(
-                  borderRadius: BorderRadius.circular(10),
+              if (inCart > 0)
+                Container(
+                  constraints: const BoxConstraints(minWidth: 26),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(color: BrandColors.electric, borderRadius: BorderRadius.circular(9)),
+                  child: Text('$inCart', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                ),
+            ]),
+            const SizedBox(height: 5),
+            Expanded(
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: _t(context, '${p['name_ar']}', '${p['name_en']}'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  if (sku.isNotEmpty) TextSpan(text: ' ($sku)', style: const TextStyle(color: BrandColors.gray, fontSize: 10.5)),
+                ]),
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, height: 1.25),
+              ),
+            ),
+            Text(_money(context, p['price_minor'] as num), style: const TextStyle(color: BrandColors.navy, fontWeight: FontWeight.w800, fontSize: 14)),
+            Text(
+              stock <= 0 ? _t(context, 'خلصان', 'Out of stock') : _t(context, 'متاح $stock', '$stock in stock'),
+              style: TextStyle(fontSize: 10.5, color: stock <= 0 ? BrandColors.error : (low ? BrandColors.warning : BrandColors.gray)),
+            ),
+            if (inCart > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
                   onTap: onMinus,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    decoration: BoxDecoration(color: BrandColors.error.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                    height: 24,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: BrandColors.error.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.remove_rounded, size: 16, color: BrandColors.error),
-                      const SizedBox(width: 2),
+                      const Icon(Icons.remove_rounded, size: 15, color: BrandColors.error),
                       Text(_t(context, 'ناقص', 'Less'), style: const TextStyle(color: BrandColors.error, fontSize: 12, fontWeight: FontWeight.w800)),
                     ]),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Container(
-                  constraints: const BoxConstraints(minWidth: 28),
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                  decoration: BoxDecoration(color: BrandColors.electric, borderRadius: BorderRadius.circular(10)),
-                  child: Text('$inCart', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
-                ),
-              ],
-            ]),
-            const SizedBox(height: 8),
-            Expanded(child: Text(_t(context, '${p['name_ar']}', '${p['name_en']}'), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700))),
-            Text(_money(context, p['price_minor'] as num), style: const TextStyle(color: BrandColors.navy, fontWeight: FontWeight.w800, fontSize: 16)),
-            Text(
-              stock <= 0 ? _t(context, 'خلصان', 'Out of stock') : _t(context, 'متاح $stock', '$stock in stock'),
-              style: TextStyle(fontSize: 12, color: stock <= 0 ? BrandColors.error : (low ? BrandColors.warning : BrandColors.gray)),
-            ),
+              ),
           ]),
         ),
       ),
