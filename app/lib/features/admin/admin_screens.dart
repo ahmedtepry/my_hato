@@ -37,6 +37,7 @@ import 'pos_panel.dart';
 import 'sales_panel.dart';
 import 'shifts_panel.dart';
 import 'targets.dart';
+import 'ops_panel.dart';
 import 'team.dart';
 import 'admin_repository.dart';
 import 'documents.dart';
@@ -239,6 +240,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'shifts': _SectionInfo(Icons.fact_check_outlined, Color(0xFF7A5AF8), 'الورديات والموافقات', 'Shifts & approvals', 'موافقات الخصم والمرتجع وفروق الدرج ومقارنة الفروع', 'Discount and refund approvals, drawer differences, branch comparison'),
   'books': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFF12B76A), 'المحاسبة', 'Accounting', 'صافي المبيعات والمرتجعات وفروق الدرج ومقارنة الفروع', 'Net sales, refunds, drawer differences and branch comparison'),
   'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
+  'ops': _SectionInfo(Icons.monitor_heart_rounded, Color(0xFFE5484D), 'غرفة العمليات المباشرة', 'Live operations room', 'مبيعات كل فرع لحظيًا، الورديات المفتوحة ومين فاتحها، ومين أونلاين، وكل اللي بيحصل', 'Live sales per branch, open shifts and who opened them, who is online, and everything happening'),
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
@@ -272,6 +274,76 @@ ConsoleLayout _resolveLayout(List<String> available, ConsoleLayout? saved) {
   return ConsoleLayout(order, pinned.take(4).toList());
 }
 
+/// Pages visited in the desktop console, so the back button next to the colours button can return to the previous one.
+final List<String> _navBack = [];
+
+/// Pages that live inside another page's tabs, so they leave the sidebar when that page is there.
+bool _hiddenInSidebar(String k, List<String> tabs) =>
+    (k == 'repairs' && tabs.contains('orders')) || (k == 'occasions' && tabs.contains('appearance')) || (k == 'team' && tabs.contains('accounts'));
+
+class _HostTabs extends StatelessWidget {
+  const _HostTabs({required this.tabs});
+  final List<(String, String, IconData, Widget)> tabs;
+  @override
+  Widget build(BuildContext context) {
+    if (tabs.length == 1) return tabs.first.$4;
+    return DefaultTabController(
+      length: tabs.length,
+      child: Column(children: [
+        Material(
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 44),
+            child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
+              for (final t in tabs) Tab(icon: Icon(t.$3, size: 20), text: _t(context, t.$1, t.$2)),
+            ]),
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(child: TabBarView(physics: const NeverScrollableScrollPhysics(), children: [for (final t in tabs) t.$4])),
+      ]),
+    );
+  }
+}
+
+class _OrdersHost extends ConsumerWidget {
+  const _OrdersHost();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    return _HostTabs(tabs: [
+      if (p.contains('orders.view')) ('طلبات المبيعات', 'Sales orders', Icons.shopping_bag_outlined, const _OrdersTab()),
+      if (p.contains('repairs.view')) ('طلبات الصيانة', 'Repair orders', Icons.build_outlined, const _RepairsTab()),
+    ]);
+  }
+}
+
+class _AccountsHost extends ConsumerWidget {
+  const _AccountsHost();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    return _HostTabs(tabs: [
+      ('العملاء', 'Customers', Icons.groups_2_outlined, const AccountsTab()),
+      if (p.contains('staff.manage')) ('الفريق', 'Team', Icons.groups_rounded, const TeamScreen()),
+    ]);
+  }
+}
+
+class _AppearanceHost extends ConsumerWidget {
+  const _AppearanceHost();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    final owner = ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false;
+    return _HostTabs(tabs: [
+      ('ألوان التطبيق وأيقونته', 'App colours & icon', Icons.palette_outlined, const AppearancePanel()),
+      if (p.contains('occasions.manage')) ('مؤثرات المناسبات', 'Occasion effects', Icons.auto_awesome_rounded, const OccasionsPanel()),
+      ('ألوان برنامج الفريق', 'Team app colours', Icons.color_lens_outlined, TeamThemeCard(isOwner: owner)),
+    ]);
+  }
+}
+
 class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
 
@@ -293,6 +365,12 @@ class AdminHomeScreen extends ConsumerWidget {
       child: Builder(builder: (ctx) {
         final c = DefaultTabController.of(ctx);
         void open(String k) {
+          final cur = c.index < consoleIdx ? tabs[c.index] : null;
+          if (cur != null && cur != k && !_routeSections.contains(k)) {
+            _navBack.remove(cur);
+            _navBack.add(cur);
+            if (_navBack.length > 20) _navBack.removeAt(0);
+          }
           StaffPresence.area = k;
           if (k == 'offers') {
             openPromotions(ctx);
@@ -312,24 +390,37 @@ class AdminHomeScreen extends ConsumerWidget {
             final pages = TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
                   for (final t in tabs)
                     switch (t) {
-                      'orders' => const _OrdersTab(),
                       'pos' => const PosPanel(),
                       'shifts' => const ShiftsPanel(),
                       'books' => const AccountantPanel(),
                       'sales' => const SalesPanel(),
+                      'ops' => const OpsPanel(),
+                      'orders' => const _OrdersHost(),
+                      'accounts' => const _AccountsHost(),
+                      'appearance' => const _AppearanceHost(),
                       'targets' => const TargetsPanel(),
                       'mytarget' => const MyTargetPanel(),
-                      'appearance' => const AppearancePanel(),
                       'occasions' => const OccasionsPanel(),
                       'repairs' => const _RepairsTab(),
                       'products' => const _ProductsTab(),
                       'reviews' => const _ReviewsTab(),
-                      'accounts' => const AccountsTab(),
                       'gifts' => const GiftsPanel(),
                       _ => const _Overview(),
                     },
                   _ConsolePage(layout: layout, onOpen: open),
                 ]);
+
+            void back() {
+              while (_navBack.isNotEmpty) {
+                final k = _navBack.removeLast();
+                final i = tabs.indexOf(k);
+                if (i >= 0) {
+                  StaffPresence.area = k;
+                  c.animateTo(i);
+                  return;
+                }
+              }
+            }
 
             Future<void> signOut() async {
               await staffWentOffline(ref);
@@ -366,6 +457,7 @@ class AdminHomeScreen extends ConsumerWidget {
                           DesktopSidebar(
                             items: [
                               for (final k in available)
+                                if (!_hiddenInSidebar(k, tabs))
                                 DesktopNavItem(
                                   keyName: k,
                                   icon: _sectionInfo[k]!.icon,
@@ -385,7 +477,26 @@ class AdminHomeScreen extends ConsumerWidget {
                               Positioned(
                                 left: 12,
                                 top: 10,
-                                child: TeamThemeButton(isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
+                                child: Directionality(
+                                  textDirection: TextDirection.ltr,
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    TeamThemeButton(isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
+                                    if (_navBack.isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Material(
+                                        color: Colors.white,
+                                        elevation: 2,
+                                        shape: const CircleBorder(),
+                                        child: IconButton(
+                                          tooltip: _t(ctx, 'رجوع للصفحة اللي قبلها', 'Back to the previous page'),
+                                          icon: Directionality(textDirection: Directionality.of(context), child: const Icon(Icons.arrow_back_rounded)),
+                                          color: BrandColors.electric,
+                                          onPressed: back,
+                                        ),
+                                      ),
+                                    ],
+                                  ]),
+                                ),
                               ),
                             ]),
                           ),

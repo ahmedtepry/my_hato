@@ -67,6 +67,7 @@ const _perms = <String, _PermInfo>{
   'roles.assign': _PermInfo('system', 'يغيّر أدوار الناس', 'Change people roles', sensitive: true),
   'branches.manage': _PermInfo('system', 'يعدّل الفروع ومناطق التوصيل', 'Edit branches and delivery zones'),
   'books.period': _PermInfo('pos', 'يختار فترة التقرير (يوم/شهر/سنة)', 'Pick the report period (day / month / year)'),
+  'ops.live': _PermInfo('system', 'غرفة العمليات المباشرة', 'Live operations room', sensitive: true),
   'targets.view': _PermInfo('pos', 'يشوف تارجت الفروع', 'See branch targets'),
   'targets.manage': _PermInfo('pos', 'يحدد التارجت (فروع وموظفين)', 'Set targets (branches and employees)'),
   'targets.mine': _PermInfo('pos', 'يشوف تارجته وعمولته', 'See his own target and commission'),

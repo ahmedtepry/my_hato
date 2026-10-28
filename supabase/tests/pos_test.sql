@@ -378,6 +378,18 @@ select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticat
 select public._expect('with the period right, any range works', $q$select * from public.pos_shift_list(null, now() - interval '400 days', null, 50)$q$, null);
 reset role;
 
+-- ---------- 0071: live operations room
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner opens the live room', $q$select 1/(case when jsonb_array_length(public.ops_live() -> 'branches') >= 2 then 1 else 0 end)$q$, null);
+select public._expect('live room lists the sales', $q$select 1/(case when jsonb_typeof(public.ops_sales(null, null, false, 50)) = 'array' then 1 else 0 end)$q$, null);
+select public._expect('owner reads the actions feed', $q$select public.ops_actions(null, 20)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('manager has no live room by default', $q$select public.ops_live()$q$, 'FORBIDDEN');
+select public._expect('manager cannot read sales through it', $q$select public.ops_sales()$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticated;
+select public._expect('accountant has no live room', $q$select public.ops_actions()$q$, 'FORBIDDEN');
+reset role;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

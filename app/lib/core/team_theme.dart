@@ -151,6 +151,33 @@ class TeamThemeButton extends ConsumerWidget {
       );
 }
 
+/// The colour choice as a page (inside Appearance): opens the same picker as the button in the corner.
+class TeamThemeCard extends StatelessWidget {
+  const TeamThemeCard({super.key, required this.isOwner});
+  final bool isOwner;
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.color_lens_outlined, size: 44, color: BrandColors.electric),
+            const SizedBox(height: 10),
+            Text(
+                context.isAr
+                    ? 'كل موظف يختار لون برنامجه على جهازه بس.${isOwner ? ' وإنت تقدر تطبّق لون على كل الفريق.' : ''}'
+                    : 'Each member picks the colours on his own device.${isOwner ? ' You can also apply a colour to everyone.' : ''}',
+                textAlign: TextAlign.center),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: () => showDialog<void>(context: context, builder: (_) => _ThemeDialog(isOwner: isOwner)),
+              icon: const Icon(Icons.palette_outlined),
+              label: Text(context.isAr ? 'اختيار الألوان' : 'Choose colours'),
+            ),
+          ]),
+        ),
+      );
+}
+
 class _ThemeDialog extends ConsumerStatefulWidget {
   const _ThemeDialog({required this.isOwner});
   final bool isOwner;
