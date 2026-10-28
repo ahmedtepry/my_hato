@@ -239,7 +239,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
                   Text(name.isEmpty ? _t(context, 'بدون اسم', 'No name') : name,
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                   const SizedBox(height: 2),
-                  Text('${a['customer_code']} • ${_ago(context, a['created_at'] as String)}',
+                  Text('${a['is_staff'] == true ? '${_t(context, 'موظف', 'Team')} • ' : ''}${a['customer_code']} • ${_ago(context, a['created_at'] as String)}',
                       style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
                 ]),
               ),
@@ -581,7 +581,8 @@ class _CustomerTile extends ConsumerWidget {
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-            child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 11.5)),
+            child: Text(c['is_staff'] == true ? '${_t(context, 'موظف', 'Team')} • $label' : label,
+                style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 11.5)),
           ),
           children: [
             _row(context, _t(context, 'الإيميل', 'Email'), hasEmail ? email : null, copy: true),
@@ -595,7 +596,7 @@ class _CustomerTile extends ConsumerWidget {
             _row(context, _t(context, 'عدد الطلبات', 'Orders'), '$orders'),
             _row(context, _t(context, 'اشترى بـ', 'Bought (delivered)'), orders == 0 ? '—' : formatEgp(spent, context.lang)),
             _row(context, _t(context, 'آخر طلب', 'Last order'), _date(context, c['last_order_at'] as String?)),
-            if (canReset) ...[
+            if (canReset && c['is_staff'] != true) ...[
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () => showDialog<void>(context: context, builder: (_) => _ResetPasswordDialog(customer: c)),

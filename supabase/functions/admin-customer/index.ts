@@ -45,8 +45,7 @@ Deno.serve(async (req) => {
     return json(req, 200, { ok: true, customer_code: cust.customer_code });
   }
   if (body.action === "activate") {
-    const { data: roles } = await db.from("user_roles").select("role").eq("user_id", userId).limit(1);
-    if (roles && roles.length) return json(req, 403, { error: "STAFF_ACCOUNT" });
+    // team accounts can be verified too (the owner decides), so no staff refusal here
     const { data: cust } = await db.from("customers").select("customer_code").eq("user_id", userId).maybeSingle();
     if (!cust) return json(req, 404, { error: "NOT_FOUND" });
     const { error } = await db.auth.admin.updateUserById(userId, { email_confirm: true, ban_duration: "none" });

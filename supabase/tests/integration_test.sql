@@ -779,7 +779,7 @@ do $$ declare v_n int; begin
   perform t.act('00000000-0000-0000-0000-0000000000c0');
   select count(*) into v_n from public.staff_accounts('pending') where user_id in ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000d2');
   if v_n <> 2 then raise exception 'T38 list %', v_n; end if;
-  if exists (select 1 from public.staff_accounts('pending') where user_id = '00000000-0000-0000-0000-0000000000c0') then raise exception 'T38 staff listed'; end if;
+  if exists (select 1 from public.staff_accounts('pending') where user_id = '00000000-0000-0000-0000-0000000000d1' and is_staff) then raise exception 'T38 customer flagged staff'; end if;
   if public.staff_pending_accounts_count() < 2 then raise exception 'T38 count'; end if;
   perform public.staff_mark_account_approved('00000000-0000-0000-0000-0000000000d1');
   perform public.staff_reject_account('00000000-0000-0000-0000-0000000000d2', 'بيانات ناقصة');
