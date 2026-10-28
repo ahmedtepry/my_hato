@@ -255,3 +255,61 @@ class _DocumentButtonsState extends State<DocumentButtons> {
     );
   }
 }
+
+// =====================================================================================
+// Cashier receipt: a narrow thermal-roll slip (80 mm or 58 mm), Arabic RTL
+// =====================================================================================
+
+PdfPageFormat posReceiptFormat(int mm) => (mm <= 58 ? PdfPageFormat.roll57 : PdfPageFormat.roll80).copyWith(marginLeft: 3 * PdfPageFormat.mm, marginRight: 3 * PdfPageFormat.mm, marginTop: 3 * PdfPageFormat.mm, marginBottom: 6 * PdfPageFormat.mm);
+
+Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80}) async {
+  final (regular, bold) = await _fonts();
+  final doc = pw.Document(theme: pw.ThemeData.withFont(base: regular, bold: bold));
+  final items = List<Map<String, dynamic>>.from(sale['items'] as List? ?? const []);
+  final discount = (sale['discount_minor'] as num?) ?? 0;
+  final refunded = (sale['refunded_minor'] as num?) ?? 0;
+  const small = pw.TextStyle(fontSize: 8.5, color: _grey);
+  pw.Widget row(String k, String v, {bool strong = false}) => pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+        child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+          pw.Text(k, style: pw.TextStyle(font: strong ? bold : regular, fontSize: strong ? 12 : 10)),
+          pw.Text(v, style: pw.TextStyle(font: strong ? bold : regular, fontSize: strong ? 12 : 10)),
+        ]),
+      );
+  doc.addPage(pw.Page(
+    pageFormat: posReceiptFormat(widthMm),
+    textDirection: pw.TextDirection.rtl,
+    build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+      pw.Center(child: pw.Text(AppName.ar, style: pw.TextStyle(font: bold, fontSize: 15))),
+      if ('${sale['branch_name_ar'] ?? ''}'.isNotEmpty) pw.Center(child: pw.Text('${sale['branch_name_ar']}', style: const pw.TextStyle(fontSize: 10))),
+      pw.SizedBox(height: 4),
+      pw.Center(child: pw.Text('فاتورة ${sale['number']}', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: bold, fontSize: 11))),
+      pw.Center(child: pw.Text(_date('${sale['created_at']}'), textDirection: pw.TextDirection.ltr, style: small)),
+      if ('${sale['cashier_name'] ?? ''}'.isNotEmpty) pw.Center(child: pw.Text('الكاشير: ${sale['cashier_name']}', style: small)),
+      pw.Divider(color: _grey, thickness: 0.6),
+      for (final it in items)
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 2),
+          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+            pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Expanded(child: pw.Text('${it['name_ar']}', style: pw.TextStyle(font: bold, fontSize: 10))),
+              pw.SizedBox(width: 6),
+              pw.Text(_egp(it['line_total_minor'] as num), style: pw.TextStyle(font: bold, fontSize: 10)),
+            ]),
+            pw.Text('${it['quantity']} × ${_egp(it['unit_price_minor'] as num)}', style: small),
+          ]),
+        ),
+      pw.Divider(color: _grey, thickness: 0.6),
+      if (discount > 0) row('خصم', _egp(discount)),
+      row('الإجمالي', _egp(sale['total_minor'] as num), strong: true),
+      row('المستلم', _egp(sale['cash_received_minor'] as num)),
+      row('الباقي', _egp(sale['change_minor'] as num)),
+      if (refunded > 0) row('مرتجع', _egp(refunded)),
+      pw.Divider(color: _grey, thickness: 0.6),
+      pw.Center(child: pw.Text('شكرًا لثقتكم', style: pw.TextStyle(font: bold, fontSize: 11))),
+      pw.Center(child: pw.Text('واتساب ${AppConfig.supportPhone.replaceFirst('+20', '0')}', textDirection: pw.TextDirection.ltr, style: small)),
+      pw.Center(child: pw.Text('الاسترجاع بالفاتورة', style: small)),
+    ]),
+  ));
+  return doc.save();
+}

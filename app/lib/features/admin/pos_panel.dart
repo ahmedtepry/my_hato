@@ -13,6 +13,7 @@ import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../shared/barcode_scanner.dart';
 import '../../shared/states.dart';
+import 'pos_receipt.dart';
 import 'pos_repository.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -343,6 +344,8 @@ class _RegisterState extends ConsumerState<_Register> {
       setState(_reset);
       ref.invalidate(posShiftProvider);
       _loadProducts(_search.text);
+      if (await receiptAutoPrintOn() && mounted) unawaited(printReceipt(context, done));
+      if (!mounted) return;
       await showDialog<void>(context: context, builder: (_) => _ReceiptDialog(sale: done));
       if (mounted) _searchFocus.requestFocus();
     } catch (e) {
@@ -681,6 +684,10 @@ class _ReceiptDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: ReceiptButtons(sale: sale, text: receiptText(context, sale)),
+        ),
         TextButton.icon(
           icon: const Icon(Icons.copy_rounded, size: 18),
           label: Text(_t(context, 'نسخ الإيصال', 'Copy receipt')),
@@ -921,6 +928,8 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
               ),
             ] else ...[
               Text('${_sale!['number']} · ${_money(context, _sale!['total_minor'] as num)}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              ReceiptButtons(sale: _sale!, text: receiptText(context, _sale!)),
               const SizedBox(height: 6),
               for (final it in _items)
                 Builder(builder: (_) {
