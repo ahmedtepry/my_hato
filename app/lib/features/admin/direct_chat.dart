@@ -70,6 +70,17 @@ class _Peer extends Notifier<String?> {
   void set(String? v) => state = v;
 }
 
+/// Floating mode: the panel is lifted off the left strip and can be dragged anywhere inside the window by its title bar.
+final chatFloatProvider = NotifierProvider<_Flag, bool>(_Flag.new);
+
+class _Pos extends Notifier<Offset> {
+  @override
+  Offset build() => const Offset(40, 70);
+  void set(Offset o) => state = o;
+}
+
+final chatPosProvider = NotifierProvider<_Pos, Offset>(_Pos.new);
+
 /// Whether the chat panel is showing, and (for the office) which member it is open with.
 final chatOpenProvider = NotifierProvider<_Flag, bool>(_Flag.new);
 final chatPeerProvider = NotifierProvider<_Peer, String?>(_Peer.new);
@@ -167,7 +178,7 @@ class DirectChatPanel extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   const _Header({required this.title, this.subtitle, this.onBack, required this.onClose, this.actions = const []});
   final String title;
   final String? subtitle;
@@ -175,24 +186,49 @@ class _Header extends StatelessWidget {
   final VoidCallback onClose;
   final List<Widget> actions;
   @override
-  Widget build(BuildContext context) => Container(
-        color: BrandColors.navy,
-        padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
-        child: Row(children: [
-          if (onBack != null) IconButton(onPressed: onBack, tooltip: _t(context, 'رجوع للقائمة', 'Back to the list'), icon: const Icon(Icons.arrow_back_rounded, color: Colors.white)),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-                if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFB8C4D9), fontSize: 11)),
-              ]),
-            ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final floating = ref.watch(chatFloatProvider);
+    final bar = Container(
+      color: BrandColors.navy,
+      padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
+      child: Row(children: [
+        if (onBack != null) IconButton(onPressed: onBack, tooltip: _t(context, 'رجوع للقائمة', 'Back to the list'), icon: const Icon(Icons.arrow_back_rounded, color: Colors.white)),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+              if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFB8C4D9), fontSize: 11)),
+            ]),
           ),
-          ...actions,
-          IconButton(onPressed: onClose, tooltip: _t(context, 'إخفاء (الرسايل بتتسجل)', 'Hide (messages are saved)'), icon: const Icon(Icons.close_rounded, color: Colors.white)),
-        ]),
-      );
+        ),
+        ...actions,
+        IconButton(
+          onPressed: () => ref.read(chatFloatProvider.notifier).set(!floating),
+          tooltip: floating ? _t(context, 'تثبيت على الشمال', 'Dock to the left') : _t(context, 'فكّها واسحبها في أي مكان', 'Undock and drag anywhere'),
+          icon: Icon(floating ? Icons.push_pin_outlined : Icons.open_with_rounded, color: Colors.white),
+        ),
+        IconButton(onPressed: onClose, tooltip: _t(context, 'إخفاء (الرسايل بتتسجل)', 'Hide (messages are saved)'), icon: const Icon(Icons.close_rounded, color: Colors.white)),
+      ]),
+    );
+    if (!floating) return bar;
+    // floating: dragging the title bar moves the whole panel (kept inside the window)
+    return MouseRegion(
+      cursor: SystemMouseCursors.move,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onPanUpdate: (d) {
+          final size = MediaQuery.sizeOf(context);
+          final cur = ref.read(chatPosProvider);
+          ref.read(chatPosProvider.notifier).set(Offset(
+                (cur.dx + d.delta.dx).clamp(-250.0, size.width - 100),
+                (cur.dy + d.delta.dy).clamp(0.0, size.height - 60),
+              ));
+        },
+        child: bar,
+      ),
+    );
+  }
 }
 
 /// The conversation itself: polls every 3 seconds while it is on screen.

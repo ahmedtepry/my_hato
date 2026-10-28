@@ -10,7 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config.dart';
 import 'core/dark_mode.dart';
-import 'features/admin/direct_chat.dart' show chatOpenProvider, chatPanelSpace;
+import 'features/admin/direct_chat.dart' show chatFloatProvider, chatOpenProvider, chatPanelSpace;
 import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/appearance.dart';
@@ -160,7 +160,7 @@ class MyHatoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
     final dark = ref.watch(darkModeProvider);
-    final chatOpen = AppConfig.teamOnly && ref.watch(chatOpenProvider);
+    final chatOpen = AppConfig.teamOnly && ref.watch(chatOpenProvider) && !ref.watch(chatFloatProvider);
     ref.watch(appearanceProvider); // rebuilds the theme when the owner changes the colours
     if (AppConfig.teamOnly) ref.watch(teamThemeProvider); // the team app's own colour theme
     return MaterialApp.router(

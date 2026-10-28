@@ -545,7 +545,8 @@ class AdminHomeScreen extends ConsumerWidget {
                   };
               // the chat panel takes the free strip at the far left: everything else moves right by its width
               final chatShown = ref.watch(chatOpenProvider) && _chatKind(ref) != null;
-              final shift = chatShown ? chatPanelSpace : 0.0;
+              final chatFloating = chatShown && ref.watch(chatFloatProvider);
+              final shift = chatShown && !chatFloating ? chatPanelSpace : 0.0;
               return Scaffold(
                 backgroundColor: const Color(0xFFF4F6FA),
                 body: CallbackShortcuts(
@@ -630,7 +631,15 @@ class AdminHomeScreen extends ConsumerWidget {
                                 ])),
                               ),
                               const ChatWatcher(),
-                              if (chatShown)
+                              if (chatFloating)
+                                Positioned(
+                                  left: ref.watch(chatPosProvider).dx,
+                                  top: ref.watch(chatPosProvider).dy,
+                                  width: chatPanelSpace - 24,
+                                  height: 560,
+                                  child: DirectChatPanel(manager: _chatKind(ref) == 'manager'),
+                                ),
+                              if (chatShown && !chatFloating)
                                 Positioned(
                                   left: 8,
                                   top: 0,
