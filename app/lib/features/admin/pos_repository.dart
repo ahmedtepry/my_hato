@@ -127,6 +127,7 @@ class PosRepository {
   Future<List<Map<String, dynamic>>> branchReportSince(DateTime from) async =>
       _l(await _db.rpc('pos_branch_report', params: {'p_from': from.toUtc().toIso8601String()}));
 
+  Future<String> auditExport(int days) async => (await _db.rpc('audit_export', params: {'p_days': days})) as String;
   Future<Map<String, dynamic>> auditVerify() async => _m(await _db.rpc('audit_verify'));
 
   Future<Map<String, dynamic>> snapshot() async => _m(await _db.rpc('owner_data_snapshot'));

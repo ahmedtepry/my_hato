@@ -284,6 +284,29 @@ reset role; select set_config('request.jwt.claim.sub', :'ACCT', false); set role
 select public._expect('accountant cannot change the log', $q$update public.audit_logs set action = 'x'$q$, 'permission denied');
 reset role;
 
+-- ---------- 0066: the nine formerly "coming soon" permissions are real
+reset role;
+select public._expect('no permission is inert any more', $q$select 1/(case when exists (select 1 from public.permission_catalog where inert) then 0 else 1 end)$q$, null);
+select public._expect('owner has every new permission', $q$select 1/(case when (select count(*) from public.role_permissions where role = 'owner' and permission in ('customers.review','cancel_requests.decide','coupons.manage','notifications.broadcast','reviews.moderate','audit.export','payments.manage','roles.assign','branches.manage')) = 9 then 1 else 0 end)$q$, null);
+select public._expect('manager inherited coupons.manage from orders.manage', $q$select 1/(case when exists (select 1 from public.role_permissions where role='manager' and permission='coupons.manage') then 1 else 0 end)$q$, null);
+select public._expect('manager did not get roles.assign (he had no staff.manage)', $q$select 1/(case when exists (select 1 from public.role_permissions where role='manager' and permission='roles.assign') then 0 else 1 end)$q$, null);
+select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('manager can save a coupon', $q$select public.staff_save_coupon('T66', 'اختبار', 10, null, 0, null, 1, null, true)$q$, null);
+reset role; insert into public.user_permission_overrides(user_id, permission, effect) values (:'MGR', 'coupons.manage', 'deny');
+select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('owner can switch coupons off for one person', $q$select public.staff_save_coupon('T67', 'اختبار', 10, null, 0, null, 1, null, true)$q$, 'FORBIDDEN');
+select public._expect('he still handles orders (only coupons were switched off)', $q$select 1/(case when public.has_permission('orders.manage') then 1 else 0 end)$q$, null);
+reset role; delete from public.user_permission_overrides where user_id = :'MGR' and permission = 'coupons.manage';
+select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician cannot download the log', $q$select public.audit_export(7)$q$, 'FORBIDDEN');
+select public._expect('technician cannot broadcast', $q$select public.staff_broadcast_offer('x','y',null,null)$q$, 'FORBIDDEN');
+select public._expect('cancellation decisions are gated by their own permission', $q$select 1/(case when pg_get_functiondef('public.staff_decide_cancel(uuid,boolean,text)'::regprocedure) like '%require_permission(''cancel_requests.decide'')%' then 1 else 0 end)$q$, null);
+select public._expect('technician cannot change roles', format($q$select public.staff_assign_role(%L, 'sales')$q$, :'CASH'), 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner downloads the log as CSV', $q$select 1/(case when public.audit_export(30) like 'id,time,actor,action%' then 1 else 0 end)$q$, null);
+select public._expect('the download is itself logged', $q$select 1/(case when exists (select 1 from public.audit_logs where action = 'audit.export') then 1 else 0 end)$q$, null);
+reset role;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

@@ -46,26 +46,26 @@ const _perms = <String, _PermInfo>{
   'customers.view': _PermInfo('orders', 'يشوف بيانات العملاء', 'View customers'),
   'support.manage': _PermInfo('orders', 'يقبل أو يرفض الحسابات الجديدة', 'Approve new accounts',
       descAr: 'ويرد على طلبات الدعم', descEn: 'And answers support requests'),
-  'customers.review': _PermInfo('orders', 'مراجعة العملاء الجداد', 'Review new customers', inert: true),
-  'cancel_requests.decide': _PermInfo('orders', 'يوافق على إلغاء الطلبات', 'Decide cancellations', inert: true),
-  'coupons.manage': _PermInfo('orders', 'يعمل أكواد الخصم', 'Manage discount codes', inert: true),
-  'notifications.broadcast': _PermInfo('orders', 'يبعت إشعارات لكل العملاء', 'Send notifications to all customers', inert: true),
+  'customers.review': _PermInfo('orders', 'مراجعة العملاء الجداد', 'Review new customers'),
+  'cancel_requests.decide': _PermInfo('orders', 'يوافق على إلغاء الطلبات', 'Decide cancellations'),
+  'coupons.manage': _PermInfo('orders', 'يعمل أكواد الخصم', 'Manage discount codes'),
+  'notifications.broadcast': _PermInfo('orders', 'يبعت إشعارات لكل العملاء', 'Send notifications to all customers'),
   'products.manage': _PermInfo('products', 'يعدّل المنتجات والأسعار والتقييمات', 'Edit products, prices and reviews'),
   'inventory.manage': _PermInfo('products', 'يعدّل المخزون', 'Edit stock'),
   'banners.manage': _PermInfo('products', 'يعدّل الصور الإعلانية', 'Edit banners'),
-  'reviews.moderate': _PermInfo('products', 'يراجع تقييمات العملاء', 'Moderate reviews', inert: true),
+  'reviews.moderate': _PermInfo('products', 'يراجع تقييمات العملاء', 'Moderate reviews'),
   'repairs.view': _PermInfo('repairs', 'يشوف طلبات الصيانة', 'View repairs'),
   'repairs.manage': _PermInfo('repairs', 'يتحكم في كل طلبات الصيانة', 'Handle all repairs',
       descAr: 'حتى اللي مش مسلّمة له، وقطع الغيار', descEn: 'Even ones not assigned to him, and parts'),
   'repairs.update_assigned': _PermInfo('repairs', 'يحدّث الصيانة اللي اتسلمتله بس', 'Update only his assigned repairs'),
   'audit.view': _PermInfo('system', 'يشوف سجل اللي حصل في النظام', 'View the activity log'),
-  'audit.export': _PermInfo('system', 'يحمّل سجل النظام', 'Download the activity log', inert: true),
+  'audit.export': _PermInfo('system', 'يحمّل سجل النظام', 'Download the activity log'),
   'settings.manage': _PermInfo('system', 'يغيّر إعدادات المتجر والدفع', 'Change store and payment settings', sensitive: true),
   'staff.manage': _PermInfo('system', 'يدير الفريق', 'Manage the team',
       descAr: 'يضيف ويشيل أعضاء ويغيّر أدوارهم', descEn: 'Add and remove members and change roles', sensitive: true),
-  'payments.manage': _PermInfo('system', 'يدير الدفع والاسترداد', 'Manage payments and refunds', sensitive: true, inert: true),
-  'roles.assign': _PermInfo('system', 'يغيّر أدوار الناس', 'Change people roles', sensitive: true, inert: true),
-  'branches.manage': _PermInfo('system', 'يعدّل الفروع ومناطق التوصيل', 'Edit branches and delivery zones', inert: true),
+  'payments.manage': _PermInfo('system', 'يدير الدفع والاسترداد', 'Manage payments and refunds', sensitive: true),
+  'roles.assign': _PermInfo('system', 'يغيّر أدوار الناس', 'Change people roles', sensitive: true),
+  'branches.manage': _PermInfo('system', 'يعدّل الفروع ومناطق التوصيل', 'Edit branches and delivery zones'),
 };
 
 const _groupOrder = ['orders', 'products', 'repairs', 'pos', 'system', 'other'];
@@ -297,7 +297,7 @@ class _RolesTabState extends ConsumerState<_RolesTab> {
     final locked = _role == 'owner';
     final mine = _rolePerms(ov, _role);
     final all = _stringList(ov['permissions']);
-    final soon = _grouped(all, inert: true);
+    final soon = _grouped(all);
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
       child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [

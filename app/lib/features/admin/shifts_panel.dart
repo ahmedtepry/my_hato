@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -318,6 +320,19 @@ class _OwnerToolsState extends ConsumerState<_OwnerTools> {
     }
   }
 
+  Future<void> _exportLog() async {
+    setState(() => _busy = true);
+    try {
+      final csv = await ref.read(posRepoProvider).auditExport(30);
+      final bytes = utf8.encode('\uFEFF$csv'); // BOM so Excel reads Arabic correctly
+      await Share.shareXFiles([XFile.fromData(bytes, name: 'activity-log.csv', mimeType: 'text/csv')], fileNameOverrides: ['activity-log.csv']);
+    } catch (e) {
+      if (mounted) showSnack(context, _err(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _runSnapshot() async {
     setState(() => _busy = true);
     try {
@@ -379,6 +394,10 @@ class _OwnerToolsState extends ConsumerState<_OwnerTools> {
             Text(_t(context, 'كل عملية في السجل متربطة بالقبلها. أي تعديل أو مسح بيتكشف.', 'Every log entry is chained to the one before it. Any edit or removal is detected.'), style: const TextStyle(color: BrandColors.gray)),
             const SizedBox(height: 10),
             OutlinedButton.icon(icon: const Icon(Icons.verified_user_outlined), label: Text(_t(context, 'افحص السجل', 'Check the log')), onPressed: _busy ? null : _runVerify),
+            if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('audit.export') ?? false) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(icon: const Icon(Icons.download_rounded), label: Text(_t(context, 'نزّل سجل آخر ٣٠ يوم (Excel)', 'Download the last 30 days (CSV)')), onPressed: _busy ? null : _exportLog),
+            ],
             if (v != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
