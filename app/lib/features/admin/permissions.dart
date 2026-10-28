@@ -431,12 +431,15 @@ class _AccountsTab extends ConsumerWidget {
             final role = roleOf(m['role']?.toString());
             final name = (m['full_name'] ?? m['username'] ?? '').toString();
             final count = _overridesOf(overview, m['user_id'].toString()).length;
+            final br = ref.watch(_memberBranchesProvider).valueOrNull?[m['user_id'].toString()];
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 leading: CircleAvatar(backgroundColor: role.color.withValues(alpha: 0.14), child: Icon(role.icon, color: role.color)),
                 title: Text(name.isEmpty ? '—' : name),
-                subtitle: Text(role.label(context)),
+                subtitle: Text(br == null
+                    ? role.label(context)
+                    : '${role.label(context)} · ${br.isEmpty ? _s(context, 'no_branch', 'مفيش فرع', 'No branch') : br.join('، ')}'),
                 trailing: count > 0
                     ? Chip(label: Text(_s(context, 'exceptions', '{n} استثناء', '{n} exceptions', {'n': '$count'})))
                     : const Icon(Icons.chevron_right_rounded),
@@ -448,6 +451,7 @@ class _AccountsTab extends ConsumerWidget {
                     useSafeArea: true,
                     builder: (_) => _AccountSheet(member: m),
                   );
+                  ref.invalidate(_memberBranchesProvider);
                   ref.invalidate(_overviewProvider);
                 },
               ),
@@ -839,3 +843,11 @@ class _TargetBarState extends ConsumerState<_TargetBar> {
     );
   }
 }
+
+/// user id -> names of the branches he works in.
+final _memberBranchesProvider = FutureProvider.autoDispose<Map<String, List<String>>>((ref) async {
+  final rows = await ref.watch(supabaseProvider).rpc('staff_members_branches') as List? ?? const [];
+  return {
+    for (final r in rows) '${(r as Map)['user_id']}': [for (final b in (r['branches'] as List? ?? const [])) '$b'],
+  };
+});

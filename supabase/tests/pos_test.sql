@@ -414,6 +414,13 @@ reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role
 select public._expect('technician cannot read targets', format($q$select public.targets_get_user(%L)$q$, :'CASH'), 'FORBIDDEN');
 reset role;
 
+-- ---------- 0075: branches of each member
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner lists the branches of every member', $q$select * from public.staff_members_branches()$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician cannot list them', $q$select * from public.staff_members_branches()$q$, 'FORBIDDEN');
+reset role;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;
