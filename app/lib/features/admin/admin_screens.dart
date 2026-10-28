@@ -52,6 +52,10 @@ Color _orderColor(String s) => switch (s) {
 // =====================================================================================
 // Gate: only staff accounts get in. Anyone else sees "private developer area".
 // =====================================================================================
+final _loginNoticeProvider = StateProvider<String?>((_) => null);
+const _noAccessAr = 'ليس لديك صلاحية دخول برنامج الفريق.';
+const _noAccessEn = 'You do not have permission to use the team app.';
+
 class AdminGateScreen extends ConsumerWidget {
   const AdminGateScreen({super.key});
 
@@ -61,6 +65,15 @@ class AdminGateScreen extends ConsumerWidget {
     final staff = ref.watch(isStaffProvider);
     if (user != null && staff.valueOrNull == true) return const AdminHomeScreen();
     if (user != null && staff.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (AppConfig.teamOnly && user != null && staff.valueOrNull == false) {
+      // A customer session (fresh login or restored) is never kept in the team app:
+      // sign out and stay on the login form with a clear message.
+      Future.microtask(() async {
+        ref.read(_loginNoticeProvider.notifier).state = context.isAr ? _noAccessAr : _noAccessEn;
+        await ref.read(authRepoProvider).signOut();
+      });
+      return const _AdminLogin(signedInAsCustomer: false);
+    }
     return _AdminLogin(signedInAsCustomer: user != null && staff.valueOrNull == false);
   }
 }
@@ -97,8 +110,14 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
       await ref.read(authRepoProvider).signInWithIdentifier(_user.text, _pass.text);
       ref.invalidate(staffContextProvider);
       final ok = await ref.read(adminRepoProvider).isStaff();
-      if (!ok && AppConfig.teamOnly) await ref.read(authRepoProvider).signOut(); // the team app never keeps a customer signed in
-      if (!ok && mounted) setState(() => _error = _t(context, 'الحساب ده مالوش صلاحية دخول المساحة دي.', 'This account has no access to this area.'));
+      if (!ok) {
+        final msg = _t(context, _noAccessAr, _noAccessEn);
+        ref.read(_loginNoticeProvider.notifier).state = msg;
+        if (AppConfig.teamOnly) await ref.read(authRepoProvider).signOut(); // the team app never keeps a customer signed in
+        if (mounted) setState(() => _error = msg);
+      } else {
+        ref.read(_loginNoticeProvider.notifier).state = null;
+      }
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(context, e));
     } finally {
@@ -125,13 +144,15 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
               child: Column(children: [
                 const Icon(Icons.lock_rounded, color: BrandColors.electric, size: 40),
                 const SizedBox(height: 12),
-                Text(_t(context, 'مساحة خاصة بمطوّر My Hatō', 'My Hatō developer area'),
+                Text(AppConfig.teamOnly ? _t(context, 'دخول فريق My Hatō', 'My Hatō team sign-in') : _t(context, 'مساحة خاصة بمطوّر My Hatō', 'My Hatō developer area'),
                     textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 Text(
                   widget.signedInAsCustomer
                       ? _t(context, 'المساحة دي مش متاحة للعملاء.', 'This area is not available to customers.')
-                      : _t(context, 'الدخول للمسؤول فقط.', 'Administrator sign-in only.'),
+                      : AppConfig.teamOnly
+                          ? _t(context, 'للموظفين فقط — ادخل باسم المستخدم وكلمة السر.', 'Staff only — sign in with your username and password.')
+                          : _t(context, 'الدخول للمسؤول فقط.', 'Administrator sign-in only.'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white70),
                 ),
@@ -148,7 +169,17 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
                     onPressed: () => setState(() => _obscure = !_obscure),
                   ),
                   onSubmitted: (_) => _login()),
-              if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: const TextStyle(color: Color(0xFFFDA29B)))),
+              if ((_error ?? ref.watch(_loginNoticeProvider)) != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: const Color(0x33F04438), borderRadius: BorderRadius.circular(12)),
+                  child: Row(children: [
+                    const Icon(Icons.block_rounded, color: Color(0xFFFDA29B), size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text((_error ?? ref.watch(_loginNoticeProvider))!, style: const TextStyle(color: Color(0xFFFDA29B), fontWeight: FontWeight.w600))),
+                  ]),
+                ),
               const SizedBox(height: 20),
               FilledButton(
                 onPressed: _busy ? null : _login,
