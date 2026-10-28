@@ -123,6 +123,10 @@ class PosRepository {
         'p_from': DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String(),
       }));
 
+  /// Branch totals since a moment (used by the dashboard for "today").
+  Future<List<Map<String, dynamic>>> branchReportSince(DateTime from) async =>
+      _l(await _db.rpc('pos_branch_report', params: {'p_from': from.toUtc().toIso8601String()}));
+
   Future<Map<String, dynamic>> auditVerify() async => _m(await _db.rpc('audit_verify'));
 
   Future<Map<String, dynamic>> snapshot() async => _m(await _db.rpc('owner_data_snapshot'));

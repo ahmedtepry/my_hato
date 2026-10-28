@@ -27,6 +27,7 @@ import '../orders/orders_screens.dart' show fmtDate;
 import '../repairs/repairs_repository.dart';
 import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
 import 'accounts_tab.dart';
+import 'desktop_console.dart';
 import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
@@ -273,6 +274,83 @@ class AdminHomeScreen extends ConsumerWidget {
             final onConsole = c.index >= consoleIdx;
             final current = onConsole ? null : tabs[c.index];
             final selected = current == null ? layout.pinned.length : layout.pinned.indexOf(current);
+            final pages = TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
+                  for (final t in tabs)
+                    switch (t) {
+                      'orders' => const _OrdersTab(),
+                      'pos' => const PosPanel(),
+                      'shifts' => const ShiftsPanel(),
+                      'books' => const AccountantPanel(),
+                      'sales' => const SalesPanel(),
+                      'appearance' => const AppearancePanel(),
+                      'occasions' => const OccasionsPanel(),
+                      'repairs' => const _RepairsTab(),
+                      'products' => const _ProductsTab(),
+                      'reviews' => const _ReviewsTab(),
+                      'accounts' => const AccountsTab(),
+                      'gifts' => const GiftsPanel(),
+                      _ => const _Overview(),
+                    },
+                  _ConsolePage(layout: layout, onOpen: open),
+                ]);
+
+            Future<void> signOut() async {
+              await staffWentOffline(ref);
+              await ref.read(authRepoProvider).signOut();
+              ref.invalidate(staffContextProvider);
+              if (context.mounted) context.go('/');
+            }
+
+            // wide screens with several sections (the Windows team app): navy sidebar + dashboard home
+            if (isDesktopWidth(ctx) && tabs.length > 1) {
+              final statsMap = ref.watch(_statsProvider).valueOrNull ?? const <String, dynamic>{};
+              int badgeFor(String k) => switch (k) {
+                    'orders' => ((statsMap['pending_orders'] as num?) ?? 0).toInt(),
+                    'accounts' => ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0,
+                    'reviews' => ref.watch(_pendingReviewsProvider).valueOrNull ?? 0,
+                    _ => 0,
+                  };
+              return Scaffold(
+                backgroundColor: const Color(0xFFF4F6FA),
+                body: CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.keyK, control: true): () => _openSearch(ctx, ref),
+                    const SingleActivator(LogicalKeyboardKey.f5): () {
+                      refreshDesktopHome(ref);
+                      ref.invalidate(_statsProvider);
+                    },
+                    if (tabs.contains('pos')) const SingleActivator(LogicalKeyboardKey.f2): () => open('pos'),
+                  },
+                  child: Focus(
+                    autofocus: true,
+                    child: Column(children: [
+                      Expanded(
+                        child: Row(children: [
+                          DesktopSidebar(
+                            items: [
+                              for (final k in available)
+                                DesktopNavItem(
+                                  keyName: k,
+                                  icon: _sectionInfo[k]!.icon,
+                                  label: k == 'overview' ? _t(ctx, 'الرئيسية', 'Home') : _t(ctx, _sectionInfo[k]!.ar, _sectionInfo[k]!.en),
+                                  badge: badgeFor(k),
+                                ),
+                            ],
+                            selected: current,
+                            onSelect: open,
+                            onSearch: () => _openSearch(ctx, ref),
+                            onSignOut: signOut,
+                          ),
+                          Expanded(child: pages),
+                        ]),
+                      ),
+                      DesktopStatusBar(shortcuts: _t(ctx, 'اختصارات: Ctrl+K بحث${tabs.contains('pos') ? ' · F2 كاشير' : ''} · F5 تحديث', 'Shortcuts: Ctrl+K search${tabs.contains('pos') ? ' · F2 cashier' : ''} · F5 refresh')),
+                    ]),
+                  ),
+                ),
+              );
+            }
+
             return PopScope(
               // back from a section that is not in the bar returns to the arrange page first
               canPop: current == null || layout.pinned.contains(current),
@@ -302,34 +380,11 @@ class AdminHomeScreen extends ConsumerWidget {
                     IconButton(
                       tooltip: _t(context, 'خروج', 'Sign out'),
                       icon: const Icon(Icons.logout_rounded),
-                      onPressed: () async {
-                        await staffWentOffline(ref);
-                        await ref.read(authRepoProvider).signOut();
-                        ref.invalidate(staffContextProvider);
-                        if (context.mounted) context.go('/');
-                      },
+                      onPressed: signOut,
                     ),
                   ],
                 ),
-                body: TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
-                  for (final t in tabs)
-                    switch (t) {
-                      'orders' => const _OrdersTab(),
-                      'pos' => const PosPanel(),
-                      'shifts' => const ShiftsPanel(),
-                      'books' => const AccountantPanel(),
-                      'sales' => const SalesPanel(),
-                      'appearance' => const AppearancePanel(),
-                      'occasions' => const OccasionsPanel(),
-                      'repairs' => const _RepairsTab(),
-                      'products' => const _ProductsTab(),
-                      'reviews' => const _ReviewsTab(),
-                      'accounts' => const AccountsTab(),
-                      'gifts' => const GiftsPanel(),
-                      _ => const _Overview(),
-                    },
-                  _ConsolePage(layout: layout, onOpen: open),
-                ]),
+                body: pages,
                 // a single-purpose job (the cashier) has nothing to switch to, so no bar
                 bottomNavigationBar: tabs.length <= 1
                     ? null
@@ -476,6 +531,21 @@ class _Overview extends ConsumerWidget {
   const _Overview();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (isDesktopWidth(context)) {
+      final tabs = ref.watch(consoleTabsProvider);
+      return DesktopHome(
+        available: tabs,
+        pendingAccounts: ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0,
+        onSearch: () => _openSearch(context, ref),
+        onOpen: (k) {
+          final i = tabs.indexOf(k);
+          if (i >= 0) {
+            StaffPresence.area = k;
+            DefaultTabController.of(context).animateTo(i);
+          }
+        },
+      );
+    }
     final stats = ref.watch(_statsProvider);
     return RefreshIndicator(
       onRefresh: () async {
