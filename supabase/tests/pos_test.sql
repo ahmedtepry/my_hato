@@ -480,6 +480,13 @@ reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role
 select public._expect('technician has no permission to the list', $q$select public.commission_today_products()$q$, 'FORBIDDEN');
 reset role; delete from public.product_commissions;
 
+-- ---------- 0082: a small discount needs no approval
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('limits expose the free amount', $q$select 1/(case when (public.pos_get_limits()->>'discount_free_minor')::int = 1000 then 1 else 0 end)$q$, null);
+select public._expect('owner changes the free amount', $q$select public.pos_set_limits(10, 50000, false, 2000)$q$, null);
+select public._expect('new free amount is read back', $q$select 1/(case when (public.pos_get_limits()->>'discount_free_minor')::int = 2000 then 1 else 0 end)$q$, null);
+reset role;
+select public._expect('sale function honours the free amount', $q$select 1/(case when pg_get_functiondef('public.pos_create_sale(text,uuid,jsonb,bigint,bigint,uuid,uuid)'::regprocedure) like '%pos_discount_free_minor%' then 1 else 0 end)$q$, null);
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

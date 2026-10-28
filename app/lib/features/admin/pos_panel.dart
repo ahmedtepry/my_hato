@@ -601,7 +601,7 @@ class _RegisterState extends ConsumerState<_Register> {
     final needsApproval = disc > 0 &&
         limits != null &&
         limits['is_owner'] != true &&
-        (limits['can_discount'] != true || pct > ((limits['discount_approval_pct'] as num?) ?? 10));
+        (limits['can_discount'] != true || (pct > ((limits['discount_approval_pct'] as num?) ?? 10) && disc > ((limits['discount_free_minor'] as num?) ?? 1000)));
     final quick = <int>{
       total,
       for (final step in const [5000, 10000, 20000, 50000]) ((total + step - 1) ~/ step) * step,

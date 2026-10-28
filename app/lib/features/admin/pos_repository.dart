@@ -63,8 +63,8 @@ class PosRepository {
 
   Future<Map<String, dynamic>> limits() async => _m(await _db.rpc('pos_get_limits'));
 
-  Future<void> setLimits({required num discountPct, required int refundMinor, required bool allowNegative}) async {
-    await _db.rpc('pos_set_limits', params: {'p_discount_pct': discountPct, 'p_refund_minor': refundMinor, 'p_allow_negative': allowNegative});
+  Future<void> setLimits({required num discountPct, required int refundMinor, required bool allowNegative, int? freeMinor}) async {
+    await _db.rpc('pos_set_limits', params: {'p_discount_pct': discountPct, 'p_refund_minor': refundMinor, 'p_allow_negative': allowNegative, 'p_free_minor': freeMinor});
   }
 
   /// [items]: `[{product_id, quantity}]`. [idempotencyKey] makes a repeated tap or a re-sent request return the SAME invoice.

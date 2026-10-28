@@ -278,6 +278,7 @@ class _OwnerTools extends ConsumerStatefulWidget {
 class _OwnerToolsState extends ConsumerState<_OwnerTools> {
   final _pct = TextEditingController();
   final _refund = TextEditingController();
+  final _free = TextEditingController();
   bool _neg = false;
   bool _loaded = false;
   bool _busy = false;
@@ -288,19 +289,21 @@ class _OwnerToolsState extends ConsumerState<_OwnerTools> {
   void dispose() {
     _pct.dispose();
     _refund.dispose();
+    _free.dispose();
     super.dispose();
   }
 
   Future<void> _saveLimits() async {
     final pct = num.tryParse(_pct.text.trim());
     final refund = parseEgpToMinor(_refund.text);
-    if (pct == null || pct < 0 || pct > 100 || refund == null) {
+    final free = parseEgpToMinor(_free.text);
+    if (pct == null || pct < 0 || pct > 100 || refund == null || free == null) {
       showSnack(context, _t(context, 'اكتب نسبة من ٠ لـ ١٠٠ ومبلغ صحيح', 'Type a % from 0 to 100 and a valid amount'), error: true);
       return;
     }
     setState(() => _busy = true);
     try {
-      await ref.read(posRepoProvider).setLimits(discountPct: pct, refundMinor: refund, allowNegative: _neg);
+      await ref.read(posRepoProvider).setLimits(discountPct: pct, refundMinor: refund, allowNegative: _neg, freeMinor: free);
       ref.invalidate(posLimitsProvider);
       if (mounted) showSnack(context, _t(context, 'اتحفظت الحدود ✅', 'Limits saved ✅'));
     } catch (e) {
@@ -364,6 +367,8 @@ class _OwnerToolsState extends ConsumerState<_OwnerTools> {
     if (!_loaded && limits.hasValue) {
       final l = limits.value!;
       _pct.text = '${l['discount_approval_pct']}';
+      final fm = ((l['discount_free_minor'] as num?) ?? 1000).toInt();
+      _free.text = (fm / 100).toStringAsFixed(fm % 100 == 0 ? 0 : 2);
       final rm = ((l['refund_approval_minor'] as num).toInt());
       _refund.text = (rm / 100).toStringAsFixed(rm % 100 == 0 ? 0 : 2);
       _neg = l['allow_negative_stock'] == true;
@@ -380,6 +385,8 @@ class _OwnerToolsState extends ConsumerState<_OwnerTools> {
             Text(_t(context, 'فوق الحدود دي لازم شخص تاني يوافق (المالك مش محتاج).', 'Above these limits another person must approve (the owner does not need it).'), style: const TextStyle(color: BrandColors.gray)),
             const SizedBox(height: 10),
             TextField(controller: _pct, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: _t(context, 'خصم أكبر من (٪ من الفاتورة)', 'Discount above (% of the invoice)'))),
+            const SizedBox(height: 10),
+            TextField(controller: _free, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: _t(context, 'خصم صغير من غير موافقة لحد (ج.م)', 'Small discount without approval up to (EGP)'))),
             const SizedBox(height: 10),
             TextField(controller: _refund, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: _t(context, 'مرتجع أكبر من (ج.م)', 'Refund above (EGP)'))),
             SwitchListTile(contentPadding: EdgeInsets.zero, value: _neg, onChanged: (x) => setState(() => _neg = x), title: Text(_t(context, 'السماح بالبيع من غير مخزون', 'Allow selling without stock'))),
