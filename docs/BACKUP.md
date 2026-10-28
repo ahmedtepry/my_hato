@@ -14,3 +14,13 @@
   delete from public.rate_limits where window_start < now() - interval '7 days';
   ```
 * **Account deletion**: requests appear in Admin → Customers (`deletion_requested_at`). Anonymise the profile, delete addresses/avatars/repair photos, keep order snapshots required by law, then delete the auth user.
+
+## Restore test (do it every month, and before trusting a backup)
+
+1. In the app: Shifts & approvals → *Backup and restore test* → **Take a snapshot now**. Copy the numbers (row counts, units in stock, the audit-log head hash).
+2. Restore the latest Supabase backup into a **separate** project (never over the live one): Dashboard → Database → Backups → Restore, or point-in-time recovery if it is enabled.
+3. In the restored project run `select public.owner_data_snapshot();` (as the owner) and compare it with step 1. Rows added after the backup are the only difference allowed.
+4. Run `select public.audit_verify();` in the restored project: `ok` must be `true`. A `false` means the log was changed after it was written.
+5. Delete the test project when done. Write the date and the result somewhere the owner can see it.
+
+What is protected where: invoices, shifts, refunds, approvals and stock movements can never be edited or deleted (database triggers); the audit log is append-only and hash-chained; money and stock only change inside the `pos_*` functions.
