@@ -13,6 +13,7 @@ import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+import 'admin_repository.dart' show staffContextProvider;
 import 'team.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;

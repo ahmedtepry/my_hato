@@ -386,6 +386,7 @@ class AdminHomeScreen extends ConsumerWidget {
   }
 
   Widget _homeBody(BuildContext context, WidgetRef ref, List<String> tabs, List<String> available, ConsoleLayout layout, int consoleIdx) {
+    final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
     return Builder(builder: (ctx) {
         final c = DefaultTabController.of(ctx);
         void open(String k) {
