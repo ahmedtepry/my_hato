@@ -10,7 +10,9 @@ import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+import 'admin_repository.dart' show staffContextProvider;
 import 'pos_repository.dart' show posErrorText;
+import 'targets.dart' show TargetsPanel;
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
@@ -51,6 +53,7 @@ class _KpiPanelState extends ConsumerState<KpiPanel> {
   _Preset _preset = _Preset.month;
   _Range _range = _rangeOf(_Preset.month);
   Future<Map<String, dynamic>>? _future;
+  bool _showTargets = false;
 
   static _Range _rangeOf(_Preset p) {
     final n = DateTime.now();
@@ -109,6 +112,28 @@ class _KpiPanelState extends ConsumerState<KpiPanel> {
       _Preset.lastMonth: _t(context, 'الشهر اللي فات', 'Last month'),
       _Preset.custom: _t(context, 'فترة محددة…', 'Custom…'),
     };
+    final canTargets = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('targets.view') ?? false;
+    final switcher = canTargets
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: SegmentedButton<bool>(
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(value: false, icon: const Icon(Icons.leaderboard_rounded), label: Text(_t(context, 'العمولات والأداء', 'Commissions & KPIs'))),
+                ButtonSegment(value: true, icon: const Icon(Icons.flag_rounded), label: Text(_t(context, 'التارجت (الفروع والموظفين)', 'Targets (branches & staff)'))),
+              ],
+              selected: {_showTargets},
+              onSelectionChanged: (v) => setState(() => _showTargets = v.first),
+            ),
+          )
+        : const SizedBox.shrink();
+    return Column(children: [
+      switcher,
+      Expanded(child: _showTargets && canTargets ? const TargetsPanel() : _kpiList(context, label)),
+    ]);
+  }
+
+  Widget _kpiList(BuildContext context, Map<_Preset, String> label) {
     return ListView(padding: const EdgeInsets.all(16), children: [
       Row(children: [
         Expanded(child: Text(_t(context, 'عمولات و KPI الموظفين', 'Employee commissions & KPIs'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),
