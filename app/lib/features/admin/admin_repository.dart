@@ -509,6 +509,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('sales.view')) 'sales',
     if (p.contains('ops.live')) 'ops',
     if (p.contains('targets.view')) 'targets',
+    if (p.contains('commission.view')) 'kpi',
     if (p.contains('targets.mine')) 'mytarget',
     if (p.contains('appearance.manage')) 'appearance',
     if (p.contains('occasions.manage')) 'occasions',
@@ -526,7 +527,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     case Workspace.cashier:
       first = const ['pos'];
     case Workspace.accountant:
-      first = const ['books', 'sales', 'orders'];
+      first = const ['books', 'kpi', 'sales', 'orders'];
     case Workspace.sales:
       first = const ['orders', 'pos', 'products', 'sales'];
     case Workspace.repairs:

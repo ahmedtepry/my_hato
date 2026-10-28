@@ -32,6 +32,7 @@ import 'accounts_tab.dart';
 import '../../core/team_theme.dart';
 import 'desktop_console.dart';
 import 'direct_chat.dart';
+import 'kpi_panel.dart';
 import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
@@ -244,6 +245,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'books': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFF12B76A), 'المحاسبة', 'Accounting', 'صافي المبيعات والمرتجعات وفروق الدرج ومقارنة الفروع', 'Net sales, refunds, drawer differences and branch comparison'),
   'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
   'ops': _SectionInfo(Icons.monitor_heart_rounded, Color(0xFFE5484D), 'غرفة العمليات المباشرة', 'Live operations room', 'مبيعات كل فرع لحظيًا، الورديات المفتوحة ومين فاتحها، ومين أونلاين، وكل اللي بيحصل', 'Live sales per branch, open shifts and who opened them, who is online, and everything happening'),
+  'kpi': _SectionInfo(Icons.leaderboard_rounded, Color(0xFF7A5AF8), 'عمولات و KPI الموظفين', 'Commissions & KPIs', 'سجل عمولات كل موظف ومبيعاته وفواتيره ومتوسط الفاتورة والمرتجعات والبقشيش لأي فترة', 'Every employee\'s commission log, sales, invoices, average ticket, refunds and tips for any period'),
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
@@ -501,6 +503,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'accounts' => const _AccountsHost(),
                       'appearance' => const _AppearanceHost(),
                       'targets' => const TargetsPanel(),
+                      'kpi' => const KpiPanel(),
                       'mytarget' => const MyTargetPanel(),
                       'occasions' => const OccasionsPanel(),
                       'repairs' => const _RepairsTab(),
@@ -1554,6 +1557,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   late final _sku = TextEditingController(text: p?['sku'] as String? ?? widget.initialSku ?? '');
   late final _model = TextEditingController(text: p?['model'] as String? ?? '');
   final _commission = TextEditingController();
+  DateTime? _comFrom, _comTo; // optional start / end day of the commission
   bool _canCommission = false;
   late String? _brandId = p?['brand_id'] as String?;
   late String? _categoryId = p?['category_id'] as String?;
@@ -1569,8 +1573,15 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
     if (_canCommission && p != null) {
       () async {
         try {
-          final v = await ref.read(supabaseProvider).rpc('commission_get', params: {'p_product': p!['id']});
-          if (mounted && v is num && v > 0) _commission.text = v % 100 == 0 ? '${v ~/ 100}' : (v / 100).toStringAsFixed(2);
+          final f = await ref.read(supabaseProvider).rpc('commission_get_full', params: {'p_product': p!['id']});
+          final v = f is Map ? f['amount_minor'] : null;
+          if (mounted && v is num && v > 0) {
+            setState(() {
+              _commission.text = v % 100 == 0 ? '${v ~/ 100}' : (v / 100).toStringAsFixed(2);
+              _comFrom = f['starts_on'] == null ? null : DateTime.tryParse('${f['starts_on']}');
+              _comTo = f['ends_on'] == null ? null : DateTime.tryParse('${f['ends_on']}');
+            });
+          }
         } catch (_) {}
       }();
     }
@@ -1582,7 +1593,8 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
     final t = _commission.text.trim();
     final minor = t.isEmpty ? 0 : parseEgpToMinor(t);
     if (minor == null) return;
-    await ref.read(supabaseProvider).rpc('commission_set', params: {'p_product': productId, 'p_amount_minor': minor});
+    String? iso(DateTime? d) => d == null ? null : '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    await ref.read(supabaseProvider).rpc('commission_set', params: {'p_product': productId, 'p_amount_minor': minor, 'p_from': iso(_comFrom), 'p_to': iso(_comTo)});
   }
 
   @override
@@ -1849,6 +1861,38 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
                   suffixText: 'ج.م',
                   prefixIcon: const Icon(Icons.card_giftcard_rounded),
                 ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                for (final isFrom in [true, false])
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
+                    icon: const Icon(Icons.event_rounded, size: 18),
+                    label: Text(() {
+                      final d = isFrom ? _comFrom : _comTo;
+                      final lbl = isFrom ? _t(context, 'من', 'From') : _t(context, 'إلى', 'To');
+                      return d == null ? '$lbl: ${_t(context, 'بدون', 'none')}' : '$lbl: ${d.day}/${d.month}/${d.year}';
+                    }()),
+                    onPressed: () async {
+                      final now = DateTime.now();
+                      final d = await showDatePicker(context: context, initialDate: (isFrom ? _comFrom : _comTo) ?? now, firstDate: DateTime(now.year - 1), lastDate: DateTime(now.year + 3));
+                      if (d != null) setState(() => isFrom ? _comFrom = d : _comTo = d);
+                    },
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.today_rounded, size: 16),
+                  label: Text(_t(context, 'النهارده بس', 'Today only')),
+                  onPressed: () {
+                    final n = DateTime.now();
+                    setState(() => _comFrom = _comTo = DateTime(n.year, n.month, n.day));
+                  },
+                ),
+                if (_comFrom != null || _comTo != null)
+                  TextButton(onPressed: () => setState(() => _comFrom = _comTo = null), child: Text(_t(context, 'من غير تواريخ', 'No dates'))),
+              ]),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(_t(context, 'من غير تواريخ = العمولة شغالة على طول. ولو حددت تواريخ بتشتغل في الفترة دي بس وبعدها بتقف لوحدها.', 'No dates = always on. With dates it runs only in that window and stops by itself.'), style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
               ),
             ],
             if (p == null) ...[

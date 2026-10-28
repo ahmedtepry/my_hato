@@ -447,6 +447,18 @@ select set_config('request.jwt.claim.sub', :'OWNER', false); set role authentica
 select public._expect('owner deletes all closed logs', $q$select 1/(case when public.chat_logs_delete(null, true) = 1 then 1 else 0 end)$q$, null);
 reset role;
 
+-- ---------- 0078: commission dates + KPI
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('commission with an end before its start is refused', $q$select public.commission_set((select id from public.products limit 1), 100, current_date, current_date - 1)$q$, 'INVALID_INPUT');
+select public._expect('owner sets a dated commission', $q$select public.commission_set((select id from public.products order by id limit 1), 100, current_date, current_date)$q$, null);
+select public._expect('the dates are read back', $q$select 1/(case when (public.commission_get_full((select id from public.products order by id limit 1))->>'starts_on')::date = current_date then 1 else 0 end)$q$, null);
+select public._expect('owner reads employee KPIs', $q$select public.kpi_employees(now() - interval '30 days', now() + interval '1 day')$q$, null);
+select public._expect('a bad range is refused', $q$select public.kpi_employees(now(), now() - interval '1 day')$q$, 'INVALID_INPUT');
+select public._expect('owner reads a commission log', format($q$select public.kpi_commission_log(%L::uuid, now() - interval '30 days', now() + interval '1 day')$q$, :'TECH'), null);
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician cannot read KPIs', $q$select public.kpi_employees(now() - interval '30 days', now())$q$, 'FORBIDDEN');
+reset role; delete from public.product_commissions;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;
