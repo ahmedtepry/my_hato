@@ -33,6 +33,7 @@ import '../../core/team_theme.dart';
 import 'desktop_console.dart';
 import 'direct_chat.dart';
 import 'kpi_panel.dart';
+import 'profit_panel.dart';
 import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
@@ -404,7 +405,8 @@ class _SalesHost extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
     return _HostTabs(tabs: [
-      ('المبيعات', 'Sales', Icons.trending_up_rounded, const SalesPanel()),
+      if (p.contains('sales.view') || !p.contains('profit.view')) ('المبيعات', 'Sales', Icons.trending_up_rounded, const SalesPanel()),
+      if (p.contains('profit.view')) ('الأرباح', 'Profit', Icons.savings_outlined, const ProfitPanel()),
       if (p.contains('products.manage')) ('المنتجات', 'Products', Icons.inventory_2_outlined, const _ProductsTab()),
       if (p.contains('orders.manage') || p.contains('coupons.manage') || p.contains('notifications.broadcast'))
         ('العروض وأكواد الخصم', 'Offers & codes', Icons.campaign_outlined, const PromotionsScreen()),
@@ -1583,6 +1585,8 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   final _commission = TextEditingController();
   DateTime? _comFrom, _comTo; // optional start / end day of the commission
   bool _canCommission = false;
+  bool _canCost = false;
+  final _cost = TextEditingController();
   late String? _brandId = p?['brand_id'] as String?;
   late String? _categoryId = p?['category_id'] as String?;
   late bool _published = (p?['status'] ?? 'published') == 'published';
@@ -1594,6 +1598,15 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   void initState() {
     super.initState();
     _canCommission = ref.read(staffContextProvider).valueOrNull?.permissions.contains('commission.set') ?? false;
+    _canCost = ref.read(staffContextProvider).valueOrNull?.permissions.contains('cost.manage') ?? false;
+    if (_canCost && p != null) {
+      () async {
+        try {
+          final v = await ref.read(supabaseProvider).rpc('cost_get', params: {'p_product': p!['id']});
+          if (mounted && v is num) setState(() => _cost.text = v % 100 == 0 ? '${v ~/ 100}' : (v / 100).toStringAsFixed(2));
+        } catch (_) {}
+      }();
+    }
     if (_canCommission && p != null) {
       () async {
         try {
@@ -1621,9 +1634,18 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
     await ref.read(supabaseProvider).rpc('commission_set', params: {'p_product': productId, 'p_amount_minor': minor, 'p_from': iso(_comFrom), 'p_to': iso(_comTo)});
   }
 
+  /// Saves the cost price (what the shop paid per unit); empty = no cost. Fills the cost on old invoices too.
+  Future<void> _saveCost(String productId) async {
+    if (!_canCost) return;
+    final t = _cost.text.trim();
+    final minor = t.isEmpty ? null : parseEgpToMinor(t);
+    if (t.isNotEmpty && minor == null) return;
+    await ref.read(supabaseProvider).rpc('cost_set', params: {'p_product': productId, 'p_cost_minor': minor});
+  }
+
   @override
   void dispose() {
-    for (final c in [_nameAr, _nameEn, _price, _compare, _stock, _desc, _sku, _model, _commission]) {
+    for (final c in [_nameAr, _nameEn, _price, _compare, _stock, _desc, _sku, _model, _commission, _cost]) {
       c.dispose();
     }
     super.dispose();
@@ -1653,6 +1675,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
           model: _model.text,
         );
         await _saveCommission(newId);
+        await _saveCost(newId);
       } else {
         final sku = _sku.text.trim();
         if (sku.isNotEmpty && sku != p!['sku'] && await repo.skuTaken(sku, exceptId: p!['id'] as String)) throw Exception('SKU_TAKEN');
@@ -1670,6 +1693,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
         });
         await repo.setStock(p!['id'] as String, (p!['stock_quantity'] as num).toInt(), stock);
         await _saveCommission(p!['id'] as String);
+        await _saveCost(p!['id'] as String);
         if (_image != null) await repo.addImage(p!['id'] as String, _image!, 9);
       }
       ref.invalidate(_productsProvider);
@@ -1875,6 +1899,19 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
               decoration: InputDecoration(labelText: _t(context, 'الكمية في المخزن', 'Stock quantity')),
               validator: (v) => _egp(v ?? '') == null ? context.tr('required') : null,
             ),
+            if (_canCost) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _cost,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: _t(context, 'سعر التكلفة (اللي اشتريت بيه القطعة)', 'Cost price (what you paid per unit)'),
+                  helperText: _t(context, 'الربح بيتحسب منه، وبيتطبّق على الفواتير القديمة كمان', 'Profit is computed from it, old invoices included'),
+                  suffixText: 'ج.م',
+                  prefixIcon: const Icon(Icons.price_change_outlined),
+                ),
+              ),
+            ],
             if (_canCommission) ...[
               const SizedBox(height: 12),
               TextFormField(

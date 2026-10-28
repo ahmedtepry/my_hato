@@ -496,6 +496,19 @@ reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role
 select public._expect('staff reads the shop look', $q$select 1/(case when public.receipt_style_get() = 'banner' then 1 else 0 end)$q$, null);
 select public._expect('technician cannot change it', $q$select public.receipt_style_set('cards')$q$, 'FORBIDDEN');
 reset role;
+-- ---------- 0084: profit
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner sets a cost', $q$select public.cost_set((select id from public.products where sku='T-CASE'), 6000)$q$, null);
+select public._expect('cost is read back', $q$select 1/(case when public.cost_get((select id from public.products where sku='T-CASE')) = 6000 then 1 else 0 end)$q$, null);
+select public._expect('bulk cost by sku', $q$select public.cost_set_bulk('[{"sku":"T-CASE","cost_minor":7000},{"sku":"NOPE","cost_minor":1}]'::jsonb)$q$, null);
+select public._expect('bulk reports the unknown sku', $q$select 1/(case when public.cost_set_bulk('[{"sku":"NOPE","cost_minor":1}]'::jsonb)->'not_found' = '["NOPE"]'::jsonb then 1 else 0 end)$q$, null);
+select public._expect('profit report runs for the owner', $q$select 1/(case when (public.profit_report(now() - interval '30 days', now() + interval '1 day')->'totals') is not null then 1 else 0 end)$q$, null);
+select public._expect('profit report runs twice in one session', $q$select public.profit_report(now() - interval '30 days', now() + interval '1 day')$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician cannot read profit', $q$select public.profit_report(now() - interval '30 days', now())$q$, 'FORBIDDEN');
+select public._expect('technician cannot set a cost', $q$select public.cost_set((select id from public.products where sku='T-CASE'), 1)$q$, 'FORBIDDEN');
+reset role;
+select public._expect('customers cannot read costs directly', $q$select 1/(case when has_table_privilege('authenticated', 'public.product_costs', 'select') then 0 else 1 end)$q$, null);
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

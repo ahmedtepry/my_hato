@@ -25,7 +25,9 @@ Future<void> deliverFile(BuildContext context, Uint8List bytes, String name, Str
     await File(path).writeAsBytes(bytes, flush: true);
     try {
       if (Platform.isWindows) {
-        await Process.run('explorer.exe', [path]);
+        // open it with its program; when none is set for the type, show it in its folder instead
+        final r = await Process.run('cmd', ['/c', 'start', '', path]);
+        if (r.exitCode != 0) await Process.run('explorer.exe', ['/select,', path]);
       } else if (Platform.isMacOS) {
         await Process.run('open', [path]);
       } else {

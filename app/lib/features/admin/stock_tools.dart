@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/save_file.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
+import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/barcode_scanner.dart';
 import '../../shared/product_card.dart';
@@ -183,15 +184,23 @@ const _hPrice = 'السعر';
 const _hCompare = 'السعر قبل الخصم';
 const _hStock = 'الكمية';
 const _hStatus = 'الحالة';
+const _hCost = 'سعر التكلفة';
 
 Future<void> exportProductsExcel(BuildContext context, WidgetRef ref) async {
   try {
     final rows = await ref.read(adminRepoProvider).allProductsForSheet();
+    final canCost = ref.read(staffContextProvider).valueOrNull?.permissions.contains('cost.manage') ?? false;
+    var costs = <String, dynamic>{};
+    if (canCost) {
+      try {
+        costs = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('cost_list') as Map);
+      } catch (_) {}
+    }
     final excel = Excel.createExcel();
     final sheet = excel['المنتجات'];
     excel.setDefaultSheet('المنتجات');
     if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
-    sheet.appendRow([for (final h in [_hSku, _hNameAr, _hNameEn, _hCategory, _hBrand, _hModel, _hPrice, _hCompare, _hStock, _hStatus]) TextCellValue(h)]);
+    sheet.appendRow([for (final h in [_hSku, _hNameAr, _hNameEn, _hCategory, _hBrand, _hModel, _hPrice, _hCompare, _hStock, _hStatus, if (canCost) _hCost]) TextCellValue(h)]);
     for (final p in rows) {
       sheet.appendRow([
         TextCellValue('${p['sku']}'),
@@ -204,6 +213,7 @@ Future<void> exportProductsExcel(BuildContext context, WidgetRef ref) async {
         p['compare_at_price_minor'] == null ? TextCellValue('') : DoubleCellValue((p['compare_at_price_minor'] as num) / 100),
         IntCellValue((p['stock_quantity'] as num).toInt()),
         TextCellValue(p['status'] == 'published' ? 'ظاهر' : 'مخفي'),
+        if (canCost) (costs['${p['sku']}'] == null ? TextCellValue('') : DoubleCellValue((costs['${p['sku']}'] as num) / 100)),
       ]);
     }
     final bytes = Uint8List.fromList(excel.save()!);
@@ -216,12 +226,13 @@ Future<void> exportProductsExcel(BuildContext context, WidgetRef ref) async {
 }
 
 class _Change {
-  _Change(this.product, {this.price, this.compare, this.clearCompare = false, this.stock});
+  _Change(this.product, {this.price, this.compare, this.clearCompare = false, this.stock, this.cost});
   final Map<String, dynamic> product;
   final int? price; // minor units
   final int? compare;
   final bool clearCompare;
   final int? stock;
+  final int? cost; // cost price in minor units (applied through cost_set_bulk)
 }
 
 int? _money(String? s) {
@@ -259,7 +270,14 @@ Future<void> importProductsExcel(BuildContext context, WidgetRef ref, {VoidCallb
     final table = excel.tables.values.firstWhere((t) => t.maxRows > 1, orElse: () => throw Exception('EMPTY_SHEET'));
     final header = [for (final c in table.rows.first) _cell(c) ?? ''];
     int col(String h) => header.indexWhere((x) => x.trim() == h);
-    final iSku = col(_hSku), iPrice = col(_hPrice), iCompare = col(_hCompare), iStock = col(_hStock);
+    final iSku = col(_hSku), iPrice = col(_hPrice), iCompare = col(_hCompare), iStock = col(_hStock), iCost = col(_hCost);
+    final canCost = ref.read(staffContextProvider).valueOrNull?.permissions.contains('cost.manage') ?? false;
+    var known = <String, dynamic>{};
+    if (canCost && iCost >= 0) {
+      try {
+        known = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('cost_list') as Map);
+      } catch (_) {}
+    }
     if (iSku < 0) throw Exception('SKU_COLUMN_MISSING');
 
     final current = {for (final p in await ref.read(adminRepoProvider).allProductsForSheet()) p['sku'] as String: p};
@@ -278,14 +296,16 @@ Future<void> importProductsExcel(BuildContext context, WidgetRef ref, {VoidCallb
       final compareRaw = at(iCompare);
       final compare = _money(compareRaw);
       final stock = _int(at(iStock));
+      final cost = (canCost && iCost >= 0) ? _money(at(iCost)) : null;
       final c = _Change(
         p,
         price: (price != null && price > 0 && price != p['price_minor']) ? price : null,
         compare: (compare != null && compare != p['compare_at_price_minor']) ? compare : null,
         clearCompare: iCompare >= 0 && (compareRaw == null || compareRaw.isEmpty) && p['compare_at_price_minor'] != null,
         stock: (stock != null && stock != p['stock_quantity']) ? stock : null,
+        cost: (cost != null && cost != (known[sku] as num?)?.toInt()) ? cost : null,
       );
-      if (c.price != null || c.compare != null || c.clearCompare || c.stock != null) changes.add(c);
+      if (c.price != null || c.compare != null || c.clearCompare || c.stock != null || c.cost != null) changes.add(c);
     }
     if (!context.mounted) return;
     await showModalBottomSheet(
@@ -344,6 +364,17 @@ class _ImportPreviewState extends ConsumerState<_ImportPreview> {
       }
       if (mounted) setState(() => _done++);
     }
+    final costRows = [
+      for (final c in widget.changes)
+        if (c.cost != null) {'sku': c.product['sku'], 'cost_minor': c.cost}
+    ];
+    if (costRows.isNotEmpty) {
+      try {
+        await ref.read(supabaseProvider).rpc('cost_set_bulk', params: {'p_rows': costRows});
+      } catch (_) {
+        failed++;
+      }
+    }
     widget.onDone?.call();
     if (!mounted) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -391,6 +422,7 @@ class _ImportPreviewState extends ConsumerState<_ImportPreview> {
                           if (c.compare != null) '${_t(context, 'قبل الخصم', 'Was')}: ${_egp(c.compare!)}',
                           if (c.clearCompare) _t(context, 'إلغاء السعر قبل الخصم', 'Remove was-price'),
                           if (c.stock != null) '${_t(context, 'الكمية', 'Stock')}: ${p['stock_quantity']} ← ${c.stock}',
+                          if (c.cost != null) '${_t(context, 'التكلفة', 'Cost')}: ${_egp(c.cost!)}',
                         ].join('   •   ')),
                         leading: Text('${p['sku']}', style: const TextStyle(fontSize: 11, color: BrandColors.gray)),
                       );
