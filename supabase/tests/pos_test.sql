@@ -509,6 +509,10 @@ select public._expect('technician cannot read profit', $q$select public.profit_r
 select public._expect('technician cannot set a cost', $q$select public.cost_set((select id from public.products where sku='T-CASE'), 1)$q$, 'FORBIDDEN');
 reset role;
 select public._expect('customers cannot read costs directly', $q$select 1/(case when has_table_privilege('authenticated', 'public.product_costs', 'select') then 0 else 1 end)$q$, null);
+-- ---------- 0085: live profit
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner sees profit in the live room', $q$select 1/(case when public.ops_live()->'profit' is not null and (public.ops_live()->'profit'->>'sales_counted') is not null then 1 else 0 end)$q$, null);
+reset role;
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

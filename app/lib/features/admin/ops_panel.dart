@@ -143,6 +143,10 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
     final totalNet = branches.fold<int>(0, (a, b) => a + ((b['net_minor'] as num?) ?? 0).toInt());
     final totalCount = branches.fold<int>(0, (a, b) => a + ((b['sales_count'] as num?) ?? 0).toInt());
     final online = team.where((t) => t['presence'] == 'online').length;
+    final pf = d['profit'] is Map ? Map<String, dynamic>.from(d['profit'] as Map) : null; // only when the member has profit.view
+    final profitNow = (pf?['profit_minor'] as num?)?.toInt() ?? 0;
+    final uncosted = (pf?['sales_uncosted'] as num?)?.toInt() ?? 0;
+    final byBranch = pf?['by_branch'] is Map ? Map<String, dynamic>.from(pf!['by_branch'] as Map) : const <String, dynamic>{};
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -163,10 +167,19 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
           const SizedBox(height: 8),
           Wrap(spacing: 12, runSpacing: 12, children: [
             _Stat(Icons.payments_rounded, _t(context, 'صافي مبيعات اليوم (كل الفروع)', 'Net sales today (all branches)'), _money(context, totalNet), BrandColors.success),
+            if (pf != null)
+              _Stat(profitNow >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded, _t(context, 'صافي الربح الفعلي النهارده', 'Actual net profit today'), '${profitNow >= 0 ? '' : '-'}${_money(context, profitNow.abs())}${uncosted > 0 ? ' *' : ''}',
+                  profitNow >= 0 ? BrandColors.success : BrandColors.error),
             _Stat(Icons.receipt_long_rounded, _t(context, 'عدد الفواتير اليوم', 'Invoices today'), '$totalCount', BrandColors.electric),
             _Stat(Icons.lock_open_rounded, _t(context, 'ورديات مفتوحة الآن', 'Open shifts now'), '${shifts.length}', const Color(0xFF7A5AF8)),
             _Stat(Icons.wifi_tethering_rounded, _t(context, 'أونلاين من الفريق', 'Team online'), '$online', const Color(0xFFE8A317)),
           ]),
+          if (pf != null && uncosted > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(_t(context, '* $uncosted فاتورة النهارده فيها صنف من غير تكلفة ومش داخلة في الربح.', '* $uncosted invoices today have an item with no cost and are left out of the profit.'),
+                  style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+            ),
           _Title(_t(context, 'مبيعات كل فرع (النهارده)', 'Sales per branch (today)'), Icons.storefront_rounded),
           Wrap(spacing: 12, runSpacing: 12, children: [
             for (final b in branches)
@@ -186,6 +199,9 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
                   const SizedBox(height: 8),
                   Text(_money(context, (b['net_minor'] as num?) ?? 0),
                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+                  if (pf != null && byBranch['${b['id']}'] != null)
+                    Text('${_t(context, 'الربح', 'Profit')}: ${_money(context, byBranch['${b['id']}'] as num)}',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: (byBranch['${b['id']}'] as num) >= 0 ? BrandColors.success : BrandColors.error)),
                   const SizedBox(height: 4),
                   Text(
                       '${b['sales_count']} ${_t(context, 'فاتورة', 'invoices')}'

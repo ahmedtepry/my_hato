@@ -1,0 +1,71 @@
+-- 0085: the live operations room shows the ACTUAL net profit so far today (needs profit.view): counter sales + delivered online orders,
+-- only sales whose every line has a cost (the others are counted apart), refunds already taken out.
+create or replace function public._profit_since(p_from timestamptz) returns jsonb
+language sql stable security definer set search_path = public as $$
+  with pos as (
+    select s.branch_id,
+           sum(i.net_line_minor - i.refunded_amount_minor)::bigint as revenue,
+           sum(coalesce(c.cost_unit_minor, 0) * (i.quantity - i.refunded_qty))::bigint as cost,
+           count(*) filter (where c.item_id is null and i.quantity - i.refunded_qty > 0)::int as missing
+      from public.pos_sales s join public.pos_sale_items i on i.sale_id = s.id left join public.pos_item_costs c on c.item_id = i.id
+     where s.created_at >= p_from group by s.id, s.branch_id
+  ), onl as (
+    select o.subtotal_minor::bigint as revenue, sum(coalesce(c.cost_unit_minor, 0) * i.quantity)::bigint as cost, count(*) filter (where c.item_id is null)::int as missing
+      from public._delivered_orders d join public.orders o on o.id = d.id join public.order_items i on i.order_id = o.id left join public.order_item_costs c on c.item_id = i.id
+     where d.delivered_at >= p_from group by o.id
+  )
+  select jsonb_build_object(
+    'profit_minor', coalesce((select sum(revenue - cost) from pos where missing = 0), 0) + coalesce((select sum(revenue - cost) from onl where missing = 0), 0),
+    'pos_profit_minor', coalesce((select sum(revenue - cost) from pos where missing = 0), 0),
+    'online_profit_minor', coalesce((select sum(revenue - cost) from onl where missing = 0), 0),
+    'sales_counted', (select count(*) from pos where missing = 0) + (select count(*) from onl where missing = 0),
+    'sales_uncosted', (select count(*) from pos where missing > 0) + (select count(*) from onl where missing > 0),
+    'by_branch', coalesce((select jsonb_object_agg(branch_id::text, p) from (select branch_id, sum(revenue - cost) as p from pos where missing = 0 group by branch_id) t), '{}'::jsonb));
+$$;
+revoke all on function public._profit_since(timestamptz) from public, anon, authenticated;
+
+create or replace function public.ops_live() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare v_from timestamptz := date_trunc('day', now() at time zone 'Africa/Cairo') at time zone 'Africa/Cairo'; v_out jsonb;
+begin
+  perform public.require_permission('ops.live');
+  select jsonb_build_object(
+    'now', now(),
+    'profit', case when public.has_permission('profit.view') then public._profit_since(v_from) end,
+    'branches', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', b.id, 'name_ar', b.name_ar, 'name_en', b.name_en, 'is_hq', b.is_hq,
+        'sales_count', (select count(*) from public.pos_sales s where s.branch_id = b.id and s.created_at >= v_from),
+        'net_minor', coalesce((select sum(s.total_minor - s.refunded_minor) from public.pos_sales s where s.branch_id = b.id and s.created_at >= v_from), 0),
+        'refunds_minor', coalesce((select sum(s.refunded_minor) from public.pos_sales s where s.branch_id = b.id and s.created_at >= v_from), 0),
+        'last_sale_at', (select max(s.created_at) from public.pos_sales s where s.branch_id = b.id),
+        'open_shifts', (select count(*) from public.shifts sh where sh.branch_id = b.id and sh.status = 'open')
+      ) order by b.is_hq, b.created_at) from public.branches b where b.is_active), '[]'::jsonb),
+    'open_shifts', coalesce((select jsonb_agg(jsonb_build_object(
+        'shift_id', sh.id, 'branch_id', sh.branch_id, 'branch_name_ar', b.name_ar, 'cashier_id', sh.cashier_id,
+        'cashier_name', public._ops_name(sh.cashier_id), 'opened_at', sh.opened_at, 'opening_minor', sh.opening_cash_minor,
+        'sales_count', (select count(*) from public.pos_sales s where s.shift_id = sh.id),
+        'sales_minor', coalesce((select sum(s.total_minor) from public.pos_sales s where s.shift_id = sh.id), 0),
+        'last_sale_at', (select max(s.created_at) from public.pos_sales s where s.shift_id = sh.id)
+      ) order by sh.opened_at) from public.shifts sh join public.branches b on b.id = sh.branch_id where sh.status = 'open'), '[]'::jsonb),
+    'team', coalesce((select jsonb_agg(t order by t.rank, t.name) from (
+        select ur.user_id, public._ops_name(ur.user_id) as name, (array_agg(ur.role::text))[1] as role,
+               case when tm.suspended_at is not null then 'suspended'
+                    when ur.user_id = auth.uid() then 'online'
+                    when tm.online and tm.last_seen_at > now() - interval '2 minutes' then 'online'
+                    when tm.last_seen_at > now() - interval '15 minutes' then 'away' else 'offline' end as presence,
+               case when tm.suspended_at is not null then 3 when ur.user_id = auth.uid() then 0
+                    when tm.online and tm.last_seen_at > now() - interval '2 minutes' then 0
+                    when tm.last_seen_at > now() - interval '15 minutes' then 1 else 2 end as rank,
+               tm.last_seen_at, tm.area, tm.platform
+          from public.user_roles ur left join public.team_members tm on tm.user_id = ur.user_id
+         group by ur.user_id, tm.suspended_at, tm.online, tm.last_seen_at, tm.area, tm.platform) t), '[]'::jsonb),
+    'recent_sales', coalesce((select jsonb_agg(r order by r.created_at desc) from (
+        select s.id, s.number, s.created_at, s.branch_id, b.name_ar as branch_name_ar, public._ops_name(s.cashier_id) as cashier_name,
+               s.total_minor, s.refunded_minor, s.discount_minor
+          from public.pos_sales s join public.branches b on b.id = s.branch_id order by s.created_at desc limit 25) r), '[]'::jsonb),
+    'recent_actions', coalesce((select jsonb_agg(a order by a.created_at desc) from (
+        select l.id, l.action, l.entity_type, l.entity_id, l.created_at, l.actor_id, public._ops_name(l.actor_id) as actor_name, l.details
+          from public.audit_logs l order by l.created_at desc limit 30) a), '[]'::jsonb)
+  ) into v_out;
+  return v_out;
+end $$;
