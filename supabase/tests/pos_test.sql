@@ -339,6 +339,45 @@ reset role; select set_config('request.jwt.claim.sub', '', false); set role auth
 select public._expect('a non-staff person cannot read it', $q$select public.team_theme_get()$q$, 'FORBIDDEN');
 reset role;
 
+-- ---------- 0069: periods, targets, commissions
+reset role; select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticated;
+select public._expect('accountant sees the branch targets chart', $q$select 1/(case when jsonb_array_length(public.targets_overview() -> 'branches') >= 2 then 1 else 0 end)$q$, null);
+select public._expect('every ordinary branch starts at 50,000 EGP', $q$select 1/(case when (select bool_and((b ->> 'target_minor')::bigint = 5000000) from jsonb_array_elements(public.targets_overview() -> 'branches') b) then 1 else 0 end)$q$, null);
+select public._expect('accountant cannot change a target', format($q$select public.targets_set_branch(%L, 100)$q$, :'A'), 'FORBIDDEN');
+select public._expect('accountant cannot set commissions', $q$select public.commission_list()$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('technician cannot see targets', $q$select public.targets_overview()$q$, 'FORBIDDEN');
+select public._expect('technician has no target page of his own', $q$select public.my_target_status()$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner changes a branch target', format($q$select public.targets_set_branch(%L, 7000000)$q$, :'A'), null);
+select public._expect('the new branch target shows', format($q$select 1/(case when (select (b ->> 'target_minor')::bigint from jsonb_array_elements(public.targets_overview() -> 'branches') b where b ->> 'branch_id' = %L) = 7000000 then 1 else 0 end)$q$, :'A'), null);
+select public._expect('owner gives a seller a monthly target', format($q$select public.targets_set_user(%L, 2000000)$q$, :'NCASH'), null);
+select public._expect('owner sets a product commission', $q$select public.commission_set('d0000000-0000-0000-0000-000000000001', 100)$q$, null);
+select public._expect('a commission above the price is refused', $q$select public.commission_set('d0000000-0000-0000-0000-000000000001', 999999999)$q$, 'INVALID_INPUT');
+reset role;
+insert into public.pos_sales (number, branch_id, shift_id, cashier_id, idempotency_key, subtotal_minor, discount_minor, total_minor, cash_received_minor, change_minor)
+  values ('T-COMM-1', :'A', :'shift_a', :'NCASH', 'comm-test-1', 2000, 0, 2000, 2000, 0) returning id as comm_sale \gset
+insert into public.pos_sale_items (sale_id, product_id, sku, name_ar, name_en, quantity, unit_price_minor, line_total_minor, net_line_minor)
+  values (:'comm_sale', 'd0000000-0000-0000-0000-000000000001', 'x', 'x', 'x', 2, 1000, 2000, 2000);
+select public._expect('the commission is frozen on the sale line', format($q$select 1/(case when (select commission_unit_minor from public.pos_sale_items where sale_id = %L) = 100 then 1 else 0 end)$q$, :'comm_sale'), null);
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner changes the commission later', $q$select public.commission_set('d0000000-0000-0000-0000-000000000001', 150)$q$, null);
+reset role;
+select public._expect('an old sale keeps the old commission', format($q$select 1/(case when (select commission_unit_minor from public.pos_sale_items where sale_id = %L) = 100 then 1 else 0 end)$q$, :'comm_sale'), null);
+select set_config('request.jwt.claim.sub', :'NCASH', false); set role authenticated;
+select public._expect('the seller sees his own commission today (2 x 1 EGP)', $q$select 1/(case when (public.my_target_status() ->> 'commission_today_minor')::bigint >= 200 then 1 else 0 end)$q$, null);
+select public._expect('the seller sees his target progress', $q$select 1/(case when (public.my_target_status() ->> 'target_minor')::bigint = 2000000 and public.my_target_status() ->> 'pct' is not null then 1 else 0 end)$q$, null);
+select public._expect('the seller cannot see the branch chart', $q$select public.targets_overview()$q$, 'FORBIDDEN');
+select public._expect('a cashier still lists his own shifts without a period', $q$select count(*) from public.pos_shift_list()$q$, null);
+reset role; insert into public.user_permission_overrides(user_id, permission, effect) values (:'ACCT', 'books.period', 'deny');
+select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticated;
+select public._expect('without the period right, a year back is refused', $q$select * from public.pos_shift_list(null, now() - interval '200 days', null, 50)$q$, 'FORBIDDEN');
+select public._expect('without the period right, the last week is fine', $q$select * from public.pos_shift_list(null, now() - interval '7 days', null, 50)$q$, null);
+reset role; delete from public.user_permission_overrides where user_id = :'ACCT' and permission = 'books.period';
+select set_config('request.jwt.claim.sub', :'ACCT', false); set role authenticated;
+select public._expect('with the period right, any range works', $q$select * from public.pos_shift_list(null, now() - interval '400 days', null, 50)$q$, null);
+reset role;
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

@@ -4,8 +4,8 @@ import 'package:excel/excel.dart' as xl;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
-import 'package:share_plus/share_plus.dart';
 
+import '../../core/save_file.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/money.dart';
@@ -98,10 +98,7 @@ class _SalesPanelState extends ConsumerState<SalesPanel> {
       final bytes = book.save();
       if (bytes == null) throw StateError('empty file');
       final name = 'myhato-sales-$period-${DateFormat('yyyyMMdd').format(DateTime.now())}.xlsx';
-      await Share.shareXFiles(
-        [XFile.fromData(Uint8List.fromList(bytes), name: name, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
-        fileNameOverrides: [name],
-      );
+      if (mounted) await deliverFile(context, Uint8List.fromList(bytes), name, xlsxMime);
     } catch (e) {
       if (mounted) showSnack(context, friendlyError(context, e), error: true);
     } finally {

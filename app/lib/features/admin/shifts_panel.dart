@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
-import 'package:share_plus/share_plus.dart';
 
+import '../../core/save_file.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/money.dart';
@@ -16,7 +16,7 @@ import 'admin_repository.dart';
 import 'pos_repository.dart';
 import 'shift_reports.dart';
 import 'books_export.dart';
-import 'package:printing/printing.dart';
+import 'books_period.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
@@ -327,7 +327,7 @@ class _OwnerToolsState extends ConsumerState<_OwnerTools> {
     try {
       final csv = await ref.read(posRepoProvider).auditExport(30);
       final bytes = utf8.encode('\uFEFF$csv'); // BOM so Excel reads Arabic correctly
-      await Share.shareXFiles([XFile.fromData(bytes, name: 'activity-log.csv', mimeType: 'text/csv')], fileNameOverrides: ['activity-log.csv']);
+      await deliverFile(context, Uint8List.fromList(bytes), 'activity-log.csv', 'text/csv');
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
     } finally {
@@ -441,8 +441,10 @@ class _OwnerToolsState extends ConsumerState<_OwnerTools> {
   }
 }
 
-final _booksShiftsProvider =
-    FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int>((ref, days) => ref.watch(posRepoProvider).shifts(days: days));
+final _acctReportProvider =
+    FutureProvider.autoDispose.family<List<Map<String, dynamic>>, Period>((ref, p) => ref.watch(posRepoProvider).branchReportRange(p.from, p.to));
+final _acctShiftsProvider =
+    FutureProvider.autoDispose.family<List<Map<String, dynamic>>, Period>((ref, p) => ref.watch(posRepoProvider).booksShifts(null, p.from, p.to));
 
 /// The accountant's own screen: the money of the period at a glance, branch by branch, and every shift with its cash difference.
 /// View only: nothing here sells, refunds or changes a price or stock.
@@ -455,17 +457,12 @@ class AccountantPanel extends ConsumerStatefulWidget {
 final _viewBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) => ref.watch(posRepoProvider).viewBranches());
 
 class _AccountantPanelState extends ConsumerState<AccountantPanel> {
-  int _days = 7;
+  Period _period = Period.lastDays(7);
   bool _onlyDiff = false;
   String? _branch; // null = every branch
   bool _exporting = false;
 
-  String _periodLabel() => switch (_days) {
-        1 => _t(context, 'النهارده', 'Today'),
-        7 => _t(context, 'آخر ٧ أيام', 'Last 7 days'),
-        30 => _t(context, 'آخر ٣٠ يوم', 'Last 30 days'),
-        _ => _t(context, 'آخر $_days يوم', 'Last $_days days'),
-      };
+  String _periodLabel() => _period.label(context);
 
   String _branchLabel(List<Map<String, dynamic>> all) {
     if (_branch == null) return _t(context, 'كل الفروع', 'All branches');
@@ -480,11 +477,11 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
     setState(() => _exporting = true);
     try {
       final repo = ref.read(posRepoProvider);
-      final branches = (await repo.branchReport(_days)).where((b) => _branch == null || b['branch_id'] == _branch).toList();
-      final shifts = await repo.booksShifts(_branch, _days);
-      final sales = await repo.booksSales(_branch, _days);
+      final branches = (await repo.branchReportRange(_period.from, _period.to)).where((b) => _branch == null || b['branch_id'] == _branch).toList();
+      final shifts = await repo.booksShifts(_branch, _period.from, _period.to);
+      final sales = await repo.booksSales(_branch, _period.from, _period.to);
       final canReports = ref.read(staffContextProvider).valueOrNull?.permissions.contains('shifts.reports') ?? false;
-      final reports = canReports ? await repo.booksReports(_branch, _days) : <Map<String, dynamic>>[];
+      final reports = canReports ? await repo.booksReports(_branch, _period.from, _period.to) : <Map<String, dynamic>>[];
       final all = ref.read(_viewBranchesProvider).valueOrNull ?? const <Map<String, dynamic>>[];
       if (!mounted) return;
       final data = BooksData(
@@ -494,11 +491,11 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
       final stamp = DateFormat('yyyyMMdd').format(DateTime.now());
       if (pdf) {
         final bytes = await booksPdf(data);
-        await Printing.sharePdf(bytes: bytes, filename: 'myhato-accounts-$stamp.pdf');
+        await deliverFile(context, bytes, 'myhato-accounts-$stamp.pdf', 'application/pdf');
       } else {
         final bytes = booksXlsx(data);
         final name = 'myhato-accounts-$stamp.xlsx';
-        await Share.shareXFiles([XFile.fromData(bytes, name: name, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')], fileNameOverrides: [name]);
+        await deliverFile(context, bytes, name, xlsxMime);
       }
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
@@ -511,7 +508,7 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
 
   String _text(List<Map<String, dynamic>> branches, List<Map<String, dynamic>> shifts) {
     final b = StringBuffer()
-      ..writeln(_t(context, 'تقرير المحاسبة — آخر $_days يوم', 'Accounting report — last $_days days'))
+      ..writeln('${_t(context, 'تقرير المحاسبة', 'Accounting report')} — ${_period.label(context)}')
       ..writeln(
           '${_t(context, 'صافي المبيعات', 'Net sales')}: ${_money(context, _sum(branches, 'net_minor'))}  |  ${_t(context, 'المرتجعات', 'Refunds')}: ${_money(context, _sum(branches, 'refunds_minor'))}  |  ${_t(context, 'فرق الدرج', 'Drawer difference')}: ${_money(context, _sum(branches, 'variance_minor'))}')
       ..writeln();
@@ -550,32 +547,21 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final report = ref.watch(_branchReportProvider(_days));
-    final shifts = ref.watch(_booksShiftsProvider(_days));
+    final report = ref.watch(_acctReportProvider(_period));
+    final shifts = ref.watch(_acctShiftsProvider(_period));
+    final canPick = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('books.period') ?? false;
     final branches = report.valueOrNull;
     final shiftList = shifts.valueOrNull ?? const <Map<String, dynamic>>[];
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(_branchReportProvider);
-        ref.invalidate(_booksShiftsProvider);
-        ref.invalidate(shiftReportsProvider);
+        ref.invalidate(_acctReportProvider);
+        ref.invalidate(_acctShiftsProvider);
+        ref.invalidate(shiftReportsPeriodProvider);
       },
       child: ListView(padding: const EdgeInsets.all(14), children: [
-        Row(children: [
-          Expanded(
-            child: SegmentedButton<int>(
-              showSelectedIcon: false,
-              segments: [
-                ButtonSegment(value: 1, label: Text(_t(context, 'النهارده', 'Today'))),
-                ButtonSegment(value: 7, label: Text(_t(context, '٧ أيام', '7d'))),
-                ButtonSegment(value: 30, label: Text(_t(context, '٣٠ يوم', '30d'))),
-                ButtonSegment(value: 90, label: Text(_t(context, '٩٠ يوم', '90d'))),
-              ],
-              selected: {_days},
-              onSelectionChanged: (v) => setState(() => _days = v.first),
-            ),
-          ),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: PeriodBar(period: _period, canPick: canPick, onChanged: (p) => setState(() => _period = p))),
           const SizedBox(width: 8),
           if (_exporting)
             const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4)))
@@ -664,7 +650,7 @@ class _AccountantPanelState extends ConsumerState<AccountantPanel> {
             padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
             child: Text(_t(context, 'تقارير إقفال الورديات', 'Shift closing reports'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
           ),
-          ShiftReportsList(days: _days, branchId: _branch),
+          ShiftReportsList(days: 0, period: _period, branchId: _branch),
         ],
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),

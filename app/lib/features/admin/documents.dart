@@ -1,3 +1,4 @@
+import '../../core/save_file.dart';
 import '../../core/appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -219,7 +220,7 @@ class _DocumentButtonsState extends State<DocumentButtons> {
       if (print) {
         await Printing.layoutPdf(onLayout: (_) async => bytes, name: widget.fileName);
       } else {
-        await Printing.sharePdf(bytes: bytes, filename: '${widget.fileName}.pdf');
+        if (mounted) await deliverFile(context, bytes, '${widget.fileName}.pdf', 'application/pdf');
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text('$e')));

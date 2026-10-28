@@ -36,6 +36,7 @@ import 'occasions_panel.dart';
 import 'pos_panel.dart';
 import 'sales_panel.dart';
 import 'shifts_panel.dart';
+import 'targets.dart';
 import 'team.dart';
 import 'admin_repository.dart';
 import 'documents.dart';
@@ -238,6 +239,8 @@ const _sectionInfo = <String, _SectionInfo>{
   'shifts': _SectionInfo(Icons.fact_check_outlined, Color(0xFF7A5AF8), 'الورديات والموافقات', 'Shifts & approvals', 'موافقات الخصم والمرتجع وفروق الدرج ومقارنة الفروع', 'Discount and refund approvals, drawer differences, branch comparison'),
   'books': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFF12B76A), 'المحاسبة', 'Accounting', 'صافي المبيعات والمرتجعات وفروق الدرج ومقارنة الفروع', 'Net sales, refunds, drawer differences and branch comparison'),
   'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
+  'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
+  'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
   'occasions': _SectionInfo(Icons.auto_awesome_rounded, Color(0xFFE8A317), 'إضافة مؤثر مناسبة على اللوجو', 'Add an occasion effect to the logo', 'رمضان والأعياد و٦ أكتوبر: ختم على الشعار وتهنئة بكود أو كوينات', 'Ramadan, Eids and 6 October: a logo stamp and a greeting with a code or coins'),
   'appearance': _SectionInfo(Icons.palette_outlined, Color(0xFF9E77ED), 'المظهر', 'Appearance', 'ألوان التطبيق وأيقونته وحركة الفتح', 'App colours, icon and opening animation'),
@@ -314,6 +317,8 @@ class AdminHomeScreen extends ConsumerWidget {
                       'shifts' => const ShiftsPanel(),
                       'books' => const AccountantPanel(),
                       'sales' => const SalesPanel(),
+                      'targets' => const TargetsPanel(),
+                      'mytarget' => const MyTargetPanel(),
                       'appearance' => const AppearancePanel(),
                       'occasions' => const OccasionsPanel(),
                       'repairs' => const _RepairsTab(),

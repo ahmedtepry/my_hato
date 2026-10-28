@@ -5,8 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../../core/save_file.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
@@ -209,8 +209,7 @@ Future<void> exportProductsExcel(BuildContext context, WidgetRef ref) async {
     final bytes = Uint8List.fromList(excel.save()!);
     final now = DateTime.now();
     final name = 'MyHato-products-${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}.xlsx';
-    await Share.shareXFiles([XFile.fromData(bytes, name: name, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
-        fileNameOverrides: [name]);
+    if (context.mounted) await deliverFile(context, bytes, name, xlsxMime);
   } catch (e) {
     if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
   }

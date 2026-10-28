@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
+import 'books_period.dart';
 import 'pos_repository.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -16,18 +17,20 @@ String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
 String _err(BuildContext c, Object e) => posErrorText(e, c.isAr, (x) => friendlyError(c, x));
 String _when(Object? iso) => iso == null ? '—' : DateFormat('d/M/yyyy  HH:mm').format(DateTime.parse('$iso').toLocal());
 
+final shiftReportsPeriodProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, Period>((ref, p) => ref.watch(posRepoProvider).booksReports(null, p.from, p.to));
 final shiftReportsProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int>((ref, days) => ref.watch(posRepoProvider).shiftReports(days));
 
 /// Closing reports (final, numbered) for the accountant, the manager and the owner. Visible only with the "shifts.reports" right,
 /// which the owner gives or takes away.
 class ShiftReportsList extends ConsumerWidget {
-  const ShiftReportsList({super.key, required this.days, this.branchId});
+  const ShiftReportsList({super.key, required this.days, this.period, this.branchId});
   final int days;
+  final Period? period; // when set, this exact period is shown instead of the last [days] days
   final String? branchId; // null = every branch
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(shiftReportsProvider(days)).when(
+    return (period != null ? ref.watch(shiftReportsPeriodProvider(period!)) : ref.watch(shiftReportsProvider(days))).when(
           loading: () => const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
           error: (e, _) => Text(_err(context, e)),
           data: (all) {

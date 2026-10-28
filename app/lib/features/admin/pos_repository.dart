@@ -131,16 +131,19 @@ class PosRepository {
   /// Every branch (and head office) this person may look at.
   Future<List<Map<String, dynamic>>> viewBranches() async => _l(await _db.rpc('staff_view_branches'));
 
-  String _from(int days) => DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String();
+  String _iso(DateTime d) => d.toUtc().toIso8601String();
 
-  Future<List<Map<String, dynamic>>> booksShifts(String? branch, int days) async =>
-      _l(await _db.rpc('pos_shift_list', params: {'p_branch': branch, 'p_from': _from(days), 'p_limit': 300}));
+  Future<List<Map<String, dynamic>>> branchReportRange(DateTime from, DateTime to) async =>
+      _l(await _db.rpc('pos_branch_report', params: {'p_from': _iso(from), 'p_to': _iso(to)}));
 
-  Future<List<Map<String, dynamic>>> booksSales(String? branch, int days) async =>
-      _l(await _db.rpc('books_sales', params: {'p_branch': branch, 'p_from': _from(days), 'p_limit': 5000}));
+  Future<List<Map<String, dynamic>>> booksShifts(String? branch, DateTime from, DateTime to) async =>
+      _l(await _db.rpc('pos_shift_list', params: {'p_branch': branch, 'p_from': _iso(from), 'p_to': _iso(to), 'p_limit': 3000}));
 
-  Future<List<Map<String, dynamic>>> booksReports(String? branch, int days) async =>
-      _l(await _db.rpc('pos_shift_report_list', params: {'p_branch': branch, 'p_from': _from(days), 'p_limit': 300}));
+  Future<List<Map<String, dynamic>>> booksSales(String? branch, DateTime from, DateTime to) async =>
+      _l(await _db.rpc('books_sales', params: {'p_branch': branch, 'p_from': _iso(from), 'p_to': _iso(to), 'p_limit': 20000}));
+
+  Future<List<Map<String, dynamic>>> booksReports(String? branch, DateTime from, DateTime to) async =>
+      _l(await _db.rpc('pos_shift_report_list', params: {'p_branch': branch, 'p_from': _iso(from), 'p_to': _iso(to), 'p_limit': 3000}));
 
   Future<String> auditExport(int days) async => (await _db.rpc('audit_export', params: {'p_days': days})) as String;
   Future<Map<String, dynamic>> auditVerify() async => _m(await _db.rpc('audit_verify'));

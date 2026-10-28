@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/save_file.dart';
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
@@ -52,7 +53,7 @@ Future<void> shareReceiptPdf(BuildContext context, Map<String, dynamic> sale) as
   try {
     final p = await SharedPreferences.getInstance();
     final bytes = await posReceiptPdf(sale, widthMm: p.getInt(_kWidth) ?? 80);
-    await Printing.sharePdf(bytes: bytes, filename: 'receipt-${sale['number']}.pdf');
+    if (context.mounted) await deliverFile(context, bytes, 'receipt-${sale['number']}.pdf', 'application/pdf');
   } catch (e) {
     if (context.mounted) showSnack(context, '$e', error: true);
   }

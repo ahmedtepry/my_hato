@@ -66,6 +66,11 @@ const _perms = <String, _PermInfo>{
   'payments.manage': _PermInfo('system', 'يدير الدفع والاسترداد', 'Manage payments and refunds', sensitive: true),
   'roles.assign': _PermInfo('system', 'يغيّر أدوار الناس', 'Change people roles', sensitive: true),
   'branches.manage': _PermInfo('system', 'يعدّل الفروع ومناطق التوصيل', 'Edit branches and delivery zones'),
+  'books.period': _PermInfo('pos', 'يختار فترة التقرير (يوم/شهر/سنة)', 'Pick the report period (day / month / year)'),
+  'targets.view': _PermInfo('pos', 'يشوف تارجت الفروع', 'See branch targets'),
+  'targets.manage': _PermInfo('pos', 'يحدد التارجت (فروع وموظفين)', 'Set targets (branches and employees)'),
+  'targets.mine': _PermInfo('pos', 'يشوف تارجته وعمولته', 'See his own target and commission'),
+  'commission.set': _PermInfo('pos', 'يحدد عمولة المنتجات', 'Set product commissions', sensitive: true),
   'branches.all': _PermInfo('system', 'يشوف حسابات كل الفروع', 'See the accounts of every branch',
       descAr: 'يشوف الورديات والمبيعات والتقارير لكل الفروع والإدارة، مش فرعه بس', descEn: 'See shifts, sales and reports of every branch and head office'),
 };
@@ -577,60 +582,50 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
       Text(name.isEmpty ? '—' : name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       Text(role.label(context), style: const TextStyle(color: BrandColors.gray)),
       _branchBar(context, mine['branches.all'] == 'grant' || (mine['branches.all'] == null && rolePerms.contains('branches.all'))),
+      Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          _s(context, 'acct_hint', 'شغّل أو اقفل أي حاجة لحساب ده بس، والتغيير بيوصل له في ثواني. «زي دوره» معناها إنك ما غيّرتش حاجة لحسابه.',
+              'Switch anything on or off for this account only; it reaches him in seconds. "Same as role" means nothing was changed for him.'),
+          style: const TextStyle(color: BrandColors.gray, fontSize: 12.5),
+        ),
+      ),
       for (final g in _grouped(_stringList(ov['permissions']))) ...[
         Padding(
-          padding: const EdgeInsets.only(top: 18, bottom: 4),
+          padding: const EdgeInsets.only(top: 16, bottom: 6),
           child: Text(_groupLabel(context, g.key), style: const TextStyle(color: BrandColors.gray, fontWeight: FontWeight.w700, fontSize: 13)),
         ),
-        for (final k in g.value)
-          Builder(builder: (context) {
-            final cur = mine[k] ?? 'role';
-            final base = rolePerms.contains(k);
-            final effective = cur == 'grant' ? true : (cur == 'deny' ? false : base);
-            final info = _infoOf(k);
-            final desc = context.isAr ? info.descAr : info.descEn;
-            final note = switch (cur) {
-              'deny' => _s(context, 'note_deny', 'ممنوع منه حتى لو دوره بيسمح', 'Blocked even if the role allows it'),
-              'grant' => _s(context, 'note_grant', 'مسموح له بيه حتى لو دوره مبيسمحش', 'Allowed even if the role does not'),
-              _ => base
-                  ? _s(context, 'note_role_yes', 'زي دوره، ودوره بيسمح بيه', 'Follows the role, which allows it')
-                  : _s(context, 'note_role_no', 'زي دوره، ودوره مبيسمحش بيه', 'Follows the role, which does not allow it'),
-            };
-            final tone = effective ? BrandColors.success : BrandColors.error;
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_t(context, info.ar, info.en), style: const TextStyle(fontWeight: FontWeight.w700)),
-                if (desc != null) Text(desc, style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
-                const SizedBox(height: 4),
-                Row(children: [
-                  Icon(effective ? Icons.check_circle_rounded : Icons.block_rounded, size: 18, color: tone),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      effective ? _s(context, 'can_yes', 'يقدر يعمل ده', 'Can do this') : _s(context, 'can_no', 'مايقدرش يعمل ده', 'Cannot do this'),
-                      style: TextStyle(fontWeight: FontWeight.w700, color: tone, fontSize: 13),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(children: [
+            for (final k in g.value)
+              Builder(builder: (context) {
+                final cur = mine[k] ?? 'role';
+                final base = rolePerms.contains(k);
+                final effective = cur == 'grant' ? true : (cur == 'deny' ? false : base);
+                final info = _infoOf(k);
+                final desc = context.isAr ? info.descAr : info.descEn;
+                final changed = cur != 'role';
+                return SwitchListTile(
+                  value: effective,
+                  onChanged: _busy.contains(k)
+                      ? null
+                      : (v) => _set(k, v ? (base ? 'role' : 'grant') : (base ? 'deny' : 'role')),
+                  title: Text(_t(context, info.ar, info.en)),
+                  subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (desc != null) Text(desc),
+                    if (info.sensitive) Text(_s(context, 'sensitive', 'حساسة', 'Sensitive'), style: const TextStyle(color: BrandColors.warning, fontWeight: FontWeight.w700, fontSize: 12)),
+                    Text(
+                      changed
+                          ? (effective ? _s(context, 'acct_extra', 'اتفتحت لحسابه هو بس', 'Opened for this account only') : _s(context, 'acct_blocked', 'اتقفلت عن حسابه هو بس', 'Closed for this account only'))
+                          : _s(context, 'acct_same', 'زي دوره', 'Same as role'),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: changed ? BrandColors.electric : BrandColors.gray),
                     ),
-                  ),
-                ]),
-                Text(note, style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: SegmentedButton<String>(
-                    showSelectedIcon: false,
-                    segments: [
-                      ButtonSegment(value: 'deny', label: Text(_s(context, 'opt_deny', 'ممنوع', 'Blocked'))),
-                      ButtonSegment(value: 'role', label: Text(_s(context, 'opt_role', 'زي دوره', 'Same as role'))),
-                      ButtonSegment(value: 'grant', label: Text(_s(context, 'opt_grant', 'مسموح', 'Allowed'))),
-                    ],
-                    selected: {cur},
-                    onSelectionChanged: _busy.contains(k) ? null : (s) => _set(k, s.first),
-                  ),
-                ),
-              ]),
-            );
-          }),
+                  ]),
+                );
+              }),
+          ]),
+        ),
       ],
     ]);
   }

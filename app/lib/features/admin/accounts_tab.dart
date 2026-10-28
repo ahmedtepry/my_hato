@@ -1,4 +1,5 @@
 // New customer accounts waiting for approval: accept (activates sign-in right away) or reject.
+import '../../core/save_file.dart';
 import '../../core/appearance.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -9,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors.dart';
@@ -454,10 +454,7 @@ class _CustomersToolbarState extends ConsumerState<_CustomersToolbar> {
       final bytes = book.save();
       if (bytes == null) throw StateError('empty file');
       final file = 'myhato-customers-${DateFormat('yyyyMMdd').format(DateTime.now())}.xlsx';
-      await Share.shareXFiles(
-        [XFile.fromData(Uint8List.fromList(bytes), name: file, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
-        fileNameOverrides: [file],
-      );
+      if (mounted) await deliverFile(context, Uint8List.fromList(bytes), file, xlsxMime);
     } catch (e) {
       if (mounted) showSnack(context, friendlyError(context, e), error: true);
     } finally {
