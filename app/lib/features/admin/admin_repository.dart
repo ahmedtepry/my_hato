@@ -506,7 +506,9 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     case Workspace.support:
       first = const ['orders', 'repairs', 'accounts'];
   }
-  // a focused job sees only its own pages: nothing else is shown, even if the owner allowed more (the database still decides every action)
+  // a focused job lands on its own pages first; anything else the owner switches on for this person is added after them
+  // (the database still decides every action)
   final out = first.where(all.contains).toList();
+  out.addAll(all.where((k) => k != 'overview' && !out.contains(k)));
   return out.isEmpty ? ['overview'] : out;
 });
