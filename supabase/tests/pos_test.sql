@@ -400,6 +400,11 @@ reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role 
 select public._expect('manager cannot rename without the right', format($q$select public.staff_rename_branch(%L, 'x', null)$q$, :'A'), 'FORBIDDEN');
 reset role;
 
+-- ---------- 0073: tips
+select public._expect('tip column exists with a guard', $q$select 1/(case when exists (select 1 from information_schema.columns where table_name='pos_sales' and column_name='tip_minor') then 1 else 0 end)$q$, null);
+select public._expect('shift totals carry the tips', $q$select 1/(case when pg_get_functiondef('public._shift_totals(uuid)'::regprocedure) like '%tips_minor%' then 1 else 0 end)$q$, null);
+select public._expect('a stranger cannot mark a tip', $q$select public.pos_mark_tip('00000000-0000-0000-0000-000000000000')$q$, 'NOT_FOUND');
+
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

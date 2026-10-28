@@ -85,6 +85,8 @@ class PosRepository {
         'p_approval': approvalId,
       }));
 
+  Future<Map<String, dynamic>> markTip(String saleId) async => _m(await _db.rpc('pos_mark_tip', params: {'p_sale': saleId}));
+
   Future<List<Map<String, dynamic>>> recentSales(String shiftId) async => _l(await _db
       .from('pos_sales')
       .select('id, number, total_minor, refunded_minor, created_at')

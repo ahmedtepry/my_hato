@@ -254,6 +254,7 @@ class _RegisterState extends ConsumerState<_Register> {
   Timer? _debounce;
   bool _busy = false;
   bool _showCart = false; // narrow screens: products or cart
+  bool _tip = false; // the customer left the change as a tip (recorded on the sale right after it is saved)
   String? _key; // idempotency key of the sale being sent (kept while the result is unknown)
   bool _unknown = false; // the last send may have reached the server: the cart is locked until it is re-sent
   String? _approvalId;
@@ -378,6 +379,7 @@ class _RegisterState extends ConsumerState<_Register> {
     _discount.clear();
     _cash.clear();
     _key = null;
+    _tip = false;
     _unknown = false;
     _approvalId = null;
     _approvalAmount = 0;
@@ -398,8 +400,9 @@ class _RegisterState extends ConsumerState<_Register> {
     }
     // more than the total: the cashier must hand the change back, and confirms he did, before the sale is completed
     if (cash > _total && _key == null) {
-      final ok = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
-      if (ok != true || !mounted) return;
+      final r = await showDialog<String>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
+      if (r == null || r == 'back' || !mounted) return;
+      _tip = r == 'tip';
     }
     setState(() => _busy = true);
     try {
@@ -429,7 +432,14 @@ class _RegisterState extends ConsumerState<_Register> {
         }
       }
       if (sale == null || !mounted) return;
-      final done = sale;
+      var done = sale;
+      if (_tip) {
+        try {
+          done = await ref.read(posRepoProvider).markTip('${sale['id']}');
+        } catch (_) {
+          if (mounted) showSnack(context, _t(context, 'البيعة اتسجلت لكن البقشيش ماتسجلش، سجّله من الفاتورة', 'The sale was saved but the tip was not recorded'), error: true);
+        }
+      }
       setState(_reset);
       ref.invalidate(posShiftProvider);
       _loadProducts(_search.text);
@@ -732,7 +742,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-/// The customer paid more than the total: tell the cashier exactly how much to give back and ask him to confirm it.
+/// The customer paid more than the total: the cashier either hands the change back, or records that the customer left it as a tip.
 class _ChangeDialog extends StatelessWidget {
   const _ChangeDialog({required this.change});
   final int change;
@@ -740,19 +750,29 @@ class _ChangeDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AlertDialog(
         icon: const Icon(Icons.payments_rounded, color: BrandColors.warning, size: 44),
-        title: Text(_t(context, 'رجّع للعميل', 'Give the customer back'), textAlign: TextAlign.center),
+        title: Text(_t(context, 'الباقي للعميل', 'Change due'), textAlign: TextAlign.center),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(_money(context, change), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: BrandColors.navy)),
           const SizedBox(height: 10),
-          Text(_t(context, 'رجعت الفلوس للعميل؟', 'Did you hand the change back?'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          Text(_t(context, 'رجعت الباقي للعميل؟ ولا سابه بقشيش؟', 'Did you hand the change back, or did the customer leave it as a tip?'),
+              textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(_t(context, 'الدرج بيحسب قيمة المنتج بس، والبقشيش بيتسجل باسمك على الفاتورة.', 'The drawer counts the product value only; a tip is recorded on the invoice.'),
+              textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, color: BrandColors.gray)),
         ]),
         actionsAlignment: MainAxisAlignment.center,
+        actionsOverflowButtonSpacing: 8,
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t(context, 'لأ، رجوع', 'No, go back'))),
+          TextButton(onPressed: () => Navigator.pop(context, 'back'), child: Text(_t(context, 'لأ، رجوع', 'No, go back'))),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context, 'tip'),
+            icon: const Icon(Icons.volunteer_activism_rounded),
+            label: Text(_t(context, 'سابه بقشيش', 'Left as a tip')),
+          ),
           FilledButton(
             autofocus: true,
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(_t(context, 'أيوه رجعت', 'Yes, done')),
+            onPressed: () => Navigator.pop(context, 'returned'),
+            child: Text(_t(context, 'أيوه رجعت', 'Yes, handed back')),
           ),
         ],
       );
@@ -774,7 +794,8 @@ String receiptText(BuildContext c, Map<String, dynamic> sale) {
   lines
     ..writeln('${_t(c, 'الإجمالي', 'Total')}: ${_money(c, sale['total_minor'] as num)}')
     ..writeln('${_t(c, 'المستلم', 'Cash')}: ${_money(c, sale['cash_received_minor'] as num)}')
-    ..writeln('${_t(c, 'الباقي', 'Change')}: ${_money(c, sale['change_minor'] as num)}')
+    ..writeln('${_t(c, 'الباقي', 'Change')}: ${_money(c, ((sale['change_minor'] as num) - ((sale['tip_minor'] as num?) ?? 0)))}')
+    ..writeln(((sale['tip_minor'] as num?) ?? 0) > 0 ? '${_t(c, 'بقشيش', 'Tip')}: ${_money(c, sale['tip_minor'] as num)}' : '')
     ..writeln(_t(c, 'شكراً لثقتكم', 'Thank you'));
   return lines.toString();
 }
@@ -1148,6 +1169,8 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
               row(_t(context, 'العهدة أول الوردية', 'Opening cash'), _money(context, s['opening_minor'] as num)),
               row('${_t(context, 'المبيعات', 'Sales')} (${s['sales_count']})', _money(context, s['sales_minor'] as num)),
               row(_t(context, 'المرتجعات', 'Refunds'), '- ${_money(context, s['refunds_minor'] as num)}'),
+              if (((s['tips_minor'] as num?) ?? 0) > 0)
+                row(_t(context, 'بقشيش (خدته من الدرج)', 'Tips (taken from the drawer)'), _money(context, s['tips_minor'] as num), c: BrandColors.gray),
               const Divider(),
               row(_t(context, 'المفروض في الدرج', 'Expected in drawer'), _money(context, expected), b: true),
               const SizedBox(height: 10),
