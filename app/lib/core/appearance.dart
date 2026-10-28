@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config.dart';
 import 'l10n.dart';
+import 'team_theme.dart';
 import 'supabase_providers.dart';
 import 'theme.dart';
 
@@ -62,7 +64,8 @@ String _cleanName(String? v) => (v == null || v.trim().isEmpty) ? 'My Hatō' : v
 /// Paints the saved colours before the first frame, so the app never flashes the old ones.
 void applySavedPalette(SharedPreferences prefs) {
   final a = Appearance.fromPrefs(prefs);
-  AppPalette.apply(a.palette);
+  if (AppConfig.teamOnly) TeamTheme.id = TeamTheme.effective(prefs);
+  AppPalette.apply(AppConfig.teamOnly ? TeamTheme.palette(TeamTheme.id, a.palette) : a.palette);
   AppName.ar = a.nameAr;
   AppName.en = a.nameEn;
   AppOccasion.key = a.occasion;
@@ -123,7 +126,7 @@ class AppearanceController extends Notifier<Appearance> {
 
   Future<void> _apply(Appearance a) async {
     final prefs = ref.read(sharedPrefsProvider);
-    final paletteChanged = AppPalette.apply(a.palette);
+    final paletteChanged = AppPalette.apply(AppConfig.teamOnly ? TeamTheme.palette(TeamTheme.id, a.palette) : a.palette);
     final nameChanged = AppName.ar != a.nameAr || AppName.en != a.nameEn;
     AppName.ar = a.nameAr;
     AppName.en = a.nameEn;

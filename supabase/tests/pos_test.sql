@@ -36,6 +36,7 @@ insert into public.user_roles (user_id, role) values
 on conflict do nothing;
 insert into public.branches (id, name_ar, name_en, address_ar, address_en, phone, hours_ar, hours_en, pickup_instructions_ar, pickup_instructions_en) values
  ('b0000000-0000-0000-0000-00000000000a','فرع أ','Branch A','ع','a','1','h','h','p','p'), ('b0000000-0000-0000-0000-00000000000b','فرع ب','Branch B','ع','a','1','h','h','p','p') on conflict do nothing;
+insert into public.user_permission_overrides(user_id, permission, effect) values ('00000000-0000-0000-0000-0000000000a2','branches.all','deny'),('00000000-0000-0000-0000-0000000000a6','branches.all','deny') on conflict do nothing;
 delete from public.staff_branches;
 insert into public.staff_branches (user_id, branch_id) values
  ('00000000-0000-0000-0000-0000000000a2', 'b0000000-0000-0000-0000-00000000000a'),
@@ -319,11 +320,24 @@ select public._expect('accountant branch report lists all branches', $q$select 1
 select public._expect('accountant gets the sales list', $q$select 1/(case when (select count(*) from public.books_sales()) >= 1 then 1 else 0 end)$q$, null);
 select public._expect('seeing a branch does not let him work in it', format($q$select public.pos_open_shift(%L, 0)$q$, :'B'), 'FORBIDDEN');
 reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
-select public._expect('a manager of one branch does not see the other branch', $q$select 1/(case when (select count(*) from public.pos_branch_report()) >= 3 then 0 else 1 end)$q$, null);
-reset role; insert into public.user_permission_overrides(user_id, permission, effect) values (:'MGR', 'branches.all', 'grant');
-select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
-select public._expect('owner can give "see every branch" to one person and it works at once', $q$select 1/(case when (select count(*) from public.pos_branch_report()) >= 3 then 1 else 0 end)$q$, null);
 reset role; delete from public.user_permission_overrides where user_id = :'MGR' and permission = 'branches.all';
+select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('a manager sees every branch by default', $q$select 1/(case when (select count(*) from public.pos_branch_report()) >= 3 then 1 else 0 end)$q$, null);
+reset role; insert into public.user_permission_overrides(user_id, permission, effect) values (:'MGR', 'branches.all', 'deny');
+select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('owner can switch "every branch" off for one manager and it works at once', $q$select 1/(case when (select count(*) from public.pos_branch_report()) >= 3 then 0 else 1 end)$q$, null);
+reset role; delete from public.user_permission_overrides where user_id = :'MGR' and permission = 'branches.all';
+
+-- ---------- 0068: team colour theme (owner sets it for everybody, nobody else can)
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('a manager cannot set the colours for everybody', $q$select public.owner_set_team_theme('terracotta')$q$, 'FORBIDDEN');
+select public._expect('staff can read the current theme', $q$select public.team_theme_get()$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('the owner sets the theme for everybody', $q$select 1/(case when public.owner_set_team_theme('terracotta') ->> 'theme' = 'terracotta' then 1 else 0 end)$q$, null);
+select public._expect('a bad theme name is refused', $q$select public.owner_set_team_theme('Bad Name!')$q$, 'INVALID_INPUT');
+reset role; select set_config('request.jwt.claim.sub', '', false); set role authenticated;
+select public._expect('a non-staff person cannot read it', $q$select public.team_theme_get()$q$, 'FORBIDDEN');
+reset role;
 
 \o
 -- ---------- report

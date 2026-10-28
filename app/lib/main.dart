@@ -12,6 +12,7 @@ import 'core/config.dart';
 import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/appearance.dart';
+import 'core/team_theme.dart';
 import 'core/theme.dart';
 import 'shared/connection_gate.dart';
 import 'shared/phone_notifications.dart';
@@ -157,6 +158,7 @@ class MyHatoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
     ref.watch(appearanceProvider); // rebuilds the theme when the owner changes the colours
+    if (AppConfig.teamOnly) ref.watch(teamThemeProvider); // the team app's own colour theme
     return MaterialApp.router(
       title: AppName.en,
       debugShowCheckedModeBanner: false,

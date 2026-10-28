@@ -8,6 +8,9 @@ import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+import '../../shared/avatars.dart';
+import '../auth/auth_repository.dart';
+import '../profile/profile_repository.dart';
 import 'admin_repository.dart';
 import 'pos_repository.dart';
 import 'team.dart' show roleOf;
@@ -66,10 +69,30 @@ class DesktopSidebar extends ConsumerWidget {
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.12)))),
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: BrandColors.electric,
-                child: Text(name.isEmpty ? '؟' : String.fromCharCode(name.runes.first).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+              Tooltip(
+                message: _t(context, 'غيّر الأفاتار', 'Change avatar'),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () async {
+                    final cur = ref.read(profileProvider).valueOrNull?['avatar_id'] as String?;
+                    final id = await showAvatarPicker(context, current: cur);
+                    if (id == null) return;
+                    try {
+                      await ref.read(profileRepoProvider).update(avatarId: id);
+                      ref.invalidate(profileProvider);
+                    } catch (_) {}
+                  },
+                  child: Builder(builder: (_) {
+                    final av = ref.watch(profileProvider).valueOrNull?['avatar_id'] as String?;
+                    return isAvatarId(av)
+                        ? HatoAvatar(key: ValueKey(av), id: av!, size: 40, animate: false)
+                        : CircleAvatar(
+                            radius: 20,
+                            backgroundColor: BrandColors.electric,
+                            child: Text(name.isEmpty ? '؟' : String.fromCharCode(name.runes.first).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                          );
+                  }),
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(

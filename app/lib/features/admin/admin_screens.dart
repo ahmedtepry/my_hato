@@ -27,6 +27,7 @@ import '../orders/orders_screens.dart' show fmtDate;
 import '../repairs/repairs_repository.dart';
 import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
 import 'accounts_tab.dart';
+import '../../core/team_theme.dart';
 import 'desktop_console.dart';
 import 'loyalty_gifts.dart';
 import 'promotions.dart';
@@ -372,7 +373,17 @@ class AdminHomeScreen extends ConsumerWidget {
                             onSearch: () => _openSearch(ctx, ref),
                             onSignOut: signOut,
                           ),
-                          Expanded(child: pages),
+                          Expanded(
+                            child: Stack(children: [
+                              pages,
+                              // top-left corner: the colour theme of this device (the owner can also set it for everyone)
+                              Positioned(
+                                left: 12,
+                                top: 10,
+                                child: TeamThemeButton(isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
+                              ),
+                            ]),
+                          ),
                         ]),
                       ),
                       DesktopStatusBar(shortcuts: _t(ctx, 'اختصارات: Ctrl+K بحث${tabs.contains('pos') ? ' · F2 كاشير' : ''} · F5 تحديث', 'Shortcuts: Ctrl+K search${tabs.contains('pos') ? ' · F2 cashier' : ''} · F5 refresh')),
