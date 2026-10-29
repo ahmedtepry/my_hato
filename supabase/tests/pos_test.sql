@@ -288,8 +288,8 @@ reset role;
 -- ---------- 0066: the nine formerly "coming soon" permissions are real
 reset role;
 select public._expect('only the shortcuts placeholders are inert', $q$select 1/(case when exists (select 1 from public.permission_catalog where inert and grp not in ('shortcuts','assistant')) then 0 else 1 end)$q$, null);
-select public._expect('3 assistant switches exist and are placeholders', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'assistant' and inert) = 3 then 1 else 0 end)$q$, null);
-select public._expect('15 shortcuts: 4 live, 11 placeholders nobody holds', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'shortcuts') = 15 and (select count(*) from public.permission_catalog where grp = 'shortcuts' and inert) = 11 and not exists (select 1 from public.role_permissions rp join public.permission_catalog c using (permission) where c.inert) then 1 else 0 end)$q$, null);
+select public._expect('3 assistant switches, only the cashier one is a placeholder', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'assistant') = 3 and (select count(*) from public.permission_catalog where grp = 'assistant' and inert) = 1 then 1 else 0 end)$q$, null);
+select public._expect('15 shortcuts: 4 live, 11 placeholders nobody holds', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'shortcuts') = 15 and (select count(*) from public.permission_catalog where grp = 'shortcuts' and inert) = 11 and not exists (select 1 from public.role_permissions rp join public.permission_catalog c using (permission) where c.inert and c.grp = 'shortcuts') then 1 else 0 end)$q$, null);
 select public._expect('stock and wheel permissions have a displayed group', $q$select 1/(case when (select count(*) from public.permission_catalog where permission in ('stock.view','stock.others','wheel.manage','features.manage','contest.manage') and grp in ('stock','extras')) = 5 then 1 else 0 end)$q$, null);
 select public._expect('owner has every new permission', $q$select 1/(case when (select count(*) from public.role_permissions where role = 'owner' and permission in ('customers.review','cancel_requests.decide','coupons.manage','notifications.broadcast','reviews.moderate','audit.export','payments.manage','roles.assign','branches.manage')) = 9 then 1 else 0 end)$q$, null);
 select public._expect('manager inherited coupons.manage from orders.manage', $q$select 1/(case when exists (select 1 from public.role_permissions where role='manager' and permission='coupons.manage') then 1 else 0 end)$q$, null);
@@ -701,6 +701,26 @@ select public._expect('owner exports products', $q$select 1/(case when jsonb_arr
 select public._expect('owner exports counter sales', $q$select 1/(case when jsonb_array_length(public.export_data('pos_sales', current_date - 5, current_date + 1)->'rows') > 0 then 1 else 0 end)$q$, null);
 select public._expect('owner exports orders and customers', $q$select public.export_data('orders'), public.export_data('customers')$q$, null);
 select public._expect('unknown export kind refused', $q$select public.export_data('secrets')$q$, 'INVALID_INPUT');
+
+-- ---- assistant modes ----
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('a cashier cannot see or switch the modes', $q$select 1/(case when public.assistant_state()->'accountant' = 'null'::jsonb and public.assistant_state()->'support' = 'null'::jsonb then 1 else 0 end)$q$, null);
+select public._expect('a cashier cannot switch the accountant', $q$select public.assistant_set('accountant', true, true)$q$, 'FORBIDDEN');
+select public._expect('a cashier cannot get the report', $q$select public.assistant_month_report(2026, 10)$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('the report needs the mode on', $q$select public.assistant_month_report(2026, 10)$q$, 'MODE_OFF');
+select public._expect('turning on must be confirmed', $q$select public.assistant_set('accountant', true)$q$, 'CONFIRM_REQUIRED');
+select public._expect('owner turns the accountant on', $q$select public.assistant_set('accountant', true, true)$q$, null);
+select public._expect('the month report has every section', $q$select 1/(case when public.assistant_month_report(extract(year from now())::int, extract(month from now())::int) ?& array['branches','employees','shifts','orders','stock','receipts','stocktakes'] then 1 else 0 end)$q$, null);
+select public._expect('the report lists the branches', $q$select 1/(case when jsonb_array_length(public.assistant_month_report(extract(year from now())::int, extract(month from now())::int)->'branches') >= 2 then 1 else 0 end)$q$, null);
+select public._expect('the robot cannot run while off', $q$select public.assistant_run_robot()$q$, 'MODE_OFF');
+select public._expect('owner turns the robot on', $q$select public.assistant_set('support', true, true)$q$, null);
+select public._expect('the robot runs', $q$select public.assistant_run_robot()$q$, null);
+select public._expect('the robot does nothing twice', $q$select 1/(case when public.assistant_run_robot() = 0 then 1 else 0 end)$q$, null);
+reset role;
+select public._expect('the robot logged what it did', $q$select 1/(case when exists (select 1 from public.assistant_events) then 1 else 0 end)$q$, null);
+insert into public.role_permissions (role, permission) values ('accountant', 'assistant.accountant') on conflict do nothing;
+select public._expect('an accountant given the switch can run the report', format($q$select set_config('request.jwt.claim.sub', %L, false)$q$, (select user_id from public.user_roles where role = 'accountant' limit 1)), null);
 
 reset role;
 reset role;
