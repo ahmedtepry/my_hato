@@ -73,6 +73,7 @@ const _perms = <String, _PermInfo>{
   'ops.live': _PermInfo('system', 'غرفة العمليات المباشرة', 'Live operations room', sensitive: true),
   'commission.view': _PermInfo('pos', 'عمولات و KPI الموظفين', 'Employee commissions & KPIs', sensitive: true),
   'commission.today': _PermInfo('pos', 'يشوف المنتجات اللي عليها كوميشن النهارده', 'See today\'s commission products'),
+  'contest.manage': _PermInfo('system', 'يدير المسابقات', 'Manage contests'),
   'receipt.style': _PermInfo('pos', 'يغيّر شكل الفاتورة', 'Change the invoice look'),
   'profit.view': _PermInfo('system', 'يشوف الأرباح', 'See profit', sensitive: true),
   'cost.manage': _PermInfo('pos', 'يحدد سعر تكلفة المنتجات', 'Set product costs', sensitive: true),

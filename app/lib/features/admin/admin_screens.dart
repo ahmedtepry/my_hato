@@ -37,6 +37,7 @@ import 'profit_panel.dart';
 import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
+import 'contests.dart';
 import 'occasions_panel.dart';
 import 'pos_panel.dart';
 import 'sales_panel.dart';
@@ -250,6 +251,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
+  'contests': _SectionInfo(Icons.emoji_events_rounded, Color(0xFFE8A317), 'المسابقات', 'Contests', 'أسئلة بجوايز للفريق أو العملاء: مدة، إشعار، نتايج وفايزين', 'Prize questions for the team or customers: timing, notification, results and winners'),
   'occasions': _SectionInfo(Icons.auto_awesome_rounded, Color(0xFFE8A317), 'إضافة مؤثر مناسبة على اللوجو', 'Add an occasion effect to the logo', 'رمضان والأعياد و٦ أكتوبر: ختم على الشعار وتهنئة بكود أو كوينات', 'Ramadan, Eids and 6 October: a logo stamp and a greeting with a code or coins'),
   'appearance': _SectionInfo(Icons.palette_outlined, Color(0xFF9E77ED), 'المظهر', 'Appearance', 'ألوان التطبيق وأيقونته وحركة الفتح', 'App colours, icon and opening animation'),
   'repairs': _SectionInfo(Icons.build_outlined, Color(0xFF566380), 'الصيانة', 'Repairs', 'طلبات الصيانة والموافقة على التكلفة', 'Repair requests and cost approval'),
@@ -493,7 +495,7 @@ class AdminHomeScreen extends ConsumerWidget {
             final onConsole = c.index >= consoleIdx;
             final current = onConsole ? null : tabs[c.index];
             final selected = current == null ? layout.pinned.length : layout.pinned.indexOf(current);
-            final pages = TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
+            final pagesRaw = TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
                   for (final t in tabs)
                     switch (t) {
                       'pos' => const PosPanel(),
@@ -508,6 +510,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'kpi' => const KpiPanel(),
                       'mytarget' => const MyTargetPanel(),
                       'occasions' => const OccasionsPanel(),
+                      'contests' => const ContestsPanel(),
                       'repairs' => const _RepairsTab(),
                       'products' => const _ProductsTab(),
                       'reviews' => const _ReviewsTab(),
@@ -516,6 +519,8 @@ class AdminHomeScreen extends ConsumerWidget {
                     },
                   _ConsolePage(layout: layout, onOpen: open),
                 ]);
+            // a running contest for this member shows above whatever page is open
+            final pages = Column(children: [const ContestBanner(margin: EdgeInsets.fromLTRB(12, 8, 12, 0)), Expanded(child: pagesRaw)]);
 
             void back() {
               while (_navBack.isNotEmpty) {

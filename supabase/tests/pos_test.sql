@@ -513,6 +513,40 @@ select public._expect('customers cannot read costs directly', $q$select 1/(case 
 reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
 select public._expect('owner sees profit in the live room', $q$select 1/(case when public.ops_live()->'profit' is not null and (public.ops_live()->'profit'->>'sales_counted') is not null then 1 else 0 end)$q$, null);
 reset role;
+-- ---------- 0088: contests
+create table if not exists public._ct (id uuid); grant all on public._ct to authenticated; delete from public._ct;
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner creates a contest', $q$select public.contest_save(null, '{"title":"تحدي الذكاء","intro":"ورّينا شطارتك","audience":"all","duration_minutes":30,"answer_seconds":60,"winners_count":1,"prize":"كوبون 50 ج","questions":[{"body":"عاصمة مصر؟","kind":"text","correct":"القاهره|القاهرة"},{"body":"2+2؟","kind":"choice","options":["3","4","5"],"correct":"4"}]}'::jsonb)$q$, null);
+insert into public._ct select (public.contest_admin_list()->0->>'id')::uuid;
+select public._expect('more than 3 questions are refused', $q$select public.contest_save(null, '{"title":"زيادة","questions":[{"body":"أ؟؟"},{"body":"ب؟؟"},{"body":"ج؟؟"},{"body":"د؟؟"}]}'::jsonb)$q$, 'INVALID_INPUT');
+select public._expect('a choice answer must be one of the options', $q$select public.contest_save(null, '{"title":"غلط","questions":[{"body":"س؟؟؟","kind":"choice","options":["a","b"],"correct":"z"}]}'::jsonb)$q$, 'INVALID_INPUT');
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('a draft contest is invisible to participants', $q$select 1/(case when jsonb_array_length(public.contest_active()) = 0 then 1 else 0 end)$q$, null);
+select public._expect('seller cannot manage contests', $q$select public.contest_admin_list()$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner publishes and notifies', $q$select 1/(case when public.contest_publish((select id from public._ct)) >= 1 then 1 else 0 end)$q$, null);
+reset role;
+select public._expect('the notification reached the team', $q$select 1/(case when exists (select 1 from public.notifications where title_ar like '%تحدي الذكاء%' and user_id = '00000000-0000-0000-0000-0000000000a3') then 1 else 0 end)$q$, null);
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('team member sees the running contest', $q$select 1/(case when jsonb_array_length(public.contest_active()) = 1 then 1 else 0 end)$q$, null);
+select public._expect('open returns questions without the right answers', $q$select 1/(case when jsonb_array_length(public.contest_open((select id from public._ct))->'questions') = 2
+  and not (public.contest_open((select id from public._ct))::text like '%القاهره%') then 1 else 0 end)$q$, null);
+select public._expect('answers are graded (Arabic spelling forgiven)', $q$select 1/(case when (public.contest_submit((select id from public._ct),
+  (select jsonb_object_agg(q->>'id', case (q->>'position')::int when 1 then ' القاهرة ' else '4' end) from jsonb_array_elements(public.contest_open((select id from public._ct))->'questions') q))->>'correct_count')::int = 2 then 1 else 0 end)$q$, null);
+select public._expect('a second submission is refused', $q$select public.contest_submit((select id from public._ct), '{}'::jsonb)$q$, 'ALREADY_SUBMITTED');
+reset role; select set_config('request.jwt.claim.sub', :'TECH', false); set role authenticated;
+select public._expect('a wrong answer scores less', $q$select public.contest_open((select id from public._ct))$q$, null);
+select public._expect('wrong answers score zero', $q$select 1/(case when (public.contest_submit((select id from public._ct), '{}'::jsonb)->>'correct_count')::int = 0 then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('the owner sees both entries, best first', $q$select 1/(case when jsonb_array_length(public.contest_results((select id from public._ct))) = 2
+  and (public.contest_results((select id from public._ct))->0->>'correct_count')::int = 2 then 1 else 0 end)$q$, null);
+select public._expect('questions are locked once someone entered', $q$select public.contest_save((select id from public._ct), '{"title":"تعديل","questions":[{"body":"سؤال جديد؟؟"}]}'::jsonb)$q$, 'HAS_ENTRIES');
+select public._expect('owner announces the winner', $q$select 1/(case when public.contest_announce((select id from public._ct)) = 1 then 1 else 0 end)$q$, null);
+select public._expect('the winner is the best entry', $q$select 1/(case when (public.contest_results((select id from public._ct))->0->>'is_winner')::boolean then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('after closing it is no longer offered', $q$select 1/(case when jsonb_array_length(public.contest_active()) = 0 then 1 else 0 end)$q$, null);
+reset role;
 \o
 -- ---------- report
 select n, case when ok then 'PASS' else 'FAIL' end as result, name, detail from public._t order by n;

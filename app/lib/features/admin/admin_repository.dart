@@ -513,6 +513,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('targets.mine')) 'mytarget',
     if (p.contains('appearance.manage')) 'appearance',
     if (p.contains('occasions.manage')) 'occasions',
+    if (p.contains('contest.manage')) 'contests',
     if (p.contains('repairs.view')) 'repairs',
     if (p.contains('products.manage')) 'products',
     if (p.contains('products.manage')) 'reviews',
