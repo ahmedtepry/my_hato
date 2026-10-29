@@ -274,72 +274,74 @@ class _ProductCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------- how do I
+/// The common questions (also answered by the docked robot).
+final assistantGuides = <(String, String, List<String>, List<String>)>[
+  (
+    'إزاي أعمل فاتورة صح؟',
+    'How do I make an invoice?',
+    [
+      'اختار المنتجات من القائمة أو امسح الباركود، وراجع الاسم والكمية والسعر في السلة.',
+      'لو في خصم، اكتبه في حدود المسموح لك. لو أكبر من حدّك هيطلب موافقة المدير.',
+      'اكتب المبلغ اللي استلمته من العميل وراجع الباقي قبل ما ترجّعه.',
+      'أكّد البيع وسلّم الفاتورة. الفاتورة بعد التأكيد مبتتعدّلش، التصحيح بيكون بمرتجع.',
+    ],
+    [
+      'Pick the products or scan the barcode and check name, quantity and price in the cart.',
+      'If there is a discount, keep it within your limit. Above your limit it asks your manager to approve.',
+      'Type the cash you received and check the change before you hand it back.',
+      'Confirm the sale. A confirmed invoice cannot be edited; corrections are made by a refund.',
+    ],
+  ),
+  (
+    'إزاي أعمل مرتجع صح؟',
+    'How do I make a refund?',
+    [
+      'اضغط «مرتجع» في أعلى الشاشة وابحث عن الفاتورة برقمها.',
+      'اختار القطع والكمية اللي هترجع، واكتب السبب بوضوح (مطلوب).',
+      'لو المبلغ فوق حدّك هتطلب موافقة المدير، استنى موافقته.',
+      'بعد التأكيد رجّع الفلوس للعميل من الدرج. كل مرتجع بيتسجل باسمك.',
+    ],
+    [
+      'Press "Refund" at the top and find the invoice by its number.',
+      'Pick the items and quantity to return and write the reason clearly (required).',
+      'Above your limit you need your manager\'s approval; wait for it.',
+      'After confirming, pay the customer from the drawer. Every refund is logged under your name.',
+    ],
+  ),
+  (
+    'لو المنتج خلص في فرعي؟',
+    'The product is out in my branch?',
+    [
+      'دوّر عليه في تبويب «دوّر على منتج»: هيقولك لو متوفر في مكان تاني، وهيعرض لك بدايل في فرعك.',
+      'لو في بديل مناسب اعرضه على العميل. لو عايز المنتج نفسه، اطلب من المدير يحوّله لفرعك.',
+    ],
+    [
+      'Look it up in "Find a product": it tells you if it is available elsewhere and shows alternatives in your branch.',
+      'Offer a suitable alternative, or ask your manager to transfer the product to your branch.',
+    ],
+  ),
+  (
+    'قبل ما أقفل الوردية',
+    'Before I close the shift',
+    [
+      'عدّ الدرج فعلًا واكتب الرقم في خانة العد، ولو في فرق اكتب السببه.',
+      'راجع تبويب «ورديتي»: هيعرض لك الفرق والخصومات والمرتجعات اللي هتتراجع.',
+      'اكتب الباسورد وأقفل. بعدها بيتعمل تقرير نهائي مبيتعدّلش.',
+    ],
+    [
+      'Count the drawer and type the number; if it differs write why.',
+      'Check the "My shift" tab: it shows the difference, discounts and refunds that will be reviewed.',
+      'Type your password and close. A final report is made that cannot be changed.',
+    ],
+  ),
+];
 class _GuideTab extends StatelessWidget {
   const _GuideTab();
   @override
   Widget build(BuildContext context) {
-    final guides = <(String, String, List<String>, List<String>)>[
-      (
-        'إزاي أعمل فاتورة صح؟',
-        'How do I make an invoice?',
-        [
-          'اختار المنتجات من القائمة أو امسح الباركود، وراجع الاسم والكمية والسعر في السلة.',
-          'لو في خصم، اكتبه في حدود المسموح لك. لو أكبر من حدّك هيطلب موافقة المدير.',
-          'اكتب المبلغ اللي استلمته من العميل وراجع الباقي قبل ما ترجّعه.',
-          'أكّد البيع وسلّم الفاتورة. الفاتورة بعد التأكيد مبتتعدّلش، التصحيح بيكون بمرتجع.',
-        ],
-        [
-          'Pick the products or scan the barcode and check name, quantity and price in the cart.',
-          'If there is a discount, keep it within your limit. Above your limit it asks your manager to approve.',
-          'Type the cash you received and check the change before you hand it back.',
-          'Confirm the sale. A confirmed invoice cannot be edited; corrections are made by a refund.',
-        ],
-      ),
-      (
-        'إزاي أعمل مرتجع صح؟',
-        'How do I make a refund?',
-        [
-          'اضغط «مرتجع» في أعلى الشاشة وابحث عن الفاتورة برقمها.',
-          'اختار القطع والكمية اللي هترجع، واكتب السبب بوضوح (مطلوب).',
-          'لو المبلغ فوق حدّك هتطلب موافقة المدير، استنى موافقته.',
-          'بعد التأكيد رجّع الفلوس للعميل من الدرج. كل مرتجع بيتسجل باسمك.',
-        ],
-        [
-          'Press "Refund" at the top and find the invoice by its number.',
-          'Pick the items and quantity to return and write the reason clearly (required).',
-          'Above your limit you need your manager\'s approval; wait for it.',
-          'After confirming, pay the customer from the drawer. Every refund is logged under your name.',
-        ],
-      ),
-      (
-        'لو المنتج خلص في فرعي؟',
-        'The product is out in my branch?',
-        [
-          'دوّر عليه في تبويب «دوّر على منتج»: هيقولك لو متوفر في مكان تاني، وهيعرض لك بدايل في فرعك.',
-          'لو في بديل مناسب اعرضه على العميل. لو عايز المنتج نفسه، اطلب من المدير يحوّله لفرعك.',
-        ],
-        [
-          'Look it up in "Find a product": it tells you if it is available elsewhere and shows alternatives in your branch.',
-          'Offer a suitable alternative, or ask your manager to transfer the product to your branch.',
-        ],
-      ),
-      (
-        'قبل ما أقفل الوردية',
-        'Before I close the shift',
-        [
-          'عدّ الدرج فعلًا واكتب الرقم في خانة العد، ولو في فرق اكتب السببه.',
-          'راجع تبويب «ورديتي»: هيعرض لك الفرق والخصومات والمرتجعات اللي هتتراجع.',
-          'اكتب الباسورد وأقفل. بعدها بيتعمل تقرير نهائي مبيتعدّلش.',
-        ],
-        [
-          'Count the drawer and type the number; if it differs write why.',
-          'Check the "My shift" tab: it shows the difference, discounts and refunds that will be reviewed.',
-          'Type your password and close. A final report is made that cannot be changed.',
-        ],
-      ),
-    ];
+
     return ListView(padding: const EdgeInsets.all(8), children: [
-      for (final g in guides)
+      for (final g in assistantGuides)
         ExpansionTile(
           title: Text(_t(context, g.$1, g.$2), style: const TextStyle(fontWeight: FontWeight.w700)),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

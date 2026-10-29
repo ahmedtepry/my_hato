@@ -18,6 +18,7 @@ import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'cashier_assistant.dart';
 import 'pos_receipt.dart';
+import 'robot_dock.dart';
 import 'shift_flow.dart';
 import 'shift_reports.dart';
 import 'shift_robot.dart';
@@ -187,6 +188,7 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
         if (guard && mounted) {
           final bn = branches.where((x) => x['id'] == b).map((x) => '${x['name_ar']}').firstOrNull ?? '';
           await ShiftRobotOpen.show(context, name: shiftUserName(ref.read(currentUserProvider)), openingMinor: minor, branch: bn);
+          ref.read(robotWelcomeProvider.notifier).state = true;
         }
       }
       ref.invalidate(posShiftProvider);
@@ -601,7 +603,8 @@ class _RegisterState extends ConsumerState<_Register> {
       },
       child: Focus(
         autofocus: true,
-        child: LayoutBuilder(builder: (context, c) {
+        child: Stack(children: [
+         Positioned.fill(child: LayoutBuilder(builder: (context, c) {
           final wide = c.maxWidth >= 600; // products and cart together on one page; only a phone-sized window stacks them
           final cartW = c.maxWidth >= 900 ? 380.0 : 310.0;
           return Padding(
@@ -632,7 +635,15 @@ class _RegisterState extends ConsumerState<_Register> {
               ),
             ]),
           );
-        }),
+         })),
+         Positioned.fill(
+           child: RobotDock(
+             canClose: _cart.isEmpty,
+             onCloseShift: _closeShift,
+             onFind: () => showCashierAssistant(context, shiftId: _shiftId, guard: false),
+           ),
+         ),
+        ]),
       ),
     );
   }
