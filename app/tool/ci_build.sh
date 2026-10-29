@@ -12,6 +12,10 @@ flutter create --platforms=android --org com.myhato --project-name myhato . || e
 rm -f test/widget_test.dart   # template test from flutter create (we ship our own tests)
 cp tool/android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 cp -r tool/android_overrides/res/. android/app/src/main/res/
+# the fingerprint prompt (local_auth) needs an AppCompat theme
+for f in android/app/src/main/res/values/styles.xml android/app/src/main/res/values-night/styles.xml; do
+  [ -f "$f" ] && sed -i -E 's#parent="@android:style/Theme\.(Light|Black)\.NoTitleBar"#parent="Theme.AppCompat.DayNight.NoActionBar"#g' "$f"
+done
 MA=$(find android/app/src/main -name MainActivity.kt | head -1)
 [ -n "$MA" ] || { echo "FAILURE: MainActivity.kt not found"; exit 1; }
 PKG=$(grep -m1 '^package ' "$MA" | awk '{print $2}')

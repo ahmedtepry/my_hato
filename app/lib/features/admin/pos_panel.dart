@@ -11,13 +11,16 @@ import '../../core/appearance.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/money.dart';
+import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/barcode_scanner.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'cashier_assistant.dart';
 import 'pos_receipt.dart';
+import 'shift_flow.dart';
 import 'shift_reports.dart';
+import 'shift_robot.dart';
 import 'pos_repository.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -72,6 +75,30 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
   bool _busy = false;
   bool _remember = false;
   bool _obscure = true;
+  bool _bioAvail = false, _bioOn = false;
+  List<Map<String, dynamic>> _list = const [];
+
+  String get _uid => ref.read(currentUserProvider)?.id ?? '';
+
+  Future<void> _loadBio() async {
+    final a = await ShiftBio.available();
+    final e = a ? await ShiftBio.enabled(_uid) : false;
+    if (mounted) setState(() {
+      _bioAvail = a;
+      _bioOn = e;
+    });
+  }
+
+  Future<void> _openWithBio() async {
+    final pw = await ShiftBio.secret(_uid, _t(context, 'تأكيد فتح الوردية', 'Confirm opening the shift'));
+    if (!mounted) return;
+    if (pw == null) {
+      showSnack(context, _t(context, 'البصمة ماتأكدتش، اكتب الباسورد', 'Fingerprint did not match, type the password'), error: true);
+      return;
+    }
+    _pass.text = pw;
+    await _open(_list);
+  }
 
   bool get _mayRemember => ref.read(staffContextProvider).valueOrNull?.permissions.contains('pos.remember_login') ?? false;
 
@@ -79,6 +106,7 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
   void initState() {
     super.initState();
     _loadRemembered();
+    _loadBio();
   }
 
   Future<void> _loadRemembered() async {
@@ -133,8 +161,33 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
           await p.remove(_kLogin);
         }
       } catch (_) {}
+      // the cashier may keep the fingerprint for the next shift (the password stays in the device's encrypted storage)
+      if (_bioAvail && !_bioOn && mounted) {
+        final yes = await showDialog<bool>(
+          context: context,
+          builder: (d) => AlertDialog(
+            title: Text(_t(d, 'تفعّل البصمة؟', 'Turn on the fingerprint?')),
+            content: Text(_t(d, 'المرة الجاية تفتح وتقفل الوردية بالبصمة. بصمتك بتفضل في جهازك بس.', 'Next time you open and close the shift with the fingerprint. It stays on your device.')),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(d, 'لأ', 'No'))),
+              FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(_t(d, 'فعّلها', 'Turn on'))),
+            ],
+          ),
+        );
+        if (yes == true && mounted) {
+          if (await ShiftBio.save(_uid, _pass.text, _t(context, 'تفعيل البصمة', 'Turn on the fingerprint'))) _bioOn = true;
+        }
+      }
+      final pw = _pass.text;
       _pass.clear();
       await repo.openShift(b, minor);
+      if (pw.isNotEmpty && mounted) {
+        final guard = (await ref.read(assistantFlagsProvider.future))['guard'] == true;
+        if (guard && mounted) {
+          final bn = branches.where((x) => x['id'] == b).map((x) => '${x['name_ar']}').firstOrNull ?? '';
+          await ShiftRobotOpen.show(context, name: shiftUserName(ref.read(currentUserProvider)), openingMinor: minor, branch: bn);
+        }
+      }
       ref.invalidate(posShiftProvider);
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
@@ -156,7 +209,9 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
             child: branches.when(
               loading: () => const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator())),
               error: (e, _) => Text(_err(context, e)),
-              data: (list) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              data: (list) {
+                _list = list;
+                return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const Icon(Icons.point_of_sale_rounded, size: 46, color: BrandColors.electric),
                 const SizedBox(height: 10),
                 Text(_t(context, 'ابدأ وردية جديدة', 'Start a new shift'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
@@ -217,9 +272,19 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
                       onChanged: (v) => setState(() => _remember = v ?? false),
                     ),
                   const SizedBox(height: 12),
+                  if (_bioOn)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _openWithBio,
+                        icon: const Icon(Icons.fingerprint_rounded),
+                        label: Text(_t(context, 'افتح بالبصمة', 'Open with the fingerprint')),
+                      ),
+                    ),
                   FilledButton(onPressed: _busy ? null : () => _open(list), child: Text(_busy ? '…' : _t(context, 'فتح الوردية', 'Open shift'))),
                 ],
-              ]),
+              ]);
+              },
             ),
           ),
         ),
@@ -268,6 +333,14 @@ class _RegisterState extends ConsumerState<_Register> {
   void initState() {
     super.initState();
     _loadProducts('');
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final f = await ref.read(assistantFlagsProvider.future);
+        if (!mounted || f['cashier'] != true) return;
+        final u = ref.read(currentUserProvider);
+        await CashierReel.maybeShow(context, uid: u?.id ?? '', name: shiftUserName(u), shift: widget.shift);
+      } catch (_) {}
+    });
   }
 
   @override
@@ -477,6 +550,13 @@ class _RegisterState extends ConsumerState<_Register> {
   }
 
   Future<void> _closeShift() async {
+    final guard = (await ref.read(assistantFlagsProvider.future))['guard'] == true;
+    if (!mounted) return;
+    if (guard) {
+      // the robot closes the shift (30-second review); the old dialog stays for when the guard is off
+      if (await ShiftRobotClose.show(context, _shiftId)) ref.invalidate(posShiftProvider);
+      return;
+    }
     final ok = await showDialog<bool>(context: context, builder: (_) => _CloseShiftDialog(shiftId: _shiftId));
     if (ok == true) {
       ref.invalidate(posShiftProvider);
