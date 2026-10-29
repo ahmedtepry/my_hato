@@ -14,6 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'l10n.dart';
+import '../shared/states.dart' show showSnack;
 import 'supabase_providers.dart';
 import 'theme.dart';
 
@@ -263,7 +264,10 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               style: const TextStyle(fontSize: 13),
             ),
           ] else
-            Text(ar ? 'هنزّل النسخة الجديدة ونثبّتها، والبرنامج هيفتح تاني لوحده. اقفل أي عملية بيع قبل ما تكمّل.' : 'The new version is downloaded and installed; the app reopens by itself. Finish any sale first.',
+            Text(
+                _isAndroidApp
+                    ? (ar ? 'هننزّل النسخة الجديدة وبعدها هتفتحلك شاشة التثبيت. دوس «تثبيت» وبعدها افتح التطبيق. بياناتك وحسابك زي ما هم.' : 'The new version downloads, then the install screen opens. Tap Install, then open the app. Your data and sign-in stay.')
+                    : (ar ? 'هنزّل النسخة الجديدة ونثبّتها، والبرنامج هيفتح تاني لوحده. اقفل أي عملية بيع قبل ما تكمّل.' : 'The new version is downloaded and installed; the app reopens by itself. Finish any sale first.'),
                 textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
           if (_error != null) ...[
             const SizedBox(height: 8),
@@ -438,5 +442,44 @@ class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> with WidgetsB
         ),
       ),
     ));
+  }
+}
+
+
+/// A row for the account page: "Update the app". Shows whether a newer build is out; tapping checks again and offers the update.
+class AppUpdateTile extends ConsumerWidget {
+  const AppUpdateTile({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!appUpdateSupported) return const SizedBox.shrink();
+    final st = ref.watch(appUpdateProvider);
+    final info = st.available;
+    final ar = context.isAr;
+    final color = info != null ? BrandColors.warning : BrandColors.electric;
+    return ListTile(
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(13)),
+        child: Icon(Icons.system_update_alt_rounded, color: color, size: 23),
+      ),
+      title: Text(ar ? 'تحديث التطبيق' : 'Update the app'),
+      subtitle: Text(
+        info != null ? (ar ? 'فيه نسخة جديدة (${info.build})، اضغط للتحديث' : 'A new version (${info.build}) is ready, tap to update') : (ar ? 'النسخة $kBuildNumber · إنت على أحدث نسخة' : 'Build $kBuildNumber · up to date'),
+        style: TextStyle(color: info != null ? BrandColors.warning : BrandColors.gray, fontWeight: info != null ? FontWeight.w700 : FontWeight.w400),
+      ),
+      trailing: st.checking ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.chevron_right),
+      onTap: () async {
+        await ref.read(appUpdateProvider.notifier).check();
+        final i = ref.read(appUpdateProvider).available;
+        if (!context.mounted) return;
+        if (i == null) {
+          showSnack(context, ar ? 'إنت على أحدث نسخة ✅' : 'You have the latest version ✅');
+        } else {
+          await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _UpdateDialog(info: i));
+        }
+      },
+    );
   }
 }

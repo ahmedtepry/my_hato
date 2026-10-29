@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_update.dart' show AppUpdateTile;
 import '../../core/config.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -90,6 +91,7 @@ class ProfileScreen extends ConsumerWidget {
           ListTile(leading: const Icon(Icons.language), title: Text(context.tr('settings')), onTap: () => context.push('/account/settings')),
           ListTile(leading: const Icon(Icons.support_agent), title: Text(context.tr('help')), onTap: () => context.push('/account/help')),
           ListTile(leading: const Icon(Icons.privacy_tip_outlined), title: Text(context.tr('privacy')), onTap: () => context.push('/account/legal')),
+          const AppUpdateTile(),
         ]),
       );
     }
@@ -205,6 +207,7 @@ class ProfileScreen extends ConsumerWidget {
                 _tile(context, Icons.settings_rounded, 'settings', '/account/settings', const Color(0xFF5253D6)),
                 _tile(context, Icons.support_agent_rounded, 'help', '/account/help', const Color(0xFF1B8FC4)),
                 _tile(context, Icons.privacy_tip_rounded, 'privacy', '/account/legal', const Color(0xFF566380)),
+                const AppUpdateTile(),
               ]),
             ),
             const SizedBox(height: 12),
