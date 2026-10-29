@@ -154,7 +154,7 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
             : _rows == null
                 ? const Center(child: CircularProgressIndicator())
                 : _rows!.isEmpty
-                    ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_branch == null ? (perms.contains('stock.others') ? _t(context, 'مفيش منتجات.', 'No products.') : _t(context, 'مفيش منتجات في مخزن فرعك دلوقتي. المالك لازم يوزّع لفرعك الأول، أو يديك صلاحية «يشوف الوير هاوس والفروع التانية».', 'Nothing in your branch store yet. The owner must allocate stock to your branch, or give you the warehouse view permission.')) : _t(context, 'مفيش منتجات في مخزن الفرع ده. دوّر باسم المنتج عشان توزّعه عليه.', 'Nothing in this branch store yet. Search a product to allocate it.'), textAlign: TextAlign.center)))
+                    ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_branch == null ? (perms.contains('stock.others') ? _t(context, 'مفيش منتجات.', 'No products.') : _t(context, 'مفيش منتجات في مخزن فرعك دلوقتي. المالك لازم يوزّع لفرعك الأول، أو يديك صلاحية «يشوف المخزن الرئيسي والفروع التانية».', 'Nothing in your branch store yet. The owner must allocate stock to your branch, or give you the warehouse view permission.')) : _t(context, 'مفيش منتجات في مخزن الفرع ده. دوّر باسم المنتج عشان توزّعه عليه.', 'Nothing in this branch store yet. Search a product to allocate it.'), textAlign: TextAlign.center)))
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                         itemCount: _rows!.length,
@@ -191,13 +191,13 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
                 visualDensity: VisualDensity.compact,
                 avatar: const Icon(Icons.warehouse_outlined, size: 16),
                 backgroundColor: unalloc > 0 ? BrandColors.warning.withValues(alpha: .15) : null,
-                label: Text(_t(context, 'الوير هاوس: $unalloc', 'Warehouse: $unalloc')),
+                label: Text(_t(context, 'المخزن الرئيسي: $unalloc', 'Main stock: $unalloc')),
               ),
             if (bs.isEmpty && unalloc == null) Text(_t(context, 'مفيش منه في مخزن فرعك', 'None in your branch store'), style: Theme.of(context).textTheme.bodySmall),
           ]),
           if (perms.contains('stock.allocate') || perms.contains('stock.transfer'))
             Wrap(spacing: 8, children: [
-              if (perms.contains('stock.allocate')) TextButton.icon(onPressed: () => _allocate(p, branches), icon: const Icon(Icons.call_split_rounded, size: 18), label: Text(_t(context, 'وزّع من الوير هاوس', 'Allocate from warehouse'))),
+              if (perms.contains('stock.allocate')) TextButton.icon(onPressed: () => _allocate(p, branches), icon: const Icon(Icons.call_split_rounded, size: 18), label: Text(_t(context, 'وزّع من المخزن الرئيسي', 'Allocate from main stock'))),
               if (perms.contains('stock.transfer')) TextButton.icon(onPressed: () => widget.onTransfer(p), icon: const Icon(Icons.swap_horiz_rounded, size: 18), label: Text(_t(context, 'حوّل', 'Transfer'))),
             ]),
         ]),
@@ -253,7 +253,7 @@ class _AllocateDialogState extends ConsumerState<_AllocateDialog> {
     return AlertDialog(
       title: Text(_t(context, 'توزيع ${widget.product['name_ar']}', 'Allocate ${widget.product['name_en']}')),
       content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (widget.product['unallocated'] != null) Text(_t(context, 'في الوير هاوس دلوقتي: $unalloc', 'In the warehouse now: $unalloc')),
+        if (widget.product['unallocated'] != null) Text(_t(context, 'في المخزن الرئيسي دلوقتي: $unalloc', 'In the main stock now: $unalloc')),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: _branch,
@@ -741,7 +741,7 @@ class _WhereSheet extends ConsumerWidget {
               const Divider(),
               if (d['can_see_others'] == true) ...[
                 Text(ar ? 'المتاح في أماكن تانية' : 'Available elsewhere', style: const TextStyle(fontWeight: FontWeight.w800)),
-                if (wh != null) row(Icons.warehouse_rounded, ar ? 'الوير هاوس' : 'Warehouse', wh, color: BrandColors.warning),
+                if (wh != null) row(Icons.warehouse_rounded, ar ? 'المخزن الرئيسي' : 'Warehouse', wh, color: BrandColors.warning),
                 for (final b in others) row(Icons.store_outlined, ar ? '${b['name_ar']}' : '${b['name_en']}', (b['qty'] as num).toInt()),
                 if (d['total'] != null) Text(ar ? 'إجمالي المتجر: ${d['total']}' : 'Store total: ${d['total']}', style: Theme.of(context).textTheme.bodySmall),
               ] else
