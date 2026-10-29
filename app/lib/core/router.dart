@@ -179,7 +179,7 @@ void _announceNew(List<Map<String, dynamic>> list, bool ar) {
         id: id,
         title: (ar ? n['title_ar'] : n['title_en']) as String? ?? (ar ? AppName.ar : AppName.en),
         body: (ar ? n['body_ar'] : n['body_en']) as String? ?? '',
-        link: n['deep_link'] as String?,
+        link: notificationLink(n),
       );
     }
   }

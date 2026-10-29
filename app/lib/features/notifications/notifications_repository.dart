@@ -308,7 +308,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           setState(() => _read.add(n['id'] as String));
                           repo.markRead(n['id'] as String).then((_) => ref.invalidate(notificationsProvider), onError: (_) {});
                         }
-                        final link = n['deep_link'] as String?;
+                        final link = notificationLink(n);
                         if (link != null) context.push(link);
                       },
                     ),
@@ -320,4 +320,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       ),
     );
   }
+}
+
+
+/// Where a notification should take the person. Older team notifications only say "/hato-console"; work out the section from their title,
+/// newer ones already carry /hato-console?tab=<section>.
+String? notificationLink(Map<String, dynamic> n) {
+  final link = n['deep_link'] as String?;
+  if (link != '/hato-console') return link;
+  final t = '${n['title_ar']} ${n['title_en']}';
+  bool has(List<String> w) => w.any(t.contains);
+  final tab = has(['حساب جديد', 'New account']) ? 'accounts'
+      : has(['صيانة', 'repair', 'Repair']) ? 'repairs'
+      : has(['تقييم', 'Review']) ? 'reviews'
+      : has(['نفد', 'مخزون', 'stock', 'Stock']) ? 'products'
+      : has(['وردية', 'درج', 'موافقة', 'Shift', 'drawer', 'approval', 'Approved', 'Rejected']) ? 'shifts'
+      : has(['طلب', 'Order', 'order', 'Cancellation']) ? 'orders'
+      : null;
+  return tab == null ? link : '/hato-console?tab=$tab';
 }

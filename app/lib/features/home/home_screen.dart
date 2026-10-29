@@ -515,7 +515,7 @@ class _ActiveUpdates extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
             ref.read(notificationsRepoProvider).markRead(n['id'] as String);
-            final link = n['deep_link'] as String?;
+            final link = notificationLink(n);
             if (link != null) context.push(link);
           },
         ),
