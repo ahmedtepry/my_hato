@@ -21,6 +21,7 @@ import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
 import '../admin/contests.dart' show ContestBanner;
+import '../wheel/wheel_screen.dart' show WheelBanner;
 import '../notifications/notifications_repository.dart';
 
 /// The four main sections shown at the top of the home screen.
@@ -72,6 +73,7 @@ class HomeScreen extends ConsumerWidget {
           SliverToBoxAdapter(child: _HomeHeader(signedIn: user != null)),
           const SliverToBoxAdapter(child: PendingAccountBanner()),
           const SliverToBoxAdapter(child: ContestBanner()),
+          const SliverToBoxAdapter(child: WheelBanner()),
           const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 120), child: _SectionsBar())),
           const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 220), child: _BannerCarousel())),
           const SliverToBoxAdapter(child: _ActiveUpdates()),

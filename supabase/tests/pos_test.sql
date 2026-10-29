@@ -566,6 +566,45 @@ reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set rol
 select public._expect('owner switches points back on', $q$select public.feature_set('points', true)$q$, null);
 reset role; select set_config('request.jwt.claim.sub', :'A', false); set role authenticated;
 select public._expect('customers see points again', $q$select 1/(case when (public.feature_flags()->>'points')::boolean then 1 else 0 end)$q$, null);
+
+-- ---- lucky wheel ----
+reset role;
+\set CUST1 '00000000-0000-0000-0000-0000000000c1'
+\set CUST2 '00000000-0000-0000-0000-0000000000c2'
+insert into auth.users (id, email) values (:'CUST1', 'c1@t'), (:'CUST2', 'c2@t') on conflict do nothing;
+insert into public.profiles (id, full_name) values (:'CUST1', 'c1'), (:'CUST2', 'c2') on conflict do nothing;
+select set_config('request.jwt.claim.sub', :'CUST1', false); set role authenticated;
+select public._expect('the wheel is hidden while switched off', $q$select public.wheel_state()$q$, 'FEATURE_OFF');
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner turns the wheel on', $q$select public.feature_set('wheel', true)$q$, null);
+select public._expect('owner saves 3 points slices', $q$select public.wheel_admin_save('{"ease":50,"spins_per_day":1,"require_order":false,"segments":[
+  {"label_ar":"٥٠ نقطة","kind":"points","points":50,"weight":10},{"label_ar":"٥٠ نقطة","kind":"points","points":50,"weight":10},{"label_ar":"٥٠ نقطة","kind":"points","points":50,"weight":10}]}'::jsonb)$q$, null);
+select public._expect('a wheel needs at least 3 slices', $q$select public.wheel_admin_save('{"segments":[{"label_ar":"أ","kind":"lose","weight":1}]}'::jsonb)$q$, 'INVALID_INPUT');
+select public._expect('the team spin is only a preview', $q$select 1/(case when (public.wheel_spin()->>'preview')::boolean then 1 else 0 end)$q$, null);
+reset role; update public.profiles set email_verified = false, phone_verified = false where id in ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000c2');
+select set_config('request.jwt.claim.sub', :'CUST1', false); set role authenticated;
+select public._expect('an unverified account cannot spin', $q$select public.wheel_spin()$q$, 'NOT_VERIFIED');
+reset role; update public.profiles set email_verified = true where id in ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000c2');
+update public.customers set review_status = 'approved' where user_id in ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000c2');
+select set_config('request.jwt.claim.sub', :'CUST1', false); set role authenticated;
+select public._expect('a verified customer spins and wins points', $q$select 1/(case when (public.wheel_spin()->>'points')::int > 0 then 1 else 0 end)$q$, null);
+select public._expect('only one spin a day', $q$select public.wheel_spin()$q$, 'NO_SPINS_LEFT');
+select public._expect('the customer sees no weights', $q$select 1/(case when not (public.wheel_state()::text like '%weight%') and jsonb_array_length(public.wheel_state()->'segments') = 3 then 1 else 0 end)$q$, null);
+reset role;
+select public._expect('the points were really paid', $q$select 1/(case when exists (select 1 from public.loyalty_ledger where user_id = '00000000-0000-0000-0000-0000000000c1' and kind = 'wheel' and points > 0) then 1 else 0 end)$q$, null);
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner saves a one-gift wheel', $q$select public.wheel_admin_save('{"ease":50,"spins_per_day":1,"segments":[
+  {"label_ar":"سماعة","kind":"gift","weight":10,"daily_limit":1},{"label_ar":"حظ","kind":"lose","weight":0},{"label_ar":"حظ","kind":"lose","weight":0}]}'::jsonb)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'CUST2', false); set role authenticated;
+select public._expect('first customer gets the gift', $q$select 1/(case when public.wheel_spin()->>'kind' = 'gift' then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('the gift is waiting to be handed over', $q$select 1/(case when jsonb_array_length(public.wheel_gifts_list('pending')) = 1 then 1 else 0 end)$q$, null);
+select public._expect('owner marks the gift delivered', $q$select public.wheel_gift_set_status((public.wheel_gifts_list('pending')->0->>'id')::uuid, 'delivered')$q$, null);
+select public._expect('owner switches the wheel off', $q$select public.feature_set('wheel', false, true)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'CUST1', false); set role authenticated;
+select public._expect('customers cannot spin while it is off', $q$select public.wheel_spin()$q$, 'FEATURE_OFF');
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('a cashier cannot edit the wheel', $q$select public.wheel_admin_get()$q$, 'FORBIDDEN');
 reset role;
 reset role;
 \o

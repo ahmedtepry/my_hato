@@ -20,6 +20,7 @@ import '../features/catalog/product_details_screen.dart';
 import '../features/checkout/checkout_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/loyalty/loyalty_screen.dart';
+import '../features/wheel/wheel_screen.dart';
 import '../features/admin/feature_switches.dart' show featureFlagsProvider;
 import '../features/home/onboarding_screens.dart';
 import '../features/notifications/notifications_repository.dart';
@@ -35,7 +36,7 @@ import 'supabase_providers.dart';
 
 /// Routes that need a signed-in user. The DB enforces access anyway (RLS);
 /// this only gives a friendly redirect to the login screen.
-const _protected = ['/checkout', '/loyalty', '/order-confirmed', '/repair-confirmed', '/orders/', '/repairs/new', '/account/', '/notifications', '/pay/', '/payments'];
+const _protected = ['/checkout', '/loyalty', '/wheel', '/order-confirmed', '/repair-confirmed', '/orders/', '/repairs/new', '/account/', '/notifications', '/pay/', '/payments'];
 const _publicAccountRoutes = ['/account/settings', '/account/help', '/account/legal'];
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -63,6 +64,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/cart';
       }
       if (loc == '/loyalty' && ref.read(featureFlagsProvider).valueOrNull?['points'] == false) return '/';
+      if (loc == '/wheel' && ref.read(featureFlagsProvider).valueOrNull?['wheel'] != true) return '/';
       final needsAuth = _protected.any((p) => loc == p || loc.startsWith(p)) && !_publicAccountRoutes.contains(loc);
       if (needsAuth && !signedIn) return '/auth/login?redirect=${Uri.encodeComponent(state.uri.toString())}';
       if (signedIn && (loc == '/auth/login' || loc == '/auth/register')) {
@@ -134,6 +136,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/account/addresses/edit', builder: (_, s) => AddressFormScreen(existing: s.extra as Map<String, dynamic>?)),
       GoRoute(path: '/account/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(path: '/loyalty', builder: (_, __) => const LoyaltyScreen()),
+      GoRoute(path: '/wheel', builder: (_, __) => const WheelScreen()),
       GoRoute(path: '/account/favorites', builder: (_, __) => const FavoritesScreen()),
       GoRoute(path: '/account/help', builder: (_, __) => const HelpScreen()),
       GoRoute(path: '/account/legal', builder: (_, __) => const LegalScreen()),

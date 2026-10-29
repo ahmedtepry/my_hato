@@ -191,6 +191,14 @@ class ProfileScreen extends ConsumerWidget {
                 _tile(context, Icons.location_on_rounded, 'addresses', '/account/addresses', const Color(0xFFE23D52)),
                 _tile(context, Icons.shopping_bag_rounded, 'my_orders', '/orders', const Color(0xFFF08A12)),
                 _tile(context, Icons.build_rounded, 'repairs', '/orders?tab=1', const Color(0xFF566380)),
+                if (featureVisible(ref, 'wheel'))
+                  ListTile(
+                    leading: _iconTile(Icons.casino_rounded, const Color(0xFFE11D48)),
+                    title: Text(context.isAr ? 'عجلة الحظ' : 'Lucky wheel'),
+                    subtitle: Text(context.isAr ? 'لفّة كل يوم بجوايز' : 'A daily spin with prizes', style: const TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/wheel'),
+                  ),
                 if (featureVisible(ref, 'points'))
                 ListTile(
                   leading: _iconTile(Icons.emoji_events_rounded, const Color(0xFFD99A00)),
