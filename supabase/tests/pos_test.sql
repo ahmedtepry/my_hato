@@ -605,6 +605,44 @@ reset role; select set_config('request.jwt.claim.sub', :'CUST1', false); set rol
 select public._expect('customers cannot spin while it is off', $q$select public.wheel_spin()$q$, 'FEATURE_OFF');
 reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
 select public._expect('a cashier cannot edit the wheel', $q$select public.wheel_admin_get()$q$, 'FORBIDDEN');
+
+-- ---- branch stock and transfers ----
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner gives branch A 3 pieces', $q$select public.stock_allocate('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000003', 3)$q$, null);
+select public._expect('only the unallocated pieces can be given', $q$select public.stock_allocate('b0000000-0000-0000-0000-00000000000b', 'd0000000-0000-0000-0000-000000000003', 3)$q$, 'NOT_ENOUGH_UNALLOCATED');
+select public._expect('owner gives branch B the other 2', $q$select public.stock_allocate('b0000000-0000-0000-0000-00000000000b', 'd0000000-0000-0000-0000-000000000003', 2)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('a manager cannot allocate', $q$select public.stock_allocate('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000003', 1)$q$, 'FORBIDDEN');
+select public._expect('cannot send more than the branch holds', $q$select public.stock_transfer_create('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b', '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":4}]'::jsonb)$q$, 'INSUFFICIENT_STOCK:موبايل');
+select public._expect('cannot send from another branch', $q$select public.stock_transfer_create('b0000000-0000-0000-0000-00000000000b', 'b0000000-0000-0000-0000-00000000000a', '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb)$q$, 'FORBIDDEN');
+select public.stock_transfer_create('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b', '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":2}]'::jsonb, 'تحويل تجريبي') as tr1 \gset
+select public._expect('the sender cannot receive his own transfer', format($q$select public.stock_transfer_receive(%L, '[]'::jsonb)$q$, :'tr1'), 'FORBIDDEN');
+reset role;
+select public._expect('the other branch was notified', $q$select 1/(case when exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000a6' and title_ar like '%تحويل جديد%') then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'MGRB', false); set role authenticated;
+select public._expect('the receiver sees it with who sent it', $q$select 1/(case when (public.stock_transfers_list()->0->>'can_receive')::boolean and public.stock_transfers_list()->0->>'created_by_name' is not null and public.stock_transfers_list()->0->>'from_name' is not null then 1 else 0 end)$q$, null);
+select public._expect('receiving less needs a reason', format($q$select public.stock_transfer_receive(%L, '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb)$q$, :'tr1'), 'REASON_REQUIRED');
+select public._expect('the other reason needs a text', format($q$select public.stock_transfer_receive(%L, '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb, 'other', '')$q$, :'tr1'), 'REASON_REQUIRED');
+select public._expect('receiving one of two is partial', format($q$select 1/(case when public.stock_transfer_receive(%L, '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb, 'not_received') = 'partial' then 1 else 0 end)$q$, :'tr1'), null);
+select public._expect('a decided transfer cannot be decided again', format($q$select public.stock_transfer_reject(%L, 'not_received')$q$, :'tr1'), 'ALREADY_DECIDED');
+reset role;
+select public._expect('branch A keeps 2 (1 never arrived)', $q$select 1/(case when (select quantity from public.branch_stock where branch_id = 'b0000000-0000-0000-0000-00000000000a' and product_id = 'd0000000-0000-0000-0000-000000000003') = 2 then 1 else 0 end)$q$, null);
+select public._expect('branch B got the 1 that arrived', $q$select 1/(case when (select quantity from public.branch_stock where branch_id = 'b0000000-0000-0000-0000-00000000000b' and product_id = 'd0000000-0000-0000-0000-000000000003') = 3 then 1 else 0 end)$q$, null);
+select public._expect('the sender was told', $q$select 1/(case when exists (select 1 from public.notifications where user_id = '00000000-0000-0000-0000-0000000000a2' and title_ar like '%اتستلم%') then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'MGRB', false); set role authenticated;
+select public.stock_transfer_create('b0000000-0000-0000-0000-00000000000b', 'b0000000-0000-0000-0000-00000000000a', '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb) as tr2 \gset
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('rejecting with another reason needs the reason', format($q$select public.stock_transfer_reject(%L, 'other')$q$, :'tr2'), 'REASON_REQUIRED');
+select public._expect('rejecting returns the pieces', format($q$select public.stock_transfer_reject(%L, 'other', 'القطعة مكسورة')$q$, :'tr2'), null);
+reset role;
+select public._expect('branch B has its 3 back', $q$select 1/(case when (select quantity from public.branch_stock where branch_id = 'b0000000-0000-0000-0000-00000000000b' and product_id = 'd0000000-0000-0000-0000-000000000003') = 3 then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public.stock_transfer_create('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b', '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb) as tr3 \gset
+select public._expect('the sender cancels', format($q$select public.stock_transfer_cancel(%L)$q$, :'tr3'), null);
+reset role;
+select public._expect('cancel returned the piece', $q$select 1/(case when (select quantity from public.branch_stock where branch_id = 'b0000000-0000-0000-0000-00000000000a' and product_id = 'd0000000-0000-0000-0000-000000000003') = 2 then 1 else 0 end)$q$, null);
+update public.products set stock_quantity = stock_quantity - 3 where id = 'd0000000-0000-0000-0000-000000000003';
+select public._expect('a sale beyond the free stock takes from the biggest branch', $q$select 1/(case when (select coalesce(sum(quantity),0) from public.branch_stock where product_id = 'd0000000-0000-0000-0000-000000000003') = 2 and (select quantity from public.branch_stock where branch_id = 'b0000000-0000-0000-0000-00000000000b' and product_id = 'd0000000-0000-0000-0000-000000000003') = 0 then 1 else 0 end)$q$, null);
 reset role;
 reset role;
 \o
