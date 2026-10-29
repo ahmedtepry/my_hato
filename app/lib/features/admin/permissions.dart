@@ -89,7 +89,7 @@ const _perms = <String, _PermInfo>{
       descAr: 'يشوف الورديات والمبيعات والتقارير لكل الفروع والإدارة، مش فرعه بس', descEn: 'See shifts, sales and reports of every branch and head office'),
 };
 
-const _groupOrder = ['orders', 'products', 'repairs', 'pos', 'system', 'other'];
+const _groupOrder = ['orders', 'products', 'repairs', 'pos', 'stock', 'extras', 'system', 'other', 'shortcuts'];
 
 _PermInfo _infoOf(String key) {
   final c = _serverCatalog[key];
@@ -119,6 +119,9 @@ String _groupLabel(BuildContext c, String g) => switch (g) {
       'products' => _s(c, 'grp_products', 'المنتجات', 'Products'),
       'repairs' => _s(c, 'grp_repairs', 'الصيانة', 'Repairs'),
       'pos' => _s(c, 'grp_pos', 'الكاشير والورديات', 'Cashier and shifts'),
+      'stock' => _s(c, 'grp_stock', 'المخزن', 'Stock'),
+      'extras' => _s(c, 'grp_extras', 'المسابقات والمزايا', 'Contests and features'),
+      'shortcuts' => _s(c, 'grp_shortcuts', 'اختصارات', 'Shortcuts'),
       'system' => _s(c, 'grp_system', 'النظام', 'System'),
       _ => _s(c, 'grp_other', 'أخرى', 'Other'),
     };
@@ -318,7 +321,7 @@ class _RolesTabState extends ConsumerState<_RolesTab> {
     final locked = _role == 'owner';
     final mine = _rolePerms(ov, _role);
     final all = _stringList(ov['permissions']);
-    final soon = _grouped(all);
+    final soon = _grouped(all, inert: true);
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
       child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
@@ -368,7 +371,7 @@ class _RolesTabState extends ConsumerState<_RolesTab> {
             child: Card(
               margin: EdgeInsets.zero,
               child: ExpansionTile(
-                title: Text(_s(context, 'soon_title', 'حاجات جاية قريب', 'Coming soon')),
+                title: Text(_s(context, 'grp_shortcuts', 'اختصارات', 'Shortcuts')),
                 subtitle: Text(_s(context, 'soon_sub', 'لسه مش شغالة، تشغيلها دلوقتي مالوش تأثير', 'Not active yet, switching them on has no effect')),
                 children: [
                   for (final g in soon)
