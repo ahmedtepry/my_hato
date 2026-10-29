@@ -19,7 +19,7 @@ sed "s/__PKG__/$PKG/" tool/android_overrides/MainActivity.kt.tpl > "$MA"
 echo "MainActivity patched (package $PKG)"
 G=android/app/build.gradle; [ -f "$G.kts" ] && G="$G.kts"
 sed -i -E 's/applicationId ?=? ?"[^"]+"/applicationId = "com.myhato.app"/' "$G"
-sed -i -E 's/minSdk ?=? ?flutter\.minSdkVersion/minSdk = 23/' "$G"
+sed -i -E 's/minSdk ?=? ?flutter\.minSdkVersion/minSdk = 26/' "$G"
 
 step "release signing"
 KS="$PWD/android/app/myhato-release.jks"

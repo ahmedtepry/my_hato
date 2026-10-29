@@ -6,9 +6,9 @@ cd "$(dirname "$0")/.."
 flutter create --platforms=android --org com.myhato --project-name myhato . >/dev/null
 cp tool/android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 G=android/app/build.gradle; [ -f "$G.kts" ] && G="$G.kts"
-# applicationId + minSdk 23 (required by supabase/app_links)
+# applicationId + minSdk 26 (required by supabase/app_links)
 sed -i -E 's/applicationId ?=? ?"[^"]+"/applicationId = "com.myhato.app"/' "$G"
-sed -i -E 's/minSdk ?=? ?flutter\.minSdkVersion/minSdk = 23/' "$G"
+sed -i -E 's/minSdk ?=? ?flutter\.minSdkVersion/minSdk = 26/' "$G"
 flutter pub get
 dart run flutter_launcher_icons
 dart run flutter_native_splash:create
