@@ -178,6 +178,7 @@ class _ContestPlayDialogState extends ConsumerState<ContestPlayDialog> {
   DateTime? _deadline;
   bool _busy = false;
   bool _submitted = false;
+  bool _timeUp = false; // his time ran out before he sent his answers
   String? _error;
   final Map<String, TextEditingController> _text = {};
   final Map<String, String> _choice = {};
@@ -224,6 +225,26 @@ class _ContestPlayDialogState extends ConsumerState<ContestPlayDialog> {
     }
   }
 
+  void _onTimeUp() {
+    if (_submitted || _result != null || !mounted) return;
+    _submitted = true; // nothing is sent after the time is over
+    setState(() => _timeUp = true);
+  }
+
+  /// "You missed it" card: kind words and a push to be faster next time.
+  Widget _missedBody(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('⏰', style: TextStyle(fontSize: 54)),
+        const SizedBox(height: 8),
+        Text(_t(context, 'راحت عليك للأسف!', 'You missed it, sorry!'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        Text(
+          _t(context, 'الوقت خلص قبل ما تسلّم إجابتك. ولا يهمك، استنّى المسابقات الجاية وجاوب بسرعة، والفايز دايمًا هو الأسرع 💪🏆',
+              'Time ran out before you sent your answers. No worries, wait for the next contests and answer fast, the winner is always the quickest 💪🏆'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 14.5, height: 1.7, color: BrandColors.gray),
+        ),
+      ]);
+
   Future<void> _submit() async {
     if (_submitted || _data == null) return;
     _submitted = true;
@@ -249,6 +270,7 @@ class _ContestPlayDialogState extends ConsumerState<ContestPlayDialog> {
         setState(() {
           _busy = false;
           _error = _contestError(context, e);
+          if (e.toString().contains('TIME_UP')) _timeUp = true;
           _result = {'failed': true};
         });
       }
@@ -261,7 +283,10 @@ class _ContestPlayDialogState extends ConsumerState<ContestPlayDialog> {
     final state = _data?['state'] as String?;
     Widget body;
     List<Widget> actions;
-    if (_result != null) {
+    if (_timeUp) {
+      body = _missedBody(context);
+      actions = [FilledButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'OK')))];
+    } else if (_result != null) {
       final failed = _result!['failed'] == true;
       final ok = (_result!['correct_count'] as num?)?.toInt() ?? 0;
       final tot = (_result!['graded_total'] as num?)?.toInt() ?? 0;
@@ -314,7 +339,7 @@ class _ContestPlayDialogState extends ConsumerState<ContestPlayDialog> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (_deadline != null)
               Center(
-                child: _Remaining(until: _deadline!, prefix: '⏱ ', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: BrandColors.warning), onDone: _submit),
+                child: _Remaining(until: _deadline!, prefix: '⏱ ', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: BrandColors.warning), onDone: _onTimeUp),
               ),
             const SizedBox(height: 10),
             for (final q in qs) ...[
@@ -349,17 +374,15 @@ class _ContestPlayDialogState extends ConsumerState<ContestPlayDialog> {
       final ok = (_data!['correct_count'] as num?)?.toInt() ?? 0;
       final tot = (_data!['graded_total'] as num?)?.toInt() ?? 0;
       final reveal = _data!['answers_reveal'];
-      body = Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(done ? ((_data!['is_winner'] == true) ? '🏆' : '✅') : '⏰', style: const TextStyle(fontSize: 54)),
+      body = !done ? _missedBody(context) : Column(mainAxisSize: MainAxisSize.min, children: [
+        Text((_data!['is_winner'] == true) ? '🏆' : '✅', style: const TextStyle(fontSize: 54)),
         const SizedBox(height: 8),
         Text(
-          done
-              ? (_data!['is_winner'] == true
-                  ? _t(context, 'مبروك، إنت من الفايزين!', 'Congratulations, you are a winner!')
-                  : tot > 0
-                      ? _t(context, 'جاوبت $ok من $tot صح.', 'You got $ok of $tot right.')
-                      : _t(context, 'إجابتك وصلت.', 'Your answers are in.'))
-              : _t(context, 'الوقت خلص قبل ما تسلّم.', 'Time ran out before you sent your answers.'),
+          (_data!['is_winner'] == true
+              ? _t(context, 'مبروك، إنت من الفايزين!', 'Congratulations, you are a winner!')
+              : tot > 0
+                  ? _t(context, 'جاوبت $ok من $tot صح.', 'You got $ok of $tot right.')
+                  : _t(context, 'إجابتك وصلت.', 'Your answers are in.')),
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
@@ -372,7 +395,7 @@ class _ContestPlayDialogState extends ConsumerState<ContestPlayDialog> {
       actions = [FilledButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'OK')))];
     }
     return PopScope(
-      canPop: state != 'running' || _result != null,
+      canPop: state != 'running' || _result != null || _timeUp,
       child: AlertDialog(
         content: SingleChildScrollView(child: body),
         actionsAlignment: MainAxisAlignment.center,
