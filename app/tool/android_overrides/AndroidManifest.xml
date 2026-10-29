@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- in-app update: lets the app hand the downloaded APK to the Android installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
@@ -46,6 +48,10 @@
                 <data android:scheme="com.myhato.app" android:host="payment-return" />
             </intent-filter>
         </activity>
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.updates"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_file_paths" />
+        </provider>
         <!-- launcher icon choices: the owner picks one in the console; the app enables that alias and disables the others -->
         <activity-alias android:name=".IconDefault" android:targetActivity=".MainActivity" android:exported="true"
             android:enabled="true" android:icon="@mipmap/ic_launcher" android:label="My Hatō">

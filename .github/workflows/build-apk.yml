@@ -55,6 +55,26 @@ jobs:
           done
           echo "::error::release failed: $(tr '\n' ' ' < release_err.txt)"
           exit 1
+      # Publishes the APK for the in-app "update" banner (the app downloads it, checks its SHA-256 and hands it to Android).
+      # Only when the build was signed with the permanent key (a temporary key can't install over the installed app). Not fatal.
+      - name: Publish the in-app update
+        if: success()
+        continue-on-error: true
+        env:
+          PUSH_SECRET: ${{ secrets.UPDATE_PUSH_SECRET || '7e313cbe41776ed16d2b05d25af020378a45b98535a651fca1038664626e4cf1' }}
+        run: |
+          if [ ! -f dist/stable-key.flag ]; then echo "temporary signing key: not offering this build as an in-app update"; exit 0; fi
+          FN=https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/app-update
+          FILE=dist/myhato-release.apk
+          BUILD=${{ github.run_number }}
+          SHA=$(sha256sum "$FILE" | cut -d' ' -f1)
+          NOTES=$(git log -1 --pretty=%s | head -c 280)
+          PREP=$(curl -sS -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d "{\"action\":\"prepare\",\"platform\":\"android\",\"build\":$BUILD}")
+          echo "prepare: ${PREP:0:120}"
+          URL=$(echo "$PREP" | python3 -c "import sys,json;print(json.load(sys.stdin)['url'])")
+          curl -sS -f -X PUT "$URL" -H "Content-Type: application/octet-stream" -H "x-upsert: true" --data-binary @"$FILE"
+          BODY=$(python3 -c "import json,sys;print(json.dumps({'action':'publish','platform':'android','build':int(sys.argv[1]),'sha256':sys.argv[2],'notes':sys.argv[3]}))" "$BUILD" "$SHA" "$NOTES")
+          curl -sS -f -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d "$BODY"
       - name: Publish build log to ci-logs branch
         if: always()
         run: |

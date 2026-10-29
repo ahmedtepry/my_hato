@@ -1,11 +1,14 @@
-// In-app update of the Windows team app: finds the newest build, downloads the installer, checks its SHA-256 and runs it silently.
-// The installer closes this app, replaces the files and opens the app again by itself.
+// In-app update. Windows team app: finds the newest build, downloads the installer, checks its SHA-256 and runs it silently
+// (the installer closes the app, replaces the files and reopens it). Android: downloads the new APK, checks its SHA-256 and hands it
+// to the Android installer, which installs it over the old app (same signing key, so data and sign-in stay).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -25,7 +28,10 @@ class AppUpdateInfo {
 /// This build's number (set by the build pipeline; 0 when running from source).
 const int kBuildNumber = int.fromEnvironment('BUILD_NUMBER', defaultValue: 0);
 
-bool get appUpdateSupported => AppConfig.teamOnly && Platform.isWindows && kBuildNumber > 0;
+bool get _isAndroidApp => !kIsWeb && Platform.isAndroid && !AppConfig.teamOnly;
+bool get appUpdateSupported => kBuildNumber > 0 && (_isAndroidApp || (AppConfig.teamOnly && Platform.isWindows));
+String get _updatePlatform => _isAndroidApp ? 'android' : 'windows';
+const _updateChannel = MethodChannel('myhato/update');
 
 class AppUpdateState {
   const AppUpdateState({this.available, this.checking = false, this.error});
@@ -56,7 +62,7 @@ class AppUpdateController extends Notifier<AppUpdateState> {
         state = const AppUpdateState();
         return;
       }
-      final rows = await db.rpc('latest_app_update', params: {'p_platform': 'windows'}) as List? ?? const [];
+      final rows = await db.rpc('latest_app_update', params: {'p_platform': _updatePlatform}) as List? ?? const [];
       AppUpdateInfo? info;
       if (rows.isNotEmpty) {
         final r = Map<String, dynamic>.from(rows.first as Map);
@@ -81,9 +87,9 @@ class AppUpdateController extends Notifier<AppUpdateState> {
 
 final appUpdateProvider = NotifierProvider<AppUpdateController, AppUpdateState>(AppUpdateController.new);
 
-/// Downloads the installer (reporting progress), verifies it, starts it and quits this app.
-Future<void> installAppUpdate(AppUpdateInfo info, void Function(double) onProgress) async {
-  final file = File('${Directory.systemTemp.path}${Platform.pathSeparator}MyHatoTeam-Setup-${info.build}.exe');
+/// Downloads [url] into [file] (reporting progress) and checks the SHA-256.
+Future<void> _download(AppUpdateInfo info, File file, void Function(double) onProgress) async {
+  await file.parent.create(recursive: true);
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
   try {
     final req = await client.getUrl(Uri.parse(info.url));
@@ -112,6 +118,20 @@ Future<void> installAppUpdate(AppUpdateInfo info, void Function(double) onProgre
   } finally {
     client.close();
   }
+}
+
+/// Downloads the new build, verifies it and installs it. Windows: runs the installer silently and quits (returns never).
+/// Android: opens the system installer and returns 'started', or 'need_permission' when the member must first allow
+/// "install unknown apps" for My Hatō.
+Future<String> installAppUpdate(AppUpdateInfo info, void Function(double) onProgress) async {
+  if (_isAndroidApp) {
+    final dir = await _updateChannel.invokeMethod<String>('cacheDir') ?? Directory.systemTemp.path;
+    final file = File('$dir/updates/myhato-${info.build}.apk');
+    await _download(info, file, onProgress);
+    return await _updateChannel.invokeMethod<String>('install', file.path) ?? 'started';
+  }
+  final file = File('${Directory.systemTemp.path}${Platform.pathSeparator}MyHatoTeam-Setup-${info.build}.exe');
+  await _download(info, file, onProgress);
   await Process.start(
     file.path,
     ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS'],
@@ -192,9 +212,19 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       _error = null;
     });
     try {
-      await installAppUpdate(widget.info, (p) {
+      final r = await installAppUpdate(widget.info, (p) {
         if (mounted) setState(() => _progress = p);
       });
+      if (mounted && _isAndroidApp) {
+        if (r == 'need_permission') {
+          setState(() {
+            _progress = null;
+            _error = context.isAr ? 'فعّل «السماح بالتثبيت» لـ My Hatō في الشاشة اللي فتحت، وارجع واضغط حدّث تاني' : 'Allow installing from My Hatō in the settings screen, then come back and tap Update again';
+          });
+        } else {
+          Navigator.of(context).pop();
+        }
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -260,4 +290,89 @@ class AccumulatorSink<T> implements Sink<T> {
   void add(T data) => events.add(data);
   @override
   void close() {}
+}
+
+
+/// Android: a slim banner at the top of the app when a newer build is out. One tap downloads and installs it.
+class AppUpdateBanner extends ConsumerStatefulWidget {
+  const AppUpdateBanner({super.key});
+  @override
+  ConsumerState<AppUpdateBanner> createState() => _AppUpdateBannerState();
+}
+
+class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> {
+  double? _progress;
+  String? _msg;
+  int? _hidden; // the build the member dismissed
+
+  Future<void> _go(AppUpdateInfo info) async {
+    final ar = context.isAr;
+    setState(() {
+      _progress = 0;
+      _msg = null;
+    });
+    try {
+      final r = await installAppUpdate(info, (p) {
+        if (mounted) setState(() => _progress = p);
+      });
+      if (!mounted) return;
+      setState(() {
+        _progress = null;
+        _msg = r == 'need_permission'
+            ? (ar ? 'فعّل «السماح بالتثبيت» لـ My Hatō ثم اضغط تحديث تاني' : 'Allow installing from My Hatō, then tap Update again')
+            : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _progress = null;
+        _msg = e is FormatException ? (ar ? 'التحميل اتلخبط، جرّب تاني' : 'The download was damaged, try again') : (ar ? 'ماقدرناش نحدّث دلوقتي، جرّب تاني' : 'Could not update, try again');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isAndroidApp) return const SizedBox.shrink();
+    final info = ref.watch(appUpdateProvider).available;
+    if (info == null || _hidden == info.build) return const SizedBox.shrink();
+    final ar = context.isAr;
+    final busy = _progress != null;
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+        child: Material(
+          color: BrandColors.warning,
+          elevation: 6,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 6, 8),
+            child: Row(children: [
+              const Icon(Icons.system_update_alt_rounded, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(
+                    busy ? (ar ? 'بينزّل ${((_progress ?? 0) * 100).round()}%' : 'Downloading ${((_progress ?? 0) * 100).round()}%') : (ar ? 'فيه نسخة جديدة من التطبيق' : 'A new version is ready'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                  ),
+                  if (busy) Padding(padding: const EdgeInsets.only(top: 4), child: LinearProgressIndicator(value: (_progress ?? 0) >= 1 ? null : _progress, color: Colors.white, backgroundColor: Colors.white24)),
+                  if (_msg != null) Text(_msg!, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                ]),
+              ),
+              if (!busy) ...[
+                TextButton(
+                  style: TextButton.styleFrom(backgroundColor: Colors.white, foregroundColor: BrandColors.warning, padding: const EdgeInsets.symmetric(horizontal: 14)),
+                  onPressed: () => _go(info),
+                  child: Text(ar ? 'تحديث' : 'Update', style: const TextStyle(fontWeight: FontWeight.w900)),
+                ),
+                IconButton(icon: const Icon(Icons.close_rounded, color: Colors.white), onPressed: () => setState(() => _hidden = info.build)),
+              ],
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 }

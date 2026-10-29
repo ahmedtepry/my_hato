@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/app_update.dart';
 import 'core/config.dart';
 import 'core/dark_mode.dart';
 import 'features/admin/direct_chat.dart' show chatFloatProvider, chatOpenProvider, chatPanelSpace;
@@ -182,6 +183,7 @@ class MyHatoApp extends ConsumerWidget {
           // wide desktop window: keep the console in a comfortable centred column
           app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chatOpen ? 1100 + chatPanelSpace : 1100), child: app)));
         }
+        if (!AppConfig.teamOnly) app = Stack(children: [Positioned.fill(child: app), const Positioned(top: 0, left: 0, right: 0, child: AppUpdateBanner())]);
         return applyDarkMode(dark, app);
       },
     );

@@ -27,6 +27,13 @@ if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
   echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
   ALIAS="${ANDROID_KEY_ALIAS:-myhato}"; SP="$ANDROID_KEYSTORE_PASSWORD"; KP="${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
   echo "using release key from GitHub secrets"
+elif [ -f tool/release.keystore.b64 ] && [ -f tool/release.key.env ]; then
+  # the shop's permanent key (kept in this private repo): every build is signed the same, so phones accept in-app updates
+  base64 -d tool/release.keystore.b64 > "$KS"
+  # shellcheck disable=SC1091
+  . tool/release.key.env
+  SP="$PASS"; KP="$PASS"
+  echo "using the permanent release key from the repo"
 else
   ALIAS=myhato; SP="$(head -c 24 /dev/urandom | base64 | tr -dc A-Za-z0-9)"; KP="$SP"
   keytool -genkeypair -v -keystore "$KS" -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
@@ -37,6 +44,7 @@ printf "storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$KS" "$S
 python3 tool/patch_signing.py || exit 1
 python3 tool/patch_desugar.py || exit 1
 python3 tool/patch_compilesdk.py || exit 1
+printf '\ndependencies {\n    implementation("androidx.core:core-ktx:1.13.1")\n}\n' >> "$G"   # FileProvider for the in-app update
 grep -nE "applicationId|minSdk|signingConfig" "$G"
 
 step "bundle fonts"
@@ -57,8 +65,9 @@ step "flutter test"; flutter test; echo "test exit=$?"
 step "release guards"; flutter test test/no_hero_test.dart || { echo "FAILURE: release guard (Hero widgets) failed"; exit 1; }
 step "flutter build apk --release"
 build_apk() {
-  flutter build apk --release --obfuscate --split-debug-info=build/symbols \
+  flutter build apk --release --target-platform android-arm64 --build-number="${GITHUB_RUN_NUMBER:-1}" --obfuscate --split-debug-info=build/symbols \
     --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
+    --dart-define=BUILD_NUMBER="${GITHUB_RUN_NUMBER:-0}" \
     --dart-define=APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" \
     --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
 }
@@ -73,6 +82,8 @@ if ! build_apk; then
   build_apk || exit 1
 fi
 mkdir -p ../dist && cp build/app/outputs/flutter-apk/app-release.apk ../dist/myhato-release.apk
+# only a build signed with a permanent key may be offered as an in-app update (a temporary key can't install over the old app)
+if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -f tool/release.keystore.b64 ]; then echo ok > ../dist/stable-key.flag; fi
 keytool -printcert -jarfile ../dist/myhato-release.apk 2>/dev/null | head -8 || true
 ls -la ../dist
 step "BUILD OK"
