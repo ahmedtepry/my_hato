@@ -24,6 +24,9 @@ jobs:
       - name: Build Windows app
         working-directory: app
         shell: bash
+        env:
+          # local_auth_windows uses the old <experimental/coroutine>, which the newest Visual Studio rejects unless silenced
+          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
         run: |
           exec > >(tee ../build-win.log) 2>&1
           flutter --version
