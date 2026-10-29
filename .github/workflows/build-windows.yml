@@ -23,7 +23,9 @@ jobs:
         with: { channel: stable, cache: true }
       - name: Build Windows app
         working-directory: app
+        shell: bash
         run: |
+          exec > >(tee ../build-win.log) 2>&1
           flutter --version
           flutter config --enable-windows-desktop
           flutter create --platforms=windows --org com.myhato --project-name myhato .
@@ -92,3 +94,15 @@ jobs:
           curl -sS -f -X PUT "$URL" -H "Content-Type: application/octet-stream" -H "x-upsert: true" --data-binary @"$FILE"
           BODY=$(python -c "import json,sys;print(json.dumps({'action':'publish','platform':'windows','build':int(sys.argv[1]),'sha256':sys.argv[2],'notes':sys.argv[3]}))" "$BUILD" "$SHA" "$NOTES")
           curl -sS -f -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d "$BODY"
+      - name: Publish build log to ci-logs-win branch
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p /tmp/logs && (cp build-win.log /tmp/logs/build.log 2>/dev/null || echo "no log" > /tmp/logs/build.log)
+          echo "run=${{ github.run_number }} sha=${{ github.sha }} result=${{ job.status }}" > /tmp/logs/meta.txt
+          git config user.name "ci-bot"; git config user.email "ci-bot@users.noreply.github.com"
+          git checkout --orphan ci-logs-win
+          git rm -rf --cached . -q
+          rm -rf logs && cp -r /tmp/logs logs
+          git add -f logs && git commit -qm "windows build log #${{ github.run_number }}"
+          git push -f origin ci-logs-win
