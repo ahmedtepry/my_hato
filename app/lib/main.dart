@@ -178,7 +178,8 @@ class MyHatoApp extends ConsumerWidget {
       theme: AppTheme.light(locale),
       routerConfig: ref.watch(routerProvider),
       builder: (context, child) {
-        Widget app = StaffPresenceScope(child: ConnectionGate(child: child ?? const SizedBox.shrink()));
+        Widget app = ConnectionGate(child: child ?? const SizedBox.shrink());
+        if (!AppConfig.customerOnly) app = StaffPresenceScope(child: app);
         if (AppConfig.teamOnly) {
           // wide desktop window: keep the console in a comfortable centred column
           app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chatOpen ? 1100 + chatPanelSpace : 1100), child: app)));

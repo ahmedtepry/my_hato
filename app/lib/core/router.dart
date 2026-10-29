@@ -57,6 +57,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final signedIn = ref.read(supabaseProvider).auth.currentSession != null;
       final loc = state.matchedLocation;
       // team app for Windows: nothing but the console
+      if (AppConfig.customerOnly && loc == '/hato-console') return '/';
       if (AppConfig.teamOnly && loc != '/hato-console' && loc != '/auth/new-password') return '/hato-console';
       // offer notification: /cart?coupon=CODE -> remember the code; checkout applies it automatically
       final coupon = state.uri.queryParameters['coupon'];

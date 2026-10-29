@@ -15,6 +15,8 @@ class AppConfig {
 
   /// Windows team app: only the team console (sign in with a team account), no store for customers.
   static const teamOnly = bool.fromEnvironment('TEAM_ONLY');
+  /// The phone app (APK) is for customers only: no team console, no cashier, no assistant. Staff work in the Windows team app.
+  static const customerOnly = !teamOnly;
 
   static bool get isConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

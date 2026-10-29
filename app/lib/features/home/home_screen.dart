@@ -20,6 +20,7 @@ import '../../shared/press_scale.dart';
 import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
+import '../../core/config.dart';
 import '../admin/contests.dart' show ContestBanner;
 import '../wheel/wheel_screen.dart' show WheelBanner;
 import '../notifications/notifications_repository.dart';
@@ -236,7 +237,7 @@ class _HomeHeader extends ConsumerWidget {
                 HomeLogoButton(
                   size: 21,
                   onDark: true,
-                  onTripleTap: () => context.push('/hato-console'),
+                  onTripleTap: AppConfig.customerOnly ? null : () => context.push('/hato-console'),
                   onAlreadyHome: () {
                     if (homeScrollController.hasClients) {
                       homeScrollController.animateTo(0, duration: const Duration(milliseconds: 650), curve: Curves.easeOutCubic);

@@ -143,7 +143,7 @@ class ProfileScreen extends ConsumerWidget {
                                       : context.tr('account_not_verified'),
                           color: verified ? BrandColors.success : (review == 'rejected' ? BrandColors.error : BrandColors.warning),
                         ),
-                        if (ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false)
+                        if (!AppConfig.customerOnly && (ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false))
                           StatusChip(label: context.isAr ? 'مالك المحل 👑' : 'Shop owner 👑', color: BrandColors.navy)
                         else if (customer?['customer_code'] != null)
                           StatusChip(label: '${context.tr('customer_code')}: ${customer!['customer_code']}', color: BrandColors.navy),
@@ -166,7 +166,7 @@ class ProfileScreen extends ConsumerWidget {
               ),
             const SizedBox(height: 12),
             // team members only: their way into the team console
-            if ((ref.watch(staffContextProvider).valueOrNull?.roles ?? const <String>{}).isNotEmpty) ...[
+            if (!AppConfig.customerOnly && (ref.watch(staffContextProvider).valueOrNull?.roles ?? const <String>{}).isNotEmpty) ...[
               Material(
                 borderRadius: BorderRadius.circular(18),
                 clipBehavior: Clip.antiAlias,
