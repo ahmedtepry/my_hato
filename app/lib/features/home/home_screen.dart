@@ -24,6 +24,7 @@ import '../../core/config.dart';
 import '../admin/contests.dart' show ContestBanner;
 import '../wheel/wheel_screen.dart' show WheelBanner;
 import '../notifications/notifications_repository.dart';
+import 'home_layouts.dart';
 
 /// The four main sections shown at the top of the home screen.
 /// "مستعمل / Used" opens a Coming Soon page until enabled from the dashboard.
@@ -56,12 +57,14 @@ class HomeScreen extends ConsumerWidget {
     final deals = ref.watch(productsSectionProvider(const CatalogQuery(discountedOnly: true)));
     final recent = ref.watch(recentlyViewedProvider);
     final user = ref.watch(currentUserProvider);
+    final layout = ref.watch(homeLayoutProvider).valueOrNull ?? HomeLayout.current;
 
     Future<void> refresh() async {
       ref.invalidate(productsSectionProvider);
       ref.invalidate(bannersProvider);
       ref.invalidate(recentlyViewedProvider);
       ref.invalidate(publicSettingsProvider);
+      ref.invalidate(homeLayoutProvider);
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -78,12 +81,24 @@ class HomeScreen extends ConsumerWidget {
           const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 120), child: _SectionsBar())),
           const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 220), child: _BannerCarousel())),
           const SliverToBoxAdapter(child: _ActiveUpdates()),
-          _section(context, 'featured', featured, const CatalogQuery(featuredOnly: true)),
-          const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 380), child: _RepairPromo())),
-          _section(context, 'new_arrivals', newest, const CatalogQuery()),
-          _section(context, 'discounts', deals, const CatalogQuery(discountedOnly: true)),
-          _section(context, 'best_sellers', best, const CatalogQuery(sort: SortOption.popular)),
-          if (user != null) _section(context, 'recently_viewed', recent, null),
+          if (layout == HomeLayout.shop) ...[
+            SliverToBoxAdapter(
+              child: ShopTabs(tabs: [
+                ('featured', featured.valueOrNull ?? const []),
+                ('best_sellers', best.valueOrNull ?? const []),
+                ('new_arrivals', newest.valueOrNull ?? const []),
+                ('discounts', deals.valueOrNull ?? const []),
+              ]),
+            ),
+            const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 380), child: _RepairPromo())),
+          ] else ...[
+            _section(context, 'featured', featured, const CatalogQuery(featuredOnly: true), layout),
+            const SliverToBoxAdapter(child: FadeSlideIn(delay: Duration(milliseconds: 380), child: _RepairPromo())),
+            _section(context, 'new_arrivals', newest, const CatalogQuery(), layout),
+            _section(context, 'discounts', deals, const CatalogQuery(discountedOnly: true), layout),
+            _section(context, 'best_sellers', best, const CatalogQuery(sort: SortOption.popular), layout),
+          ],
+          if (user != null) _section(context, 'recently_viewed', recent, null, layout),
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ]),
       ),
@@ -93,7 +108,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _section(BuildContext context, String titleKey, AsyncValue<List<Map<String, dynamic>>> data, CatalogQuery? seeAll) {
+  Widget _section(BuildContext context, String titleKey, AsyncValue<List<Map<String, dynamic>>> data, CatalogQuery? seeAll, HomeLayout layout) {
     return SliverToBoxAdapter(
       child: data.when(
         loading: () => Padding(
@@ -128,7 +143,7 @@ class HomeScreen extends ConsumerWidget {
                         ),
                     ]),
                   ),
-                  HorizontalProducts(items: items),
+                  HomeProducts(items: items, layout: layout),
                 ]),
               ),
       ),

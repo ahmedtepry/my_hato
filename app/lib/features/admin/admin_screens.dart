@@ -39,6 +39,7 @@ import 'promotions.dart';
 import 'appearance_panel.dart';
 import 'contests.dart';
 import 'feature_switches.dart';
+import 'storefront_panel.dart';
 import 'stock_panel.dart';
 import 'assistant_panel.dart';
 import 'shortcuts_panel.dart';
@@ -256,6 +257,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
+  'storefront': _SectionInfo(Icons.view_quilt_rounded, Color(0xFF2F6BFF), 'طريقة عرض الواجهة', 'Storefront layout', 'اختار شكل عرض المنتجات في تطبيق العملا، ويتطبق على الكل', 'Pick how products are shown in the customer app; it applies to everyone'),
   'assistant': _SectionInfo(Icons.smart_toy_rounded, Color(0xFF0E9384), 'المساعد الآلي', 'Assistant', 'المحاسب الآلي وروبوت خدمة العملاء: شغّلهم وشوف شغلهم', 'The automatic accountant and the customer-service robot: switch them on and see their work'),
   'shortcuts': _SectionInfo(Icons.bolt_rounded, Color(0xFFDC6803), 'اختصارات', 'Shortcuts', 'استلام بضاعة، جرد، تعديل أسعار، وتصدير بيانات', 'Receive goods, stocktake, edit prices and export data'),
   'stock': _SectionInfo(Icons.warehouse_rounded, Color(0xFF0E9384), 'مخزن', 'Stock', 'أرصدة مخازن الفروع، توزيع المنتجات، وتحويلها بين الفروع بتأكيد الاستلام', 'Branch store balances, allocation and transfers between branches with receipt confirmation'),
@@ -543,6 +545,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'occasions' => const OccasionsPanel(),
                       'contests' => const ContestsPanel(),
                       'features' => const FeatureSwitchesPanel(),
+                      'storefront' => const StorefrontLayoutPanel(),
                       'wheel' => const WheelAdminPanel(),
                       'stock' => const StockPanel(),
                       'shortcuts' => const ShortcutsPanel(),

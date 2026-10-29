@@ -756,6 +756,17 @@ select set_config('request.jwt.claim.sub', :'CASHB', false); set role authentica
 select public._expect('a cashier cannot review another cashier shift', format($q$select public.assistant_shift_review(%L)$q$, :'shy'), 'FORBIDDEN');
 reset role;
 
+
+-- ---------- storefront layout
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('the layout is readable by everyone', $q$select 1/(case when public.storefront_layout_get() = 'current' then 1 else 0 end)$q$, null);
+select public._expect('a cashier cannot change the layout', $q$select public.storefront_layout_set('compact')$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('the owner rejects an unknown layout', $q$select public.storefront_layout_set('weird')$q$, 'INVALID_INPUT');
+select public._expect('the owner picks a layout', $q$select public.storefront_layout_set('compact')$q$, null);
+select public._expect('everyone then sees it', $q$select 1/(case when public.storefront_layout_get() = 'compact' then 1 else 0 end)$q$, null);
+select public._expect('the owner puts it back', $q$select public.storefront_layout_set('current')$q$, null);
+reset role;
 reset role;
 reset role;
 \o
