@@ -154,7 +154,7 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
             : _rows == null
                 ? const Center(child: CircularProgressIndicator())
                 : _rows!.isEmpty
-                    ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_branch == null ? _t(context, 'مفيش منتجات.', 'No products.') : _t(context, 'مفيش منتجات في مخزن الفرع ده. دوّر باسم المنتج عشان توزّعه عليه.', 'Nothing in this branch store yet. Search a product to allocate it.'), textAlign: TextAlign.center)))
+                    ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_branch == null ? (perms.contains('stock.others') ? _t(context, 'مفيش منتجات.', 'No products.') : _t(context, 'مفيش منتجات في مخزن فرعك دلوقتي. المالك لازم يوزّع لفرعك الأول، أو يديك صلاحية «يشوف الوير هاوس والفروع التانية».', 'Nothing in your branch store yet. The owner must allocate stock to your branch, or give you the warehouse view permission.')) : _t(context, 'مفيش منتجات في مخزن الفرع ده. دوّر باسم المنتج عشان توزّعه عليه.', 'Nothing in this branch store yet. Search a product to allocate it.'), textAlign: TextAlign.center)))
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                         itemCount: _rows!.length,

@@ -92,7 +92,7 @@ class TeamRepository {
       if (data is Map && data['ok'] != true) throw Exception(data['error'] ?? 'FAILED');
     } on FunctionException catch (e) {
       final d = e.details;
-      throw Exception(d is Map ? (d['error'] ?? 'FAILED') : 'FAILED');
+      throw Exception(d is Map ? (d['error'] ?? d['message'] ?? 'HTTP ${e.status}') : 'HTTP ${e.status} ${d ?? ''}'.trim());
     }
   }
 
@@ -116,8 +116,13 @@ String _teamError(BuildContext context, Object e) {
       pick('INVALID_PHONE', 'رقم موبايل مصري مش صحيح', 'Invalid Egyptian mobile') ??
       pick('WEAK_PASSWORD', 'كلمة السر ٦ حروف أو أرقام على الأقل', 'Password needs at least 6 characters') ??
       pick('CANNOT_CHANGE_OWN_ROLE', 'مينفعش تغيّر حسابك إنت', 'You cannot change your own account') ??
+      pick('forbidden', 'الحساب اللي داخل بيه مالوش صلاحية يدير الفريق', 'This account may not manage the team') ??
+      pick('FORBIDDEN', 'مش مسموحلك تضيف الدور ده من الحساب ده', 'Not allowed to grant this role from this account') ??
+      pick('unauthorized', 'الجلسة انتهت، اخرج وادخل تاني', 'Session expired, sign out and in again') ??
+      pick('HTTP 401', 'الجلسة انتهت، اخرج وادخل تاني', 'Session expired, sign out and in again') ??
+      pick('CREATE_FAILED', 'السيرفر رفض إنشاء الحساب، جرب اسم دخول أو كلمة سر تانية', 'The server refused to create the account') ??
       pick('LAST_OWNER', 'لازم يفضل مالك واحد على الأقل', 'At least one owner must remain') ??
-      friendlyError(context, e);
+      (m.contains('Exception: ') ? '${_t(context, 'حصلت مشكلة', 'Problem')}: ${m.split('Exception: ').last}' : friendlyError(context, e));
 }
 
 class _UserMsg implements Exception {
