@@ -89,7 +89,7 @@ const _perms = <String, _PermInfo>{
       descAr: 'يشوف الورديات والمبيعات والتقارير لكل الفروع والإدارة، مش فرعه بس', descEn: 'See shifts, sales and reports of every branch and head office'),
 };
 
-const _groupOrder = ['orders', 'products', 'repairs', 'pos', 'stock', 'extras', 'system', 'other', 'shortcuts'];
+const _groupOrder = ['orders', 'products', 'repairs', 'pos', 'stock', 'extras', 'system', 'other', 'assistant', 'shortcuts'];
 
 _PermInfo _infoOf(String key) {
   final c = _serverCatalog[key];
@@ -122,6 +122,7 @@ String _groupLabel(BuildContext c, String g) => switch (g) {
       'stock' => _s(c, 'grp_stock', 'المخزن', 'Stock'),
       'extras' => _s(c, 'grp_extras', 'المسابقات والمزايا', 'Contests and features'),
       'shortcuts' => _s(c, 'grp_shortcuts', 'اختصارات', 'Shortcuts'),
+      'assistant' => _s(c, 'grp_assistant', 'المساعد الآلي', 'Automatic assistant'),
       'system' => _s(c, 'grp_system', 'النظام', 'System'),
       _ => _s(c, 'grp_other', 'أخرى', 'Other'),
     };
@@ -371,16 +372,22 @@ class _RolesTabState extends ConsumerState<_RolesTab> {
             child: Card(
               margin: EdgeInsets.zero,
               child: ExpansionTile(
-                title: Text(_s(context, 'grp_shortcuts', 'اختصارات', 'Shortcuts')),
+                title: Text(_s(context, 'soon_title2', 'اختصارات والمساعد الآلي', 'Shortcuts and automatic assistant')),
                 subtitle: Text(_s(context, 'soon_sub', 'لسه مش شغالة، تشغيلها دلوقتي مالوش تأثير', 'Not active yet, switching them on has no effect')),
                 children: [
-                  for (final g in soon)
+                  for (final g in soon) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                      child: Align(alignment: AlignmentDirectional.centerStart, child: Text(_groupLabel(context, g.key), style: const TextStyle(color: BrandColors.gray, fontWeight: FontWeight.w700, fontSize: 13))),
+                    ),
                     for (final k in g.value)
                       SwitchListTile(
                         value: locked ? true : mine.contains(k),
-                        onChanged: null,
+                        onChanged: (locked || _busy.contains(k) || g.key != 'assistant') ? null : (v) => _toggle(k, v),
                         title: Text(_t(context, _infoOf(k).ar, _infoOf(k).en)),
+                        subtitle: g.key == 'assistant' ? _PermSubtitle(permKey: k) : null,
                       ),
+                  ],
                 ],
               ),
             ),

@@ -287,7 +287,8 @@ reset role;
 
 -- ---------- 0066: the nine formerly "coming soon" permissions are real
 reset role;
-select public._expect('only the shortcuts placeholders are inert', $q$select 1/(case when exists (select 1 from public.permission_catalog where inert and grp <> 'shortcuts') then 0 else 1 end)$q$, null);
+select public._expect('only the shortcuts placeholders are inert', $q$select 1/(case when exists (select 1 from public.permission_catalog where inert and grp not in ('shortcuts','assistant')) then 0 else 1 end)$q$, null);
+select public._expect('3 assistant switches exist and are placeholders', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'assistant' and inert) = 3 then 1 else 0 end)$q$, null);
 select public._expect('15 shortcuts: 4 live, 11 placeholders nobody holds', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'shortcuts') = 15 and (select count(*) from public.permission_catalog where grp = 'shortcuts' and inert) = 11 and not exists (select 1 from public.role_permissions rp join public.permission_catalog c using (permission) where c.inert) then 1 else 0 end)$q$, null);
 select public._expect('stock and wheel permissions have a displayed group', $q$select 1/(case when (select count(*) from public.permission_catalog where permission in ('stock.view','stock.others','wheel.manage','features.manage','contest.manage') and grp in ('stock','extras')) = 5 then 1 else 0 end)$q$, null);
 select public._expect('owner has every new permission', $q$select 1/(case when (select count(*) from public.role_permissions where role = 'owner' and permission in ('customers.review','cancel_requests.decide','coupons.manage','notifications.broadcast','reviews.moderate','audit.export','payments.manage','roles.assign','branches.manage')) = 9 then 1 else 0 end)$q$, null);
