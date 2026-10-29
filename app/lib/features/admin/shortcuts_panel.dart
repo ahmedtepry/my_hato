@@ -106,7 +106,7 @@ class _Log extends ConsumerWidget {
               _LogKind.receipts => ListTile(
                   dense: true,
                   title: Text('${r['number']} · ${r['supplier']}'),
-                  subtitle: Text('${r['branch_name'] ?? _t(context, 'المخزن الرئيسي', 'Main warehouse')} · ${r['created_by_name']} · ${date(r['created_at'])}\n'
+                  subtitle: Text('${r['branch_name'] ?? _t(context, 'الوير هاوس', 'Warehouse')} · ${r['created_by_name']} · ${date(r['created_at'])}\n'
                       '${_maps(r['items']).map((i) => '${i['name_ar']} × ${i['qty']}').join('، ')}'),
                   isThreeLine: true,
                 ),
@@ -295,7 +295,7 @@ class _ReceiptSheetState extends ConsumerState<_ReceiptSheet> {
       [
         TextField(controller: _supplier, decoration: InputDecoration(labelText: _t(context, 'اسم المورد', 'Supplier'), border: const OutlineInputBorder(), isDense: true)),
         const SizedBox(height: 10),
-        _branchPicker(context, branches, _branch, (v) => setState(() => _branch = v), extra: canWarehouse ? {'ar': 'المخزن الرئيسي (غير موزّع)', 'en': 'Main warehouse (unallocated)'} : null),
+        _branchPicker(context, branches, _branch, (v) => setState(() => _branch = v), extra: canWarehouse ? {'ar': 'الوير هاوس (غير موزّع)', 'en': 'Warehouse (unallocated)'} : null),
         const SizedBox(height: 10),
         TextField(controller: _note, decoration: InputDecoration(labelText: _t(context, 'ملاحظة (اختياري)', 'Note (optional)'), border: const OutlineInputBorder(), isDense: true)),
         const SizedBox(height: 14),
