@@ -650,6 +650,17 @@ select public._expect('a branch member sees his branch only', $q$select 1/(case 
 select public._expect('his list hides the store totals', $q$select 1/(case when (select bool_and(e->'total' = 'null'::jsonb) from jsonb_array_elements(public.stock_overview(null, 'موبايل')) e) then 1 else 0 end)$q$, null);
 reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
 select public._expect('the owner sees the warehouse and every branch', $q$select 1/(case when (public.stock_product_where('d0000000-0000-0000-0000-000000000003')->>'can_see_others')::boolean and (public.stock_product_where('d0000000-0000-0000-0000-000000000003')->>'warehouse') is not null and jsonb_array_length(public.stock_product_where('d0000000-0000-0000-0000-000000000003')->'branches') >= 2 then 1 else 0 end)$q$, null);
+
+-- ---- the wheel needs a purchase ----
+reset role;
+update public.wheel_settings set require_order = true;
+update public.feature_switches set enabled = true where key = 'wheel';
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner keeps the buy-first rule', $q$select public.wheel_admin_save('{"ease":50,"spins_per_day":1,"require_order":true,"segments":[{"label_ar":"أ","kind":"points","points":5,"weight":10},{"label_ar":"ب","kind":"points","points":5,"weight":10},{"label_ar":"ج","kind":"points","points":5,"weight":10}]}'::jsonb)$q$, null);
+reset role;
+select set_config('request.jwt.claim.sub', :'CUST2', false); set role authenticated;
+select public._expect('a customer with no purchase cannot spin', $q$select public.wheel_spin()$q$, 'NEEDS_ORDER');
+select public._expect('the screen tells him to buy first', $q$select 1/(case when public.wheel_state()->>'block' = 'NEEDS_ORDER' then 1 else 0 end)$q$, null);
 reset role;
 reset role;
 \o

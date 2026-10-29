@@ -23,7 +23,7 @@ String _wheelError(BuildContext c, Object e) {
   final ar = c.isAr;
   if (t.contains('NOT_VERIFIED')) return ar ? 'وثّق حسابك (الإيميل أو الموبايل) عشان تلف العجلة.' : 'Verify your account (email or phone) to spin.';
   if (t.contains('NOT_APPROVED')) return ar ? 'حسابك لسه قيد المراجعة. هتقدر تلف أول ما يتفعّل.' : 'Your account is still being reviewed.';
-  if (t.contains('NEEDS_ORDER')) return ar ? 'اعمل أول طلب ليك من المحل وبعدها العجلة تتفتح.' : 'Place your first order to unlock the wheel.';
+  if (t.contains('NEEDS_ORDER')) return ar ? 'اشتري أي حاجة من المحل، وهتكون ليك فرصة تكسب أي حاجة من الموجودة في العجلة 🎁' : 'Buy anything from the shop and you get a chance to win anything on the wheel 🎁';
   if (t.contains('NO_SPINS_LEFT')) return ar ? 'خلّصت لفّات النهارده. ارجع بكرة!' : 'No spins left today. Come back tomorrow!';
   if (t.contains('FEATURE_OFF')) return ar ? 'العجلة مش متاحة دلوقتي.' : 'The wheel is not available right now.';
   return ar ? 'حصلت مشكلة، جرّب تاني.' : 'Something went wrong, try again.';
@@ -158,10 +158,23 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
                 child: FilledButton(
                   style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48), padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 14), shape: const StadiumBorder()),
                   onPressed: canSpin && !_busy ? () => _spin(segs) : null,
-                  child: Text(canSpin ? (ar ? 'لُفّ العجلة' : 'Spin') : (ar ? 'ارجع بكرة' : 'Come back tomorrow'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  child: Text(canSpin ? (ar ? 'لُفّ العجلة' : 'Spin') : block == 'NEEDS_ORDER' ? (ar ? 'اشتري الأول' : 'Buy first') : (ar ? 'ارجع بكرة' : 'Come back tomorrow'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                 ),
               ),
-              if (block != null || _error != null)
+              if (block == 'NEEDS_ORDER')
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFFECDD3))),
+                    child: Column(children: [
+                      Text(_wheelError(context, block!), textAlign: TextAlign.center, style: const TextStyle(color: _ink, fontWeight: FontWeight.w700, height: 1.5)),
+                      const SizedBox(height: 10),
+                      FilledButton.icon(onPressed: () => context.go('/'), icon: const Icon(Icons.shopping_bag_outlined), label: Text(ar ? 'تسوّق دلوقتي' : 'Shop now')),
+                    ]),
+                  ),
+                )
+              else if (block != null || _error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(_error ?? _wheelError(context, block!), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF9F1239))),
@@ -278,7 +291,9 @@ class WheelBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (!featureVisible(ref, 'wheel')) return const SizedBox.shrink();
     final d = ref.watch(wheelStateProvider).valueOrNull;
-    if (d == null || d['preview'] == true || d['block'] != null || ((d['spins_left'] as num?)?.toInt() ?? 0) <= 0) return const SizedBox.shrink();
+    if (d == null || d['preview'] == true) return const SizedBox.shrink();
+    final teaser = d['block'] == 'NEEDS_ORDER';
+    if (!teaser && (d['block'] != null || ((d['spins_left'] as num?)?.toInt() ?? 0) <= 0)) return const SizedBox.shrink();
     final ar = context.isAr;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -293,7 +308,7 @@ class WheelBanner extends ConsumerWidget {
             child: Row(children: [
               const Text('🎡', style: TextStyle(fontSize: 30)),
               const SizedBox(width: 10),
-              Expanded(child: Text(ar ? 'لفّتك النهارده مستنياك! لف العجلة واكسب' : 'Your daily spin is waiting! Spin and win', style: const TextStyle(fontWeight: FontWeight.w800, color: _ink))),
+              Expanded(child: Text(teaser ? (ar ? 'اشتري أي حاجة واكسب هدايا من عجلة الحظ 🎁' : 'Buy anything and win gifts on the lucky wheel 🎁') : (ar ? 'لفّتك النهارده مستنياك! لف العجلة واكسب' : 'Your daily spin is waiting! Spin and win'), style: const TextStyle(fontWeight: FontWeight.w800, color: _ink))),
               const Icon(Icons.chevron_right),
             ]),
           ),
