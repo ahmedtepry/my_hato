@@ -270,6 +270,17 @@ const _sectionInfo = <String, _SectionInfo>{
 };
 
 /// Sections that open as their own screen instead of a page inside the console.
+/// One short line for the bottom bar (the full name stays in the control panel): every item then has the same height.
+String _navLabel(BuildContext context, String k) {
+  const shortAr = {'ops': 'العمليات', 'kpi': 'العمولات', 'targets': 'التارجت', 'mytarget': 'تارجتي', 'features': 'المفاتيح', 'accounts': 'الحسابات', 'occasions': 'المناسبات'};
+  const shortEn = {'ops': 'Live ops', 'kpi': 'KPIs', 'mytarget': 'My target', 'features': 'Switches', 'occasions': 'Occasions'};
+  final full = _t(context, _sectionInfo[k]!.ar, _sectionInfo[k]!.en);
+  final s = (context.isAr ? shortAr : shortEn)[k];
+  if (s != null) return s;
+  final words = full.split(' ');
+  return full.length <= 11 || words.length < 2 ? full : words.take(2).join(' ');
+}
+
 const _routeSections = {'offers', 'team'};
 
 /// Saved layout cleaned against what this member may see, with sensible defaults for a new member.
@@ -719,6 +730,8 @@ class AdminHomeScreen extends ConsumerWidget {
                 bottomNavigationBar: tabs.length <= 1
                     ? null
                     : NavigationBar(
+                  labelTextStyle: WidgetStatePropertyAll(const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.1, overflow: TextOverflow.ellipsis)),
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
                   selectedIndex: selected < 0 ? layout.pinned.length : selected,
                   onDestinationSelected: (i) {
                     if (i >= layout.pinned.length) {
@@ -730,7 +743,7 @@ class AdminHomeScreen extends ConsumerWidget {
                   },
                   destinations: [
                     for (final k in layout.pinned)
-                      NavigationDestination(icon: _sectionIcon(k), label: _t(context, _sectionInfo[k]!.ar, _sectionInfo[k]!.en)),
+                      NavigationDestination(icon: _sectionIcon(k), label: _navLabel(context, k)),
                     NavigationDestination(icon: const Icon(Icons.dashboard_customize_outlined), label: _t(context, 'لوحة التحكم', 'Control panel')),
                   ],
                 ),
