@@ -476,6 +476,9 @@ class StaffContextController extends AsyncNotifier<StaffContext> {
   }
 }
 
+/// A section the console should open as soon as it is shown (set by a notification link like /hato-console?tab=accounts).
+final pendingConsoleTabProvider = StateProvider<String?>((ref) => null);
+
 final staffContextProvider = AsyncNotifierProvider<StaffContextController, StaffContext>(StaffContextController.new);
 
 final isStaffProvider = Provider<AsyncValue<bool>>((ref) => ref.watch(staffContextProvider).whenData((c) => c.roles.isNotEmpty));

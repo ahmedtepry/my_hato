@@ -506,6 +506,16 @@ class AdminHomeScreen extends ConsumerWidget {
           }
         }
 
+        // a notification link (/hato-console?tab=accounts) asks for a section: open it once the console is ready
+        final pending = ref.read(pendingConsoleTabProvider);
+        if (pending != null && tabs.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (ref.read(pendingConsoleTabProvider) != pending) return;
+            ref.read(pendingConsoleTabProvider.notifier).state = null;
+            if (available.contains(pending)) open(pending);
+          });
+        }
+
         return AnimatedBuilder(
           animation: c,
           builder: (ctx, _) {

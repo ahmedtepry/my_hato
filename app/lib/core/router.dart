@@ -22,6 +22,7 @@ import '../features/home/home_screen.dart';
 import '../features/loyalty/loyalty_screen.dart';
 import '../features/wheel/wheel_screen.dart';
 import '../features/admin/feature_switches.dart' show featureFlagsProvider;
+import '../features/admin/admin_repository.dart' show pendingConsoleTabProvider;
 import '../features/home/onboarding_screens.dart';
 import '../features/notifications/notifications_repository.dart';
 import '../features/orders/orders_screens.dart';
@@ -65,6 +66,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       if (loc == '/loyalty' && ref.read(featureFlagsProvider).valueOrNull?['points'] == false) return '/';
       if (loc == '/wheel' && ref.read(featureFlagsProvider).valueOrNull?['wheel'] != true) return '/';
+      if (loc == '/hato-console') {
+        final tab = state.uri.queryParameters['tab'];
+        if (tab != null && tab.isNotEmpty) ref.read(pendingConsoleTabProvider.notifier).state = tab;
+      }
       final needsAuth = _protected.any((p) => loc == p || loc.startsWith(p)) && !_publicAccountRoutes.contains(loc);
       if (needsAuth && !signedIn) return '/auth/login?redirect=${Uri.encodeComponent(state.uri.toString())}';
       if (signedIn && (loc == '/auth/login' || loc == '/auth/register')) {
