@@ -31,7 +31,7 @@ String _err(BuildContext c, Object e) {
   return friendlyError(c, e);
 }
 
-final _branchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_my_branches')));
+final _branchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_my_branches')).where((b) => b['is_hq'] != true).toList());
 final _receiptsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('goods_receipts_list')));
 final _stocktakesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('stocktakes_list')));
 final _priceLogProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('price_changes_list')));

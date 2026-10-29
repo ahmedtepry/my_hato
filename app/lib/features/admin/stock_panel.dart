@@ -27,8 +27,8 @@ String _stockError(BuildContext c, Object e) {
   return friendlyError(c, e);
 }
 
-final _viewBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_view_branches')));
-final _myBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_my_branches')));
+final _viewBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_view_branches')).where((b) => b['is_hq'] != true).toList());
+final _myBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_my_branches')).where((b) => b['is_hq'] != true).toList());
 final _whereProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) async =>
     Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('stock_product_where', params: {'p_product': id}) as Map));
 final _transfersProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('stock_transfers_list')));
