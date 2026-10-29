@@ -27,8 +27,8 @@ String _stockError(BuildContext c, Object e) {
   return friendlyError(c, e);
 }
 
-final _viewBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_view_branches')).where((b) => b['is_hq'] != true).toList());
-final _myBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_my_branches')).where((b) => b['is_hq'] != true).toList());
+final _viewBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_view_branches')));
+final _myBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_my_branches')));
 final _whereProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) async =>
     Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('stock_product_where', params: {'p_product': id}) as Map));
 final _transfersProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('stock_transfers_list')));
@@ -77,7 +77,7 @@ class _StockPanelState extends ConsumerState<StockPanel> {
   }
 
   Future<void> _newTransfer(BuildContext context, {Map<String, dynamic>? product}) async {
-    final ok = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _NewTransferSheet(product: product));
+    final ok = await showDialog<bool>(context: context, builder: (_) => Dialog(insetPadding: const EdgeInsets.all(16), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: Padding(padding: const EdgeInsets.only(top: 16), child: _NewTransferSheet(product: product)))));
     if (ok == true && mounted) {
       ref.invalidate(_transfersProvider);
       setState(() => _tab = 1);
@@ -128,7 +128,7 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
     final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>[];
     final seeOthers = perms.contains('stock.others');
     final branches = (seeOthers ? ref.watch(_viewBranchesProvider) : ref.watch(_myBranchesProvider)).valueOrNull ?? const <Map<String, dynamic>>[];
-    final names = {for (final b in branches) '${b['id']}': _t(context, '${b['name_ar']}', '${b['name_en']}')};
+    final names = {for (final b in branches) if (b['is_hq'] != true) '${b['id']}': _t(context, '${b['name_ar']}', '${b['name_en']}')};
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -180,7 +180,7 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
           Text('${p['sku']}${p['total'] != null ? ' · ${_t(context, 'الإجمالي في المتجر', 'store total')}' : ''}', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 8),
           Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final b in bs)
+            for (final b in bs.where((b) => names['${b['branch_id']}'] != null))
               Chip(
                 visualDensity: VisualDensity.compact,
                 avatar: const Icon(Icons.store_mall_directory_outlined, size: 16),
@@ -197,7 +197,7 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
           ]),
           if (perms.contains('stock.allocate') || perms.contains('stock.transfer'))
             Wrap(spacing: 8, children: [
-              if (perms.contains('stock.allocate')) TextButton.icon(onPressed: () => _allocate(p, branches), icon: const Icon(Icons.call_split_rounded, size: 18), label: Text(_t(context, 'وزّع من الوير هاوس', 'Allocate from warehouse'))),
+              if (perms.contains('stock.allocate')) TextButton.icon(onPressed: () => _allocate(p, branches.where((b) => b['is_hq'] != true).toList()), icon: const Icon(Icons.call_split_rounded, size: 18), label: Text(_t(context, 'وزّع من الوير هاوس', 'Allocate from warehouse'))),
               if (perms.contains('stock.transfer')) TextButton.icon(onPressed: () => widget.onTransfer(p), icon: const Icon(Icons.swap_horiz_rounded, size: 18), label: Text(_t(context, 'حوّل', 'Transfer'))),
             ]),
         ]),
@@ -541,6 +541,7 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
   final _note = TextEditingController();
   final _search = TextEditingController();
   bool _busy = false;
+  bool _missing = false; // the chosen product has nothing in the chosen branch
   String? _error;
 
   @override
@@ -566,6 +567,17 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
       if (mounted) setState(() => _results = r.where((p) => _qtyHere(p) > 0).toList());
     } catch (e) {
       if (mounted) setState(() => _error = _stockError(context, e));
+    }
+  }
+
+  /// When the sheet was opened from a product, that product is chosen for him: he only types the quantity.
+  void _autoPick() {
+    if (widget.product == null || !mounted) return;
+    final hit = _results.where((r) => r['product_id'] == widget.product!['product_id']);
+    if (hit.isNotEmpty) {
+      _pick(hit.first);
+    } else {
+      setState(() => _missing = true);
     }
   }
 
@@ -607,10 +619,7 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
       _from = '${mine.first['id']}';
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await _find();
-        if (widget.product != null && mounted) {
-          final hit = _results.where((r) => r['product_id'] == widget.product!['product_id']);
-          if (hit.isNotEmpty) _pick(hit.first);
-        }
+        _autoPick();
       });
     }
     String nm(Map<String, dynamic> b) => ar ? '${b['name_ar']}' : '${b['name_en']}';
@@ -631,9 +640,10 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
                   _from = v;
                   _picked.clear();
                   _results = [];
+                  _missing = false;
                   if (_to == v) _to = null;
                 });
-                _find();
+                _find().then((_) => _autoPick());
               },
             ),
             const SizedBox(height: 8),
@@ -644,7 +654,10 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
               onChanged: (v) => setState(() => _to = v),
             ),
             const SizedBox(height: 10),
-            if (_from != null) ...[
+            if (_from != null && widget.product != null) ...[
+              Text('${widget.product!['name_ar']}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              if (_missing) Padding(padding: const EdgeInsets.only(top: 6), child: Text(ar ? 'مفيش من المنتج ده في الفرع ده، اختار فرع تاني.' : 'None of this product in that branch, pick another.', style: const TextStyle(color: BrandColors.error))),
+            ] else if (_from != null) ...[
               TextField(controller: _search, decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: ar ? 'دوّر في مخزن الفرع' : 'Search the branch store', isDense: true, border: const OutlineInputBorder()), onChanged: (_) => _find()),
               for (final p in _results.take(8))
                 ListTile(
@@ -659,12 +672,12 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
               Text(ar ? 'اختار الفرع اللي بتحوّل منه الأول.' : 'Pick the branch you send from first.', style: Theme.of(context).textTheme.bodySmall),
             if (_picked.isNotEmpty) ...[
               const Divider(),
-              Text(ar ? 'اللي هتحوّله' : 'To send', style: const TextStyle(fontWeight: FontWeight.w800)),
+              Text(ar ? 'عايز تحوّل كام؟' : 'How many to send?', style: const TextStyle(fontWeight: FontWeight.w800)),
               for (final e in _picked.entries)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(children: [
-                    Expanded(child: Text('${e.value.p['name_ar']}\n${ar ? 'المتاح في فرعك' : 'Available'}: ${e.value.max}', style: const TextStyle(height: 1.3))),
+                    Expanded(child: Text('${e.value.p['name_ar']}\n${ar ? 'المتاح في الفرع ده' : 'Available'}: ${e.value.max}', style: const TextStyle(height: 1.3))),
                     SizedBox(
                       width: 92,
                       child: TextField(
