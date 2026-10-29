@@ -20,6 +20,7 @@ import '../features/catalog/product_details_screen.dart';
 import '../features/checkout/checkout_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/loyalty/loyalty_screen.dart';
+import '../features/admin/feature_switches.dart' show featureFlagsProvider;
 import '../features/home/onboarding_screens.dart';
 import '../features/notifications/notifications_repository.dart';
 import '../features/orders/orders_screens.dart';
@@ -61,6 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ref.read(pendingCouponProvider.notifier).state = coupon.toUpperCase();
         return '/cart';
       }
+      if (loc == '/loyalty' && ref.read(featureFlagsProvider).valueOrNull?['points'] == false) return '/';
       final needsAuth = _protected.any((p) => loc == p || loc.startsWith(p)) && !_publicAccountRoutes.contains(loc);
       if (needsAuth && !signedIn) return '/auth/login?redirect=${Uri.encodeComponent(state.uri.toString())}';
       if (signedIn && (loc == '/auth/login' || loc == '/auth/register')) {

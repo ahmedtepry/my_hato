@@ -14,6 +14,7 @@ import '../../core/theme.dart';
 import '../../shared/product_card.dart';
 import '../../shared/states.dart';
 import '../admin/admin_repository.dart' show staffContextProvider;
+import '../admin/feature_switches.dart' show featureVisible;
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
 import '../../shared/account_review.dart';
@@ -190,6 +191,7 @@ class ProfileScreen extends ConsumerWidget {
                 _tile(context, Icons.location_on_rounded, 'addresses', '/account/addresses', const Color(0xFFE23D52)),
                 _tile(context, Icons.shopping_bag_rounded, 'my_orders', '/orders', const Color(0xFFF08A12)),
                 _tile(context, Icons.build_rounded, 'repairs', '/orders?tab=1', const Color(0xFF566380)),
+                if (featureVisible(ref, 'points'))
                 ListTile(
                   leading: _iconTile(Icons.emoji_events_rounded, const Color(0xFFD99A00)),
                   title: Text(context.isAr ? 'مكافآت ${AppName.ar}' : '${AppName.en} Rewards'),

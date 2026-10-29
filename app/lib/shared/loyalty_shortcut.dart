@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/l10n.dart';
+import '../features/admin/feature_switches.dart' show featureVisible;
 
 const _gold = Color(0xFFF5B83D);
 
@@ -57,6 +58,7 @@ class _LoyaltyShortcutState extends ConsumerState<LoyaltyShortcut> with SingleTi
 
   @override
   Widget build(BuildContext context) {
+    if (!featureVisible(ref, 'points')) return const SizedBox.shrink();
     if (LoyaltyShortcut._thrownAway && !_throw.isAnimating) return const SizedBox.shrink();
     return LayoutBuilder(builder: (context, box) {
       final area = Size(box.maxWidth, box.maxHeight);

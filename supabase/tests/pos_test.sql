@@ -551,6 +551,22 @@ select public._expect('the owner sees the winner with purchases info', $q$select
 select public._expect('winner gets a pickup message', $q$select public.contest_message_winner((public.contest_winners((select id from public._ct))->0->>'entry_id')::uuid, 'pickup', 'بعد الظهر')$q$, null);
 select public._expect('a custom message needs text', $q$select public.contest_message_winner((public.contest_winners((select id from public._ct))->0->>'entry_id')::uuid, 'custom', null)$q$, 'INVALID_INPUT');
 select public._expect('a non-winner cannot be messaged', $q$select public.contest_message_winner(gen_random_uuid(), 'pickup')$q$, 'NOT_FOUND');
+select public._expect('switching off needs the confirmation', $q$select public.feature_set('points', false)$q$, 'CONFIRM_REQUIRED');
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('a cashier cannot switch features', $q$select public.feature_set('points', false, true)$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner switches points off', $q$select public.feature_set('points', false, true)$q$, null);
+select public._expect('the team still sees points', $q$select 1/(case when (public.feature_flags()->>'points')::boolean then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'A', false); set role authenticated;
+select public._expect('customers no longer see points', $q$select 1/(case when not (public.feature_flags()->>'points')::boolean then 1 else 0 end)$q$, null);
+select public._expect('customers cannot open the points screen', $q$select public.loyalty_dashboard()$q$, 'FEATURE_OFF');
+select public._expect('customers cannot claim missions', $q$select public.loyalty_claim('checkin_daily')$q$, 'FEATURE_OFF');
+select public._expect('customers cannot open the vault', $q$select public.loyalty_open_vault()$q$, 'FEATURE_OFF');
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner switches points back on', $q$select public.feature_set('points', true)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'A', false); set role authenticated;
+select public._expect('customers see points again', $q$select 1/(case when (public.feature_flags()->>'points')::boolean then 1 else 0 end)$q$, null);
+reset role;
 reset role;
 \o
 -- ---------- report

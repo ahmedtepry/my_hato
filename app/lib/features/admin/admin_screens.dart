@@ -38,6 +38,7 @@ import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
 import 'contests.dart';
+import 'feature_switches.dart';
 import 'occasions_panel.dart';
 import 'pos_panel.dart';
 import 'sales_panel.dart';
@@ -251,6 +252,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
+  'features': _SectionInfo(Icons.toggle_on_rounded, Color(0xFF12B76A), 'مفاتيح التشغيل', 'Feature switches', 'شغّل أو اقفل النقاط وعجلة الحظ للعملا', 'Turn points and the lucky wheel on or off for customers'),
   'contests': _SectionInfo(Icons.emoji_events_rounded, Color(0xFFE8A317), 'المسابقات', 'Contests', 'أسئلة بجوايز للفريق أو العملاء: مدة، إشعار، نتايج وفايزين', 'Prize questions for the team or customers: timing, notification, results and winners'),
   'occasions': _SectionInfo(Icons.auto_awesome_rounded, Color(0xFFE8A317), 'إضافة مؤثر مناسبة على اللوجو', 'Add an occasion effect to the logo', 'رمضان والأعياد و٦ أكتوبر: ختم على الشعار وتهنئة بكود أو كوينات', 'Ramadan, Eids and 6 October: a logo stamp and a greeting with a code or coins'),
   'appearance': _SectionInfo(Icons.palette_outlined, Color(0xFF9E77ED), 'المظهر', 'Appearance', 'ألوان التطبيق وأيقونته وحركة الفتح', 'App colours, icon and opening animation'),
@@ -511,6 +513,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'mytarget' => const MyTargetPanel(),
                       'occasions' => const OccasionsPanel(),
                       'contests' => const ContestsPanel(),
+                      'features' => const FeatureSwitchesPanel(),
                       'repairs' => const _RepairsTab(),
                       'products' => const _ProductsTab(),
                       'reviews' => const _ReviewsTab(),
