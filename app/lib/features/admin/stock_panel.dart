@@ -536,6 +536,7 @@ class _NewTransferSheet extends ConsumerStatefulWidget {
 class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
   String? _from, _to;
   final Map<String, ({Map<String, dynamic> p, int qty, int max})> _picked = {};
+  final Map<String, TextEditingController> _qtyCtl = {};
   List<Map<String, dynamic>> _results = [];
   final _note = TextEditingController();
   final _search = TextEditingController();
@@ -544,6 +545,9 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
 
   @override
   void dispose() {
+    for (final c in _qtyCtl.values) {
+      c.dispose();
+    }
     _note.dispose();
     _search.dispose();
     super.dispose();
@@ -568,7 +572,9 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
   void _pick(Map<String, dynamic> p) {
     final max = _qtyHere(p);
     if (max <= 0) return;
-    setState(() => _picked['${p['product_id']}'] = (p: p, qty: 1, max: max));
+    final id = '${p['product_id']}';
+    _qtyCtl[id] ??= TextEditingController(text: '1');
+    setState(() => _picked[id] = (p: p, qty: int.tryParse(_qtyCtl[id]!.text) ?? 1, max: max));
   }
 
   Future<void> _send() async {
@@ -655,12 +661,28 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
               const Divider(),
               Text(ar ? 'اللي هتحوّله' : 'To send', style: const TextStyle(fontWeight: FontWeight.w800)),
               for (final e in _picked.entries)
-                Row(children: [
-                  Expanded(child: Text('${e.value.p['name_ar']}')),
-                  IconButton(onPressed: () => setState(() => e.value.qty > 1 ? _picked[e.key] = (p: e.value.p, qty: e.value.qty - 1, max: e.value.max) : _picked.remove(e.key)), icon: const Icon(Icons.remove_circle_outline)),
-                  Text('${e.value.qty}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                  IconButton(onPressed: e.value.qty < e.value.max ? () => setState(() => _picked[e.key] = (p: e.value.p, qty: e.value.qty + 1, max: e.value.max)) : null, icon: const Icon(Icons.add_circle_outline)),
-                ]),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(children: [
+                    Expanded(child: Text('${e.value.p['name_ar']}\n${ar ? 'المتاح في فرعك' : 'Available'}: ${e.value.max}', style: const TextStyle(height: 1.3))),
+                    SizedBox(
+                      width: 92,
+                      child: TextField(
+                        controller: _qtyCtl[e.key],
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                        decoration: InputDecoration(labelText: ar ? 'الكمية' : 'Qty', isDense: true, border: const OutlineInputBorder(), errorText: (e.value.qty < 1 || e.value.qty > e.value.max) ? (ar ? 'من 1 لـ ${e.value.max}' : '1 to ${e.value.max}') : null),
+                        onChanged: (v) => setState(() => _picked[e.key] = (p: e.value.p, qty: int.tryParse(v.trim()) ?? 0, max: e.value.max)),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: ar ? 'شيل' : 'Remove',
+                      onPressed: () => setState(() => _picked.remove(e.key)),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ]),
+                ),
               TextField(controller: _note, maxLength: 300, decoration: InputDecoration(labelText: ar ? 'ملاحظة (اختياري)' : 'Note (optional)', border: const OutlineInputBorder())),
             ],
             if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: BrandColors.error))),
@@ -668,7 +690,7 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: _busy || _from == null || _to == null || _picked.isEmpty ? null : _send,
+                onPressed: _busy || _from == null || _to == null || _picked.isEmpty || _picked.values.any((v) => v.qty < 1 || v.qty > v.max) ? null : _send,
                 icon: const Icon(Icons.send_rounded),
                 label: Text(ar ? 'ابعت التحويل' : 'Send transfer'),
               ),
