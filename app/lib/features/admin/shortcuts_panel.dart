@@ -1,8 +1,8 @@
 // "اختصارات": four quick jobs, each shown only to the people who hold its permission.
 //   استلام بضاعة (shortcut.goods_receipt) · جرد (shortcut.stocktake) · تعديل الأسعار (shortcut.price_edit) · تصدير البيانات (shortcut.export)
-import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,8 +66,8 @@ class ShortcutsPanel extends ConsumerWidget {
         card(Icons.sell_rounded, const Color(0xFFDC6803), 'تعديل الأسعار', 'Edit prices', 'غيّر سعر البيع بسرعة، وكل تغيير بيتسجل', 'Change the selling price fast, every change is logged',
             () => open(const _PriceSheet())),
       if (has('shortcut.export'))
-        card(Icons.download_rounded, const Color(0xFF1570EF), 'تصدير البيانات', 'Export data', 'نزّل المنتجات والمبيعات والطلبات والعملاء كملف CSV (بيفتح في إكسل)',
-            'Download products, sales, orders and customers as CSV (opens in Excel)', () => open(const _ExportSheet())),
+        card(Icons.download_rounded, const Color(0xFF1570EF), 'تصدير البيانات', 'Export data', 'نزّل المنتجات والمبيعات والطلبات والعملاء كملف إكسل',
+            'Download products, sales, orders and customers as an Excel file', () => open(const _ExportSheet())),
       const SizedBox(height: 8),
       if (has('shortcut.goods_receipt')) const _Log(title: ('آخر الاستلامات', 'Recent receipts'), kind: _LogKind.receipts),
       if (has('shortcut.stocktake')) const _Log(title: ('آخر الجرد', 'Recent stocktakes'), kind: _LogKind.stocktakes),
@@ -590,14 +590,11 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
 
   String _d(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  String _csv(List headers, List rows) {
-    String cell(Object? v) {
-      var s = v == null ? '' : '$v';
-      if (s.isNotEmpty && '=+-@'.contains(s[0]) && double.tryParse(s) == null) s = "'$s"; // a cell must not run as a spreadsheet formula
-      return s.contains(RegExp(r'[",\n\r]')) ? '"${s.replaceAll('"', '""')}"' : s;
-    }
-
-    return [headers, ...rows].map((r) => (r as List).map(cell).join(',')).join('\r\n');
+  CellValue _cell(Object? v) {
+    if (v == null) return TextCellValue('');
+    if (v is int) return IntCellValue(v);
+    if (v is num) return DoubleCellValue(v.toDouble());
+    return TextCellValue('$v');
   }
 
   Future<void> _export() async {
@@ -609,10 +606,19 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
         if (mounted) showSnack(context, _t(context, 'مفيش بيانات في الفترة دي', 'No data in this period'));
         return;
       }
-      final text = '﻿${_csv(r['headers'] as List, rows)}'; // BOM so Excel reads Arabic correctly
+      final names = {'products': 'المنتجات', 'pos_sales': 'مبيعات الكاشير', 'orders': 'الطلبات', 'customers': 'العملاء'};
+      final excel = Excel.createExcel();
+      final sheetName = names[_kind]!;
+      final sheet = excel[sheetName];
+      excel.setDefaultSheet(sheetName);
+      if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+      sheet.appendRow([for (final h in r['headers'] as List) TextCellValue('$h')]);
+      for (final row in rows) {
+        sheet.appendRow([for (final v in row as List) _cell(v)]);
+      }
       final stamp = _kind == 'products' || _kind == 'customers' ? _d(DateTime.now()) : '${_d(_from)}_${_d(_to)}';
       if (!mounted) return;
-      await deliverFile(context, Uint8List.fromList(utf8.encode(text)), 'hato-$_kind-$stamp.csv', 'text/csv');
+      await deliverFile(context, Uint8List.fromList(excel.save()!), 'hato-$_kind-$stamp.xlsx', xlsxMime);
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
     } finally {
@@ -655,7 +661,7 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
               style: const TextStyle(color: BrandColors.warning, fontSize: 13)),
         ],
         const SizedBox(height: 8),
-        Text(_t(context, 'الملف CSV بيفتح في إكسل. كل تصدير بيتسجل باسمك.', 'A CSV file that opens in Excel. Every export is logged under your name.'), style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
+        Text(_t(context, 'الملف إكسل (.xlsx). كل تصدير بيتسجل باسمك.', 'An Excel (.xlsx) file. Every export is logged under your name.'), style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
       ],
       bottom: FilledButton.icon(
         onPressed: _busy ? null : _export,
