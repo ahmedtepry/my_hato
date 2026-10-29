@@ -24,15 +24,14 @@ jobs:
       - name: Build Windows app
         working-directory: app
         shell: bash
-        env:
-          # local_auth_windows uses the old <experimental/coroutine>, which the newest Visual Studio rejects unless silenced
-          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
         run: |
           exec > >(tee ../build-win.log) 2>&1
           flutter --version
           flutter config --enable-windows-desktop
           flutter create --platforms=windows --org com.myhato --project-name myhato .
           rm -f test/widget_test.dart
+          # local_auth_windows uses the old <experimental/coroutine>, which the newest Visual Studio rejects unless silenced
+          sed -i '/^project(/a add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)' windows/CMakeLists.txt
           mkdir -p assets/google_fonts
           for w in Regular Medium Bold ExtraBold Black; do
             curl -sSfL "https://github.com/google/fonts/raw/main/ofl/tajawal/Tajawal-$w.ttf" -o "assets/google_fonts/Tajawal-$w.ttf" || echo "WARN: Tajawal-$w failed"
