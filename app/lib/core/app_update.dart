@@ -58,11 +58,12 @@ class AppUpdateController extends Notifier<AppUpdateState> {
     state = AppUpdateState(available: state.available, checking: true);
     try {
       final db = ref.read(supabaseProvider);
-      if (db.auth.currentUser == null) {
+      // the customer app asks before anyone signs in (public info); the Windows team app needs a signed-in member
+      if (!_isAndroidApp && db.auth.currentUser == null) {
         state = const AppUpdateState();
         return;
       }
-      final rows = await db.rpc('latest_app_update', params: {'p_platform': _updatePlatform}) as List? ?? const [];
+      final rows = (_isAndroidApp ? await db.rpc('latest_android_update') : await db.rpc('latest_app_update', params: {'p_platform': 'windows'})) as List? ?? const [];
       AppUpdateInfo? info;
       if (rows.isNotEmpty) {
         final r = Map<String, dynamic>.from(rows.first as Map);
@@ -300,10 +301,29 @@ class AppUpdateBanner extends ConsumerStatefulWidget {
   ConsumerState<AppUpdateBanner> createState() => _AppUpdateBannerState();
 }
 
-class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> {
+class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> with WidgetsBindingObserver {
   double? _progress;
   String? _msg;
   int? _hidden; // the build the member dismissed
+  bool _prompt = true; // the full "update the app" card, shown once when the app opens
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // coming back to the app: look for a newer build again
+    if (state == AppLifecycleState.resumed && _isAndroidApp) ref.read(appUpdateProvider.notifier).check();
+  }
 
   Future<void> _go(AppUpdateInfo info) async {
     final ar = context.isAr;
@@ -335,10 +355,54 @@ class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> {
   Widget build(BuildContext context) {
     if (!_isAndroidApp) return const SizedBox.shrink();
     final info = ref.watch(appUpdateProvider).available;
-    if (info == null || _hidden == info.build) return const SizedBox.shrink();
+    if (info == null) return const SizedBox.shrink();
     final ar = context.isAr;
     final busy = _progress != null;
-    return SafeArea(
+    if (_prompt) {
+      // full-screen card when the app opens with an old version
+      return Material(
+        color: Colors.black54,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              elevation: 8,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.system_update_alt_rounded, size: 54, color: BrandColors.warning),
+                  const SizedBox(height: 12),
+                  Text(ar ? 'تحديث جديد للتطبيق' : 'A new version is ready', textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+                  const SizedBox(height: 8),
+                  Text(ar ? 'فيه نسخة أحدث فيها تحسينات وإصلاحات. اضغط تحديث وهتتثبّت فوق النسخة الحالية، وبياناتك زي ما هي.' : 'A newer version with improvements is available. Tap Update to install it over this one; your data stays.',
+                      textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, height: 1.6, color: BrandColors.gray)),
+                  if (busy) ...[
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(value: (_progress ?? 0) >= 1 ? null : _progress),
+                    const SizedBox(height: 6),
+                    Text(ar ? 'بينزّل ${((_progress ?? 0) * 100).round()}%' : 'Downloading ${((_progress ?? 0) * 100).round()}%', style: const TextStyle(fontSize: 13)),
+                  ],
+                  if (_msg != null) ...[
+                    const SizedBox(height: 10),
+                    Text(_msg!, textAlign: TextAlign.center, style: const TextStyle(color: BrandColors.error, fontSize: 13)),
+                  ],
+                  const SizedBox(height: 18),
+                  Row(children: [
+                    Expanded(child: OutlinedButton(onPressed: busy ? null : () => setState(() => _prompt = false), child: Text(ar ? 'بعدين' : 'Later'))),
+                    const SizedBox(width: 10),
+                    Expanded(flex: 2, child: FilledButton.icon(onPressed: busy ? null : () => _go(info), icon: const Icon(Icons.download_rounded), label: Text(ar ? 'تحديث' : 'Update'))),
+                  ]),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    if (_hidden == info.build) return const SizedBox.shrink();
+    return Align(alignment: Alignment.topCenter, child: SafeArea(
       bottom: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
@@ -373,6 +437,6 @@ class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> {
           ),
         ),
       ),
-    );
+    ));
   }
 }

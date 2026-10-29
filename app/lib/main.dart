@@ -183,7 +183,7 @@ class MyHatoApp extends ConsumerWidget {
           // wide desktop window: keep the console in a comfortable centred column
           app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chatOpen ? 1100 + chatPanelSpace : 1100), child: app)));
         }
-        if (!AppConfig.teamOnly) app = Stack(children: [Positioned.fill(child: app), const Positioned(top: 0, left: 0, right: 0, child: AppUpdateBanner())]);
+        if (!AppConfig.teamOnly) app = Stack(children: [Positioned.fill(child: app), const Positioned.fill(child: AppUpdateBanner())]);
         return applyDarkMode(dark, app);
       },
     );
