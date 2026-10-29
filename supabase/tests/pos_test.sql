@@ -288,7 +288,7 @@ reset role;
 -- ---------- 0066: the nine formerly "coming soon" permissions are real
 reset role;
 select public._expect('only the shortcuts placeholders are inert', $q$select 1/(case when exists (select 1 from public.permission_catalog where inert and grp <> 'shortcuts') then 0 else 1 end)$q$, null);
-select public._expect('15 shortcut placeholders, none given to any role', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'shortcuts' and inert) = 15 and not exists (select 1 from public.role_permissions where permission like 'shortcut.%') then 1 else 0 end)$q$, null);
+select public._expect('15 shortcuts: 4 live, 11 placeholders nobody holds', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'shortcuts') = 15 and (select count(*) from public.permission_catalog where grp = 'shortcuts' and inert) = 11 and not exists (select 1 from public.role_permissions rp join public.permission_catalog c using (permission) where c.inert) then 1 else 0 end)$q$, null);
 select public._expect('stock and wheel permissions have a displayed group', $q$select 1/(case when (select count(*) from public.permission_catalog where permission in ('stock.view','stock.others','wheel.manage','features.manage','contest.manage') and grp in ('stock','extras')) = 5 then 1 else 0 end)$q$, null);
 select public._expect('owner has every new permission', $q$select 1/(case when (select count(*) from public.role_permissions where role = 'owner' and permission in ('customers.review','cancel_requests.decide','coupons.manage','notifications.broadcast','reviews.moderate','audit.export','payments.manage','roles.assign','branches.manage')) = 9 then 1 else 0 end)$q$, null);
 select public._expect('manager inherited coupons.manage from orders.manage', $q$select 1/(case when exists (select 1 from public.role_permissions where role='manager' and permission='coupons.manage') then 1 else 0 end)$q$, null);
@@ -666,6 +666,41 @@ select public._expect('stock transfer notices open the stock section', $q$select
 select set_config('request.jwt.claim.sub', :'CUST2', false); set role authenticated;
 select public._expect('a customer with no purchase cannot spin', $q$select public.wheel_spin()$q$, 'NEEDS_ORDER');
 select public._expect('the screen tells him to buy first', $q$select 1/(case when public.wheel_state()->>'block' = 'NEEDS_ORDER' then 1 else 0 end)$q$, null);
+-- ---- shortcuts: goods receipt, stocktake, price edit, export ----
+reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
+select public._expect('a cashier cannot receive goods', $q$select public.goods_receipt_create('م', null, '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb)$q$, 'FORBIDDEN');
+select public._expect('a cashier cannot export', $q$select public.export_data('products')$q$, 'FORBIDDEN');
+select public._expect('a cashier cannot edit prices', $q$select public.product_price_set('d0000000-0000-0000-0000-000000000003', 100)$q$, 'FORBIDDEN');
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('a manager cannot receive into the warehouse', $q$select public.goods_receipt_create('مورد', null, '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb)$q$, 'FORBIDDEN');
+select public._expect('a manager cannot receive into another branch', $q$select public.goods_receipt_create('مورد', 'b0000000-0000-0000-0000-00000000000b', '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":1}]'::jsonb)$q$, 'FORBIDDEN');
+select public._expect('a manager cannot edit prices', $q$select public.product_price_set('d0000000-0000-0000-0000-000000000003', 100)$q$, 'FORBIDDEN');
+reset role; select coalesce(sum(quantity),0) as bq0 from public.branch_stock where product_id = 'd0000000-0000-0000-0000-000000000003' \gset
+select stock_quantity as tq0 from public.products where id = 'd0000000-0000-0000-0000-000000000003' \gset
+select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('a manager receives into his branch', $q$select public.goods_receipt_create('مورد تجريبي', 'b0000000-0000-0000-0000-00000000000a', '[{"product_id":"d0000000-0000-0000-0000-000000000003","qty":4}]'::jsonb)$q$, null);
+reset role;
+select public._expect('receipt added 4 to the store and 4 to the branch', format($q$select 1/(case when (select stock_quantity from public.products where id = 'd0000000-0000-0000-0000-000000000003') = %s + 4 and (select coalesce(sum(quantity),0) from public.branch_stock where product_id = 'd0000000-0000-0000-0000-000000000003') = %s + 4 then 1 else 0 end)$q$, :'tq0', :'bq0'), null);
+select public._expect('receipt is in the movements', $q$select 1/(case when exists (select 1 from public.inventory_movements where reason = 'restock' and note like 'استلام GR-%') then 1 else 0 end)$q$, null);
+select public._expect('owner was told', $q$select 1/(case when exists (select 1 from public.notifications where title_ar like '%بضاعة جديدة%') then 1 else 0 end)$q$, null);
+select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('stocktake rejects another branch', $q$select public.stocktake_apply('b0000000-0000-0000-0000-00000000000b', '[{"product_id":"d0000000-0000-0000-0000-000000000003","counted":1}]'::jsonb)$q$, 'FORBIDDEN');
+select public._expect('stocktake rejects a negative count', $q$select public.stocktake_apply('b0000000-0000-0000-0000-00000000000a', '[{"product_id":"d0000000-0000-0000-0000-000000000003","counted":-1}]'::jsonb)$q$, 'INVALID_INPUT');
+select public._expect('stocktake of 1 piece is applied', $q$select 1/(case when (public.stocktake_apply('b0000000-0000-0000-0000-00000000000a', '[{"product_id":"d0000000-0000-0000-0000-000000000003","counted":1}]'::jsonb)->>'changed')::int = 1 then 1 else 0 end)$q$, null);
+reset role;
+select public._expect('branch holds exactly the counted piece', $q$select 1/(case when (select quantity from public.branch_stock where branch_id = 'b0000000-0000-0000-0000-00000000000a' and product_id = 'd0000000-0000-0000-0000-000000000003') = 1 then 1 else 0 end)$q$, null);
+select public._expect('the correction is in the movements', $q$select 1/(case when exists (select 1 from public.inventory_movements where reason = 'correction' and note like 'جرد ST-%') then 1 else 0 end)$q$, null);
+select public._expect('stocktake is recorded', $q$select 1/(case when exists (select 1 from public.stocktakes where number like 'ST-%' and lines = 1) then 1 else 0 end)$q$, null);
+select public._expect('branches never hold more than the store', $q$select 1/(case when (select coalesce(sum(quantity),0) from public.branch_stock where product_id = 'd0000000-0000-0000-0000-000000000003') <= (select stock_quantity from public.products where id = 'd0000000-0000-0000-0000-000000000003') then 1 else 0 end)$q$, null);
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner edits a price', $q$select public.product_price_set('d0000000-0000-0000-0000-000000000003', 123400)$q$, null);
+select public._expect('the compare price must be higher', $q$select public.product_price_set('d0000000-0000-0000-0000-000000000003', 123400, 100)$q$, 'INVALID_COMPARE');
+select public._expect('the price change is logged', $q$select 1/(case when jsonb_array_length(public.price_changes_list()) = 1 and (public.price_changes_list()->0->>'new_price_minor')::bigint = 123400 then 1 else 0 end)$q$, null);
+select public._expect('owner exports products', $q$select 1/(case when jsonb_array_length(public.export_data('products')->'rows') > 0 then 1 else 0 end)$q$, null);
+select public._expect('owner exports counter sales', $q$select 1/(case when jsonb_array_length(public.export_data('pos_sales', current_date - 5, current_date + 1)->'rows') > 0 then 1 else 0 end)$q$, null);
+select public._expect('owner exports orders and customers', $q$select public.export_data('orders'), public.export_data('customers')$q$, null);
+select public._expect('unknown export kind refused', $q$select public.export_data('secrets')$q$, 'INVALID_INPUT');
+
 reset role;
 reset role;
 \o

@@ -40,6 +40,7 @@ import 'appearance_panel.dart';
 import 'contests.dart';
 import 'feature_switches.dart';
 import 'stock_panel.dart';
+import 'shortcuts_panel.dart';
 import '../wheel/wheel_admin.dart';
 import 'occasions_panel.dart';
 import 'pos_panel.dart';
@@ -254,6 +255,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
+  'shortcuts': _SectionInfo(Icons.bolt_rounded, Color(0xFFDC6803), 'اختصارات', 'Shortcuts', 'استلام بضاعة، جرد، تعديل أسعار، وتصدير بيانات', 'Receive goods, stocktake, edit prices and export data'),
   'stock': _SectionInfo(Icons.warehouse_rounded, Color(0xFF0E9384), 'مخزن', 'Stock', 'أرصدة مخازن الفروع، توزيع المنتجات، وتحويلها بين الفروع بتأكيد الاستلام', 'Branch store balances, allocation and transfers between branches with receipt confirmation'),
   'wheel': _SectionInfo(Icons.casino_rounded, Color(0xFFE11D48), 'عجلة الحظ', 'Lucky wheel', 'اتحكم في خانات العجلة وصعوبتها وسلّم الهدايا', 'Edit the wheel slices and difficulty and hand over gifts'),
   'features': _SectionInfo(Icons.toggle_on_rounded, Color(0xFF12B76A), 'مفاتيح التشغيل', 'Feature switches', 'شغّل أو اقفل النقاط وعجلة الحظ للعملا', 'Turn points and the lucky wheel on or off for customers'),
@@ -541,6 +543,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'features' => const FeatureSwitchesPanel(),
                       'wheel' => const WheelAdminPanel(),
                       'stock' => const StockPanel(),
+                      'shortcuts' => const ShortcutsPanel(),
                       'repairs' => const _RepairsTab(),
                       'products' => const _ProductsTab(),
                       'reviews' => const _ReviewsTab(),
