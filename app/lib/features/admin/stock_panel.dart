@@ -29,6 +29,8 @@ String _stockError(BuildContext c, Object e) {
 
 final _viewBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_view_branches')));
 final _myBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_my_branches')));
+final _whereProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) async =>
+    Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('stock_product_where', params: {'p_product': id}) as Map));
 final _transfersProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('stock_transfers_list')));
 
 class StockPanel extends ConsumerStatefulWidget {
@@ -124,7 +126,8 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
   @override
   Widget build(BuildContext context) {
     final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>[];
-    final branches = ref.watch(_viewBranchesProvider).valueOrNull ?? const [];
+    final seeOthers = perms.contains('stock.others');
+    final branches = (seeOthers ? ref.watch(_viewBranchesProvider) : ref.watch(_myBranchesProvider)).valueOrNull ?? const <Map<String, dynamic>>[];
     final names = {for (final b in branches) '${b['id']}': _t(context, '${b['name_ar']}', '${b['name_en']}')};
     return Column(children: [
       Padding(
@@ -163,16 +166,18 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
 
   Widget _productCard(BuildContext context, Map<String, dynamic> p, Map<String, String> names, Iterable<String> perms, List<Map<String, dynamic>> branches) {
     final bs = _maps(p['branches']);
-    final unalloc = (p['unallocated'] as num?)?.toInt() ?? 0;
+    final unalloc = (p['unallocated'] as num?)?.toInt();
     return Card(
-      child: Padding(
+      child: InkWell(
+       onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _WhereSheet(product: p)),
+       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(child: Text(_t(context, '${p['name_ar']}', '${p['name_en']}'), style: const TextStyle(fontWeight: FontWeight.w800))),
-            Text('${p['total']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            if (p['total'] != null) Text('${p['total']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           ]),
-          Text('${p['sku']} · ${_t(context, 'الإجمالي في المتجر', 'store total')}', style: Theme.of(context).textTheme.bodySmall),
+          Text('${p['sku']}${p['total'] != null ? ' · ${_t(context, 'الإجمالي في المتجر', 'store total')}' : ''}', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 8),
           Wrap(spacing: 6, runSpacing: 6, children: [
             for (final b in bs)
@@ -181,18 +186,22 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
                 avatar: const Icon(Icons.store_mall_directory_outlined, size: 16),
                 label: Text('${names['${b['branch_id']}'] ?? '—'}: ${b['qty']}'),
               ),
-            Chip(
-              visualDensity: VisualDensity.compact,
-              backgroundColor: unalloc > 0 ? BrandColors.warning.withValues(alpha: .15) : null,
-              label: Text(_t(context, 'غير موزّع: $unalloc', 'Unallocated: $unalloc')),
-            ),
+            if (unalloc != null)
+              Chip(
+                visualDensity: VisualDensity.compact,
+                avatar: const Icon(Icons.warehouse_outlined, size: 16),
+                backgroundColor: unalloc > 0 ? BrandColors.warning.withValues(alpha: .15) : null,
+                label: Text(_t(context, 'الوير هاوس: $unalloc', 'Warehouse: $unalloc')),
+              ),
+            if (bs.isEmpty && unalloc == null) Text(_t(context, 'مفيش منه في مخزن فرعك', 'None in your branch store'), style: Theme.of(context).textTheme.bodySmall),
           ]),
           if (perms.contains('stock.allocate') || perms.contains('stock.transfer'))
             Wrap(spacing: 8, children: [
-              if (perms.contains('stock.allocate')) TextButton.icon(onPressed: () => _allocate(p, branches), icon: const Icon(Icons.call_split_rounded, size: 18), label: Text(_t(context, 'وزّع على فرع', 'Allocate'))),
+              if (perms.contains('stock.allocate')) TextButton.icon(onPressed: () => _allocate(p, branches), icon: const Icon(Icons.call_split_rounded, size: 18), label: Text(_t(context, 'وزّع من الوير هاوس', 'Allocate from warehouse'))),
               if (perms.contains('stock.transfer')) TextButton.icon(onPressed: () => widget.onTransfer(p), icon: const Icon(Icons.swap_horiz_rounded, size: 18), label: Text(_t(context, 'حوّل', 'Transfer'))),
             ]),
         ]),
+       ),
       ),
     );
   }
@@ -240,11 +249,11 @@ class _AllocateDialogState extends ConsumerState<_AllocateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final unalloc = (widget.product['unallocated'] as num?)?.toInt() ?? 0;
+    final unalloc = (widget.product['unallocated'] as num?)?.toInt() ?? 0;   // allocators normally also see the warehouse
     return AlertDialog(
       title: Text(_t(context, 'توزيع ${widget.product['name_ar']}', 'Allocate ${widget.product['name_en']}')),
       content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(_t(context, 'غير موزّع دلوقتي: $unalloc', 'Unallocated now: $unalloc')),
+        if (widget.product['unallocated'] != null) Text(_t(context, 'في الوير هاوس دلوقتي: $unalloc', 'In the warehouse now: $unalloc')),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: _branch,
@@ -666,6 +675,57 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
             ),
             Text(ar ? 'القطع بتتشال من مخزن فرعك دلوقتي، والفرع التاني بيأكد استلامها.' : 'The pieces leave your store now; the other branch confirms receipt.', style: Theme.of(context).textTheme.bodySmall),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+
+/// Tap a product: where is it? His own branch first; the warehouse and the other branches only with the "see stock elsewhere" permission.
+class _WhereSheet extends ConsumerWidget {
+  const _WhereSheet({required this.product});
+  final Map<String, dynamic> product;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ar = context.isAr;
+    final fut = ref.watch(_whereProvider('${product['product_id']}'));
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        child: fut.when(
+          loading: () => const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator())),
+          error: (e, _) => Text(_stockError(context, e)),
+          data: (d) {
+            final bs = _maps(d['branches']);
+            final wh = (d['warehouse'] as num?)?.toInt();
+            final mine = bs.where((b) => b['mine'] == true).toList();
+            final others = bs.where((b) => b['mine'] != true).toList();
+            Widget row(IconData icon, String name, int qty, {bool strong = false, Color? color}) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(icon, color: color),
+                  title: Text(name, style: TextStyle(fontWeight: strong ? FontWeight.w800 : FontWeight.w500)),
+                  trailing: Text('$qty', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: qty == 0 ? BrandColors.gray : null)),
+                );
+            return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(ar ? '${d['name_ar']}' : '${d['name_en']}', style: Theme.of(context).textTheme.titleMedium),
+              Text('${d['sku']}', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 8),
+              Text(ar ? 'مخزن فرعك' : 'Your branch store', style: const TextStyle(fontWeight: FontWeight.w800)),
+              if (mine.isEmpty) Text(ar ? 'مفيش.' : 'None.'),
+              for (final b in mine) row(Icons.store_mall_directory_rounded, ar ? '${b['name_ar']}' : '${b['name_en']}', (b['qty'] as num).toInt(), strong: true, color: BrandColors.success),
+              const Divider(),
+              if (d['can_see_others'] == true) ...[
+                Text(ar ? 'المتاح في أماكن تانية' : 'Available elsewhere', style: const TextStyle(fontWeight: FontWeight.w800)),
+                if (wh != null) row(Icons.warehouse_rounded, ar ? 'الوير هاوس' : 'Warehouse', wh, color: BrandColors.warning),
+                for (final b in others) row(Icons.store_outlined, ar ? '${b['name_ar']}' : '${b['name_en']}', (b['qty'] as num).toInt()),
+                if (d['total'] != null) Text(ar ? 'إجمالي المتجر: ${d['total']}' : 'Store total: ${d['total']}', style: Theme.of(context).textTheme.bodySmall),
+              ] else
+                Text(ar ? 'بتشوف مخزون فرعك بس. لو محتاج منتج مش عندك، اسأل الإدارة.' : 'You see your own branch store only. Ask the management if you need a product you do not have.', style: Theme.of(context).textTheme.bodySmall),
+            ]);
+          },
         ),
       ),
     );

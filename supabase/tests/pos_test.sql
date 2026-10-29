@@ -643,6 +643,13 @@ reset role;
 select public._expect('cancel returned the piece', $q$select 1/(case when (select quantity from public.branch_stock where branch_id = 'b0000000-0000-0000-0000-00000000000a' and product_id = 'd0000000-0000-0000-0000-000000000003') = 2 then 1 else 0 end)$q$, null);
 update public.products set stock_quantity = stock_quantity - 3 where id = 'd0000000-0000-0000-0000-000000000003';
 select public._expect('a sale beyond the free stock takes from the biggest branch', $q$select 1/(case when (select coalesce(sum(quantity),0) from public.branch_stock where product_id = 'd0000000-0000-0000-0000-000000000003') = 2 and (select quantity from public.branch_stock where branch_id = 'b0000000-0000-0000-0000-00000000000b' and product_id = 'd0000000-0000-0000-0000-000000000003') = 0 then 1 else 0 end)$q$, null);
+
+-- ---- warehouse view ----
+reset role; select set_config('request.jwt.claim.sub', :'MGR', false); set role authenticated;
+select public._expect('a branch member sees his branch only', $q$select 1/(case when jsonb_array_length(public.stock_product_where('d0000000-0000-0000-0000-000000000003')->'branches') = 1 and not (public.stock_product_where('d0000000-0000-0000-0000-000000000003')->>'can_see_others')::boolean and public.stock_product_where('d0000000-0000-0000-0000-000000000003')->'warehouse' = 'null'::jsonb then 1 else 0 end)$q$, null);
+select public._expect('his list hides the store totals', $q$select 1/(case when (select bool_and(e->'total' = 'null'::jsonb) from jsonb_array_elements(public.stock_overview(null, 'موبايل')) e) then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('the owner sees the warehouse and every branch', $q$select 1/(case when (public.stock_product_where('d0000000-0000-0000-0000-000000000003')->>'can_see_others')::boolean and (public.stock_product_where('d0000000-0000-0000-0000-000000000003')->>'warehouse') is not null and jsonb_array_length(public.stock_product_where('d0000000-0000-0000-0000-000000000003')->'branches') >= 2 then 1 else 0 end)$q$, null);
 reset role;
 reset role;
 \o
