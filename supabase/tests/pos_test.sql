@@ -546,6 +546,11 @@ select public._expect('owner announces the winner', $q$select 1/(case when publi
 select public._expect('the winner is the best entry', $q$select 1/(case when (public.contest_results((select id from public._ct))->0->>'is_winner')::boolean then 1 else 0 end)$q$, null);
 reset role; select set_config('request.jwt.claim.sub', :'CASH', false); set role authenticated;
 select public._expect('after closing it is no longer offered', $q$select 1/(case when jsonb_array_length(public.contest_active()) = 0 then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('the owner sees the winner with purchases info', $q$select 1/(case when jsonb_array_length(public.contest_winners((select id from public._ct))) = 1 and (public.contest_winners((select id from public._ct))->0) ? 'shop_total_minor' then 1 else 0 end)$q$, null);
+select public._expect('winner gets a pickup message', $q$select public.contest_message_winner((public.contest_winners((select id from public._ct))->0->>'entry_id')::uuid, 'pickup', 'بعد الظهر')$q$, null);
+select public._expect('a custom message needs text', $q$select public.contest_message_winner((public.contest_winners((select id from public._ct))->0->>'entry_id')::uuid, 'custom', null)$q$, 'INVALID_INPUT');
+select public._expect('a non-winner cannot be messaged', $q$select public.contest_message_winner(gen_random_uuid(), 'pickup')$q$, 'NOT_FOUND');
 reset role;
 \o
 -- ---------- report

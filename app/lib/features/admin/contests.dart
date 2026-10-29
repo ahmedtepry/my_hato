@@ -7,7 +7,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/errors.dart';
+import '../../core/money.dart';
 import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
@@ -560,6 +563,12 @@ class _ContestTile extends ConsumerWidget {
                 icon: const Icon(Icons.leaderboard_rounded, size: 18),
                 label: Text(_t(context, 'النتايج', 'Results')),
               ),
+            if (state != 'draft' && ((contest['winners'] as num?)?.toInt() ?? 0) > 0)
+              FilledButton.tonalIcon(
+                onPressed: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _WinnersSheet(contestId: id, title: '${contest['title']}')),
+                icon: const Icon(Icons.emoji_events_rounded, size: 18),
+                label: Text(_t(context, 'الفايزين (${contest['winners']})', 'Winners (${contest['winners']})')),
+              ),
             if (state == 'running')
               OutlinedButton.icon(
                 onPressed: () async {
@@ -985,6 +994,206 @@ class _ContestEditorState extends ConsumerState<_ContestEditor> {
               labelText: q.kind == 'choice' ? _t(context, 'الإجابة الصح (انسخها زي الاختيار بالظبط)', 'Right answer (exactly as one option)') : _t(context, 'الإجابة الصح (اختياري، افصل البدائل بـ |)', 'Right answer (optional, separate alternatives with |)'),
               helperText: _t(context, 'لو سبتها فاضية، إنت اللي بتختار الفايزين بنفسك.', 'Leave it empty to pick the winners yourself.'),
               border: const OutlineInputBorder(),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+
+class _WinnersSheet extends ConsumerStatefulWidget {
+  const _WinnersSheet({required this.contestId, required this.title});
+  final String contestId;
+  final String title;
+  @override
+  ConsumerState<_WinnersSheet> createState() => _WinnersSheetState();
+}
+
+class _WinnersSheetState extends ConsumerState<_WinnersSheet> {
+  List<Map<String, dynamic>>? _rows;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = _maps(await ref.read(supabaseProvider).rpc('contest_winners', params: {'p_id': widget.contestId}));
+      if (mounted) setState(() => _rows = r);
+    } catch (e) {
+      if (mounted) setState(() => _error = _contestError(context, e));
+    }
+  }
+
+  Future<void> _message(Map<String, dynamic> w) async {
+    final sent = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _MessageWinnerSheet(winner: w));
+    if (sent == true && mounted) showSnack(context, _t(context, 'الرسالة وصلت للفايز', 'Message sent'));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lang = context.lang;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_t(context, 'فايزين: ${widget.title}', 'Winners: ${widget.title}'), style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: BrandColors.error))
+            else if (_rows == null)
+              const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+            else if (_rows!.isEmpty)
+              Padding(padding: const EdgeInsets.all(16), child: Text(_t(context, 'لسه محدّش فاز.', 'No winners yet.')))
+            else
+              Flexible(
+                child: ListView(shrinkWrap: true, children: [
+                  for (final w in _rows!) _winnerCard(context, w, lang),
+                ]),
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _winnerCard(BuildContext context, Map<String, dynamic> w, String lang) {
+    int n(String k) => (w[k] as num?)?.toInt() ?? 0;
+    final phone = (w['phone'] as String?)?.trim() ?? '';
+    final email = (w['email'] as String?)?.trim() ?? '';
+    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final wa = digits.startsWith('0') ? '2$digits' : digits;
+    final recent = _maps(w['recent']);
+    final secs = (w['seconds'] as num?)?.toInt();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.emoji_events_rounded, color: BrandColors.warning),
+            const SizedBox(width: 8),
+            Expanded(child: Text('${w['name']}${w['is_team'] == true ? _t(context, ' (فريق)', ' (team)') : ''}', style: const TextStyle(fontWeight: FontWeight.w700))),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+            _t(context, 'إجابات صح: ${n('correct_count')}/${n('graded_total')}${secs != null ? ' · ${secs}ث' : ''}', 'Correct: ${n('correct_count')}/${n('graded_total')}${secs != null ? ' · ${secs}s' : ''}'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          if (phone.isNotEmpty) SelectableText(_t(context, 'موبايل: $phone', 'Phone: $phone')),
+          if (email.isNotEmpty) SelectableText(_t(context, 'إيميل: $email', 'Email: $email')),
+          const Divider(height: 18),
+          Text(_t(context, 'مشترياته من المحل', 'Purchases from the shop'), style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(_t(context, 'أونلاين: ${n('orders_count')} طلب · ${formatEgp(n('orders_total_minor'), lang)}', 'Online: ${n('orders_count')} orders · ${formatEgp(n('orders_total_minor'), lang)}')),
+          Text(_t(context, 'من المحل (كاشير): ${n('shop_count')} فاتورة · ${formatEgp(n('shop_total_minor'), lang)}', 'In shop: ${n('shop_count')} sales · ${formatEgp(n('shop_total_minor'), lang)}')),
+          if (recent.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            for (final r in recent)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 1),
+                child: Text(
+                  '${r['kind'] == 'online' ? _t(context, 'أونلاين', 'Online') : _t(context, 'المحل', 'Shop')} · ${r['ref']} · ${formatEgp((r['amount_minor'] as num?)?.toInt(), lang)} · ${'${r['when_at']}'.split('T').first}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 4, children: [
+            FilledButton.icon(onPressed: () => _message(w), icon: const Icon(Icons.notifications_active_rounded, size: 18), label: Text(_t(context, 'ابعتله رسالة', 'Send message'))),
+            if (phone.isNotEmpty) OutlinedButton.icon(onPressed: () => launchUrl(Uri.parse('tel:$phone')), icon: const Icon(Icons.call_rounded, size: 18), label: Text(_t(context, 'اتصل', 'Call'))),
+            if (digits.isNotEmpty) OutlinedButton.icon(onPressed: () => launchUrl(Uri.parse('https://wa.me/$wa'), mode: LaunchMode.externalApplication), icon: const Icon(Icons.chat_rounded, size: 18), label: const Text('WhatsApp')),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+class _MessageWinnerSheet extends ConsumerStatefulWidget {
+  const _MessageWinnerSheet({required this.winner});
+  final Map<String, dynamic> winner;
+  @override
+  ConsumerState<_MessageWinnerSheet> createState() => _MessageWinnerSheetState();
+}
+
+class _MessageWinnerSheetState extends ConsumerState<_MessageWinnerSheet> {
+  String _mode = 'pickup';
+  final _text = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(supabaseProvider).rpc('contest_message_winner', params: {'p_entry': widget.winner['entry_id'], 'p_mode': _mode, 'p_text': _text.text.trim().isEmpty ? null : _text.text.trim()});
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = _contestError(context, e);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_t(context, 'رسالة لـ ${widget.winner['name']}', 'Message to ${widget.winner['name']}'), style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: [
+              ButtonSegment(value: 'pickup', label: Text(_t(context, 'يستلمها', 'Pick up'))),
+              ButtonSegment(value: 'delivery', label: Text(_t(context, 'نبعتهاله', 'We send'))),
+              ButtonSegment(value: 'custom', label: Text(_t(context, 'مكتوبة', 'Custom'))),
+            ],
+            selected: {_mode},
+            onSelectionChanged: (s) => setState(() => _mode = s.first),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            switch (_mode) {
+              'pickup' => _t(context, 'هيوصله إشعار: مبروك كسبت الجايزة، تعالى استلمها من المحل.', 'He gets: congratulations, come and pick up your prize from the shop.'),
+              'delivery' => _t(context, 'هيوصله إشعار: مبروك كسبت الجايزة، هنبعتهالك ونكلّمك قبل ما توصل.', 'He gets: congratulations, we will send your prize and call you first.'),
+              _ => _t(context, 'اكتب الرسالة بنفسك.', 'Write the message yourself.'),
+            },
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _text,
+            maxLength: 400,
+            maxLines: 3,
+            decoration: InputDecoration(labelText: _mode == 'custom' ? _t(context, 'الرسالة', 'Message') : _t(context, 'إضافة (اختياري)', 'Extra text (optional)'), border: const OutlineInputBorder()),
+          ),
+          if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_error!, style: const TextStyle(color: BrandColors.error))),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _busy ? null : _send,
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: Text(_t(context, 'ابعت الإشعار', 'Send notification')),
             ),
           ),
         ]),

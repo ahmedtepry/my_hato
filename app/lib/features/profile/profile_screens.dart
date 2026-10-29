@@ -142,7 +142,9 @@ class ProfileScreen extends ConsumerWidget {
                                       : context.tr('account_not_verified'),
                           color: verified ? BrandColors.success : (review == 'rejected' ? BrandColors.error : BrandColors.warning),
                         ),
-                        if (customer?['customer_code'] != null)
+                        if (ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false)
+                          StatusChip(label: context.isAr ? 'مالك المحل 👑' : 'Shop owner 👑', color: BrandColors.navy)
+                        else if (customer?['customer_code'] != null)
                           StatusChip(label: '${context.tr('customer_code')}: ${customer!['customer_code']}', color: BrandColors.navy),
                       ]),
                       Text(context.tr('member_since', {'date': DateFormat.yMMMd(context.lang).format(created)}),

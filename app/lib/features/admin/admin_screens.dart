@@ -786,7 +786,9 @@ class _WelcomeToastState extends ConsumerState<_WelcomeToast> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                   child: Text(
-                    first.isEmpty ? _t(context, 'أهلاً بيك 👋', 'Welcome 👋') : _t(context, 'أهلاً يا $first 👋', 'Welcome, $first 👋'),
+                    (ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false)
+                        ? (first.isEmpty ? _t(context, 'أهلاً بيك يا مالك المحل 👑', 'Welcome, shop owner 👑') : _t(context, 'أهلاً بيك يا باشا $first 👑 المحل بتاعك', 'Welcome back, boss $first 👑'))
+                        : first.isEmpty ? _t(context, 'أهلاً بيك 👋', 'Welcome 👋') : _t(context, 'أهلاً يا $first 👋', 'Welcome, $first 👋'),
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
                   ),
                 ),
