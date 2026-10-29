@@ -264,20 +264,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           branches.when(
             loading: () => const Skeleton(height: 80),
             error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(branchesProvider)),
-            data: (list) => Column(children: [
-              if (list.isEmpty)
-                Card(child: ListTile(leading: const Icon(Icons.store_mall_directory_outlined), title: Text(context.tr('checkout_no_branch')))),
-              for (final b in list)
-                Card(
-                  child: RadioListTile<String>(
-                    value: b['id'] as String,
-                    groupValue: _branchId,
-                    onChanged: (v) => setState(() => _branchId = v),
-                    title: Text(context.pick(b, 'name'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: Text([context.pick(b, 'address'), b['phone'] ?? '', context.pick(b, 'hours')].where((s) => s.toString().isNotEmpty).join('\n')),
+            // the customer does not pick a branch: the order goes to the default one and the team calls to confirm the place and time
+            data: (list) => list.isEmpty
+                ? Card(child: ListTile(leading: const Icon(Icons.store_mall_directory_outlined), title: Text(context.tr('checkout_no_branch'))))
+                : Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.storefront_outlined, color: BrandColors.electric),
+                      title: Text(context.isAr ? 'هتستلم طلبك من المحل' : 'You will pick the order up at the shop', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text(context.isAr ? 'هنكلمك نأكدلك مكان الاستلام وميعاده.' : 'We will call you to confirm the pickup place and time.'),
+                    ),
                   ),
-                ),
-            ]),
           )
         else
           addresses.when(
