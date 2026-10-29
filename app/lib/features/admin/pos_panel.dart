@@ -582,6 +582,7 @@ class _RegisterState extends ConsumerState<_Register> {
             onPressed: _unknown ? null : () => showDialog<void>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((_) => ref.invalidate(posShiftProvider)),
           ),
           AssistantButton(shiftId: _shiftId),
+          DailyChallenge(sales: ((s['sales_count'] as num?) ?? 0).toInt()),
           FilledButton.tonalIcon(
             icon: const Icon(Icons.lock_clock_outlined, size: 18),
             label: Text(_t(context, 'إقفال الوردية', 'Close shift')),

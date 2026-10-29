@@ -106,6 +106,8 @@ class StageController extends ChangeNotifier {
   final GlobalKey consoleKey = GlobalKey();
   final GlobalKey<RobotViewState> robotKey = GlobalKey<RobotViewState>();
   BuildContext? ctx;
+  bool sunrise = false; // opening: a small sun rises behind the robot
+  bool sleeping = false; // closing: the robot switches its lights off
   bool _dead = false;
   int _sayId = 0;
   final math.Random _rnd = math.Random();
@@ -124,6 +126,18 @@ class StageController extends ChangeNotifier {
 
   void setMood(RobotMood m) {
     mood = m;
+    _ping();
+  }
+
+  void rise() {
+    sunrise = true;
+    _ping();
+  }
+
+  /// The robot waves goodbye (already happy), then its lights go off one by one and the scene darkens.
+  void lightsOff() {
+    sleeping = true;
+    robotKey.currentState?.powerOff();
     _ping();
   }
 
@@ -349,33 +363,86 @@ class _RobotSceneState extends State<RobotScene> {
   @override
   Widget build(BuildContext context) {
     widget.ctl.ctx = context;
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(center: Alignment(0, -.3), radius: 1.0, colors: [Color(0xFF16403F), Color(0xFF0A1C1F), Color(0xFF050D10)], stops: [0, .55, 1]),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-      child: ListenableBuilder(
-        listenable: widget.ctl,
-        builder: (_, __) => Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(
-            constraints: const BoxConstraints(minHeight: 64, maxWidth: 330),
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0x1A9FE7D6),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0x599FE7D6)),
-            ),
-            alignment: Alignment.center,
-            child: Text(widget.ctl.said.isEmpty ? ' ' : widget.ctl.said,
-                textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFDFFAF3), fontSize: 15, fontWeight: FontWeight.w600, height: 1.5)),
+    final ctl = widget.ctl;
+    return ListenableBuilder(
+      listenable: ctl,
+      builder: (_, __) => AnimatedContainer(
+        duration: const Duration(milliseconds: 1400),
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0, -.3),
+            radius: 1.0,
+            colors: ctl.sleeping ? const [Color(0xFF0B1516), Color(0xFF05090A), Color(0xFF020405)] : const [Color(0xFF16403F), Color(0xFF0A1C1F), Color(0xFF050D10)],
+            stops: const [0, .55, 1],
           ),
-          const SizedBox(height: 10),
-          SizedBox(width: widget.robotWidth, child: RobotView(key: widget.ctl.robotKey, mood: widget.ctl.mood)),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+        child: Stack(children: [
+          if (ctl.sunrise) const Positioned.fill(child: _Sunrise()),
+          Center(
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(
+                constraints: const BoxConstraints(minHeight: 64, maxWidth: 330),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0x1A9FE7D6),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0x599FE7D6)),
+                ),
+                alignment: Alignment.center,
+                child: Text(ctl.said.isEmpty ? ' ' : ctl.said,
+                    textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFDFFAF3), fontSize: 15, fontWeight: FontWeight.w600, height: 1.5)),
+              ),
+              const SizedBox(height: 10),
+              // on a problem the robot leans in towards the cashier
+              AnimatedScale(
+                scale: ctl.mood == RobotMood.worry ? 1.14 : 1.0,
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOutBack,
+                child: SizedBox(width: widget.robotWidth, child: RobotView(key: ctl.robotKey, mood: ctl.mood)),
+              ),
+            ]),
+          ),
         ]),
       ),
     );
   }
+}
+
+/// A small sun that rises behind the robot, with slowly turning rays.
+class _Sunrise extends StatelessWidget {
+  const _Sunrise();
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(seconds: 4),
+      curve: Curves.easeOutCubic,
+      builder: (_, v, __) => CustomPaint(painter: _SunPainter(v)),
+    );
+  }
+}
+
+class _SunPainter extends CustomPainter {
+  _SunPainter(this.p);
+  final double p;
+  @override
+  void paint(Canvas c, Size s) {
+    final center = Offset(s.width / 2, s.height * (1.05 - .5 * p));
+    final r = s.width * .24;
+    c.drawRect(Offset.zero & s, Paint()..shader = LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color.fromRGBO(255, 160, 60, .35 * p), const Color(0x00FFA03C)]).createShader(Offset.zero & s));
+    for (var i = 0; i < 14; i++) {
+      final a = i / 14 * 2 * math.pi + p * 1.5;
+      c.drawLine(center + Offset(math.cos(a), math.sin(a)) * (r * 1.2), center + Offset(math.cos(a), math.sin(a)) * (r * (1.9 + .2 * math.sin(a * 3))),
+          Paint()..color = Color.fromRGBO(255, 200, 90, .5 * p)..strokeWidth = 3..strokeCap = StrokeCap.round);
+    }
+    final rect = Rect.fromCircle(center: center, radius: r);
+    c.drawCircle(center, r, Paint()..shader = const RadialGradient(colors: [Color(0xFFFFF1B0), Color(0xFFFFB347), Color(0xFFFF8A3C)]).createShader(rect));
+  }
+
+  @override
+  bool shouldRepaint(covariant _SunPainter old) => old.p != p;
 }
 
 // ---------------------------------------------------------------- the robot itself
@@ -389,6 +456,12 @@ class RobotView extends StatefulWidget {
 class RobotViewState extends State<RobotView> with TickerProviderStateMixin {
   late final AnimationController _loop = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
   late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
+  late final AnimationController _dim = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400));
+
+  /// Lights go off one by one: eyes, chest, antenna, then the glow underneath.
+  void powerOff() {
+    if (mounted) _dim.forward(from: 0);
+  }
 
   /// A short glow in the head: something was taken in.
   void pulse() {
@@ -399,6 +472,7 @@ class RobotViewState extends State<RobotView> with TickerProviderStateMixin {
   void dispose() {
     _loop.dispose();
     _pulse.dispose();
+    _dim.dispose();
     super.dispose();
   }
 
@@ -406,14 +480,14 @@ class RobotViewState extends State<RobotView> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return AspectRatio(
       aspectRatio: 240 / 300,
-      child: CustomPaint(painter: _RobotPainter(_loop, _pulse, widget.mood)),
+      child: CustomPaint(painter: _RobotPainter(_loop, _pulse, _dim, widget.mood)),
     );
   }
 }
 
 class _RobotPainter extends CustomPainter {
-  _RobotPainter(this.t, this.pulse, this.mood) : super(repaint: Listenable.merge([t, pulse]));
-  final Animation<double> t, pulse;
+  _RobotPainter(this.t, this.pulse, this.dim, this.mood) : super(repaint: Listenable.merge([t, pulse, dim]));
+  final Animation<double> t, pulse, dim;
   final RobotMood mood;
 
   static const _line = Color(0xFF5F7679);
@@ -425,11 +499,17 @@ class _RobotPainter extends CustomPainter {
     c.save();
     c.scale(s);
     final ph = t.value * 2 * math.pi;
-    final work = mood == RobotMood.work;
+    final work = mood == RobotMood.work && dim.value < .3;
 
     // thruster glow under the robot
     final thr = Rect.fromCenter(center: const Offset(120, 284), width: 104 * (1 - .12 * math.sin(ph * 3)), height: 24);
-    c.drawOval(thr, Paint()..shader = const RadialGradient(colors: [Color(0xE67FF5DF), Color(0x007FF5DF)]).createShader(thr));
+    final d = dim.value;
+    final off = ((d - .75) / .25).clamp(0.0, 1.0); // the glow underneath goes out last
+    if (off < 1) {
+      c.saveLayer(thr.inflate(4), Paint()..color = Color.fromRGBO(255, 255, 255, 1 - off));
+      c.drawOval(thr, Paint()..shader = const RadialGradient(colors: [Color(0xE67FF5DF), Color(0x007FF5DF)]).createShader(thr));
+      c.restore();
+    }
 
     c.translate(0, math.sin(ph) * 5);
     final metal = (Rect r) => Paint()..shader = const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFF4F8F8), Color(0xFFC3D2D2), Color(0xFF8EA3A6)], stops: [0, .55, 1]).createShader(r);
@@ -487,11 +567,12 @@ class _RobotPainter extends CustomPainter {
           ..color = const Color(0xFF2DC4B2));
     final core = Rect.fromCircle(center: const Offset(120, 196), radius: 9);
     c.drawOval(core, Paint()..shader = const RadialGradient(colors: [Color(0xFFEAFFFA), Color(0xFF8FF3DC), Color(0xFF1FB89F)]).createShader(core));
+    if (d > .35) c.drawCircle(const Offset(120, 196), 26, Paint()..color = const Color(0xFF07181A).withValues(alpha: ((d - .35) / .25).clamp(0.0, 1.0))); // chest light off
     c.drawRRect(RRect.fromLTRBR(72, 238, 168, 244, const Radius.circular(3)), Paint()..color = const Color(0x805F7679));
 
     // head
     c.drawLine(const Offset(120, 22), const Offset(120, 44), Paint()..color = _line..strokeWidth = 4);
-    final glow = .55 + .45 * math.sin(ph * 4);
+    final glow = (.55 + .45 * math.sin(ph * 4)) * (1 - ((d - .55) / .2).clamp(0.0, 1.0));
     c.drawCircle(const Offset(120, 16), 14, Paint()..color = _mint.withValues(alpha: .25)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
     c.drawCircle(const Offset(120, 16), 9, Paint()..color = _mint.withValues(alpha: glow));
     for (final x in [52.0, 188.0]) {
@@ -518,6 +599,14 @@ class _RobotPainter extends CustomPainter {
     final p = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
+    if (d > .12) {
+      // eyes shut, a faint smile, then everything dark
+      final a = (1 - ((d - .3) / .3).clamp(0.0, 1.0)) * .9;
+      p..strokeWidth = 5..color = _mint.withValues(alpha: a);
+      c.drawLine(const Offset(86, 90), const Offset(108, 90), p);
+      c.drawLine(const Offset(132, 90), const Offset(154, 90), p);
+      c.drawPath(Path()..moveTo(108, 104)..quadraticBezierTo(120, 110, 132, 104), p..strokeWidth = 4);
+    } else
     switch (mood) {
       case RobotMood.idle:
       case RobotMood.work:

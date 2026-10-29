@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:io' show Platform, Process, ProcessStartMode, exit;
 import 'dart:math' as math;
+import 'dart:ui' show FontFeature;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+import 'cashier_assistant.dart';
 import 'pos_repository.dart';
 import 'shift_robot.dart';
 
@@ -98,6 +100,8 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
   double _elapsed = 0;
   Timer? _ticker;
   final List<String> _problems = [];
+  String _mag = ''; // the number under the magnifier when the robot finds a difference
+  int _scanFlag = -1; // which scanned invoice looks unusual (shown in orange)
 
   String get _uid => ref.read(currentUserProvider)?.id ?? '';
   String get _name => shiftUserName(ref.read(currentUserProvider));
@@ -230,6 +234,7 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
       _Step(4, _t(c, 'بختم التقرير النهائي…', 'Sealing the final report…'), _t(c, 'ختم التقرير', 'Seal the report'), 'seal report --final', _t(c, 'جاهز', 'ready')),
     ];
     _problems.clear();
+    _scanFlag = flagged > 0 ? 7 : -1;
     setState(() {
       _phase = _Phase.run;
       _elapsed = 0;
@@ -255,7 +260,9 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
       if (s.warn) {
         _problems.add('${s.note}: ${s.result}');
         ctl.setMood(RobotMood.worry);
-        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (s.code.startsWith('match') && mounted) setState(() => _mag = diff < 0 ? '-${_money(context, -diff)}' : '+${_money(context, diff)}');
+        await Future<void>.delayed(Duration(milliseconds: s.code.startsWith('match') ? 2600 : 600));
+        if (mounted) setState(() => _mag = '');
         ctl.setMood(RobotMood.work);
       }
       await Future<void>.delayed(Duration(milliseconds: s.seconds * 100));
@@ -296,11 +303,13 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
       });
       ctl.setMood(forced ? RobotMood.idle : RobotMood.happy);
       await ctl.say(forced ? _t(context, 'اتقفلت وسجّلت الفرق في التقرير. أشوفك بعدين.', 'Closed. I recorded the difference. See you later.') : _t(context, 'تم الإغلاق، كله مظبوط. أشوفك بعدين!', 'Closed, everything matches. See you later!'), ms: 36);
-      await Future<void>.delayed(const Duration(milliseconds: 1800));
+      await Future<void>.delayed(const Duration(milliseconds: 1600));
+      if (!mounted) return;
+      ctl.lightsOff(); // the lights go off one by one
+      await Future<void>.delayed(const Duration(milliseconds: 2600));
       if (!mounted) return;
       if (_isWindows) {
         setState(() => _phase = _Phase.pc);
-        ctl.setMood(RobotMood.idle);
         ctl.say(_t(context, 'البرنامج هيتقفل. تقفل الكمبيوتر بالمرة؟', 'The program will close. Turn the computer off too?'), ms: 30);
       } else {
         await _leave(false);
@@ -399,7 +408,12 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
         ]);
       case _Phase.run:
         return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          StageConsole(ctl: ctl, height: 250),
+          _ScanStrip(progress: ((_elapsed - 3) / 6).clamp(0.0, 1.0), flagged: _scanFlag),
+          const SizedBox(height: 10),
+          Stack(children: [
+            StageConsole(ctl: ctl, height: 235),
+            if (_mag.isNotEmpty) Positioned(top: 8, right: 8, child: _Magnifier(text: _mag)),
+          ]),
           const SizedBox(height: 12),
           LinearProgressIndicator(value: _elapsed / 30, minHeight: 6, borderRadius: BorderRadius.circular(3)),
           const SizedBox(height: 6),
@@ -495,7 +509,7 @@ class _OpenDialog extends StatefulWidget {
 class _OpenDialogState extends State<_OpenDialog> {
   final StageController ctl = StageController();
   String _verse = '', _source = '', _saying = '';
-  bool _ready = false;
+  bool _ready = false, _drawerOpen = false;
 
   @override
   void initState() {
@@ -520,6 +534,7 @@ class _OpenDialogState extends State<_OpenDialog> {
   Future<void> _play() async {
     final c = context;
     ctl.setMood(RobotMood.work);
+    ctl.rise();
     unawaited(ctl.say(_t(c, 'صباح الخير${widget.name.isEmpty ? '' : ' يا ${widget.name}'}. هجهّز الدرج.', 'Good morning${widget.name.isEmpty ? '' : ' ${widget.name}'}. Preparing your drawer.')));
     final lines = <(String, String)>[
       ('verify identity --user ${widget.name.isEmpty ? 'cashier' : widget.name}', _t(c, 'تمام', 'ok')),
@@ -532,6 +547,7 @@ class _OpenDialogState extends State<_OpenDialog> {
       final line = await ctl.typeLine(l.$1, ms: 9);
       await Future<void>.delayed(const Duration(milliseconds: 250));
       ctl.tail(line, l.$2);
+      if (l.$1.startsWith('open drawer') && mounted) setState(() => _drawerOpen = true);
     }
     if (!mounted) return;
     final w = TrustWords.today();
@@ -557,7 +573,11 @@ class _OpenDialogState extends State<_OpenDialog> {
         padding: const EdgeInsets.all(20),
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            StageConsole(ctl: ctl, height: 130),
+            Row(children: [
+              Expanded(child: StageConsole(ctl: ctl, height: 130)),
+              const SizedBox(width: 10),
+              _DrawerAnim(open: _drawerOpen),
+            ]),
             const SizedBox(height: 14),
             if (_verse.isNotEmpty)
               Container(
@@ -811,4 +831,264 @@ class _VerseSlideState extends State<_VerseSlide> {
       Text(_k, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFB9D8D1), fontSize: 15, decoration: TextDecoration.none)),
     ]);
   }
+}
+
+
+// ---------------------------------------------------------------- small animated pieces
+/// A row of invoices: a beam scans along it and each one gets a tick (orange for one that looks unusual).
+class _ScanStrip extends StatelessWidget {
+  const _ScanStrip({required this.progress, required this.flagged});
+  final double progress;
+  final int flagged;
+  static const int _n = 14;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: LayoutBuilder(builder: (_, box) {
+        final w = box.maxWidth / _n;
+        final scanned = (progress * _n).floor();
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: Stack(children: [
+            Row(children: [
+              for (var i = 0; i < _n; i++)
+                SizedBox(
+                  width: w,
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      width: w * .62,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: i < scanned ? (i == flagged ? const Color(0x33FFB454) : const Color(0x224FE0A0)) : const Color(0x14808080),
+                        border: Border.all(color: i < scanned ? (i == flagged ? const Color(0xFFFFB454) : const Color(0xFF4FE0A0)) : const Color(0x33808080)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: i < scanned
+                          ? Icon(i == flagged ? Icons.priority_high_rounded : Icons.check_rounded, size: 14, color: i == flagged ? const Color(0xFFFFB454) : const Color(0xFF4FE0A0))
+                          : const Icon(Icons.receipt_long_outlined, size: 13, color: Color(0x88808080)),
+                    ),
+                  ),
+                ),
+            ]),
+            if (progress > 0 && progress < 1)
+              Positioned(left: progress * box.maxWidth - 1, top: 0, bottom: 0, child: Container(width: 2, decoration: const BoxDecoration(color: Color(0xFF2DC4B2), boxShadow: [BoxShadow(color: Color(0xFF2DC4B2), blurRadius: 8)]))),
+          ]),
+        );
+      }),
+    );
+  }
+}
+
+/// The robot's magnifying glass over the number that does not add up.
+class _Magnifier extends StatefulWidget {
+  const _Magnifier({required this.text});
+  final String text;
+  @override
+  State<_Magnifier> createState() => _MagnifierState();
+}
+
+class _MagnifierState extends State<_Magnifier> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    return super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.elasticOut,
+      builder: (_, v, child) => Transform.scale(scale: v, child: child),
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (_, __) => Transform.rotate(
+          angle: (_c.value - .5) * .14,
+          child: Stack(clipBehavior: Clip.none, children: [
+            Container(
+              width: 122,
+              height: 122,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xEE07110F),
+                border: Border.all(color: const Color(0xFFFFB454), width: 5),
+                boxShadow: const [BoxShadow(color: Color(0x88FFB454), blurRadius: 22)],
+              ),
+              child: Text(widget.text, style: const TextStyle(color: Color(0xFFFFB454), fontSize: 26, fontWeight: FontWeight.w900, fontFeatures: [FontFeature.tabularFigures()])),
+            ),
+            Positioned(right: -22, bottom: -22, child: Transform.rotate(angle: .8, child: Container(width: 12, height: 40, decoration: BoxDecoration(color: const Color(0xFFFFB454), borderRadius: BorderRadius.circular(6))))),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// A cash drawer that slides open and shows a few notes.
+class _DrawerAnim extends StatelessWidget {
+  const _DrawerAnim({required this.open});
+  final bool open;
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 110,
+      height: 130,
+      child: Stack(alignment: Alignment.bottomCenter, children: [
+        for (var i = 0; i < 3; i++)
+          AnimatedPositioned(
+            duration: Duration(milliseconds: 500 + i * 160),
+            curve: Curves.easeOutBack,
+            bottom: open ? 34.0 + i * 12 : 14,
+            child: Transform.rotate(
+              angle: (i - 1) * .08,
+              child: Container(
+                width: 78,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: const Color(0xFF3FAE6B), borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFF2B7F4D), width: 2)),
+                child: const Text('E£', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w800, fontSize: 13)),
+              ),
+            ),
+          ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutCubic,
+          width: 100,
+          height: 34,
+          margin: EdgeInsets.only(top: open ? 40 : 0),
+          decoration: BoxDecoration(color: const Color(0xFF55696C), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF3B5557), width: 2)),
+          alignment: Alignment.center,
+          child: Container(width: 26, height: 6, decoration: BoxDecoration(color: const Color(0xFFB9C9CB), borderRadius: BorderRadius.circular(3))),
+        ),
+      ]),
+    );
+  }
+}
+
+// =====================================================================================================
+// Daily challenge with confetti (cashier assistant on)
+// =====================================================================================================
+class DailyChallenge extends ConsumerStatefulWidget {
+  const DailyChallenge({super.key, required this.sales, this.goal = 10});
+  final int sales, goal;
+  @override
+  ConsumerState<DailyChallenge> createState() => _DailyChallengeState();
+}
+
+class _DailyChallengeState extends ConsumerState<DailyChallenge> {
+  bool _celebrated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _celebrated = widget.sales >= widget.goal; // already reached before: no party on open
+  }
+
+  @override
+  void didUpdateWidget(covariant DailyChallenge old) {
+    super.didUpdateWidget(old);
+    if (!_celebrated && widget.sales >= widget.goal) {
+      _celebrated = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showConfetti(context);
+        showSnack(context, _t(context, 'عاش! خلّصت تحدّي النهارده 🎉', 'Well done! Today\'s challenge is complete 🎉'));
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
+    if (f['cashier'] != true) return const SizedBox.shrink();
+    final v = (widget.sales / widget.goal).clamp(0.0, 1.0);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(border: Border.all(color: BrandColors.border), borderRadius: BorderRadius.circular(10)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(v >= 1 ? Icons.emoji_events_rounded : Icons.flag_rounded, size: 16, color: v >= 1 ? const Color(0xFFD9B25C) : BrandColors.gray),
+        const SizedBox(width: 6),
+        Text(_t(context, 'تحدّي اليوم ${math.min(widget.sales, widget.goal)}/${widget.goal}', 'Daily challenge ${math.min(widget.sales, widget.goal)}/${widget.goal}'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 70,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: v),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            builder: (_, x, __) => LinearProgressIndicator(value: x, minHeight: 6, borderRadius: BorderRadius.circular(3)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Confetti over the whole screen for a couple of seconds.
+void showConfetti(BuildContext context) {
+  final overlay = Overlay.of(context, rootOverlay: true);
+  late OverlayEntry e;
+  e = OverlayEntry(builder: (_) => _Confetti(onDone: () => e.remove()));
+  overlay.insert(e);
+}
+
+class _Confetti extends StatefulWidget {
+  const _Confetti({required this.onDone});
+  final VoidCallback onDone;
+  @override
+  State<_Confetti> createState() => _ConfettiState();
+}
+
+class _ConfettiState extends State<_Confetti> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200))
+    ..addStatusListener((s) {
+      if (s == AnimationStatus.completed) widget.onDone();
+    })
+    ..forward();
+  final math.Random _r = math.Random();
+  late final List<List<double>> _p = List.generate(90, (_) => [_r.nextDouble(), _r.nextDouble() * .4, .6 + _r.nextDouble() * .6, _r.nextDouble() * 6, _r.nextDouble() * 360, _r.nextInt(6).toDouble()]);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(child: CustomPaint(size: Size.infinite, painter: _ConfettiPainter(_c, _p)));
+  }
+}
+
+class _ConfettiPainter extends CustomPainter {
+  _ConfettiPainter(this.t, this.p) : super(repaint: t);
+  final Animation<double> t;
+  final List<List<double>> p;
+  static const _cols = [Color(0xFFFF5E7E), Color(0xFFFFC94D), Color(0xFF4FE0A0), Color(0xFF5AA9FF), Color(0xFFB487FF), Color(0xFFFF9A4D)];
+
+  @override
+  void paint(Canvas c, Size s) {
+    for (final q in p) {
+      final life = ((t.value - q[1]) / (1 - q[1])).clamp(0.0, 1.0);
+      if (life <= 0) continue;
+      final x = q[0] * s.width + math.sin(life * 6 + q[3]) * 30;
+      final y = -20 + life * (s.height + 40) * q[2];
+      c.save();
+      c.translate(x, y);
+      c.rotate(q[4] + life * 10);
+      c.drawRect(const Rect.fromLTWH(-4, -2, 8, 5), Paint()..color = _cols[q[5].toInt()].withValues(alpha: (1 - life * .5)));
+      c.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ConfettiPainter old) => false;
 }
