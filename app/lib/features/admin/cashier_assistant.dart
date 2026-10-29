@@ -10,20 +10,61 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/states.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, Object? minor) => formatEgp(((minor as num?) ?? 0).round(), c.lang);
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 
-/// Which assistant buttons to show to the signed-in member.
+/// Which assistant features this member sees. 'available' = he may use the automatic mode; 'mine' = he switched it ON for himself.
+const _flagKeys = ['available', 'mine', 'cashier', 'guard', 'find', 'robot_close', 'robot_open', 'fingerprint', 'reel', 'challenge'];
 final assistantFlagsProvider = FutureProvider.autoDispose<Map<String, bool>>((ref) async {
   try {
     final r = Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('assistant_flags') as Map);
-    return {'cashier': r['cashier'] == true, 'guard': r['guard'] == true};
+    return {for (final k in _flagKeys) k: r[k] == true};
   } catch (_) {
-    return {'cashier': false, 'guard': false};
+    return {for (final k in _flagKeys) k: false};
   }
 });
+
+/// The member's own ON/OFF switch for the automatic mode. ON opens every assistant feature he was given; OFF closes them all.
+class AssistantModeSwitch extends ConsumerStatefulWidget {
+  const AssistantModeSwitch({super.key});
+  @override
+  ConsumerState<AssistantModeSwitch> createState() => _AssistantModeSwitchState();
+}
+
+class _AssistantModeSwitchState extends ConsumerState<AssistantModeSwitch> {
+  bool _busy = false;
+  Future<void> _set(bool on) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': on});
+      ref.invalidate(assistantFlagsProvider);
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
+    if (f['available'] != true) return const SizedBox.shrink();
+    final on = f['mine'] == true;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(border: Border.all(color: on ? const Color(0xFF0E9384) : BrandColors.border), borderRadius: BorderRadius.circular(10)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.smart_toy_rounded, size: 18, color: on ? const Color(0xFF0E9384) : BrandColors.gray),
+        const SizedBox(width: 6),
+        Text(_t(context, on ? 'المساعد الآلي: شغّال' : 'المساعد الآلي: مقفول', on ? 'Assistant: ON' : 'Assistant: OFF'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        Switch(value: on, onChanged: _busy ? null : _set),
+      ]),
+    );
+  }
+}
 
 final _reviewProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) async =>
     Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('assistant_shift_review', params: {'p_shift': id}) as Map));
@@ -46,7 +87,7 @@ class AssistantButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
-    if (f['cashier'] != true) return const SizedBox.shrink();
+    if (f['find'] != true) return const SizedBox.shrink();
     return FilledButton.icon(
       style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0E9384)),
       icon: const Icon(Icons.smart_toy_rounded, size: 18),

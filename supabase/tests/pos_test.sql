@@ -288,7 +288,7 @@ reset role;
 -- ---------- 0066: the nine formerly "coming soon" permissions are real
 reset role;
 select public._expect('only the shortcuts placeholders are inert', $q$select 1/(case when exists (select 1 from public.permission_catalog where inert and grp not in ('shortcuts','assistant')) then 0 else 1 end)$q$, null);
-select public._expect('4 assistant switches, none is a placeholder now', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'assistant') = 4 and (select count(*) from public.permission_catalog where grp = 'assistant' and inert) = 0 then 1 else 0 end)$q$, null);
+select public._expect('4 switches and 7 use permissions, none is a placeholder now', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'assistant') = 11 and (select count(*) from public.permission_catalog where grp = 'assistant' and inert) = 0 then 1 else 0 end)$q$, null);
 select public._expect('15 shortcuts: 4 live, 11 placeholders nobody holds', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'shortcuts') = 15 and (select count(*) from public.permission_catalog where grp = 'shortcuts' and inert) = 11 and not exists (select 1 from public.role_permissions rp join public.permission_catalog c using (permission) where c.inert and c.grp = 'shortcuts') then 1 else 0 end)$q$, null);
 select public._expect('stock and wheel permissions have a displayed group', $q$select 1/(case when (select count(*) from public.permission_catalog where permission in ('stock.view','stock.others','wheel.manage','features.manage','contest.manage') and grp in ('stock','extras')) = 5 then 1 else 0 end)$q$, null);
 select public._expect('owner has every new permission', $q$select 1/(case when (select count(*) from public.role_permissions where role = 'owner' and permission in ('customers.review','cancel_requests.decide','coupons.manage','notifications.broadcast','reviews.moderate','audit.export','payments.manage','roles.assign','branches.manage')) = 9 then 1 else 0 end)$q$, null);
@@ -724,12 +724,21 @@ select public._expect('an accountant given the switch can run the report', forma
 
 -- ---- cashier assistant + guard ----
 reset role; select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
-select public._expect('the till assistant is off by default', $q$select public.assistant_find_product('موبايل')$q$, 'MODE_OFF');
+select public._expect('without the permission the till assistant is closed', $q$select public.assistant_find_product('موبايل')$q$, 'FORBIDDEN');
+select public._expect('without the permission nothing is shown', $q$select 1/(case when not (public.assistant_flags()->>'robot_close')::boolean and not (public.assistant_flags()->>'find')::boolean then 1 else 0 end)$q$, null);
 select public._expect('flags are false while off', $q$select 1/(case when (public.assistant_flags()->>'cashier')::boolean = false then 1 else 0 end)$q$, null);
 reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
 select public._expect('owner turns on the till assistant', $q$select public.assistant_set('cashier', true, true)$q$, null);
 select public._expect('owner turns on the guard', $q$select public.assistant_set('guard', true, true)$q$, null);
-reset role; select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
+reset role;
+insert into public.role_permissions (role, permission) values ('sales', 'assistant.use_find'), ('sales', 'assistant.use_robot_close'), ('sales', 'assistant.use_robot_open') on conflict do nothing;
+select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
+select public._expect('nothing shows until he switches the mode on himself', $q$select 1/(case when (public.assistant_flags()->>'available')::boolean and not (public.assistant_flags()->>'mine')::boolean and not (public.assistant_flags()->>'robot_close')::boolean then 1 else 0 end)$q$, null);
+select public._expect('he switches his automatic mode on', $q$select public.assistant_my_mode_set(true)$q$, null);
+select public._expect('only the granted features show', $q$select 1/(case when (public.assistant_flags()->>'robot_close')::boolean and (public.assistant_flags()->>'robot_open')::boolean and (public.assistant_flags()->>'find')::boolean and not (public.assistant_flags()->>'reel')::boolean and not (public.assistant_flags()->>'challenge')::boolean and not (public.assistant_flags()->>'fingerprint')::boolean then 1 else 0 end)$q$, null);
+select public._expect('he switches off', $q$select public.assistant_my_mode_set(false)$q$, null);
+select public._expect('switching off closes everything', $q$select 1/(case when not (public.assistant_flags()->>'robot_close')::boolean and not (public.assistant_flags()->>'find')::boolean then 1 else 0 end)$q$, null);
+select public._expect('and on again', $q$select public.assistant_my_mode_set(true)$q$, null);
 select public._expect('the cashier sees the button', $q$select 1/(case when (public.assistant_flags()->>'cashier')::boolean and (public.assistant_flags()->>'guard')::boolean then 1 else 0 end)$q$, null);
 select public._expect('the cashier finds a product with price and availability', $q$select 1/(case when jsonb_array_length(public.assistant_find_product('موبايل')) >= 1
    and public.assistant_find_product('موبايل')->0 ? 'here_qty' and public.assistant_find_product('موبايل')->0 ? 'alternatives' and public.assistant_find_product('موبايل')->0 ? 'price_minor' then 1 else 0 end)$q$, null);

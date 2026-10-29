@@ -14,6 +14,27 @@ on conflict (permission) do update set grp = excluded.grp, name_ar = excluded.na
   sensitive = excluded.sensitive, inert = excluded.inert, sort = excluded.sort;
 insert into public.role_permissions (role, permission) values ('owner', 'assistant.cashier'), ('owner', 'assistant.guard') on conflict do nothing;
 
+-- what each person may USE (separate from who may switch a mode on): the owner hands these out one by one, per role or per person
+insert into public.permission_catalog (permission, grp, name_ar, name_en, desc_ar, desc_en, sensitive, inert, sort) values
+ ('assistant.use_find', 'assistant', 'يستخدم زرار «المساعد الذكي» عند البيع', 'Use the smart assistant button at the till',
+  'يدوّر على سعر المنتج ومكانه وبدايله ويشوف شرح الفاتورة والمرتجع', 'Looks up a product price, where it is and alternatives, and reads the invoice and refund guides', false, false, 10),
+ ('assistant.use_robot_close', 'assistant', 'يقفل الوردية بالروبوت', 'Close the shift with the robot',
+  'إقفال الوردية بمراجعة الروبوت (30 ثانية) وتنبيهه لأي خلل', 'Closes the shift with the robot review (30 seconds) and its warnings', false, false, 11),
+ ('assistant.use_robot_open', 'assistant', 'يفتح الوردية بالروبوت', 'Open the shift with the robot',
+  'فتح الوردية بتجهيز الروبوت للدرج وآية أو قول عن الأمانة', 'Opens the shift with the robot preparing the drawer and a verse or saying about trust', false, false, 12),
+ ('assistant.use_fingerprint', 'assistant', 'يستخدم البصمة في الفتح والإقفال', 'Use the fingerprint to open and close',
+  'يفتح ويقفل الوردية بالبصمة بدل كتابة الباسورد', 'Opens and closes the shift with the fingerprint instead of typing the password', false, false, 13),
+ ('assistant.use_reel', 'assistant', 'يشوف ريل الصباح', 'See the morning reel',
+  'ريل قصير مرة في اليوم: ترحيب وآية ووردية النهارده وتنبيهات', 'A short reel once a day: greeting, verse, today''s shift and tips', false, false, 14),
+ ('assistant.use_challenge', 'assistant', 'يشوف تحدّي اليوم', 'See the daily challenge',
+  'شريط تحدّي اليوم في شاشة البيع مع احتفال لما يكتمل', 'The daily challenge bar at the till, with a celebration when it is complete', false, false, 15),
+ ('assistant.use_overview', 'assistant', 'يشوف مراجعة العمليات', 'See the operations review',
+  'تقرير حارس الوردية: الموظفين، فروق النقدية، نقص الشاشات والبطاريات، اقتراح الشراء، الراكد', 'The guard report: staff, cash differences, low screens and batteries, purchase suggestions, stagnant stock', true, false, 16)
+on conflict (permission) do update set grp = excluded.grp, name_ar = excluded.name_ar, name_en = excluded.name_en, desc_ar = excluded.desc_ar, desc_en = excluded.desc_en,
+  sensitive = excluded.sensitive, inert = excluded.inert, sort = excluded.sort;
+insert into public.role_permissions (role, permission)
+select 'owner', permission from public.permission_catalog where permission like 'assistant.use\_%' on conflict do nothing;
+
 do $$ declare c record; begin
   for c in select conname from pg_constraint where conrelid = 'public.assistant_modes'::regclass and contype = 'c' loop
     execute format('alter table public.assistant_modes drop constraint %I', c.conname);
@@ -38,11 +59,51 @@ begin
                            from (select * from public.assistant_events where kind not like 'guard%' order by created_at desc limit 30) e), '[]'::jsonb)) end);
 end $$;
 
+-- each person switches the automatic mode ON or OFF for himself (only if he holds at least one "use" permission and a mode is on):
+-- ON opens every robot feature the owner gave him; OFF closes them all again.
+create table if not exists public.assistant_user_prefs (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  enabled boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table public.assistant_user_prefs enable row level security;
+revoke all on public.assistant_user_prefs from anon, authenticated;
+
+create or replace function public._assistant_can_any() returns boolean language sql stable security definer set search_path = public as $$
+  select (public._assistant_on('cashier') or public._assistant_on('guard')) and (
+    coalesce(public.has_permission('assistant.use_find'), false) or coalesce(public.has_permission('assistant.use_robot_close'), false)
+    or coalesce(public.has_permission('assistant.use_robot_open'), false) or coalesce(public.has_permission('assistant.use_fingerprint'), false)
+    or coalesce(public.has_permission('assistant.use_reel'), false) or coalesce(public.has_permission('assistant.use_challenge'), false))
+$$;
+revoke all on function public._assistant_can_any() from public, anon;
+
+create or replace function public.assistant_my_mode_set(p_enabled boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.require_auth();
+  if not public._assistant_can_any() then raise exception 'FORBIDDEN'; end if;
+  insert into public.assistant_user_prefs (user_id, enabled) values (auth.uid(), coalesce(p_enabled, false))
+  on conflict (user_id) do update set enabled = excluded.enabled, updated_at = now();
+  perform public.audit_write('assistant.my_mode', 'assistant', auth.uid()::text, jsonb_build_object('enabled', coalesce(p_enabled, false)));
+end $$;
+revoke all on function public.assistant_my_mode_set(boolean) from public, anon;
+grant execute on function public.assistant_my_mode_set(boolean) to authenticated;
+
 create or replace function public.assistant_flags() returns jsonb
 language sql stable security definer set search_path = public as $$
+  with m as (select coalesce((select enabled from public.assistant_user_prefs where user_id = auth.uid()), false) as mine)
   select jsonb_build_object(
-    'cashier', public._assistant_on('cashier') and (coalesce(public.has_permission('pos.sell'), false) or coalesce(public.has_permission('assistant.cashier'), false)),
-    'guard', public._assistant_on('guard') and (coalesce(public.has_permission('pos.sell'), false) or coalesce(public.has_permission('assistant.guard'), false)))
+    'available', public._assistant_can_any(),
+    'mine', m.mine,
+    'cashier', m.mine and public._assistant_on('cashier') and coalesce(public.has_permission('assistant.use_find'), false),
+    'guard', m.mine and public._assistant_on('guard') and (coalesce(public.has_permission('assistant.use_robot_close'), false) or coalesce(public.has_permission('assistant.use_robot_open'), false)),
+    'find', m.mine and public._assistant_on('cashier') and coalesce(public.has_permission('assistant.use_find'), false),
+    'robot_close', m.mine and public._assistant_on('guard') and coalesce(public.has_permission('assistant.use_robot_close'), false),
+    'robot_open', m.mine and public._assistant_on('guard') and coalesce(public.has_permission('assistant.use_robot_open'), false),
+    'fingerprint', m.mine and coalesce(public.has_permission('assistant.use_fingerprint'), false),
+    'reel', m.mine and public._assistant_on('cashier') and coalesce(public.has_permission('assistant.use_reel'), false),
+    'challenge', m.mine and public._assistant_on('cashier') and coalesce(public.has_permission('assistant.use_challenge'), false))
+  from m
 $$;
 revoke all on function public.assistant_flags() from public, anon;
 grant execute on function public.assistant_flags() to authenticated;
@@ -71,7 +132,7 @@ language plpgsql stable security definer set search_path = public as $$
 declare v_q text := nullif(btrim(coalesce(p_q, '')), ''); v_all boolean;
 begin
   perform public.require_auth();
-  if not (public.has_permission('pos.sell') or public.has_permission('assistant.cashier')) then raise exception 'FORBIDDEN'; end if;
+  if not public.has_permission('assistant.use_find') then raise exception 'FORBIDDEN'; end if;
   if not public._assistant_on('cashier') then raise exception 'MODE_OFF'; end if;
   if v_q is null or char_length(v_q) < 2 then return '[]'::jsonb; end if;
   v_all := public.has_permission('stock.others');
@@ -189,7 +250,7 @@ create or replace function public.assistant_guard_overview(p_days int default 7)
 language plpgsql security definer set search_path = public as $$
 declare v_days int := least(greatest(coalesce(p_days, 7), 1), 60);
 begin
-  perform public.require_permission('assistant.guard');
+  perform public.require_permission('assistant.use_overview');
   if not public._assistant_on('guard') then raise exception 'MODE_OFF'; end if;
   return jsonb_build_object(
     'days', v_days,

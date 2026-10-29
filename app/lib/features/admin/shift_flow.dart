@@ -1008,7 +1008,7 @@ class _DailyChallengeState extends ConsumerState<DailyChallenge> {
   @override
   Widget build(BuildContext context) {
     final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
-    if (f['cashier'] != true) return const SizedBox.shrink();
+    if (f['challenge'] != true) return const SizedBox.shrink();
     final v = (widget.sales / widget.goal).clamp(0.0, 1.0);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

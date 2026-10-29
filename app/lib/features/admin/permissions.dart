@@ -128,10 +128,12 @@ String _groupLabel(BuildContext c, String g) => switch (g) {
     };
 
 /// Permissions grouped for display. [inert] = true returns only the ones that are not active yet.
-List<MapEntry<String, List<String>>> _grouped(Iterable<String> keys, {bool inert = false}) {
+List<MapEntry<String, List<String>>> _grouped(Iterable<String> keys, {bool inert = false, bool assistant = false}) {
   final byGroup = <String, List<String>>{};
   for (final k in keys) {
     if (k == 'permissions.manage') continue; // never delegable, never shown
+    if (!assistant && _infoOf(k).group == 'assistant') continue; // the assistant permissions live only inside the assistant section
+    if (assistant && _infoOf(k).group != 'assistant') continue;
     if (_infoOf(k).inert != inert) continue;
     byGroup.putIfAbsent(_infoOf(k).group, () => <String>[]).add(k);
   }
@@ -878,3 +880,90 @@ final _memberBranchesProvider = FutureProvider.autoDispose<Map<String, List<Stri
     for (final r in rows) '${(r as Map)['user_id']}': [for (final b in (r['branches'] as List? ?? const [])) '$b'],
   };
 });
+
+
+/// The assistant permissions, shown ONLY inside the «المساعد الآلي» section (they are hidden from the main permissions screen).
+/// Order: the four mode switches first, then the "use" permissions. Pick a role, switch what it may use.
+class AssistantPermissionsSection extends ConsumerStatefulWidget {
+  const AssistantPermissionsSection({super.key});
+  @override
+  ConsumerState<AssistantPermissionsSection> createState() => _AssistantPermsState();
+}
+
+class _AssistantPermsState extends ConsumerState<AssistantPermissionsSection> {
+  String _role = 'cashier';
+  final _busy = <String>{};
+  late Future<Map<String, dynamic>> _f = ref.read(permissionsRepoProvider).overview();
+
+  Future<void> _toggle(String perm, bool grant) async {
+    setState(() => _busy.add(perm));
+    try {
+      await ref.read(permissionsRepoProvider).setRole(_role, perm, grant);
+      _f = ref.read(permissionsRepoProvider).overview();
+      if (mounted) showSnack(context, _s(context, 'saved', 'اتحفظ', 'Saved'));
+    } catch (e) {
+      if (mounted) showSnack(context, _permError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy.remove(perm));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _f,
+      builder: (context, snap) {
+        if (snap.hasError) return const SizedBox.shrink(); // not allowed to manage permissions: nothing to show
+        if (!snap.hasData) return const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()));
+        final ov = snap.data!;
+        final groups = _grouped(_stringList(ov['permissions']), assistant: true);
+        if (groups.isEmpty) return const SizedBox.shrink();
+        final locked = _role == 'owner';
+        final mine = _rolePerms(ov, _role);
+        final keys = groups.first.value;
+        final modes = keys.where((k) => !k.startsWith('assistant.use_')).toList();
+        final uses = keys.where((k) => k.startsWith('assistant.use_')).toList();
+        Widget tile(String k) => SwitchListTile(
+              value: locked ? true : mine.contains(k),
+              onChanged: (locked || _busy.contains(k)) ? null : (v) => _toggle(k, v),
+              title: Text(_t(context, _infoOf(k).ar, _infoOf(k).en)),
+              subtitle: _PermSubtitle(permKey: k),
+            );
+        Widget head(String ar, String en) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+              child: Text(_t(context, ar, en), style: const TextStyle(color: BrandColors.gray, fontWeight: FontWeight.w700, fontSize: 13)),
+            );
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(_t(context, 'صلاحيات المساعد الآلي', 'Assistant permissions'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Text(
+                  _t(context, 'اختار الدور وادّيله اللي يناسبه. الصلاحيات دي بتتحكم من هنا بس. المالك عنده كلها. وكل شخص بيشغّل/يقفل الوضع الآلي لنفسه من شاشته.',
+                      'Pick a role and give it what fits. These are controlled only from here. The owner has all of them, and each person switches the automatic mode on/off for himself.'),
+                  style: const TextStyle(color: BrandColors.gray, fontSize: 13),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final key in const ['owner', 'manager', 'accountant', 'cashier', 'sales', 'technician', 'support'])
+                    ChoiceChip(label: Text(roleOf(key).label(context)), selected: _role == key, onSelected: (_) => setState(() => _role = key)),
+                ]),
+              ),
+              if (modes.isNotEmpty) head('الأوضاع (تشغيل كل وضع)', 'Modes (who may switch each one)'),
+              for (final k in modes) tile(k),
+              if (uses.isNotEmpty) head('الإمكانيات (بتشتغل لما صاحبها يفعّل وضعه الآلي)', 'Features (work when the person turns his automatic mode on)'),
+              for (final k in uses) tile(k),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}

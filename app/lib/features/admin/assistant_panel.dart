@@ -14,6 +14,7 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'cashier_assistant.dart';
+import 'permissions.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -116,6 +117,7 @@ class _AssistantPanelState extends ConsumerState<AssistantPanel> {
           for (var i = 0; i < 12; i++) DateTime(DateTime.now().year, DateTime.now().month - i, 1),
         ];
         return ListView(padding: const EdgeInsets.all(16), children: [
+          const AssistantPermissionsSection(),
           if (acc == null && sup == null && cas == null && gua == null) Padding(padding: const EdgeInsets.all(24), child: Text(_t(context, 'مفيش وضع متاح لحسابك.', 'No mode is available for your account.'))),
           if (cas != null)
             Card(

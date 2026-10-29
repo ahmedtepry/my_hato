@@ -81,7 +81,8 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
   String get _uid => ref.read(currentUserProvider)?.id ?? '';
 
   Future<void> _loadBio() async {
-    final a = await ShiftBio.available();
+    final fl = await ref.read(assistantFlagsProvider.future);
+    final a = fl['fingerprint'] == true && await ShiftBio.available();
     final e = a ? await ShiftBio.enabled(_uid) : false;
     if (mounted) setState(() {
       _bioAvail = a;
@@ -182,7 +183,7 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
       _pass.clear();
       await repo.openShift(b, minor);
       if (pw.isNotEmpty && mounted) {
-        final guard = (await ref.read(assistantFlagsProvider.future))['guard'] == true;
+        final guard = (await ref.read(assistantFlagsProvider.future))['robot_open'] == true;
         if (guard && mounted) {
           final bn = branches.where((x) => x['id'] == b).map((x) => '${x['name_ar']}').firstOrNull ?? '';
           await ShiftRobotOpen.show(context, name: shiftUserName(ref.read(currentUserProvider)), openingMinor: minor, branch: bn);
@@ -336,7 +337,7 @@ class _RegisterState extends ConsumerState<_Register> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final f = await ref.read(assistantFlagsProvider.future);
-        if (!mounted || f['cashier'] != true) return;
+        if (!mounted || f['reel'] != true) return;
         final u = ref.read(currentUserProvider);
         await CashierReel.maybeShow(context, uid: u?.id ?? '', name: shiftUserName(u), shift: widget.shift);
       } catch (_) {}
@@ -550,7 +551,7 @@ class _RegisterState extends ConsumerState<_Register> {
   }
 
   Future<void> _closeShift() async {
-    final guard = (await ref.read(assistantFlagsProvider.future))['guard'] == true;
+    final guard = (await ref.read(assistantFlagsProvider.future))['robot_close'] == true;
     if (!mounted) return;
     if (guard) {
       // the robot closes the shift (30-second review); the old dialog stays for when the guard is off
@@ -581,6 +582,7 @@ class _RegisterState extends ConsumerState<_Register> {
             label: Text(_t(context, 'مرتجع', 'Refund')),
             onPressed: _unknown ? null : () => showDialog<void>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((_) => ref.invalidate(posShiftProvider)),
           ),
+          const AssistantModeSwitch(),
           AssistantButton(shiftId: _shiftId),
           DailyChallenge(sales: ((s['sales_count'] as num?) ?? 0).toInt()),
           FilledButton.tonalIcon(
