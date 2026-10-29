@@ -378,9 +378,9 @@ class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> with WidgetsB
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.system_update_alt_rounded, size: 54, color: BrandColors.warning),
                   const SizedBox(height: 12),
-                  Text(ar ? 'تحديث جديد للتطبيق' : 'A new version is ready', textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+                  Text(ar ? 'لازم تحدّث التطبيق' : 'Please update the app', textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: BrandColors.navy)),
                   const SizedBox(height: 8),
-                  Text(ar ? 'فيه نسخة أحدث فيها تحسينات وإصلاحات. اضغط تحديث وهتتثبّت فوق النسخة الحالية، وبياناتك زي ما هي.' : 'A newer version with improvements is available. Tap Update to install it over this one; your data stays.',
+                  Text(ar ? 'فيه نسخة أحدث من التطبيق فيها تحسينات وإصلاحات. اضغط تحديث وهتتثبّت فوق النسخة الحالية، وحسابك وبياناتك زي ما هي.' : 'A newer version with improvements is available. Tap Update to install it over this one; your data stays.',
                       textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, height: 1.6, color: BrandColors.gray)),
                   if (busy) ...[
                     const SizedBox(height: 16),
@@ -394,8 +394,11 @@ class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> with WidgetsB
                   ],
                   const SizedBox(height: 18),
                   Row(children: [
-                    Expanded(child: OutlinedButton(onPressed: busy ? null : () => setState(() => _prompt = false), child: Text(ar ? 'بعدين' : 'Later'))),
-                    const SizedBox(width: 10),
+                    // the update is required: "Later" only appears if the update itself failed (offline, damaged download), so nobody gets stuck
+                    if (_msg != null) ...[
+                      Expanded(child: OutlinedButton(onPressed: busy ? null : () => setState(() => _prompt = false), child: Text(ar ? 'بعدين' : 'Later'))),
+                      const SizedBox(width: 10),
+                    ],
                     Expanded(flex: 2, child: FilledButton.icon(onPressed: busy ? null : () => _go(info), icon: const Icon(Icons.download_rounded), label: Text(ar ? 'تحديث' : 'Update'))),
                   ]),
                 ]),
