@@ -170,7 +170,14 @@ String _permError(BuildContext context, Object e) {
       pick('NOT_STAFF', 'الحساب ده مش في الفريق', 'This account is not on the team') ??
       pick('UNKNOWN_PERMISSION', 'صلاحية مش معروفة', 'Unknown permission') ??
       pick('CANNOT_CHANGE_OWN_ROLE', 'مينفعش تغيّر حسابك إنت', 'You cannot change your own account') ??
-      friendlyError(context, e);
+      _withCode(context, e);
+}
+
+String _withCode(BuildContext context, Object e) {
+  final base = friendlyError(context, e);
+  final raw = e is PostgrestException ? '${e.message}${e.code != null ? ' (${e.code})' : ''}' : e.toString();
+  final short = raw.length > 90 ? raw.substring(0, 90) : raw;
+  return '$base\n$short';
 }
 
 // ---------------------------------------------------------------- data

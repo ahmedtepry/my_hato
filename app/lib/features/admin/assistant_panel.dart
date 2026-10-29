@@ -13,6 +13,7 @@ import '../../core/save_file.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+import 'cashier_assistant.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -109,11 +110,57 @@ class _AssistantPanelState extends ConsumerState<AssistantPanel> {
       data: (s) {
         final acc = s['accountant'] is Map ? Map<String, dynamic>.from(s['accountant'] as Map) : null;
         final sup = s['support'] is Map ? Map<String, dynamic>.from(s['support'] as Map) : null;
+        final cas = s['cashier'] is Map ? Map<String, dynamic>.from(s['cashier'] as Map) : null;
+        final gua = s['guard'] is Map ? Map<String, dynamic>.from(s['guard'] as Map) : null;
         final months = [
           for (var i = 0; i < 12; i++) DateTime(DateTime.now().year, DateTime.now().month - i, 1),
         ];
         return ListView(padding: const EdgeInsets.all(16), children: [
-          if (acc == null && sup == null) Padding(padding: const EdgeInsets.all(24), child: Text(_t(context, 'مفيش وضع متاح لحسابك.', 'No mode is available for your account.'))),
+          if (acc == null && sup == null && cas == null && gua == null) Padding(padding: const EdgeInsets.all(24), child: Text(_t(context, 'مفيش وضع متاح لحسابك.', 'No mode is available for your account.'))),
+          if (cas != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const CircleAvatar(backgroundColor: Color(0x1A0E9384), child: Icon(Icons.support_agent_rounded, color: Color(0xFF0E9384))),
+                  title: Text(_t(context, 'مساعد الكاشير', 'Cashier assistant'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(_t(context, 'زرار «المساعد الذكي» في شاشة البيع: سعر المنتج، موجود في أنهي فرع، بدائل، وشرح الفاتورة والمرتجع. بيقترح ويشرح بس.',
+                      'A "Smart assistant" button at the till: price, which branch has it, alternatives and refund/invoice steps. Suggests and explains only.')),
+                  value: cas['enabled'] == true,
+                  onChanged: _busy
+                      ? null
+                      : (v) => _switch('cashier', v, 'مساعد الكاشير', 'the cashier assistant', 'هيظهر زرار «المساعد الذكي» للكاشير. مابيغيّرش سعر ولا مخزون ولا فواتير.',
+                          'A "Smart assistant" button will appear at the till. It never changes prices, stock or invoices.'),
+                ),
+              ),
+            ),
+          if (gua != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const CircleAvatar(backgroundColor: Color(0x1AF79009), child: Icon(Icons.shield_rounded, color: Color(0xFFF79009))),
+                    title: Text(_t(context, 'حارس الوردية ومدير العمليات', 'Shift guard & operations manager'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text(_t(context, 'بيراجع فرق النقدية والخصومات والمرتجعات والفواتير الملغية عند الإقفال، وبينبّه المالك لنقص الشاشات والبطاريات والإكسسوارات، ويقترح كميات الشراء.',
+                        'Reviews cash differences, discounts, refunds and voided invoices at close, alerts the owner about low screens, batteries and accessories, and suggests purchase quantities.')),
+                    value: gua['enabled'] == true,
+                    onChanged: _busy
+                        ? null
+                        : (v) => _switch('guard', v, 'حارس الوردية', 'the shift guard', 'هيراجع الورديات ويبعتلك تنبيهات. مابيلغيش ولا بيعدّل حاجة بنفسه.',
+                            'It reviews shifts and sends you alerts. It never cancels or edits anything by itself.'),
+                  ),
+                  if (gua['enabled'] == true)
+                    OutlinedButton.icon(
+                      onPressed: () => showDialog<void>(context: context, builder: (_) => const GuardOverviewDialog()),
+                      icon: const Icon(Icons.fact_check_rounded),
+                      label: Text(_t(context, 'مراجعة العمليات (آخر 7 أيام)', 'Operations review (last 7 days)')),
+                    ),
+                ]),
+              ),
+            ),
           if (acc != null)
             Card(
               child: Padding(

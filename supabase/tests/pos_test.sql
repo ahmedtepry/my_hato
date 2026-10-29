@@ -288,7 +288,7 @@ reset role;
 -- ---------- 0066: the nine formerly "coming soon" permissions are real
 reset role;
 select public._expect('only the shortcuts placeholders are inert', $q$select 1/(case when exists (select 1 from public.permission_catalog where inert and grp not in ('shortcuts','assistant')) then 0 else 1 end)$q$, null);
-select public._expect('3 assistant switches, only the cashier one is a placeholder', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'assistant') = 3 and (select count(*) from public.permission_catalog where grp = 'assistant' and inert) = 1 then 1 else 0 end)$q$, null);
+select public._expect('4 assistant switches, none is a placeholder now', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'assistant') = 4 and (select count(*) from public.permission_catalog where grp = 'assistant' and inert) = 0 then 1 else 0 end)$q$, null);
 select public._expect('15 shortcuts: 4 live, 11 placeholders nobody holds', $q$select 1/(case when (select count(*) from public.permission_catalog where grp = 'shortcuts') = 15 and (select count(*) from public.permission_catalog where grp = 'shortcuts' and inert) = 11 and not exists (select 1 from public.role_permissions rp join public.permission_catalog c using (permission) where c.inert and c.grp = 'shortcuts') then 1 else 0 end)$q$, null);
 select public._expect('stock and wheel permissions have a displayed group', $q$select 1/(case when (select count(*) from public.permission_catalog where permission in ('stock.view','stock.others','wheel.manage','features.manage','contest.manage') and grp in ('stock','extras')) = 5 then 1 else 0 end)$q$, null);
 select public._expect('owner has every new permission', $q$select 1/(case when (select count(*) from public.role_permissions where role = 'owner' and permission in ('customers.review','cancel_requests.decide','coupons.manage','notifications.broadcast','reviews.moderate','audit.export','payments.manage','roles.assign','branches.manage')) = 9 then 1 else 0 end)$q$, null);
@@ -721,6 +721,31 @@ reset role;
 select public._expect('the robot logged what it did', $q$select 1/(case when exists (select 1 from public.assistant_events) then 1 else 0 end)$q$, null);
 insert into public.role_permissions (role, permission) values ('accountant', 'assistant.accountant') on conflict do nothing;
 select public._expect('an accountant given the switch can run the report', format($q$select set_config('request.jwt.claim.sub', %L, false)$q$, (select user_id from public.user_roles where role = 'accountant' limit 1)), null);
+
+-- ---- cashier assistant + guard ----
+reset role; select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
+select public._expect('the till assistant is off by default', $q$select public.assistant_find_product('موبايل')$q$, 'MODE_OFF');
+select public._expect('flags are false while off', $q$select 1/(case when (public.assistant_flags()->>'cashier')::boolean = false then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('owner turns on the till assistant', $q$select public.assistant_set('cashier', true, true)$q$, null);
+select public._expect('owner turns on the guard', $q$select public.assistant_set('guard', true, true)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
+select public._expect('the cashier sees the button', $q$select 1/(case when (public.assistant_flags()->>'cashier')::boolean and (public.assistant_flags()->>'guard')::boolean then 1 else 0 end)$q$, null);
+select public._expect('the cashier finds a product with price and availability', $q$select 1/(case when jsonb_array_length(public.assistant_find_product('موبايل')) >= 1
+   and public.assistant_find_product('موبايل')->0 ? 'here_qty' and public.assistant_find_product('موبايل')->0 ? 'alternatives' and public.assistant_find_product('موبايل')->0 ? 'price_minor' then 1 else 0 end)$q$, null);
+select public._expect('the cashier does not see other branches by name', $q$select 1/(case when public.assistant_find_product('موبايل')->0->'branches' = 'null'::jsonb or not (public.assistant_find_product('موبايل')->0 ? 'branches') then 1 else 0 end)$q$, null);
+select public._expect('a short search returns nothing', $q$select 1/(case when jsonb_array_length(public.assistant_find_product('م')) = 0 then 1 else 0 end)$q$, null);
+select public._expect('the cashier cannot open the overview', $q$select public.assistant_guard_overview()$q$, 'FORBIDDEN');
+select public._expect('the cashier cannot switch the guard', $q$select public.assistant_set('guard', false)$q$, 'FORBIDDEN');
+reset role; select id as shx from public.shifts order by opened_at desc limit 1 \gset
+select set_config('request.jwt.claim.sub', :'OWNER', false); set role authenticated;
+select public._expect('the owner gets a shift review', format($q$select 1/(case when public.assistant_shift_review(%L) ?& array['shift','cash','sales','refunds','alerts'] then 1 else 0 end)$q$, :'shx'), null);
+select public._expect('the overview has every part', $q$select 1/(case when public.assistant_guard_overview(30) ?& array['cashiers','cash_differences','low_key','imbalance','reorder','stagnant'] then 1 else 0 end)$q$, null);
+reset role; select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
+reset role; select id as shy from public.shifts where cashier_id <> '00000000-0000-0000-0000-0000000000a5' limit 1 \gset
+select set_config('request.jwt.claim.sub', :'CASHB', false); set role authenticated;
+select public._expect('a cashier cannot review another cashier shift', format($q$select public.assistant_shift_review(%L)$q$, :'shy'), 'FORBIDDEN');
+reset role;
 
 reset role;
 reset role;

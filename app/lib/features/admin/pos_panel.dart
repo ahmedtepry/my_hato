@@ -15,6 +15,7 @@ import '../../core/theme.dart';
 import '../../shared/barcode_scanner.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
+import 'cashier_assistant.dart';
 import 'pos_receipt.dart';
 import 'shift_reports.dart';
 import 'pos_repository.dart';
@@ -500,6 +501,7 @@ class _RegisterState extends ConsumerState<_Register> {
             label: Text(_t(context, 'مرتجع', 'Refund')),
             onPressed: _unknown ? null : () => showDialog<void>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((_) => ref.invalidate(posShiftProvider)),
           ),
+          AssistantButton(shiftId: _shiftId),
           FilledButton.tonalIcon(
             icon: const Icon(Icons.lock_clock_outlined, size: 18),
             label: Text(_t(context, 'إقفال الوردية', 'Close shift')),
@@ -1227,6 +1229,8 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
                   child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l), Text(r, style: TextStyle(fontWeight: b ? FontWeight.w800 : FontWeight.w600, color: c))]),
                 );
             return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              ShiftReviewCard(shiftId: widget.shiftId),
+              const SizedBox(height: 8),
               row(_t(context, 'العهدة أول الوردية', 'Opening cash'), _money(context, s['opening_minor'] as num)),
               row('${_t(context, 'المبيعات', 'Sales')} (${s['sales_count']})', _money(context, s['sales_minor'] as num)),
               row(_t(context, 'المرتجعات', 'Refunds'), '- ${_money(context, s['refunds_minor'] as num)}'),
