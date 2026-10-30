@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -352,13 +353,13 @@ class _WalletInfo extends ConsumerWidget {
               if (!done) ...[
                 Text(context.tr('wallet_send_to')),
                 Row(children: [
-                  Expanded(child: SelectableText('${w['number']}', textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
+                  Expanded(child: SelectableText('${w['number']}', textDirection: ui.TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
                   IconButton(icon: const Icon(Icons.copy_rounded, size: 18), onPressed: () => Clipboard.setData(ClipboardData(text: '${w['number']}'))),
                 ]),
                 Text(formatEgp(total, context.lang), style: const TextStyle(fontWeight: FontWeight.w800)),
               ],
               const SizedBox(height: 4),
-              Text('${context.tr('wallet_from_label')}: ${w['from_phone']}', textDirection: TextDirection.ltr),
+              Text('${context.tr('wallet_from_label')}: ${w['from_phone']}', textDirection: ui.TextDirection.ltr),
               const SizedBox(height: 6),
               Text(context.tr(done ? 'wallet_status_done' : 'wallet_status_wait'), style: TextStyle(fontWeight: FontWeight.w700, color: done ? BrandColors.success : BrandColors.warning)),
             ]),

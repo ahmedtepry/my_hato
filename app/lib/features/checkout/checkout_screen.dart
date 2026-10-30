@@ -234,7 +234,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   decoration: InputDecoration(labelText: context.tr('wallet_other_number'), hintText: '01XXXXXXXXX', prefixIcon: const Icon(Icons.phone_outlined)),
                 ),
             ],
-            if (_walletError != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_walletError!, style: const TextStyle(color: BrandColors.danger))),
+            if (_walletError != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_walletError!, style: const TextStyle(color: BrandColors.error))),
           ]),
         ),
     ];
