@@ -928,19 +928,45 @@ class _AssistantPermsState extends ConsumerState<AssistantPermissionsSection> {
         if (groups.isEmpty) return const SizedBox.shrink();
         final locked = _role == 'owner';
         final mine = _rolePerms(ov, _role);
-        final keys = groups.first.value;
-        final modes = keys.where((k) => !k.startsWith('assistant.use_')).toList();
-        final uses = keys.where((k) => k.startsWith('assistant.use_')).toList();
+        final all = <String>{..._stringList(ov['permissions']), ...groups.first.value};
         Widget tile(String k) => SwitchListTile(
               value: locked ? true : mine.contains(k),
               onChanged: (locked || _busy.contains(k)) ? null : (v) => _toggle(k, v),
               title: Text(_t(context, _infoOf(k).ar, _infoOf(k).en)),
-              subtitle: _PermSubtitle(permKey: k),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _PermSubtitle(permKey: k),
+                if (_assistantWho[k] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(_t(context, 'تنفع: ${_assistantWho[k]!.$1}', 'For: ${_assistantWho[k]!.$2}'), style: const TextStyle(color: Color(0xFF0E9384), fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  ),
+              ]),
             );
-        Widget head(String ar, String en) => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
-              child: Text(_t(context, ar, en), style: const TextStyle(color: BrandColors.gray, fontWeight: FontWeight.w700, fontSize: 13)),
-            );
+        Widget section(IconData icon, Color color, String ar, String en, String whoAr, String whoEn, List<String> keys) {
+          final ks = [for (final k in keys) if (all.contains(k)) k];
+          if (ks.isEmpty) return const SizedBox.shrink();
+          return Container(
+            margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            decoration: BoxDecoration(border: Border.all(color: color.withValues(alpha: 0.35)), borderRadius: BorderRadius.circular(14)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: const BorderRadius.vertical(top: Radius.circular(13))),
+                child: Row(children: [
+                  Icon(icon, color: color),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(_t(context, ar, en), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                      Text(_t(context, whoAr, whoEn), style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+                    ]),
+                  ),
+                ]),
+              ),
+              for (final k in ks) tile(k),
+            ]),
+          );
+        }
         return Card(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -964,10 +990,14 @@ class _AssistantPermsState extends ConsumerState<AssistantPermissionsSection> {
                     ChoiceChip(label: Text(roleOf(key).label(context)), selected: _role == key, onSelected: (_) => setState(() => _role = key)),
                 ]),
               ),
-              if (modes.isNotEmpty) head('الأوضاع (تشغيل كل وضع)', 'Modes (who may switch each one)'),
-              for (final k in modes) tile(k),
-              if (uses.isNotEmpty) head('الإمكانيات (بتشتغل لما صاحبها يفعّل وضعه الآلي)', 'Features (work when the person turns his automatic mode on)'),
-              for (final k in uses) tile(k),
+              section(Icons.calculate_outlined, const Color(0xFF2F6BFF), 'صلاحيات المحاسب', 'Accountant', 'للمحاسب (والمدير لو اديته إياها): الأرقام والتقارير والأونلاين من ناحية الفلوس', 'For the accountant (and the manager if you give it): figures, reports and the money side of Online', const [
+                'assistant.accountant', 'online.review', 'online.manage', 'assistant.use_overview', 'assistant.guard']),
+              section(Icons.public_rounded, const Color(0xFF0E9384), 'صلاحيات الأونلاين', 'Online', 'لموظف الأونلاين وخدمة العملاء بس: الأوردرات، الشيفت من غير فلوس، تارجته وعمولته', 'For the online / customer-service employee only: orders, the no-cash shift, his target and commission', const [
+                'assistant.support', 'online.shift', 'online.mine']),
+              section(Icons.point_of_sale_rounded, const Color(0xFFE8A317), 'صلاحيات الكاشير (البياع)', 'Cashier (seller)', 'للكاشير اللي بيبيع على الدرج: مساعد البيع وفتح وقفل الوردية', 'For the cashier at the till: sales helper and opening / closing the shift', const [
+                'assistant.cashier', 'assistant.use_find', 'assistant.use_robot_open', 'assistant.use_robot_close', 'assistant.use_fingerprint', 'assistant.use_challenge', 'assistant.use_reel']),
+              section(Icons.manage_accounts_outlined, const Color(0xFF7A5AF8), 'صلاحيات المدير', 'Manager', 'للمدير: الحارس اللي بيراجع الورديات والعمليات. وكمان تقدر تديله أي صلاحية من فوق', 'For the manager: the guard that reviews shifts and operations. You can also give him anything from above', const [
+                'assistant.guard']),
             ]),
           ),
         );
@@ -975,3 +1005,22 @@ class _AssistantPermsState extends ConsumerState<AssistantPermissionsSection> {
     );
   }
 }
+
+/// Who each assistant permission is for (shown under it so nothing is ambiguous).
+const _assistantWho = <String, (String, String)>{
+  'assistant.accountant': ('المحاسب', 'the accountant'),
+  'online.review': ('المحاسب والمدير', 'the accountant and the manager'),
+  'online.manage': ('المحاسب والمالك (بيحدد ساعات وتارجت موظفي الأونلاين)', 'the accountant and the owner (sets online hours and targets)'),
+  'assistant.use_overview': ('المحاسب والمدير', 'the accountant and the manager'),
+  'assistant.guard': ('المحاسب والمدير', 'the accountant and the manager'),
+  'assistant.support': ('موظف الأونلاين وخدمة العملاء', 'the online / customer-service employee'),
+  'online.shift': ('موظف الأونلاين', 'the online employee'),
+  'online.mine': ('موظف الأونلاين (يشوف تارجته وعمولته)', 'the online employee (sees his target and commission)'),
+  'assistant.cashier': ('الكاشير (البياع)', 'the cashier (seller)'),
+  'assistant.use_find': ('الكاشير (البياع)', 'the cashier (seller)'),
+  'assistant.use_robot_open': ('الكاشير (البياع)', 'the cashier (seller)'),
+  'assistant.use_robot_close': ('الكاشير (البياع)', 'the cashier (seller)'),
+  'assistant.use_fingerprint': ('الكاشير (البياع)', 'the cashier (seller)'),
+  'assistant.use_challenge': ('الكاشير (البياع)', 'the cashier (seller)'),
+  'assistant.use_reel': ('الكاشير (البياع)', 'the cashier (seller)'),
+};
