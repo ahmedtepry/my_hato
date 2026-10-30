@@ -40,6 +40,8 @@ import 'appearance_panel.dart';
 import 'contests.dart';
 import 'feature_switches.dart';
 import 'storefront_panel.dart';
+import 'robot_dock.dart';
+import 'cashier_assistant.dart' show assistantFlagsProvider;
 import 'stock_panel.dart';
 import 'assistant_panel.dart';
 import 'shortcuts_panel.dart';
@@ -311,6 +313,36 @@ String? _chatKind(WidgetRef ref) {
   if (p.contains('chat.manage')) return 'manager';
   if (p.contains('chat.use')) return 'staff';
   return null;
+}
+
+/// The automatic assistant (it used to be the "UI mode" placeholder): one icon in the left column. First tap turns the assistant on for this person
+/// and opens its panel; after that it opens/closes the panel. Shown only to people who may use it.
+List<Widget> _robotTiles(BuildContext ctx, WidgetRef ref) {
+  final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
+  if (f['available'] != true) return const [];
+  final on = f['mine'] == true;
+  final open = on && ref.watch(robotPanelOpenProvider);
+  return [
+    _RailTile(
+      tooltip: _t(ctx, 'المساعد الآلي', 'Automatic assistant'),
+      label: _t(ctx, 'المساعد الآلي', 'Assistant'),
+      badge: on ? null : _t(ctx, 'مقفول', 'Off'),
+      onTap: () async {
+        if (!on) {
+          try {
+            await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': true});
+            ref.invalidate(assistantFlagsProvider);
+            ref.read(robotPanelOpenProvider.notifier).state = true;
+          } catch (e) {
+            if (ctx.mounted) showSnack(ctx, friendlyError(ctx, e), error: true);
+          }
+          return;
+        }
+        ref.read(robotPanelOpenProvider.notifier).state = !open;
+      },
+      child: Icon(Icons.smart_toy_rounded, size: 32, color: open ? const Color(0xFF0E9384) : (on ? BrandColors.electric : BrandColors.gray)),
+    ),
+  ];
 }
 
 /// The chat tiles of the left column: the live chat (member) or direct messages (office), and the owner's log.
@@ -592,7 +624,9 @@ class AdminHomeScreen extends ConsumerWidget {
               // the chat panel takes the free strip at the far left: everything else moves right by its width
               final chatShown = ref.watch(chatOpenProvider) && _chatKind(ref) != null;
               final chatFloating = chatShown && ref.watch(chatFloatProvider);
-              final shift = chatShown && !chatFloating ? chatPanelSpace : 0.0;
+              final chatDocked = chatShown && !chatFloating;
+              final robotShown = (ref.watch(assistantFlagsProvider).valueOrNull?['mine'] == true) && ref.watch(robotPanelOpenProvider);
+              final shift = chatDocked || robotShown ? chatPanelSpace : 0.0;
               return Scaffold(
                 backgroundColor: const Color(0xFFF4F6FA),
                 body: CallbackShortcuts(
@@ -649,13 +683,7 @@ class AdminHomeScreen extends ConsumerWidget {
                                   const SizedBox(height: 8),
                                   const AppUpdateButton(),
                                   const SizedBox(height: 8),
-                                  _RailTile(
-                                    tooltip: _t(ctx, 'قريبًا: هنحدد الخدمة دي بعدين', 'Coming soon'),
-                                    onTap: null,
-                                    child: const Text('🤖', style: TextStyle(fontSize: 32)),
-                                    label: 'UI mode',
-                                    badge: _t(ctx, 'قريبًا', 'Soon'),
-                                  ),
+                                  ..._robotTiles(ctx, ref),
                                   const SizedBox(height: 8),
                                   _RailTile(
                                     tooltip: _t(ctx, 'تغيير اللغة', 'Switch language'),
@@ -685,18 +713,22 @@ class AdminHomeScreen extends ConsumerWidget {
                                   height: 560,
                                   child: DirectChatPanel(manager: _chatKind(ref) == 'manager'),
                                 ),
-                              if (chatShown && !chatFloating)
+                              // the strip at the far left: messages on top, the robot below, never overlapping; each closes on its own
+                              if (chatDocked || robotShown)
                                 Positioned(
                                   left: 8,
                                   top: 0,
                                   bottom: 0,
                                   width: chatPanelSpace - 16,
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxHeight: 640),
-                                      child: Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: DirectChatPanel(manager: _chatKind(ref) == 'manager')),
-                                    ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    child: Column(children: [
+                                      if (chatDocked)
+                                        Expanded(child: Align(alignment: Alignment.topCenter, child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 640), child: DirectChatPanel(manager: _chatKind(ref) == 'manager')))),
+                                      if (chatDocked && robotShown) const SizedBox(height: 10),
+                                      if (robotShown)
+                                        Expanded(child: Align(alignment: chatDocked ? Alignment.bottomCenter : Alignment.topCenter, child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 640), child: const RobotChatPanel()))),
+                                    ]),
                                   ),
                                 ),
 
