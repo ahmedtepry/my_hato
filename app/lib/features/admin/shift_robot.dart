@@ -120,13 +120,13 @@ class StageController extends ChangeNotifier {
     super.dispose();
   }
 
-  // Repaint at most ~30 times a second: the code is typed a few milliseconds per letter, and re-laying out the whole scene on every
+  // Repaint at most ~11 times a second: the code is typed a few milliseconds per letter, and re-laying out the whole scene on every
   // letter froze the Windows app.
   bool _pending = false;
   void _ping() {
     if (_dead || _pending) return;
     _pending = true;
-    Timer(const Duration(milliseconds: 33), () {
+    Timer(const Duration(milliseconds: 90), () {
       _pending = false;
       if (!_dead) notifyListeners();
     });
@@ -207,32 +207,9 @@ class StageController extends ChangeNotifier {
 
   // ---- flying chips (the line is thrown into the robot's head)
   void toss(String text) {
-    final c = ctx;
-    if (c == null || _dead) return;
-    try {
-      final box = consoleKey.currentContext?.findRenderObject() as RenderBox?;
-      final rb = robotKey.currentContext?.findRenderObject() as RenderBox?;
-      if (box == null || rb == null || !box.attached || !rb.attached) return;
-      final cp = box.localToGlobal(Offset.zero);
-      final rp = rb.localToGlobal(Offset.zero);
-      final from = Offset(cp.dx + 40 + _rnd.nextInt(60), cp.dy + box.size.height - 28 - _rnd.nextInt(40));
-      final to = Offset(rp.dx + rb.size.width * .5, rp.dy + rb.size.height * .29);
-      final overlay = Overlay.of(c, rootOverlay: true);
-      late OverlayEntry entry;
-      entry = OverlayEntry(
-        builder: (_) => _FlyingChip(
-          text: text.length > 28 ? text.substring(0, 28) : text,
-          from: from,
-          to: to,
-          bend: Offset(-60 - _rnd.nextInt(50).toDouble(), -50 - _rnd.nextInt(60).toDouble()),
-          onDone: () {
-            entry.remove();
-            robotKey.currentState?.pulse();
-          },
-        ),
-      );
-      overlay.insert(entry);
-    } catch (_) {/* the effect is only decoration */}
+    if (_dead) return;
+    robotKey.currentState?.pulse();
+  }
   }
 }
 
@@ -463,9 +440,19 @@ class RobotView extends StatefulWidget {
 }
 
 class RobotViewState extends State<RobotView> with TickerProviderStateMixin {
-  late final AnimationController _loop = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+  // The robot idles at ~10 frames a second: a 60 fps repaint of this many gradients made weak Windows laptops crawl.
+  final ValueNotifier<double> _loop = ValueNotifier<double>(0);
+  Timer? _tick;
   late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
   late final AnimationController _dim = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400));
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (mounted) _loop.value = (_loop.value + .025) % 1;
+    });
+  }
 
   /// Lights go off one by one: eyes, chest, antenna, then the glow underneath.
   void powerOff() {
@@ -479,6 +466,7 @@ class RobotViewState extends State<RobotView> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _tick?.cancel();
     _loop.dispose();
     _pulse.dispose();
     _dim.dispose();
@@ -496,7 +484,8 @@ class RobotViewState extends State<RobotView> with TickerProviderStateMixin {
 
 class _RobotPainter extends CustomPainter {
   _RobotPainter(this.t, this.pulse, this.dim, this.mood) : super(repaint: Listenable.merge([t, pulse, dim]));
-  final Animation<double> t, pulse, dim;
+  final ValueListenable<double> t;
+  final Animation<double> pulse, dim;
   final RobotMood mood;
 
   static const _line = Color(0xFF5F7679);
