@@ -678,8 +678,9 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
         ),
         const Divider(height: 1),
         SizedBox(
-          height: 108,
-          child: ListView(padding: const EdgeInsets.all(8), children: [
+          // the buttons area grows with the panel size so no button is cut off (it also scrolls)
+          height: 150.0 + (step + 1) * 30,
+          child: Scrollbar(child: ListView(padding: const EdgeInsets.all(8), children: [
             Wrap(spacing: 6, runSpacing: 6, children: [
               if (canClose) ActionChip(avatar: const Icon(Icons.lock_clock_outlined, size: 16), label: Text(_t(context, 'قفّل الوردية عني', 'Close the shift for me')), onPressed: () => _ask('close', _t(context, 'قفّل الوردية عني', 'Close the shift for me'))),
               if (canFind) ActionChip(avatar: const Icon(Icons.search_rounded, size: 16), label: Text(_t(context, 'دوّر على منتج', 'Find a product')), onPressed: () => _ask('find', _t(context, 'دوّر على منتج', 'Find a product'))),
@@ -752,7 +753,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
                   },
                 ),
             ]),
-          ]),
+          ])),
         ),
       ]),
     );
