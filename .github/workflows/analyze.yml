@@ -25,3 +25,10 @@ jobs:
             grep -E "^\s*error •" /tmp/analyze.txt | while IFS= read -r l; do echo "::error::$l"; done
             echo "::error::analyzer found errors"; exit 1
           fi
+      - name: Home layout widget tests
+        working-directory: app
+        continue-on-error: true
+        run: |
+          flutter test test/home_layouts_test.dart 2>&1 | tee /tmp/t.txt || true
+          grep -E "EXCEPTION CAUGHT|Expected:|Actual:|first build:|toggle to|\[E\]|Some tests failed|All tests passed" /tmp/t.txt | head -40 | while IFS= read -r l; do echo "::warning::HL $l"; done
+          grep -A12 "EXCEPTION CAUGHT" /tmp/t.txt | head -60 | while IFS= read -r l; do echo "::warning::HX $l"; done
