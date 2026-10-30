@@ -557,7 +557,8 @@ class _RegisterState extends ConsumerState<_Register> {
     if (!mounted) return;
     if (guard) {
       // the robot closes the shift (30-second review); the old dialog stays for when the guard is off
-      if (await ShiftRobotClose.show(context, _shiftId)) ref.invalidate(posShiftProvider);
+      await ShiftRobotClose.show(context, _shiftId);
+      ref.invalidate(posShiftProvider); // also after the X: the shift may have been closed just before
       return;
     }
     final ok = await showDialog<bool>(context: context, builder: (_) => _CloseShiftDialog(shiftId: _shiftId));
