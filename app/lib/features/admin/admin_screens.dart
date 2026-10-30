@@ -315,8 +315,8 @@ String? _chatKind(WidgetRef ref) {
   return null;
 }
 
-/// The automatic assistant (it used to be the "UI mode" placeholder): one icon in the left column. First tap turns the assistant on for this person
-/// and opens its panel; after that it opens/closes the panel. Shown only to people who may use it.
+/// The automatic assistant (it used to be the "UI mode" placeholder): one icon in the left column that switches the assistant ON (opens its panel)
+/// and OFF (closes it) for this person. Shown only to people who may use it.
 List<Widget> _robotTiles(BuildContext ctx, WidgetRef ref) {
   final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
   if (f['available'] != true) return const [];
@@ -324,21 +324,22 @@ List<Widget> _robotTiles(BuildContext ctx, WidgetRef ref) {
   final open = on && ref.watch(robotPanelOpenProvider);
   return [
     _RailTile(
-      tooltip: _t(ctx, 'المساعد الآلي', 'Automatic assistant'),
+      tooltip: on ? _t(ctx, 'المساعد الآلي شغّال. اضغط لإيقافه', 'The assistant is on. Tap to turn it off') : _t(ctx, 'اضغط لتشغيل المساعد الآلي', 'Tap to turn the assistant on'),
       label: _t(ctx, 'المساعد الآلي', 'Assistant'),
-      badge: on ? null : _t(ctx, 'مقفول', 'Off'),
+      badge: on ? _t(ctx, 'شغّال', 'On') : _t(ctx, 'مقفول', 'Off'),
+      // one switch for the whole assistant: tapping turns it ON (and opens its panel) or OFF (and closes it); the till's top bar shows the same state
       onTap: () async {
-        if (!on) {
-          try {
-            await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': true});
-            ref.invalidate(assistantFlagsProvider);
-            ref.read(robotPanelOpenProvider.notifier).state = true;
-          } catch (e) {
-            if (ctx.mounted) showSnack(ctx, friendlyError(ctx, e), error: true);
-          }
+        if (on && !open) {
+          ref.read(robotPanelOpenProvider.notifier).state = true; // it is on but its panel was closed: show the panel again
           return;
         }
-        ref.read(robotPanelOpenProvider.notifier).state = !open;
+        try {
+          await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': !on});
+          ref.read(robotPanelOpenProvider.notifier).state = !on;
+          ref.invalidate(assistantFlagsProvider);
+        } catch (e) {
+          if (ctx.mounted) showSnack(ctx, friendlyError(ctx, e), error: true);
+        }
       },
       child: Icon(Icons.smart_toy_rounded, size: 32, color: open ? const Color(0xFF0E9384) : (on ? BrandColors.electric : BrandColors.gray)),
     ),
