@@ -895,7 +895,7 @@ class _ScanStrip extends StatelessWidget {
                 ),
             ]),
             if (progress > 0 && progress < 1)
-              Positioned(left: progress * box.maxWidth - 1, top: 0, bottom: 0, child: Container(width: 2, decoration: const BoxDecoration(color: Color(0xFF2DC4B2), boxShadow: [BoxShadow(color: Color(0xFF2DC4B2), blurRadius: 8)]))),
+              Positioned(left: progress * box.maxWidth - 1, top: 0, bottom: 0, child: Container(width: 2, decoration: const BoxDecoration(color: Color(0xFF2DC4B2), boxShadow: []))),
           ]),
         );
       }),

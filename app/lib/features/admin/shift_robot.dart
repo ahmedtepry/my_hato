@@ -293,7 +293,6 @@ class _FlyingChipState extends State<_FlyingChip> with SingleTickerProviderState
                           color: const Color(0xEB07110F),
                           border: Border.all(color: const Color(0xFF2DC4B2)),
                           borderRadius: BorderRadius.circular(6),
-                          boxShadow: const [BoxShadow(color: Color(0x997FF5DF), blurRadius: 14)],
                         ),
                         child: Text(widget.text, style: const TextStyle(fontFamily: 'Consolas', fontFamilyFallback: _monoFallback, fontSize: 12, color: Color(0xFF9FE7D6), decoration: TextDecoration.none, fontWeight: FontWeight.w500)),
                       ),
@@ -321,7 +320,7 @@ class StageConsole extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: ctl,
-      builder: (_, __) => Container(
+      builder: (_, __) => RepaintBoundary(child: Container(
         key: ctl.consoleKey,
         height: height,
         width: double.infinity,
@@ -349,7 +348,7 @@ class StageConsole extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 }
@@ -410,7 +409,7 @@ class _RobotSceneState extends State<RobotScene> {
                 scale: ctl.mood == RobotMood.worry ? 1.14 : 1.0,
                 duration: const Duration(milliseconds: 500),
                 curve: Curves.easeOutBack,
-                child: SizedBox(width: widget.robotWidth, child: RobotView(key: ctl.robotKey, mood: ctl.mood)),
+                child: SizedBox(width: widget.robotWidth, child: RepaintBoundary(child: RobotView(key: ctl.robotKey, mood: ctl.mood))),
               ),
             ]),
           ),
@@ -516,9 +515,8 @@ class _RobotPainter extends CustomPainter {
     final d = dim.value;
     final off = ((d - .75) / .25).clamp(0.0, 1.0); // the glow underneath goes out last
     if (off < 1) {
-      c.saveLayer(thr.inflate(4), Paint()..color = Color.fromRGBO(255, 255, 255, 1 - off));
-      c.drawOval(thr, Paint()..shader = const RadialGradient(colors: [Color(0xE67FF5DF), Color(0x007FF5DF)]).createShader(thr));
-      c.restore();
+      final a = 1 - off; // no saveLayer: a layer per frame is slow on weak Windows graphics
+      c.drawOval(thr, Paint()..shader = RadialGradient(colors: [Color.fromRGBO(127, 245, 223, .9 * a), const Color(0x007FF5DF)]).createShader(thr));
     }
 
     c.translate(0, math.sin(ph) * 5);
@@ -583,7 +581,7 @@ class _RobotPainter extends CustomPainter {
     // head
     c.drawLine(const Offset(120, 22), const Offset(120, 44), Paint()..color = _line..strokeWidth = 4);
     final glow = (.55 + .45 * math.sin(ph * 4)) * (1 - ((d - .55) / .2).clamp(0.0, 1.0));
-    c.drawCircle(const Offset(120, 16), 14, Paint()..color = _mint.withValues(alpha: .25)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    c.drawCircle(const Offset(120, 16), 14, Paint()..color = _mint.withValues(alpha: .22));
     c.drawCircle(const Offset(120, 16), 9, Paint()..color = _mint.withValues(alpha: glow));
     for (final x in [52.0, 188.0]) {
       final ear = Rect.fromCircle(center: Offset(x, 88), radius: 15);

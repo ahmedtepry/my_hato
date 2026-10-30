@@ -14,7 +14,7 @@ import 'theme.dart';
 
 const launchAnimations = ['classic', 'zoom', 'slide', 'liquid', 'orbit', 'phone', 'neon', 'pulse', 'bird'];
 /// Ten wave logos x three backgrounds (n = navy, e = electric blue, l = light). 'default' = wave 2 on navy.
-const appIcons = ['default', for (var n = 1; n <= 10; n++) for (final v in ['n', 'e', 'l']) 'w$n$v'];
+final appIcons = ['default', for (var n = 1; n <= 10; n++) for (final v in ['n', 'e', 'l']) 'w$n$v'];
 
 /// The app's name, set by the owner. Read wherever the app writes its own name.
 class AppName {
