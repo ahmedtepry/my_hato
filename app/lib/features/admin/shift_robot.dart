@@ -3,7 +3,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show ValueListenable, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
@@ -213,7 +213,6 @@ class StageController extends ChangeNotifier {
   void toss(String text) {
     if (_dead) return;
     robotKey.currentState?.pulse();
-  }
   }
 }
 
