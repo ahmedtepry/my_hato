@@ -1,14 +1,5 @@
--- A customer can no longer change the contact phone straight from the app: it goes through the
--- account-change-phone function, which checks the account password first (service role only).
-create or replace function public.guard_profile_phone()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  if new.contact_phone is distinct from old.contact_phone and coalesce(auth.role(), '') = 'authenticated' then
-    raise exception 'PASSWORD_REQUIRED';
-  end if;
-  return new;
-end $$;
-revoke all on function public.guard_profile_phone() from public, anon, authenticated;
-drop trigger if exists profiles_guard_phone on public.profiles;
-create trigger profiles_guard_phone before update of contact_phone on public.profiles
-  for each row execute function public.guard_profile_phone();
+-- 0106: the contact phone can no longer be changed straight from the app. The customer's own session has no UPDATE right on
+-- profiles.contact_phone any more; the only way is the account-change-phone function, which checks the account password first.
+-- (Done with a column privilege instead of a trigger: nothing in the other profile columns changes.)
+revoke update (contact_phone) on public.profiles from authenticated;
+-- the helper function created while trying a trigger first is not used: drop function if exists public.guard_profile_phone();
