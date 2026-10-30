@@ -49,6 +49,8 @@ const _perms = <String, _PermInfo>{
       descAr: 'بعد ما يكلّم العميل يحدد أقرب فرع ويتسجّل في الطلب', descEn: 'Sets the nearest pickup branch after calling the customer'),
   'orders.confirm_wallet': _PermInfo('orders', 'يأكد استلام تحويل المحفظة', 'Confirm a wallet transfer arrived', descAr: 'بعد ما يتأكد إن الفلوس وصلت يعلّم الطلب مدفوع', descEn: 'Marks the order paid once the money arrived'),
   'payments.wallets': _PermInfo('extras', 'يضبط أرقام محافظ الدفع', 'Set the wallet payment numbers', descAr: 'أرقام فودافون كاش واتصالات كاش وإنستا باي', descEn: 'Vodafone Cash, Etisalat Cash and InstaPay numbers'),
+  'online.manage': _PermInfo('extras', 'يحدد ساعات وتارجت موظفي الأونلاين', 'Set online employees hours and targets', descAr: 'ساعات الشيفت اليومية وتارجت الأوردرات وقيمتها', descEn: 'Daily shift hours and orders / value targets'),
+  'online.mine': _PermInfo('orders', 'يشوف تارجته وساعاته (أونلاين)', 'See his own online target and hours', descAr: 'وصل لكام من تارجته وعدّى كام ساعة', descEn: 'How far he is from his target and hours used'),
   'customers.view': _PermInfo('orders', 'يشوف بيانات العملاء', 'View customers'),
   'support.manage': _PermInfo('orders', 'يقبل أو يرفض الحسابات الجديدة', 'Approve new accounts',
       descAr: 'ويرد على طلبات الدعم', descEn: 'And answers support requests'),

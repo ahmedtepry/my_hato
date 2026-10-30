@@ -41,6 +41,7 @@ import 'contests.dart';
 import 'feature_switches.dart';
 import 'storefront_panel.dart';
 import 'wallets_panel.dart';
+import 'online_panel.dart';
 import 'robot_dock.dart';
 import 'cashier_assistant.dart' show assistantFlagsProvider;
 import 'stock_panel.dart';
@@ -261,6 +262,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
   'wallets': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFFE60000), 'محافظ الدفع', 'Wallet payments', 'أرقام فودافون كاش واتصالات كاش وإنستا باي اللي العميل يحوّل عليها', 'The Vodafone Cash, Etisalat Cash and InstaPay numbers customers transfer to'),
+  'online': _SectionInfo(Icons.flag_circle_outlined, Color(0xFF0E9384), 'ساعات وتارجت الأونلاين', 'Online hours and targets', 'حدد ساعات شيفت كل موظف أونلاين وتارجت الأوردرات وقيمتها', 'Set each online employee\'s shift hours and orders and value targets'),
   'storefront': _SectionInfo(Icons.view_quilt_rounded, Color(0xFF2F6BFF), 'طريقة عرض الواجهة', 'Storefront layout', 'اختار شكل عرض المنتجات في تطبيق العملا، ويتطبق على الكل', 'Pick how products are shown in the customer app; it applies to everyone'),
   'assistant': _SectionInfo(Icons.smart_toy_rounded, Color(0xFF0E9384), 'المساعد الآلي', 'Assistant', 'المحاسب الآلي وروبوت خدمة العملاء: شغّلهم وشوف شغلهم', 'The automatic accountant and the customer-service robot: switch them on and see their work'),
   'shortcuts': _SectionInfo(Icons.bolt_rounded, Color(0xFFDC6803), 'اختصارات', 'Shortcuts', 'استلام بضاعة، جرد، تعديل أسعار، وتصدير بيانات', 'Receive goods, stocktake, edit prices and export data'),
@@ -322,6 +324,7 @@ String? _chatKind(WidgetRef ref) {
 List<Widget> _robotTiles(BuildContext ctx, WidgetRef ref) {
   final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
   if (f['available'] != true) return const [];
+  if (onlineSessionStart.year < 2000) return const [];
   final on = f['mine'] == true;
   final open = on && ref.watch(robotPanelOpenProvider);
   return [
@@ -588,6 +591,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'features' => const FeatureSwitchesPanel(),
                       'storefront' => const StorefrontLayoutPanel(),
                       'wallets' => const WalletNumbersPanel(),
+                      'online' => const OnlinePlanPanel(),
                       'wheel' => const WheelAdminPanel(),
                       'stock' => const StockPanel(),
                       'shortcuts' => const ShortcutsPanel(),

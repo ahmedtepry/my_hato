@@ -534,6 +534,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('features.manage')) 'features',
     if (p.contains('storefront.layout')) 'storefront',
     if (p.contains('payments.wallets')) 'wallets',
+    if (p.contains('online.manage')) 'online',
     if (p.contains('wheel.manage')) 'wheel',
     if (p.contains('stock.view')) 'stock',
     if (p.contains('shortcut.goods_receipt') || p.contains('shortcut.stocktake') || p.contains('shortcut.price_edit') || p.contains('shortcut.export')) 'shortcuts',

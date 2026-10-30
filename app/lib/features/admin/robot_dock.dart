@@ -22,6 +22,9 @@ String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 /// Set to true right after the opening ceremony: the dock then plays its "fly to the side" welcome once.
 final robotWelcomeProvider = StateProvider<bool>((ref) => false);
 
+/// When this console session started (read once when the console opens): the shift clock counts from here.
+final DateTime onlineSessionStart = DateTime.now();
+
 /// Whether the robot's panel is showing in the left strip.
 final robotPanelOpenProvider = StateProvider<bool>((ref) => false);
 
@@ -223,7 +226,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
       DateTime? oldest;
       for (final r in rows) {
         final m = r as Map;
-        if (m['status'] == 'pending') {
+        if (m['status'] == 'pending_confirmation') {
           pending++;
           final at = DateTime.tryParse('${m['created_at']}');
           if (at != null && (oldest == null || at.isBefore(oldest))) oldest = at;
@@ -243,6 +246,11 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     if (!mounted) return;
     final online = ref.read(staffContextProvider).valueOrNull?.permissions.contains('orders.view') ?? false;
     if (!online) return;
+    if (ref.read(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false) {
+      try {
+        await ref.read(supabaseProvider).rpc('my_online_status'); // also sends the 50 / 75 / 100 percent target notifications
+      } catch (_) {}
+    }
     final c = await _counts();
     if (c == null || !mounted) return;
     if (_lastPending >= 0 && c.pending > _lastPending) {
@@ -276,10 +284,39 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     _lastPending = c.pending;
   }
 
+  /// "My target and hours": shift time against the hours the owner set, and the orders / value targets.
+  Future<void> _myPlan() async {
+    _add(RobotMsg(true, _t(context, 'تارجتي وساعاتي', 'My target and hours')));
+    try {
+      final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('my_online_status') as Map);
+      if (!mounted) return;
+      final lines = <String>[];
+      final mins = DateTime.now().difference(onlineSessionStart).inMinutes;
+      final hrs = r['daily_hours'] as num?;
+      if (hrs != null) {
+        final left = (hrs * 60).round() - mins;
+        lines.add(_t(context, 'الشيفت: عدّى ${_dur(mins)} من ${hrs.toStringAsFixed(hrs % 1 == 0 ? 0 : 1)} ساعة${left > 0 ? '، فاضل ${_dur(left)}' : '، خلصت ساعاتك'}',
+            'Shift: ${_dur(mins)} of ${hrs.toStringAsFixed(hrs % 1 == 0 ? 0 : 1)} h${left > 0 ? ', ${_dur(left)} left' : ', your hours are done'}'));
+      } else {
+        lines.add(_t(context, 'الشيفت: عدّى ${_dur(mins)} (مفيش ساعات محددة ليك)', 'Shift: ${_dur(mins)} so far (no hours set for you)'));
+      }
+      final ot = r['orders_target'] as num?, vt = r['value_target_minor'] as num?;
+      if (ot != null && ot > 0) lines.add(_t(context, 'الأوردرات: ${r['orders_done']} من $ot (${r['orders_pct']}%)', 'Orders: ${r['orders_done']} of $ot (${r['orders_pct']}%)'));
+      if (vt != null && vt > 0) lines.add(_t(context, 'القيمة: ${((r['value_done_minor'] as num) / 100).round()} من ${(vt / 100).round()} ج.م (${r['value_pct']}%)', 'Value: ${((r['value_done_minor'] as num) / 100).round()} of ${(vt / 100).round()} EGP (${r['value_pct']}%)'));
+      if ((ot == null || ot == 0) && (vt == null || vt == 0)) lines.add(_t(context, 'لسه مفيش تارجت محدد ليك.', 'No target has been set for you yet.'));
+      lines.add(_t(context, 'النهارده جهّزت ${r['orders_today']} أوردر.', 'Today you handled ${r['orders_today']} order(s).'));
+      _add(RobotMsg(false, lines.join('\n')));
+    } catch (_) {
+      _add(RobotMsg(false, _t(context, 'معرفتش أجيب تارجتك دلوقتي.', 'I could not load your target now.')));
+    }
+  }
+
+  String _dur(int min) => min < 60 ? _t(context, '$min دقيقة', '$min min') : _t(context, '${min ~/ 60} ساعة و${min % 60} دقيقة', '${min ~/ 60} h ${min % 60} min');
+
   Future<void> _newOrders() async {
     _add(RobotMsg(true, _t(context, 'طلبات جديدة', 'New orders')));
     try {
-      final rows = await ref.read(supabaseProvider).from('orders').select('id').eq('status', 'pending').isFilter('closed_at', null);
+      final rows = await ref.read(supabaseProvider).from('orders').select('id').eq('status', 'pending_confirmation').isFilter('closed_at', null);
       final n = (rows as List).length;
       _add(RobotMsg(false, n == 0
           ? _t(context, 'مفيش طلبات جديدة مستنية دلوقتي.', 'No new orders are waiting right now.')
@@ -368,6 +405,8 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
               if (canClose) ActionChip(avatar: const Icon(Icons.lock_clock_outlined, size: 16), label: Text(_t(context, 'قفّل الوردية عني', 'Close the shift for me')), onPressed: () => _ask('close', _t(context, 'قفّل الوردية عني', 'Close the shift for me'))),
               if (canFind) ActionChip(avatar: const Icon(Icons.search_rounded, size: 16), label: Text(_t(context, 'دوّر على منتج', 'Find a product')), onPressed: () => _ask('find', _t(context, 'دوّر على منتج', 'Find a product'))),
               if (online) ...[
+                if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false)
+                  ActionChip(avatar: const Icon(Icons.flag_outlined, size: 16), label: Text(_t(context, 'تارجتي وساعاتي', 'My target and hours')), onPressed: _myPlan),
                 ActionChip(avatar: const Icon(Icons.checklist_rounded, size: 16), label: Text(_t(context, 'إيه المطلوب دلوقتي؟', 'What now?')), onPressed: _summary),
                 ActionChip(avatar: const Icon(Icons.shopping_bag_outlined, size: 16), label: Text(_t(context, 'طلبات جديدة', 'New orders')), onPressed: _newOrders),
                 ActionChip(avatar: const Icon(Icons.verified_user_outlined, size: 16), label: Text(_t(context, 'حسابات مستنية', 'Accounts waiting')), onPressed: _pendingAccounts),
