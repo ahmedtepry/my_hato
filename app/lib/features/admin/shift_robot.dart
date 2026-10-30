@@ -3,7 +3,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show ValueListenable, kIsWeb;
+import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
@@ -18,6 +18,8 @@ class ShiftBio {
 
   static Future<bool> available() async {
     if (kIsWeb) return false;
+    // Windows Hello's prompt blocks the whole Windows window (shows "not responding"): the fingerprint is for phones only
+    if (defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS) return false;
     try {
       return await _auth.isDeviceSupported();
     } catch (_) {
