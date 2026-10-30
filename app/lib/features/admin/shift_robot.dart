@@ -120,8 +120,16 @@ class StageController extends ChangeNotifier {
     super.dispose();
   }
 
+  // Repaint at most ~30 times a second: the code is typed a few milliseconds per letter, and re-laying out the whole scene on every
+  // letter froze the Windows app.
+  bool _pending = false;
   void _ping() {
-    if (!_dead) notifyListeners();
+    if (_dead || _pending) return;
+    _pending = true;
+    Timer(const Duration(milliseconds: 33), () {
+      _pending = false;
+      if (!_dead) notifyListeners();
+    });
   }
 
   void setMood(RobotMood m) {
@@ -287,7 +295,7 @@ class _FlyingChipState extends State<_FlyingChip> with SingleTickerProviderState
                           borderRadius: BorderRadius.circular(6),
                           boxShadow: const [BoxShadow(color: Color(0x997FF5DF), blurRadius: 14)],
                         ),
-                        child: Text(widget.text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Color(0xFF9FE7D6), decoration: TextDecoration.none, fontWeight: FontWeight.w500)),
+                        child: Text(widget.text, style: const TextStyle(fontFamily: 'Consolas', fontFamilyFallback: _monoFallback, fontSize: 12, color: Color(0xFF9FE7D6), decoration: TextDecoration.none, fontWeight: FontWeight.w500)),
                       ),
                     ),
                   ),
@@ -300,6 +308,8 @@ class _FlyingChipState extends State<_FlyingChip> with SingleTickerProviderState
     );
   }
 }
+
+const _monoFallback = ['Courier New', 'DejaVu Sans Mono', 'monospace'];
 
 /// The dark console box. Put it anywhere; the flying chips start from it.
 class StageConsole extends StatelessWidget {
@@ -328,11 +338,11 @@ class StageConsole extends StatelessWidget {
                   TextSpan(children: [
                     TextSpan(
                       text: l.kind == LineKind.note ? '// ${l.text}' : (l.text.startsWith('  ') ? l.text : '> ${l.text}'),
-                      style: TextStyle(color: l.kind == LineKind.note ? const Color(0xFF4F7F75) : const Color(0xFF9FE7D6)),
+                      style: TextStyle(color: l.kind == LineKind.note ? const Color(0xFF4F7F75) : const Color(0xFF9FE7D6), fontFamily: l.kind == LineKind.note ? Theme.of(context).textTheme.bodyMedium?.fontFamily : null),
                     ),
-                    if (l.tail.isNotEmpty) TextSpan(text: '  ${l.warn ? '⚠' : '✓'} ${l.tail}', style: TextStyle(color: l.warn ? const Color(0xFFFFB454) : const Color(0xFF4FE0A0))),
+                    if (l.tail.isNotEmpty) TextSpan(text: '  ${l.warn ? '▲' : '√'} ${l.tail}', style: TextStyle(color: l.warn ? const Color(0xFFFFB454) : const Color(0xFF4FE0A0))),
                   ]),
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5, height: 1.65),
+                  style: const TextStyle(fontFamily: 'Consolas', fontFamilyFallback: _monoFallback, fontSize: 12.5, height: 1.65),
                   maxLines: 1,
                   overflow: TextOverflow.clip,
                 ),
