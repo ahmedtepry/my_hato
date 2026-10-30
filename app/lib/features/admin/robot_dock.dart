@@ -186,6 +186,8 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
   final _scroll = ScrollController();
   Timer? _watch;
   int _lastPending = -1;
+  int _lastDone = -1;
+  bool? _shiftOpen;
 
   @override
   void initState() {
@@ -292,7 +294,16 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     if (!online) return;
     if (ref.read(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false) {
       try {
-        await ref.read(supabaseProvider).rpc('my_online_status'); // also sends the 50 / 75 / 100 percent target notifications
+        final st = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('my_online_status') as Map); // also sends the 50 / 75 / 100 percent target notifications
+        final done = (st['orders_done'] as num?)?.toInt() ?? 0;
+        final com = (st['commission_today_minor'] as num?)?.toInt() ?? 0;
+        if (_lastDone >= 0 && done > _lastDone && mounted) {
+          final c = _cheers[done % _cheers.length];
+          final line = '${_t(context, c.$1, c.$2)}${com > 0 ? '\n${_t(context, 'عمولتك النهارده: ${_egp(com)}', 'Your commission today: ${_egp(com)}')}' : ''}';
+          _add(RobotMsg(false, line));
+          playRobotCheer(context, _t(context, c.$1, c.$2));
+        }
+        _lastDone = done;
       } catch (_) {}
     }
     final c = await _counts();
@@ -349,6 +360,8 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
       if (vt != null && vt > 0) lines.add(_t(context, 'القيمة: ${((r['value_done_minor'] as num) / 100).round()} من ${(vt / 100).round()} ج.م (${r['value_pct']}%)', 'Value: ${((r['value_done_minor'] as num) / 100).round()} of ${(vt / 100).round()} EGP (${r['value_pct']}%)'));
       if ((ot == null || ot == 0) && (vt == null || vt == 0)) lines.add(_t(context, 'لسه مفيش تارجت محدد ليك.', 'No target has been set for you yet.'));
       lines.add(_t(context, 'النهارده جهّزت ${r['orders_today']} أوردر.', 'Today you handled ${r['orders_today']} order(s).'));
+      final cm = (r['commission_minor'] as num?) ?? 0, cd = (r['commission_today_minor'] as num?) ?? 0;
+      lines.add(_t(context, 'عمولتك: النهارده ${_egp(cd)}، والشهر ${_egp(cm)} (من عمولة المنتجات)', 'Your commission: today ${_egp(cd)}, month ${_egp(cm)} (from product commissions)'));
       _add(RobotMsg(false, lines.join('\n')));
     } catch (_) {
       _add(RobotMsg(false, _t(context, 'معرفتش أجيب تارجتك دلوقتي.', 'I could not load your target now.')));
@@ -522,6 +535,33 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     }
   }
 
+
+  /// The online shift: no cash at all, it only counts the orders this person confirmed that end delivered.
+  Future<void> _shiftToggle() async {
+    try {
+      final st = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('online_shift_state') as Map);
+      final open = st['open'] == true;
+      if (!open) {
+        _add(RobotMsg(true, _t(context, 'افتح شيفت الأونلاين', 'Open the online shift')));
+        await ref.read(supabaseProvider).rpc('online_shift_open');
+        _shiftOpen = true;
+        if (!mounted) return;
+        final g = timeOfDayGreeting(context).greet;
+        _add(RobotMsg(false, '$g\n${_t(context, 'الشيفت اتفتح. مفيش فلوس في إيدك: اللي بيتحسب ليك الأوردرات اللي بتأكدها وتتسلم. بالتوفيق!', 'The shift is open. No cash for you: what counts is the orders you confirm that get delivered. Good luck!')}'));
+        playRobotCheer(context, _t(context, 'الشيفت اتفتح، يلا بينا!', 'Shift is open, let us go!'));
+      } else {
+        _add(RobotMsg(true, _t(context, 'اقفل شيفت الأونلاين', 'Close the online shift')));
+        final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('online_shift_close') as Map);
+        _shiftOpen = false;
+        if (!mounted) return;
+        final bye = staffOutro[DateTime.now().day % staffOutro.length];
+        _add(RobotMsg(false, '${_t(context, 'الشيفت اتقفل. في الشيفت ده اتسلم لك ${r['orders']} أوردر بقيمة ${_egp((r['value_minor'] as num?) ?? 0)}.', 'Shift closed. In this shift ${r['orders']} order(s) of yours were delivered, worth ${_egp((r['value_minor'] as num?) ?? 0)}.')}\n${_t(context, bye.$1, bye.$2)}'));
+      }
+    } catch (e) {
+      if (mounted) _add(RobotMsg(false, '$e'.contains('NO_OPEN_SHIFT') ? _t(context, 'مفيش شيفت مفتوح.', 'No open shift.') : _t(context, 'معرفتش أغيّر الشيفت دلوقتي. جرّب تاني.', 'I could not change the shift now. Try again.')));
+    }
+  }
+
   String _dur(int min) => min < 60 ? _t(context, '$min دقيقة', '$min min') : _t(context, '${min ~/ 60} ساعة و${min % 60} دقيقة', '${min ~/ 60} h ${min % 60} min');
 
   Future<void> _newOrders() async {
@@ -663,6 +703,8 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
                   ),
               ],
               if (online) ...[
+                if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('online.shift') ?? false)
+                  ActionChip(avatar: const Icon(Icons.timer_outlined, size: 16), label: Text(_t(context, 'شيفت الأونلاين (فتح/قفل)', 'Online shift (open/close)')), onPressed: _shiftToggle),
                 if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false)
                   ActionChip(avatar: const Icon(Icons.flag_outlined, size: 16), label: Text(_t(context, 'تارجتي وساعاتي', 'My target and hours')), onPressed: _myPlan),
                 ActionChip(avatar: const Icon(Icons.checklist_rounded, size: 16), label: Text(_t(context, 'إيه المطلوب دلوقتي؟', 'What now?')), onPressed: _summary),
@@ -930,3 +972,19 @@ const staffOutro = <(String, String)>[
   ('خلصت يوم شغل كويس. اتأكد إن كل حاجة اتسلمت واتسجلت قبل ما تمشي.', 'A good day done. Make sure everything is handed over and recorded before you leave.'),
   ('تعبك مقدّر. ارتاح، وبكرة نبدأ بنشاط جديد.', 'Your effort is appreciated. Rest, and tomorrow we start fresh.'),
 ];
+
+const _cheers = <(String, String)>[
+  ('برافو! أوردر جديد اتسلم. شغل ممتاز!', 'Bravo! Another order delivered. Great work!'),
+  ('تمام كده! عميل جديد راضي بفضلك.', 'Nice! Another happy customer thanks to you.'),
+  ('بطل! كمّل على نفس النَّفَس.', 'Champion! Keep the same pace.'),
+  ('جامد! الأوردر ده زوّد تارجتك.', 'Awesome! That order moved your target up.'),
+];
+
+/// A short cheer: the robot hops in with a message (same cheap transform-only animation as the welcome).
+void playRobotCheer(BuildContext context, String text) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+  late OverlayEntry entry;
+  entry = OverlayEntry(builder: (_) => IgnorePointer(child: _WalkingRobot(greet: text, icon: Icons.emoji_events_rounded, color: const Color(0xFFF59E0B), onDone: () => entry.remove())));
+  overlay.insert(entry);
+}
