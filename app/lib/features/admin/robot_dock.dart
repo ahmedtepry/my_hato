@@ -193,7 +193,14 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     // online employees: the robot keeps an eye on the orders and tells them when a new one arrives or one has waited too long
     _watch = Timer.periodic(const Duration(seconds: 60), (_) => _poll());
     Future.microtask(() {
-      if (ref.read(robotMessagesProvider).isEmpty) {
+      if (ref.read(robotMessagesProvider).isEmpty && _isAcct()) {
+        final g = timeOfDayGreeting(context).greet;
+        final w = accountantWelcome[DateTime.now().day % accountantWelcome.length];
+        ref.read(robotMessagesProvider.notifier).state = [
+          RobotMsg(false, '$g\n${_t(context, 'أنا مساعد المحاسب. هراجع معاك الأرقام والورديات والفروق، والقرار المالي دايمًا ليك.', 'I am the accountant assistant. I will go over the figures, shifts and differences with you; the financial decision is always yours.')}'),
+          RobotMsg(false, _t(context, w.$1, w.$2)),
+        ];
+      } else if (ref.read(robotMessagesProvider).isEmpty) {
         ref.read(robotMessagesProvider.notifier).state = [
           RobotMsg(false, _t(context, 'أنا روبوت الوردية. لو عايز تسألني، اختار من الحاجات الشائعة تحت. أنا بشرح وبساعد بس، والقرار دايمًا ليك.',
               'I am the shift robot. Pick one of the common questions below. I only explain and help, the decision is always yours.')),
@@ -207,6 +214,11 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     _watch?.cancel();
     _scroll.dispose();
     super.dispose();
+  }
+
+  bool _isAcct() {
+    final perms = ref.read(staffContextProvider).valueOrNull?.permissions;
+    return perms != null && (perms.contains('sales.view') || perms.contains('shifts.review') || perms.contains('assistant.accountant')) && !perms.contains('orders.view');
   }
 
   void _add(RobotMsg m) {
@@ -326,6 +338,131 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     }
   }
 
+
+  // ------------------------------------------------------------ the accountant side of the assistant
+  Future<Map<String, dynamic>?> _brief() async {
+    try {
+      return Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('accountant_brief') as Map);
+    } catch (_) {
+      if (mounted) _add(RobotMsg(false, _t(context, 'معرفتش أقرا الأرقام دلوقتي. جرّب تاني بعد شوية.', 'I could not read the figures now. Try again in a moment.')));
+      return null;
+    }
+  }
+
+  String _egp(num minor) {
+    final v = (minor / 100).round().toString();
+    final b = StringBuffer();
+    for (var i = 0; i < v.length; i++) {
+      if (i > 0 && (v.length - i) % 3 == 0 && v[i - 1] != '-') b.write(',');
+      b.write(v[i]);
+    }
+    return _t(context, '$b ج.م', '$b EGP');
+  }
+
+  num _n(Object? v) => v is num ? v : 0;
+
+  Future<void> _accToday() async {
+    _add(RobotMsg(true, _t(context, 'ملخص النهارده', 'Today summary')));
+    final r = await _brief();
+    if (r == null || !mounted) return;
+    final t = Map<String, dynamic>.from(r['today'] as Map), y = Map<String, dynamic>.from(r['yesterday'] as Map);
+    final on = Map<String, dynamic>.from(r['online_today'] as Map);
+    final net = _n(t['gross_minor']) - _n(t['refunds_minor']), yNet = _n(y['gross_minor']) - _n(y['refunds_minor']);
+    final lines = <String>[
+      _t(context, 'مبيعات الفروع النهارده: ${_egp(net)} في ${t['count']} فاتورة', 'Branch sales today: ${_egp(net)} in ${t['count']} invoice(s)'),
+      if (_n(t['refunds_minor']) > 0) _t(context, 'مرتجعات: ${_egp(_n(t['refunds_minor']))}', 'Refunds: ${_egp(_n(t['refunds_minor']))}'),
+      if (_n(t['discount_minor']) > 0) _t(context, 'خصومات: ${_egp(_n(t['discount_minor']))}', 'Discounts: ${_egp(_n(t['discount_minor']))}'),
+      if (yNet > 0)
+        _t(context, 'مقارنة بإمبارح (${_egp(yNet)}): ${net >= yNet ? 'أعلى' : 'أقل'} بنسبة ${((net - yNet).abs() * 100 / yNet).round()}%',
+            'Versus yesterday (${_egp(yNet)}): ${net >= yNet ? 'up' : 'down'} ${((net - yNet).abs() * 100 / yNet).round()}%')
+      else
+        _t(context, 'مفيش مبيعات إمبارح للمقارنة.', 'No sales yesterday to compare with.'),
+      _t(context, 'الأونلاين النهارده: ${on['count']} طلب بقيمة ${_egp(_n(on['total_minor']))}', 'Online today: ${on['count']} order(s) worth ${_egp(_n(on['total_minor']))}'),
+    ];
+    final top = (r['top_today'] as List? ?? const []);
+    if (top.isNotEmpty) {
+      lines.add(_t(context, 'الأكتر مبيعًا:', 'Best sellers:'));
+      for (final e in top) {
+        final m = e as Map;
+        lines.add('• ${m['name']} (${m['qty']}) ${_egp(_n(m['total_minor']))}');
+      }
+    }
+    _add(RobotMsg(false, lines.join('\n')));
+  }
+
+  Future<void> _accShifts() async {
+    _add(RobotMsg(true, _t(context, 'الورديات والفروق', 'Shifts and differences')));
+    final r = await _brief();
+    if (r == null || !mounted) return;
+    final open = (r['open_shifts'] as List? ?? const []), vars = (r['variances'] as List? ?? const []);
+    final lines = <String>[];
+    if (open.isEmpty) {
+      lines.add(_t(context, 'مفيش ورديات مفتوحة دلوقتي.', 'No shifts are open right now.'));
+    } else {
+      lines.add(_t(context, 'ورديات مفتوحة (${open.length}):', 'Open shifts (${open.length}):'));
+      for (final e in open) {
+        final m = e as Map;
+        final long = _n(m['hours']) >= 12;
+        lines.add('• ${m['branch']} - ${m['cashier']} - ${_t(context, 'من ${m['hours']} ساعة', '${m['hours']} h')}${long ? _t(context, ' (طويلة، اتأكد إنها تتقفل)', ' (long, make sure it gets closed)') : ''}');
+      }
+    }
+    if (vars.isEmpty) {
+      lines.add(_t(context, 'مفيش فروق في العهدة آخر 7 أيام. كويس.', 'No cash differences in the last 7 days. Good.'));
+    } else {
+      lines.add(_t(context, 'فروق عهدة آخر 7 أيام:', 'Cash differences in the last 7 days:'));
+      for (final e in vars) {
+        final m = e as Map;
+        final v = _n(m['variance_minor']);
+        lines.add('• ${m['branch']} - ${m['cashier']}: ${v < 0 ? _t(context, 'عجز', 'short') : _t(context, 'زيادة', 'over')} ${_egp(v.abs())}');
+      }
+      lines.add(_t(context, 'راجع الوردية من قسم «الورديات» واسأل الكاشير قبل ما تسجل أي حاجة.', 'Review the shift under Shifts and ask the cashier before recording anything.'));
+    }
+    _add(RobotMsg(false, lines.join('\n')));
+  }
+
+  Future<void> _accBranches() async {
+    _add(RobotMsg(true, _t(context, 'الفروع النهارده', 'Branches today')));
+    final r = await _brief();
+    if (r == null || !mounted) return;
+    final bs = (r['branches_today'] as List? ?? const []);
+    _add(RobotMsg(false, bs.isEmpty
+        ? _t(context, 'مفيش فروع متاحة ليك.', 'No branches available to you.')
+        : [for (final e in bs) '• ${(e as Map)['name']}: ${_egp(_n(e['gross_minor']))} (${e['count']} ${_t(context, 'فاتورة', 'inv.')})'].join('\n')));
+  }
+
+  Future<void> _accMonth() async {
+    _add(RobotMsg(true, _t(context, 'الشهر لحد دلوقتي', 'Month so far')));
+    final r = await _brief();
+    if (r == null || !mounted) return;
+    final m = Map<String, dynamic>.from(r['month'] as Map);
+    final net = _n(m['gross_minor']) - _n(m['refunds_minor']);
+    final day = DateTime.now().day;
+    _add(RobotMsg(false, [
+      _t(context, 'صافي مبيعات الفروع: ${_egp(net)} في ${m['count']} فاتورة', 'Net branch sales: ${_egp(net)} in ${m['count']} invoice(s)'),
+      _t(context, 'مرتجعات: ${_egp(_n(m['refunds_minor']))} - خصومات: ${_egp(_n(m['discount_minor']))}', 'Refunds: ${_egp(_n(m['refunds_minor']))} - Discounts: ${_egp(_n(m['discount_minor']))}'),
+      _t(context, 'متوسط اليوم: ${_egp(net / day)}', 'Daily average: ${_egp(net / day)}'),
+      _t(context, 'لو عايز ملفات الإكسيل للشهر: قسم «المساعد الآلي» > المحاسب الآلي.', 'For the month Excel files: Assistant section > Automatic accountant.'),
+    ].join('\n')));
+  }
+
+  /// "What do I need to do?" for the accountant: the things that are waiting for him, in order.
+  Future<void> _accTodo() async {
+    _add(RobotMsg(true, _t(context, 'إيه المطلوب مني؟', 'What do I need to do?')));
+    final r = await _brief();
+    if (r == null || !mounted) return;
+    final open = (r['open_shifts'] as List? ?? const []), vars = (r['variances'] as List? ?? const []);
+    final w = Map<String, dynamic>.from(r['wallet_waiting'] as Map);
+    final todo = <String>[
+      if (vars.isNotEmpty) _t(context, '${vars.length} فرق عهدة آخر 7 أيام محتاج مراجعة', '${vars.length} cash difference(s) in the last 7 days to review'),
+      if (_n(w['count']) > 0) _t(context, '${w['count']} طلب بمحفظة لسه التحويل ما اتأكدش (${_egp(_n(w['total_minor']))})', '${w['count']} wallet order(s) with an unconfirmed transfer (${_egp(_n(w['total_minor']))})'),
+      for (final e in open)
+        if (_n((e as Map)['hours']) >= 12) _t(context, 'وردية ${e['branch']} (${e['cashier']}) مفتوحة من ${e['hours']} ساعة', 'Shift ${e['branch']} (${e['cashier']}) open for ${e['hours']} h'),
+    ];
+    _add(RobotMsg(false, todo.isEmpty
+        ? _t(context, 'كله تمام، مفيش حاجة مالية مستنياك دلوقتي.', 'All clear, nothing financial is waiting for you.')
+        : [for (var i = 0; i < todo.length; i++) '${i + 1}. ${todo[i]}'].join('\n')));
+  }
+
   String _dur(int min) => min < 60 ? _t(context, '$min دقيقة', '$min min') : _t(context, '${min ~/ 60} ساعة و${min % 60} دقيقة', '${min ~/ 60} h ${min % 60} min');
 
   Future<void> _newOrders() async {
@@ -359,6 +496,14 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
   }
 
   Future<void> _off() async {
+    // goodbye message first (trust and honesty for the accountant), then switch off
+    final perms = ref.read(staffContextProvider).valueOrNull?.permissions;
+    final acct = perms != null && (perms.contains('sales.view') || perms.contains('shifts.review') || perms.contains('assistant.accountant'));
+    final bye = accountantOutro[DateTime.now().day % accountantOutro.length];
+    _add(RobotMsg(false, acct
+        ? '${_t(context, bye.$1, bye.$2)}\n${_t(context, 'مع السلامة، ونشوفك على خير.', 'Goodbye, see you soon.')}'
+        : _t(context, 'تسلم إيدك على شغل النهارده. مع السلامة، ونشوفك على خير.', 'Thanks for today\'s work. Goodbye, see you soon.')));
+    await Future<void>.delayed(const Duration(milliseconds: 2800));
     try {
       await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': false});
     } catch (_) {}
@@ -380,6 +525,8 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     final step = ref.watch(robotPanelStepProvider);
     final canClose = f['robot_close'] == true, canFind = f['find'] == true;
     final online = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('orders.view') ?? false;
+    final perms = ref.watch(staffContextProvider).valueOrNull?.permissions;
+    final acct = perms != null && (perms.contains('sales.view') || perms.contains('shifts.review') || perms.contains('assistant.accountant'));
     return Material(
       elevation: 10,
       color: Colors.white,
@@ -437,6 +584,22 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
             Wrap(spacing: 6, runSpacing: 6, children: [
               if (canClose) ActionChip(avatar: const Icon(Icons.lock_clock_outlined, size: 16), label: Text(_t(context, 'قفّل الوردية عني', 'Close the shift for me')), onPressed: () => _ask('close', _t(context, 'قفّل الوردية عني', 'Close the shift for me'))),
               if (canFind) ActionChip(avatar: const Icon(Icons.search_rounded, size: 16), label: Text(_t(context, 'دوّر على منتج', 'Find a product')), onPressed: () => _ask('find', _t(context, 'دوّر على منتج', 'Find a product'))),
+              if (acct) ...[
+                ActionChip(avatar: const Icon(Icons.checklist_rounded, size: 16), label: Text(_t(context, 'إيه المطلوب مني؟', 'What do I need to do?')), onPressed: _accTodo),
+                ActionChip(avatar: const Icon(Icons.today_rounded, size: 16), label: Text(_t(context, 'ملخص النهارده', 'Today summary')), onPressed: _accToday),
+                ActionChip(avatar: const Icon(Icons.lock_clock_outlined, size: 16), label: Text(_t(context, 'الورديات والفروق', 'Shifts and differences')), onPressed: _accShifts),
+                ActionChip(avatar: const Icon(Icons.store_mall_directory_outlined, size: 16), label: Text(_t(context, 'الفروع النهارده', 'Branches today')), onPressed: _accBranches),
+                ActionChip(avatar: const Icon(Icons.calendar_month_rounded, size: 16), label: Text(_t(context, 'الشهر لحد دلوقتي', 'Month so far')), onPressed: _accMonth),
+                for (final g in accountantGuides)
+                  ActionChip(
+                    label: Text(_t(context, g.$1, g.$2)),
+                    onPressed: () {
+                      _add(RobotMsg(true, _t(context, g.$1, g.$2)));
+                      final steps = context.isAr ? g.$3 : g.$4;
+                      _add(RobotMsg(false, [for (var i = 0; i < steps.length; i++) '${i + 1}. ${steps[i]}'].join('\n')));
+                    },
+                  ),
+              ],
               if (online) ...[
                 if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false)
                   ActionChip(avatar: const Icon(Icons.flag_outlined, size: 16), label: Text(_t(context, 'تارجتي وساعاتي', 'My target and hours')), onPressed: _myPlan),
@@ -636,4 +799,56 @@ const onlineGuides = <(String, String, List<String>, List<String>)>[
     'Check the customer details and phone.',
     'Press Approve or Reject, and write a reason if you reject.',
   ]),
+];
+
+/// Step-by-step help for the accountant.
+const accountantGuides = <(String, String, List<String>, List<String>)>[
+  ('إزاي أراجع وردية؟', 'How do I review a shift?', [
+    'افتح قسم «الورديات» واختار الوردية المقفولة.',
+    'قارن المتوقع بالمعدود، والفرق هيظهر لك.',
+    'لو في فرق: اسأل الكاشير الأول وشوف الفواتير والمرتجعات في الوردية.',
+    'اكتب ملاحظتك واعتمد المراجعة.',
+  ], [
+    'Open Shifts and pick the closed shift.',
+    'Compare expected with counted; the difference is shown.',
+    'If there is a difference: ask the cashier first and check the sales and refunds in that shift.',
+    'Write your note and approve the review.',
+  ]),
+  ('قفل اليوم', 'Closing the day', [
+    'اتأكد إن كل الورديات اتقفلت (اسألني «الورديات والفروق»).',
+    'راجع فروق العهدة وسجّل سببها.',
+    'اتأكد من طلبات المحافظ اللي لسه التحويل ما وصلش.',
+    'خد ملخص النهارده وقارنه بالنقدية.',
+  ], [
+    'Make sure every shift is closed (ask me "Shifts and differences").',
+    'Review cash differences and record the reason.',
+    'Check the wallet orders whose transfer has not arrived.',
+    'Take today summary and compare it with the cash.',
+  ]),
+  ('قفل الشهر', 'Month-end checklist', [
+    'قفّل كل الورديات وراجع الفروق.',
+    'راجع المرتجعات والخصومات الكبيرة.',
+    'نزّل ملفات الشهر من «المساعد الآلي > المحاسب الآلي».',
+    'راجع العمولات والتارجت قبل الصرف.',
+  ], [
+    'Close all shifts and review the differences.',
+    'Review large refunds and discounts.',
+    'Download the month files from Assistant > Automatic accountant.',
+    'Review commissions and targets before paying.',
+  ]),
+];
+
+/// Welcome and goodbye lines for the accountant: honesty (amana), trust and work.
+const accountantWelcome = <(String, String)>[
+  ('الأمانة أساس شغلك: كل رقم بتسجله هو أمانة، والدقة فيه هي اللي بتبني ثقة الناس فيك.', 'Honesty is the base of your work: every figure you record is a trust, and accuracy is what builds people\'s confidence in you.'),
+  ('الثقة بتتبني بالشفافية: اكتب سبب أي فرق أو تعديل، وماتسيبش حاجة من غير توثيق.', 'Trust is built on transparency: write the reason for any difference or change, and leave nothing undocumented.'),
+  ('شغلك مش أرقام وبس، ده حق الشركة وحق الموظفين. راجع بهدوء وركّز في التفاصيل.', 'Your work is more than numbers, it is the company\'s and the staff\'s right. Review calmly and watch the details.'),
+  ('يوم جديد وشغل جديد: ابدأ بالورديات المفتوحة والفروق، وبعدها كمّل باقي يومك براحة.', 'A new day: start with the open shifts and differences, then carry on at ease.'),
+];
+
+const accountantOutro = <(String, String)>[
+  ('قبل ما تمشي: اتأكد إن كل الورديات اتقفلت وكل فرق اتكتب سببه. الأمانة في التفاصيل الصغيرة.', 'Before you leave: make sure every shift is closed and every difference has its reason written. Honesty lives in the small details.'),
+  ('شكرًا على أمانتك ودقتك النهارده. ثقة الفريق فيك هي أغلى حاجة عندك.', 'Thank you for your honesty and accuracy today. The team\'s trust in you is your most valuable asset.'),
+  ('خلصت يوم شغل كويس. أرقامك النهارده واضحة وموثقة، ودي أمانة اتأدّت.', 'A good day\'s work done. Your figures are clear and documented today, a trust well kept.'),
+  ('تعبك مقدّر. ارتاح، وبكرة نكمل بنفس الدقة والثقة.', 'Your effort is appreciated. Rest, and tomorrow we continue with the same accuracy and trust.'),
 ];
