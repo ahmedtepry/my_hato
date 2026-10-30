@@ -200,6 +200,14 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
           RobotMsg(false, '$g\n${_t(context, 'أنا مساعد المحاسب. هراجع معاك الأرقام والورديات والفروق، والقرار المالي دايمًا ليك.', 'I am the accountant assistant. I will go over the figures, shifts and differences with you; the financial decision is always yours.')}'),
           RobotMsg(false, _t(context, w.$1, w.$2)),
         ];
+      } else if (ref.read(robotMessagesProvider).isEmpty && _group() != null) {
+        final g = timeOfDayGreeting(context).greet;
+        final k = _group()!;
+        final w = staffWelcome[k]!;
+        ref.read(robotMessagesProvider.notifier).state = [
+          RobotMsg(false, '$g\n${_t(context, w.$1, w.$2)}'),
+          RobotMsg(false, _t(context, staffValues[DateTime.now().day % staffValues.length].$1, staffValues[DateTime.now().day % staffValues.length].$2)),
+        ];
       } else if (ref.read(robotMessagesProvider).isEmpty) {
         ref.read(robotMessagesProvider.notifier).state = [
           RobotMsg(false, _t(context, 'أنا روبوت الوردية. لو عايز تسألني، اختار من الحاجات الشائعة تحت. أنا بشرح وبساعد بس، والقرار دايمًا ليك.',
@@ -214,6 +222,15 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     _watch?.cancel();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// repairs / stock / sales group for staff who are neither online nor accountant (they already have their own welcome).
+  String? _group() {
+    final p = ref.read(staffContextProvider).valueOrNull?.permissions;
+    if (p == null) return null;
+    if (p.contains('repairs.view') || p.contains('repairs.manage') || p.contains('repairs.update_assigned')) return 'repairs';
+    if (p.contains('products.manage') || p.contains('inventory.manage')) return 'stock';
+    return null;
   }
 
   bool _isAcct() {
@@ -463,6 +480,48 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
         : [for (var i = 0; i < todo.length; i++) '${i + 1}. ${todo[i]}'].join('\n')));
   }
 
+
+  Future<void> _repairsToday() async {
+    _add(RobotMsg(true, _t(context, 'إيه في الصيانة؟', 'What is in repairs?')));
+    try {
+      final rows = await ref.read(supabaseProvider).from('repair_requests').select('status, created_at').isFilter('closed_at', null).not('status', 'in', '(delivered,cancelled)').limit(500) as List;
+      var pick = 0, diag = 0, work = 0, ready = 0;
+      DateTime? oldest;
+      for (final r in rows) {
+        final m = r as Map;
+        switch (m['status']) {
+          case 'pickup_requested': pick++; break;
+          case 'diagnosis_completed': diag++; break;
+          case 'repair_in_progress': work++; break;
+          case 'ready_for_pickup': ready++; break;
+        }
+        final at = DateTime.tryParse('${m['created_at']}');
+        if (m['status'] == 'pickup_requested' && at != null && (oldest == null || at.isBefore(oldest))) oldest = at;
+      }
+      final todo = <String>[
+        if (pick > 0) _t(context, '$pick طلب صيانة جديد محتاج استلام الجهاز${oldest == null ? '' : ' (أقدمهم من ${_ago(DateTime.now().difference(oldest).inMinutes)})'}', '$pick new repair request(s) waiting for the device${oldest == null ? '' : ' (oldest ${_ago(DateTime.now().difference(oldest).inMinutes)})'}'),
+        if (diag > 0) _t(context, '$diag جهاز تم تشخيصه ومستني موافقة العميل أو بدء الإصلاح', '$diag diagnosed device(s) waiting for the customer or to start repairing'),
+        if (work > 0) _t(context, '$work جهاز قيد الإصلاح', '$work device(s) being repaired'),
+        if (ready > 0) _t(context, '$ready جهاز جاهز والعميل لسه ما استلمش، كلّمه', '$ready device(s) ready; the customer has not collected, call him'),
+      ];
+      _add(RobotMsg(false, todo.isEmpty ? _t(context, 'مفيش صيانة مفتوحة دلوقتي.', 'No open repairs right now.') : [for (var i = 0; i < todo.length; i++) '${i + 1}. ${todo[i]}'].join('\n')));
+    } catch (_) {
+      _add(RobotMsg(false, _t(context, 'معرفتش أقرا الصيانة دلوقتي.', 'I could not read the repairs now.')));
+    }
+  }
+
+  Future<void> _stockLow() async {
+    _add(RobotMsg(true, _t(context, 'نواقص المخزون', 'Low stock')));
+    try {
+      final rows = await ref.read(supabaseProvider).from('products').select('name_ar, stock_quantity').neq('status', 'archived').lte('stock_quantity', 3).order('stock_quantity').limit(12) as List;
+      _add(RobotMsg(false, rows.isEmpty
+          ? _t(context, 'مفيش منتجات قربت تخلص.', 'Nothing is running low.')
+          : '${_t(context, 'منتجات قربت تخلص:', 'Running low:')}\n${[for (final r in rows) '• ${(r as Map)['name_ar']}: ${r['stock_quantity'] == 0 ? _t(context, 'خلص', 'out') : r['stock_quantity']}'].join('\n')}'));
+    } catch (_) {
+      _add(RobotMsg(false, _t(context, 'معرفتش أقرا المخزون دلوقتي.', 'I could not read the stock now.')));
+    }
+  }
+
   String _dur(int min) => min < 60 ? _t(context, '$min دقيقة', '$min min') : _t(context, '${min ~/ 60} ساعة و${min % 60} دقيقة', '${min ~/ 60} h ${min % 60} min');
 
   Future<void> _newOrders() async {
@@ -502,7 +561,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     final bye = accountantOutro[DateTime.now().day % accountantOutro.length];
     _add(RobotMsg(false, acct
         ? '${_t(context, bye.$1, bye.$2)}\n${_t(context, 'مع السلامة، ونشوفك على خير.', 'Goodbye, see you soon.')}'
-        : _t(context, 'تسلم إيدك على شغل النهارده. مع السلامة، ونشوفك على خير.', 'Thanks for today\'s work. Goodbye, see you soon.')));
+        : '${_t(context, staffOutro[DateTime.now().day % staffOutro.length].$1, staffOutro[DateTime.now().day % staffOutro.length].$2)}\n${_t(context, 'مع السلامة، ونشوفك على خير.', 'Goodbye, see you soon.')}'));
     await Future<void>.delayed(const Duration(milliseconds: 2800));
     try {
       await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': false});
@@ -584,6 +643,9 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
             Wrap(spacing: 6, runSpacing: 6, children: [
               if (canClose) ActionChip(avatar: const Icon(Icons.lock_clock_outlined, size: 16), label: Text(_t(context, 'قفّل الوردية عني', 'Close the shift for me')), onPressed: () => _ask('close', _t(context, 'قفّل الوردية عني', 'Close the shift for me'))),
               if (canFind) ActionChip(avatar: const Icon(Icons.search_rounded, size: 16), label: Text(_t(context, 'دوّر على منتج', 'Find a product')), onPressed: () => _ask('find', _t(context, 'دوّر على منتج', 'Find a product'))),
+              if (_group() == 'repairs') ActionChip(avatar: const Icon(Icons.build_circle_outlined, size: 16), label: Text(_t(context, 'إيه في الصيانة؟', 'What is in repairs?')), onPressed: _repairsToday),
+              if (_group() == 'stock' || (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('inventory.manage') ?? false))
+                ActionChip(avatar: const Icon(Icons.inventory_2_outlined, size: 16), label: Text(_t(context, 'نواقص المخزون', 'Low stock')), onPressed: _stockLow),
               if (acct) ...[
                 ActionChip(avatar: const Icon(Icons.checklist_rounded, size: 16), label: Text(_t(context, 'إيه المطلوب مني؟', 'What do I need to do?')), onPressed: _accTodo),
                 ActionChip(avatar: const Icon(Icons.today_rounded, size: 16), label: Text(_t(context, 'ملخص النهارده', 'Today summary')), onPressed: _accToday),
@@ -851,4 +913,20 @@ const accountantOutro = <(String, String)>[
   ('شكرًا على أمانتك ودقتك النهارده. ثقة الفريق فيك هي أغلى حاجة عندك.', 'Thank you for your honesty and accuracy today. The team\'s trust in you is your most valuable asset.'),
   ('خلصت يوم شغل كويس. أرقامك النهارده واضحة وموثقة، ودي أمانة اتأدّت.', 'A good day\'s work done. Your figures are clear and documented today, a trust well kept.'),
   ('تعبك مقدّر. ارتاح، وبكرة نكمل بنفس الدقة والثقة.', 'Your effort is appreciated. Rest, and tomorrow we continue with the same accuracy and trust.'),
+];
+
+/// Welcome lines per group, and trust / honesty / work values for every employee.
+const staffWelcome = <String, (String, String)>{
+  'repairs': ('أنا مساعد الصيانة. هفكّرك بالأجهزة المستنية وبالعملاء اللي لازم تكلمهم، والقرار الفني دايمًا ليك.', 'I am the repairs assistant. I will remind you of waiting devices and customers to call; the technical decision is always yours.'),
+  'stock': ('أنا مساعد المخزون. هنبّهك للمنتجات اللي قربت تخلص، والتعديل دايمًا بإيدك.', 'I am the stock assistant. I will warn you about products running low; the change is always yours.'),
+};
+const staffValues = <(String, String)>[
+  ('الأمانة في الشغل: اللي بتسلمه وتستلمه اكتبه بدقة، وده اللي بيحفظ حقك وحق الشركة.', 'Honesty at work: write exactly what you hand over and receive; it protects you and the company.'),
+  ('الثقة بتتبني بالصدق: لو غلطت قول فورًا، الغلطة المكشوفة بتتصلح بسرعة.', 'Trust is built on truth: if you make a mistake, say so right away; an open mistake is fixed fast.'),
+  ('شغلك بيفرق مع كل عميل. خدمة محترمة وهادية بتكسب عميل لسنين.', 'Your work matters to every customer. Calm, respectful service wins a customer for years.'),
+];
+const staffOutro = <(String, String)>[
+  ('شكرًا على أمانتك وتعبك النهارده. ثقة الفريق فيك بتكبر بشغلك.', 'Thank you for your honesty and effort today. The team\'s trust in you grows with your work.'),
+  ('خلصت يوم شغل كويس. اتأكد إن كل حاجة اتسلمت واتسجلت قبل ما تمشي.', 'A good day done. Make sure everything is handed over and recorded before you leave.'),
+  ('تعبك مقدّر. ارتاح، وبكرة نبدأ بنشاط جديد.', 'Your effort is appreciated. Rest, and tomorrow we start fresh.'),
 ];
