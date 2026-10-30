@@ -227,9 +227,12 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
   }
 
   /// repairs / stock / sales group for staff who are neither online nor accountant (they already have their own welcome).
+  bool get _isOwner => ref.read(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false;
+
   String? _group() {
     final p = ref.read(staffContextProvider).valueOrNull?.permissions;
     if (p == null) return null;
+    if (_isOwner) return 'owner'; // the owner is not an employee: no shift, no target, no commission
     if (p.contains('repairs.view') || p.contains('repairs.manage') || p.contains('repairs.update_assigned')) return 'repairs';
     if (p.contains('products.manage') || p.contains('inventory.manage')) return 'stock';
     return null;
@@ -292,7 +295,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     if (!mounted) return;
     final online = ref.read(staffContextProvider).valueOrNull?.permissions.contains('orders.view') ?? false;
     if (!online) return;
-    if (ref.read(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false) {
+    if (!_isOwner && (ref.read(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false)) {
       try {
         final st = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('my_online_status') as Map); // also sends the 50 / 75 / 100 percent target notifications
         final done = (st['orders_done'] as num?)?.toInt() ?? 0;
@@ -704,9 +707,9 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
                   ),
               ],
               if (online) ...[
-                if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('online.shift') ?? false)
+                if (!_isOwner && (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('online.shift') ?? false))
                   ActionChip(avatar: const Icon(Icons.timer_outlined, size: 16), label: Text(_t(context, 'شيفت الأونلاين (فتح/قفل)', 'Online shift (open/close)')), onPressed: _shiftToggle),
-                if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false)
+                if (!_isOwner && (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('online.mine') ?? false))
                   ActionChip(avatar: const Icon(Icons.flag_outlined, size: 16), label: Text(_t(context, 'تارجتي وساعاتي', 'My target and hours')), onPressed: _myPlan),
                 ActionChip(avatar: const Icon(Icons.checklist_rounded, size: 16), label: Text(_t(context, 'إيه المطلوب دلوقتي؟', 'What now?')), onPressed: _summary),
                 ActionChip(avatar: const Icon(Icons.shopping_bag_outlined, size: 16), label: Text(_t(context, 'طلبات جديدة', 'New orders')), onPressed: _newOrders),
@@ -960,6 +963,7 @@ const accountantOutro = <(String, String)>[
 
 /// Welcome lines per group, and trust / honesty / work values for every employee.
 const staffWelcome = <String, (String, String)>{
+  'owner': ('أنا مساعدك يا صاحب المكان. بتابع الأرقام والتنبيهات وبلخّصلك الورديات والفروق والأونلاين، والقرار كله ليك.', 'I am your assistant, owner. I follow the figures and alerts and summarise shifts, differences and Online; every decision is yours.'),
   'repairs': ('أنا مساعد الصيانة. هفكّرك بالأجهزة المستنية وبالعملاء اللي لازم تكلمهم، والقرار الفني دايمًا ليك.', 'I am the repairs assistant. I will remind you of waiting devices and customers to call; the technical decision is always yours.'),
   'stock': ('أنا مساعد المخزون. هنبّهك للمنتجات اللي قربت تخلص، والتعديل دايمًا بإيدك.', 'I am the stock assistant. I will warn you about products running low; the change is always yours.'),
 };
