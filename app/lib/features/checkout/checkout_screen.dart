@@ -31,6 +31,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   String? _branchId;
   String? _addressId;
   String _payment = 'pay_at_branch';
+  String? _wallet;
+  bool _sameNumber = true;
+  final _otherPhone = TextEditingController();
+  String? _walletError;
   bool _saveCard = false; // explicit opt-in, unchecked by default
   final _notes = TextEditingController();
   int? _deliveryFee;
@@ -114,6 +118,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       });
 
   Future<void> _submit() async {
+    String? fromPhone;
+    if (_payment == 'wallet') {
+      if (_wallet == null) {
+        setState(() => _walletError = context.tr('wallet_pick'));
+        return;
+      }
+      if (!_sameNumber) {
+        fromPhone = normalizeEgyptMobile(_otherPhone.text.trim());
+        if (fromPhone == null) {
+          setState(() => _walletError = context.tr('invalid_phone'));
+          return;
+        }
+      }
+      setState(() => _walletError = null);
+    }
     setState(() => _submitting = true);
     try {
       final res = await ref.read(ordersRepoProvider).placeOrder(
@@ -125,6 +144,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             notes: _notes.text,
             couponCode: _coupon,
           );
+      if (_payment == 'wallet') {
+        await ref.read(ordersRepoProvider).walletSubmit(res['order_id'] as String, _wallet!, fromPhone);
+      }
       ref.read(pendingCouponProvider.notifier).state = null;
       ref.invalidate(cartProvider);
       ref.invalidate(myOrdersProvider);
@@ -154,6 +176,68 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  String _walletName(BuildContext context, String w) => context.tr(const {'vodafone': 'wallet_vodafone', 'etisalat': 'wallet_etisalat', 'instapay': 'wallet_instapay'}[w] ?? 'wallet_vodafone');
+
+  List<Widget> _walletTiles(BuildContext context, List<Map<String, dynamic>> opts) {
+    final phone = ref.read(profileProvider).valueOrNull?['contact_phone'] as String? ?? '';
+    final shown = phone.startsWith('+20') ? '0${phone.substring(3)}' : phone;
+    final chosen = opts.where((o) => o['wallet'] == _wallet).firstOrNull;
+    return [
+      RadioListTile<String>(
+        value: 'wallet',
+        groupValue: _payment,
+        onChanged: (v) => setState(() => _payment = v!),
+        title: Text(context.tr('pay_wallet')),
+        subtitle: Text(context.tr('pay_wallet_sub'), style: const TextStyle(fontSize: 12)),
+        secondary: const Icon(Icons.account_balance_wallet_outlined, color: BrandColors.electric),
+      ),
+      if (_payment == 'wallet')
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: 8, children: [
+              for (final o in opts)
+                ChoiceChip(label: Text(_walletName(context, o['wallet'] as String)), selected: _wallet == o['wallet'], onSelected: (_) => setState(() => _wallet = o['wallet'] as String)),
+            ]),
+            if (chosen != null) ...[
+              const SizedBox(height: 10),
+              Text(context.tr('wallet_send_to'), style: const TextStyle(fontSize: 12.5)),
+              Row(children: [
+                Expanded(child: SelectableText('${chosen['number']}', textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
+                IconButton(icon: const Icon(Icons.copy_rounded, size: 18), onPressed: () => Clipboard.setData(ClipboardData(text: '${chosen['number']}'))),
+              ]),
+              const SizedBox(height: 6),
+              Text(context.tr('wallet_from_q'), style: const TextStyle(fontWeight: FontWeight.w700)),
+              RadioListTile<bool>(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: true,
+                groupValue: _sameNumber,
+                onChanged: (v) => setState(() => _sameNumber = true),
+                title: Text('${context.tr('wallet_same')}${shown.isEmpty ? '' : ' ($shown)'}'),
+              ),
+              RadioListTile<bool>(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: false,
+                groupValue: _sameNumber,
+                onChanged: (v) => setState(() => _sameNumber = false),
+                title: Text(context.tr('wallet_other')),
+              ),
+              if (!_sameNumber)
+                TextField(
+                  controller: _otherPhone,
+                  keyboardType: TextInputType.phone,
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(labelText: context.tr('wallet_other_number'), hintText: '01XXXXXXXXX', prefixIcon: const Icon(Icons.phone_outlined)),
+                ),
+            ],
+            if (_walletError != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_walletError!, style: const TextStyle(color: BrandColors.danger))),
+          ]),
+        ),
+    ];
   }
 
   @override
@@ -321,6 +405,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               RadioListTile<String>(value: 'cash_on_delivery', groupValue: _payment, onChanged: (v) => setState(() => _payment = v!), title: Text(context.tr('cod'))),
             if (_fulfillment == 'pickup')
               RadioListTile<String>(value: 'pay_at_branch', groupValue: _payment, onChanged: (v) => setState(() => _payment = v!), title: Text(context.tr('pay_branch'))),
+            if ((ref.watch(walletOptionsProvider).valueOrNull ?? const []).isNotEmpty) ..._walletTiles(context, ref.watch(walletOptionsProvider).valueOrNull!),
             if (onlineEnabled) ...[
               RadioListTile<String>(
                 value: 'online',

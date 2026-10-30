@@ -39,6 +39,18 @@ class OrdersRepository {
     return Map<String, dynamic>.from(res as Map);
   }
 
+  /// Wallets with a number set by the owner: [{wallet, number}].
+  Future<List<Map<String, dynamic>>> walletOptions() async => List<Map<String, dynamic>>.from(await _db.rpc('wallet_options') as List);
+
+  /// After placing a wallet order: which wallet, and which number the money comes from (null = the order's own phone).
+  Future<void> walletSubmit(String orderId, String wallet, String? fromPhone) =>
+      _db.rpc('order_wallet_submit', params: {'p_order_id': orderId, 'p_wallet': wallet, 'p_from_phone': fromPhone});
+
+  Future<Map<String, dynamic>?> myOrderWallet(String orderId) async {
+    final r = await _db.rpc('my_order_wallet', params: {'p_order_id': orderId});
+    return r is Map ? Map<String, dynamic>.from(r) : null;
+  }
+
   String get _uid => _db.auth.currentUser?.id ?? '';
 
   /// Discount preview for the current cart subtotal (throws COUPON_* when not usable).
@@ -76,6 +88,7 @@ class OrdersRepository {
 final pendingCouponProvider = StateProvider<String?>((_) => null);
 
 final ordersRepoProvider = Provider((ref) => OrdersRepository(ref.watch(supabaseProvider)));
+final walletOptionsProvider = FutureProvider.autoDispose((ref) => ref.watch(ordersRepoProvider).walletOptions());
 final branchesProvider = FutureProvider((ref) => ref.watch(ordersRepoProvider).branches());
 final myOrdersProvider = FutureProvider((ref) {
   ref.watch(currentUserProvider);

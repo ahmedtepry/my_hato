@@ -231,6 +231,13 @@ class AdminRepository {
   Future<void> setOrderBranch(String orderId, String branchId) =>
       _db.rpc('staff_set_order_branch', params: {'p_order_id': orderId, 'p_branch_id': branchId});
 
+  Future<Map<String, dynamic>?> orderWallet(String orderId) async {
+    final r = await _db.rpc('staff_order_wallet', params: {'p_order_id': orderId});
+    return r is Map ? Map<String, dynamic>.from(r) : null;
+  }
+
+  Future<void> confirmWalletPayment(String orderId) => _db.rpc('staff_confirm_wallet_payment', params: {'p_order_id': orderId});
+
   Future<List<Map<String, dynamic>>> activeBranches() async =>
       List<Map<String, dynamic>>.from(await _db.from('branches').select('id, name_ar, name_en, is_hq').eq('is_active', true).order('name_ar'));
 
@@ -526,6 +533,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('contest.manage')) 'contests',
     if (p.contains('features.manage')) 'features',
     if (p.contains('storefront.layout')) 'storefront',
+    if (p.contains('payments.wallets')) 'wallets',
     if (p.contains('wheel.manage')) 'wheel',
     if (p.contains('stock.view')) 'stock',
     if (p.contains('shortcut.goods_receipt') || p.contains('shortcut.stocktake') || p.contains('shortcut.price_edit') || p.contains('shortcut.export')) 'shortcuts',

@@ -47,6 +47,8 @@ const _perms = <String, _PermInfo>{
       descAr: 'يغيّر حالة الطلب ويوافق أو يرفض الإلغاء ويعمل أكواد الخصم', descEn: 'Change status, approve cancellations, manage discount codes'),
   'orders.set_branch': _PermInfo('orders', 'يحدد فرع الاستلام للطلب', 'Set the pickup branch on an order',
       descAr: 'بعد ما يكلّم العميل يحدد أقرب فرع ويتسجّل في الطلب', descEn: 'Sets the nearest pickup branch after calling the customer'),
+  'orders.confirm_wallet': _PermInfo('orders', 'يأكد استلام تحويل المحفظة', 'Confirm a wallet transfer arrived', descAr: 'بعد ما يتأكد إن الفلوس وصلت يعلّم الطلب مدفوع', descEn: 'Marks the order paid once the money arrived'),
+  'payments.wallets': _PermInfo('extras', 'يضبط أرقام محافظ الدفع', 'Set the wallet payment numbers', descAr: 'أرقام فودافون كاش واتصالات كاش وإنستا باي', descEn: 'Vodafone Cash, Etisalat Cash and InstaPay numbers'),
   'customers.view': _PermInfo('orders', 'يشوف بيانات العملاء', 'View customers'),
   'support.manage': _PermInfo('orders', 'يقبل أو يرفض الحسابات الجديدة', 'Approve new accounts',
       descAr: 'ويرد على طلبات الدعم', descEn: 'And answers support requests'),

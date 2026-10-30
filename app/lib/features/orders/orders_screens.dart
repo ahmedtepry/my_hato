@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -189,7 +190,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         final a = Map<String, dynamic>.from(o['delivery_address'] as Map);
                         return [a['governorate'], a['city'], a['street'], a['building']].where((x) => x != null && '$x'.isNotEmpty).join(' — ');
                       }()),
-                    _kv(context.tr('payment_method'), o['payment_method'] == 'online' ? context.tr('pay_online') : (o['payment_method'] == 'cash_on_delivery' ? context.tr('cod') : context.tr('pay_branch'))),
+                    _kv(context.tr('payment_method'), o['payment_method'] == 'online' ? context.tr('pay_online') : o['payment_method'] == 'wallet' ? context.tr('pay_wallet') : (o['payment_method'] == 'cash_on_delivery' ? context.tr('cod') : context.tr('pay_branch'))),
                     _kv(context.tr('payment_status'), context.tr('ps_${o['payment_status']}')),
                     if (o['payment_method'] == 'online' && status != 'cancelled' && ['unpaid', 'failed', 'pending'].contains(o['payment_status']))
                       Padding(
@@ -203,6 +204,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                   ]),
                 ),
               ),
+              if (o['payment_method'] == 'wallet') _WalletInfo(orderId: widget.id, total: (o['total_minor'] as num).toInt()),
               const SizedBox(height: 12),
               Text(context.tr('timeline'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
               const SizedBox(height: 8),
@@ -322,4 +324,47 @@ class Timeline extends StatelessWidget {
             ]),
           ),
       ]);
+}
+
+
+/// How to pay a wallet order: the amount, the number to send to, and which number the money comes from.
+class _WalletInfo extends ConsumerWidget {
+  const _WalletInfo({required this.orderId, required this.total});
+  final String orderId;
+  final int total;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: ref.read(ordersRepoProvider).myOrderWallet(orderId),
+      builder: (_, snap) {
+        final w = snap.data;
+        if (w == null) return const SizedBox.shrink();
+        final done = w['confirmed'] == true;
+        const names = {'vodafone': 'wallet_vodafone', 'etisalat': 'wallet_etisalat', 'instapay': 'wallet_instapay'};
+        return Card(
+          margin: const EdgeInsets.only(top: 12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(context.tr(names['${w['wallet']}'] ?? 'pay_wallet'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              const SizedBox(height: 6),
+              if (!done) ...[
+                Text(context.tr('wallet_send_to')),
+                Row(children: [
+                  Expanded(child: SelectableText('${w['number']}', textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
+                  IconButton(icon: const Icon(Icons.copy_rounded, size: 18), onPressed: () => Clipboard.setData(ClipboardData(text: '${w['number']}'))),
+                ]),
+                Text(formatEgp(total, context.lang), style: const TextStyle(fontWeight: FontWeight.w800)),
+              ],
+              const SizedBox(height: 4),
+              Text('${context.tr('wallet_from_label')}: ${w['from_phone']}', textDirection: TextDirection.ltr),
+              const SizedBox(height: 6),
+              Text(context.tr(done ? 'wallet_status_done' : 'wallet_status_wait'), style: TextStyle(fontWeight: FontWeight.w700, color: done ? BrandColors.success : BrandColors.warning)),
+            ]),
+          ),
+        );
+      },
+    );
+  }
 }

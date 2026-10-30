@@ -40,6 +40,7 @@ import 'appearance_panel.dart';
 import 'contests.dart';
 import 'feature_switches.dart';
 import 'storefront_panel.dart';
+import 'wallets_panel.dart';
 import 'robot_dock.dart';
 import 'cashier_assistant.dart' show assistantFlagsProvider;
 import 'stock_panel.dart';
@@ -259,6 +260,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
+  'wallets': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFFE60000), 'محافظ الدفع', 'Wallet payments', 'أرقام فودافون كاش واتصالات كاش وإنستا باي اللي العميل يحوّل عليها', 'The Vodafone Cash, Etisalat Cash and InstaPay numbers customers transfer to'),
   'storefront': _SectionInfo(Icons.view_quilt_rounded, Color(0xFF2F6BFF), 'طريقة عرض الواجهة', 'Storefront layout', 'اختار شكل عرض المنتجات في تطبيق العملا، ويتطبق على الكل', 'Pick how products are shown in the customer app; it applies to everyone'),
   'assistant': _SectionInfo(Icons.smart_toy_rounded, Color(0xFF0E9384), 'المساعد الآلي', 'Assistant', 'المحاسب الآلي وروبوت خدمة العملاء: شغّلهم وشوف شغلهم', 'The automatic accountant and the customer-service robot: switch them on and see their work'),
   'shortcuts': _SectionInfo(Icons.bolt_rounded, Color(0xFFDC6803), 'اختصارات', 'Shortcuts', 'استلام بضاعة، جرد، تعديل أسعار، وتصدير بيانات', 'Receive goods, stocktake, edit prices and export data'),
@@ -579,6 +581,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'contests' => const ContestsPanel(),
                       'features' => const FeatureSwitchesPanel(),
                       'storefront' => const StorefrontLayoutPanel(),
+                      'wallets' => const WalletNumbersPanel(),
                       'wheel' => const WheelAdminPanel(),
                       'stock' => const StockPanel(),
                       'shortcuts' => const ShortcutsPanel(),
@@ -1244,6 +1247,7 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
             style: const TextStyle(color: BrandColors.gray)),
         if (o['fulfillment'] == 'pickup' && o['closed_at'] == null && (ref.read(staffContextProvider).valueOrNull?.permissions.contains('orders.set_branch') ?? false))
           _PickupBranchRow(order: o, onDone: () => ref.invalidate(_ordersProvider)),
+        if (o['payment_method'] == 'wallet') _WalletStaffRow(order: o, onDone: () => ref.invalidate(_ordersProvider)),
         const Divider(height: 24),
         for (final it in items)
           Padding(
@@ -3169,4 +3173,73 @@ class _PickupBranchRowState extends ConsumerState<_PickupBranchRow> {
           OutlinedButton(onPressed: _busy ? null : _pick, child: Text(_t(context, _branch == null ? 'حدّد الفرع' : 'غيّر الفرع', _branch == null ? 'Set branch' : 'Change branch'))),
         ]),
       );
+}
+
+
+/// Team-only: the wallet transfer the customer says they made (which wallet, from which number) and the button that confirms the money arrived.
+class _WalletStaffRow extends ConsumerStatefulWidget {
+  const _WalletStaffRow({required this.order, required this.onDone});
+  final Map<String, dynamic> order;
+  final VoidCallback onDone;
+  @override
+  ConsumerState<_WalletStaffRow> createState() => _WalletStaffRowState();
+}
+
+class _WalletStaffRowState extends ConsumerState<_WalletStaffRow> {
+  late Future<Map<String, dynamic>?> _f = ref.read(adminRepoProvider).orderWallet(widget.order['id'] as String);
+  bool _busy = false;
+
+  Future<void> _confirm() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text(_t(d, 'التحويل وصل فعلاً؟', 'Did the transfer really arrive?')),
+        content: Text(_t(d, 'اتأكد من المحفظة إن المبلغ وصل من الرقم ده قبل ما تعلّم الطلب مدفوع.', 'Check the wallet shows the amount from this number before marking the order paid.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(d, 'لأ', 'No'))),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(_t(d, 'أيوه، وصل', 'Yes, it arrived'))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(adminRepoProvider).confirmWalletPayment(widget.order['id'] as String);
+      widget.onDone();
+      if (mounted) {
+        setState(() => _f = ref.read(adminRepoProvider).orderWallet(widget.order['id'] as String));
+        showSnack(context, _t(context, 'اتعلّم الطلب مدفوع', 'Order marked as paid'));
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canConfirm = ref.read(staffContextProvider).valueOrNull?.permissions.contains('orders.confirm_wallet') ?? false;
+    const names = {'vodafone': ('فودافون كاش', 'Vodafone Cash'), 'etisalat': ('اتصالات كاش', 'Etisalat Cash'), 'instapay': ('إنستا باي', 'InstaPay')};
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _f,
+      builder: (_, snap) {
+        final w = snap.data;
+        if (w == null) return Padding(padding: const EdgeInsets.only(top: 8), child: Text(_t(context, 'دفع بمحفظة: العميل لسه ماسجّلش بيانات التحويل', 'Wallet payment: the customer has not entered the transfer details yet')));
+        final done = w['confirmed'] == true;
+        final n = names['${w['wallet']}'] ?? ('${w['wallet']}', '${w['wallet']}');
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_t(context, 'دفع بمحفظة: ${n.$1}', 'Wallet payment: ${n.$2}'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text('${_t(context, 'التحويل من', 'Sent from')}: ${w['from_phone']}${w['same_number'] == true ? _t(context, ' (نفس رقم العميل)', ' (customer\'s own number)') : _t(context, ' (رقم تاني)', ' (another number)')}', textDirection: TextDirection.ltr),
+            if (done)
+              Text(_t(context, '✓ التحويل اتأكد', '✓ Transfer confirmed'), style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w700))
+            else if (canConfirm)
+              Padding(padding: const EdgeInsets.only(top: 6), child: FilledButton(onPressed: _busy ? null : _confirm, child: Text(_t(context, 'استلمت التحويل', 'Transfer received')))),
+          ]),
+        );
+      },
+    );
+  }
 }
