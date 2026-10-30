@@ -640,7 +640,9 @@ class AdminHomeScreen extends ConsumerWidget {
               final chatFloating = chatShown && ref.watch(chatFloatProvider);
               final chatDocked = chatShown && !chatFloating;
               final robotShown = (ref.watch(assistantFlagsProvider).valueOrNull?['mine'] == true) && ref.watch(robotPanelOpenProvider);
-              final shift = chatDocked || robotShown ? chatPanelSpace : 0.0;
+              final robotStep = ref.watch(robotPanelStepProvider);
+              final strip = robotShown ? robotStripWidth(robotStep) : chatPanelSpace;
+              final shift = chatDocked || robotShown ? strip : 0.0;
               return Scaffold(
                 backgroundColor: const Color(0xFFF4F6FA),
                 body: CallbackShortcuts(
@@ -733,7 +735,7 @@ class AdminHomeScreen extends ConsumerWidget {
                                   left: 8,
                                   top: 0,
                                   bottom: 0,
-                                  width: chatPanelSpace - 16,
+                                  width: strip - 16,
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(vertical: 12),
                                     child: Column(children: [
@@ -741,7 +743,7 @@ class AdminHomeScreen extends ConsumerWidget {
                                         Expanded(child: Align(alignment: Alignment.topCenter, child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 640), child: DirectChatPanel(manager: _chatKind(ref) == 'manager')))),
                                       if (chatDocked && robotShown) const SizedBox(height: 10),
                                       if (robotShown)
-                                        Expanded(child: Align(alignment: chatDocked ? Alignment.bottomCenter : Alignment.topCenter, child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 640), child: const RobotChatPanel()))),
+                                        Expanded(child: Align(alignment: chatDocked ? Alignment.bottomCenter : Alignment.topCenter, child: ConstrainedBox(constraints: BoxConstraints(maxHeight: robotPanelMaxHeight(robotStep)), child: const RobotChatPanel()))),
                                     ]),
                                   ),
                                 ),

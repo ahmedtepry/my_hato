@@ -25,6 +25,21 @@ final robotWelcomeProvider = StateProvider<bool>((ref) => false);
 /// When this console session started (read once when the console opens): the shift clock counts from here.
 final DateTime onlineSessionStart = DateTime.now();
 
+/// How big the robot's panel is: -1 (smaller) .. 4 (largest). The owner / employee grows or shrinks it with the buttons in its header; it is remembered.
+final robotPanelStepProvider = StateProvider<int>((ref) {
+  try {
+    return (ref.read(sharedPrefsProvider).getInt('robot_panel_step') ?? 0).clamp(-1, 4);
+  } catch (_) {
+    return 0;
+  }
+});
+
+/// Width of the left strip when the robot panel is open at [step].
+double robotStripWidth(int step) => 374.0 + step * 70;
+
+/// Height cap of the robot panel at [step].
+double robotPanelMaxHeight(int step) => 640.0 + step * 90;
+
 /// Whether the robot's panel is showing in the left strip.
 final robotPanelOpenProvider = StateProvider<bool>((ref) => false);
 
@@ -336,6 +351,13 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
         : _t(context, 'في $n حساب مستني التوثيق. افتح قسم «الحسابات» وراجعهم واحد واحد.', '$n account(s) waiting. Open Accounts and review them one by one.')));
   }
 
+  void _resize(int step) {
+    ref.read(robotPanelStepProvider.notifier).state = step;
+    try {
+      ref.read(sharedPrefsProvider).setInt('robot_panel_step', step);
+    } catch (_) {}
+  }
+
   Future<void> _off() async {
     try {
       await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': false});
@@ -355,6 +377,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
       }
     });
     ref.listen<List<RobotMsg>>(robotMessagesProvider, (p, n) => _toBottom());
+    final step = ref.watch(robotPanelStepProvider);
     final canClose = f['robot_close'] == true, canFind = f['find'] == true;
     final online = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('orders.view') ?? false;
     return Material(
@@ -370,6 +393,16 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
             const SizedBox(width: 34, height: 34, child: ClipOval(child: ColoredBox(color: Color(0xFF12303E), child: FittedBox(fit: BoxFit.cover, child: SizedBox(width: 120, child: RobotView(mood: RobotMood.happy)))))),
             const SizedBox(width: 10),
             Expanded(child: Text(_t(context, 'المساعد الآلي', 'Automatic assistant'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
+            IconButton(
+              tooltip: _t(context, 'تصغير', 'Smaller'),
+              onPressed: step <= -1 ? null : () => _resize(step - 1),
+              icon: Icon(Icons.zoom_out_map_rounded, color: step <= -1 ? Colors.white24 : Colors.white70, size: 19),
+            ),
+            IconButton(
+              tooltip: _t(context, 'تكبير', 'Larger'),
+              onPressed: step >= 4 ? null : () => _resize(step + 1),
+              icon: Icon(Icons.open_in_full_rounded, color: step >= 4 ? Colors.white24 : Colors.white70, size: 17),
+            ),
             IconButton(
               tooltip: _t(context, 'إيقاف المساعد الآلي', 'Turn the assistant off'),
               onPressed: _off,

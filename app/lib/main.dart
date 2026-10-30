@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 import 'dart:ui' as ui;
 
@@ -12,7 +13,7 @@ import 'core/app_update.dart';
 import 'core/config.dart';
 import 'core/dark_mode.dart';
 import 'features/admin/direct_chat.dart' show chatFloatProvider, chatOpenProvider, chatPanelSpace;
-import 'features/admin/robot_dock.dart' show robotPanelOpenProvider;
+import 'features/admin/robot_dock.dart' show robotPanelOpenProvider, robotPanelStepProvider, robotStripWidth;
 import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/appearance.dart';
@@ -183,7 +184,7 @@ class MyHatoApp extends ConsumerWidget {
         if (!AppConfig.customerOnly) app = StaffPresenceScope(child: app);
         if (AppConfig.teamOnly) {
           // wide desktop window: keep the console in a comfortable centred column
-          app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chatOpen ? 1100 + chatPanelSpace : 1100), child: app)));
+          app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chatOpen ? 1100 + math.max(chatPanelSpace, ref.watch(robotPanelOpenProvider) ? robotStripWidth(ref.watch(robotPanelStepProvider)) : chatPanelSpace).toDouble() : 1100), child: app)));
         }
         if (!AppConfig.teamOnly) app = Stack(children: [Positioned.fill(child: app), const Positioned.fill(child: AppUpdateBanner())]);
         return applyDarkMode(dark, app);
