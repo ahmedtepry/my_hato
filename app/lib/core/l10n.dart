@@ -226,6 +226,7 @@ const Map<String, Map<String, String>> _strings = {
   'total': {'ar': 'الإجمالي', 'en': 'Total'},
   'checkout': {'ar': 'إتمام الطلب', 'en': 'Checkout'},
   'fulfillment': {'ar': 'طريقة الاستلام', 'en': 'Fulfillment'},
+  'pickup_branch_pending': {'ar': 'هنكلمك نأكدلك فرع الاستلام وميعاده.', 'en': 'We will call you to confirm the pickup branch and time.'},
   'branch_pickup': {'ar': 'استلام من الفرع', 'en': 'Branch pickup'},
   'home_delivery': {'ar': 'توصيل للبيت', 'en': 'Home delivery'},
   'choose_branch': {'ar': 'اختار الفرع', 'en': 'Choose a branch'},

@@ -181,8 +181,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     Text(fmtDate(context, o['created_at'] as String), style: const TextStyle(color: BrandColors.gray)),
                     const Divider(height: 24),
                     _kv(context.tr('fulfillment'), o['fulfillment'] == 'pickup' ? context.tr('branch_pickup') : context.tr('home_delivery')),
-                    if (o['branches'] != null) _kv(context.tr('choose_branch'), '${context.pick(o['branches'] as Map<String, dynamic>, 'name')}\n${context.pick(o['branches'] as Map<String, dynamic>, 'address')}'),
-                    if (o['branches'] != null && status == 'ready_for_pickup') _kv('', context.pick(o['branches'] as Map<String, dynamic>, 'pickup_instructions')),
+                    if (o['fulfillment'] == 'pickup' && o['branch_confirmed'] != true) _kv('', context.tr('pickup_branch_pending')),
+                    if (o['branches'] != null && o['branch_confirmed'] == true) _kv(context.tr('choose_branch'), '${context.pick(o['branches'] as Map<String, dynamic>, 'name')}\n${context.pick(o['branches'] as Map<String, dynamic>, 'address')}'),
+                    if (o['branches'] != null && o['branch_confirmed'] == true && status == 'ready_for_pickup') _kv('', context.pick(o['branches'] as Map<String, dynamic>, 'pickup_instructions')),
                     if (o['delivery_address'] != null)
                       _kv(context.tr('addresses'), () {
                         final a = Map<String, dynamic>.from(o['delivery_address'] as Map);

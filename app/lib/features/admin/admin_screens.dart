@@ -1242,6 +1242,8 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
         if ((o['delivery_notes'] as String?)?.isNotEmpty == true) Text('📝 ${o['delivery_notes']}'),
         Text('${_t(context, o['fulfillment'] == 'pickup' ? 'استلام من الفرع' : 'توصيل', o['fulfillment'] == 'pickup' ? 'Branch pickup' : 'Delivery')} • ${o['payment_method']}',
             style: const TextStyle(color: BrandColors.gray)),
+        if (o['fulfillment'] == 'pickup' && o['closed_at'] == null && (ref.read(staffContextProvider).valueOrNull?.permissions.contains('orders.set_branch') ?? false))
+          _PickupBranchRow(order: o, onDone: () => ref.invalidate(_ordersProvider)),
         const Divider(height: 24),
         for (final it in items)
           Padding(
@@ -3107,4 +3109,64 @@ class _SeenCard extends ConsumerWidget {
       orElse: () => const SizedBox.shrink(),
     );
   }
+}
+
+
+/// Team-only: the nearest pickup branch agreed with the customer by phone; the customer sees it only after this.
+class _PickupBranchRow extends ConsumerStatefulWidget {
+  const _PickupBranchRow({required this.order, required this.onDone});
+  final Map<String, dynamic> order;
+  final VoidCallback onDone;
+  @override
+  ConsumerState<_PickupBranchRow> createState() => _PickupBranchRowState();
+}
+
+class _PickupBranchRowState extends ConsumerState<_PickupBranchRow> {
+  late Map<String, dynamic>? _branch = widget.order['branch_confirmed'] == true ? widget.order['branches'] as Map<String, dynamic>? : null;
+  bool _busy = false;
+
+  Future<void> _pick() async {
+    final repo = ref.read(adminRepoProvider);
+    final list = await repo.activeBranches();
+    if (!mounted) return;
+    final chosen = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(_t(context, 'اختار فرع الاستلام', 'Choose the pickup branch')),
+        children: [
+          for (final b in list.where((b) => b['is_hq'] != true))
+            SimpleDialogOption(onPressed: () => Navigator.pop(ctx, b), child: Text(context.isAr ? '${b['name_ar']}' : '${b['name_en']}')),
+        ],
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await repo.setOrderBranch(widget.order['id'] as String, chosen['id'] as String);
+      if (!mounted) return;
+      setState(() => _branch = chosen);
+      widget.onDone();
+      showSnack(context, _t(context, 'اتسجّل فرع الاستلام وانبعت للعميل', 'Pickup branch saved and sent to the customer'));
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Row(children: [
+          const Icon(Icons.storefront_outlined, size: 18),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              _branch == null ? _t(context, 'فرع الاستلام: لسه ماتحددش', 'Pickup branch: not set yet') : _t(context, 'فرع الاستلام: ${_branch!['name_ar']}', 'Pickup branch: ${_branch!['name_en']}'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          OutlinedButton(onPressed: _busy ? null : _pick, child: Text(_t(context, _branch == null ? 'حدّد الفرع' : 'غيّر الفرع', _branch == null ? 'Set branch' : 'Change branch'))),
+        ]),
+      );
 }

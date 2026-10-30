@@ -45,6 +45,8 @@ const _perms = <String, _PermInfo>{
   'orders.view': _PermInfo('orders', 'يشوف الطلبات', 'View orders', descAr: 'يشوفها بس ومايغيّرش فيها', descEn: 'Can look but not change'),
   'orders.manage': _PermInfo('orders', 'يتحكم في الطلبات', 'Handle orders',
       descAr: 'يغيّر حالة الطلب ويوافق أو يرفض الإلغاء ويعمل أكواد الخصم', descEn: 'Change status, approve cancellations, manage discount codes'),
+  'orders.set_branch': _PermInfo('orders', 'يحدد فرع الاستلام للطلب', 'Set the pickup branch on an order',
+      descAr: 'بعد ما يكلّم العميل يحدد أقرب فرع ويتسجّل في الطلب', descEn: 'Sets the nearest pickup branch after calling the customer'),
   'customers.view': _PermInfo('orders', 'يشوف بيانات العملاء', 'View customers'),
   'support.manage': _PermInfo('orders', 'يقبل أو يرفض الحسابات الجديدة', 'Approve new accounts',
       descAr: 'ويرد على طلبات الدعم', descEn: 'And answers support requests'),

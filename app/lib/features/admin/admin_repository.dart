@@ -175,7 +175,7 @@ class AdminRepository {
   // ---------------- orders
   // the address column is only requested by members who hold orders.address
   static String _orderCols({required bool address}) =>
-      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, ${address ? 'delivery_address, ' : ''}delivery_notes, created_at, closed_at, close_reason, coupon_code, coupon_discount_minor, order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
+      'id, reference, customer_name, customer_phone, customer_email, total_minor, delivery_fee_minor, status, fulfillment, payment_method, payment_status, ${address ? 'delivery_address, ' : ''}delivery_notes, created_at, closed_at, close_reason, coupon_code, coupon_discount_minor, branch_id, branch_confirmed, branches(name_ar, name_en), order_items(name_ar, name_en, quantity, unit_price_minor, line_total_minor)';
   Future<bool> _canSeeAddress() async => (await staffContext()).permissions.contains('orders.address');
   static const _repairCols =
       'id, reference, contact_name, contact_phone, device_brand, device_model, problem_description, status, estimated_cost_minor, approved_cost_minor, created_at, closed_at, close_reason';
@@ -226,6 +226,13 @@ class AdminRepository {
   /// Status change; an optional message goes on the same timeline entry and notification.
   Future<void> setOrderStatus(String id, String to, {String? note, String? message}) =>
       _db.rpc('staff_set_order_status', params: {'p_order_id': id, 'p_to': to, 'p_note': note, 'p_message': message});
+
+  /// Sets the pickup branch the team agreed with the customer (permission orders.set_branch); the customer is notified.
+  Future<void> setOrderBranch(String orderId, String branchId) =>
+      _db.rpc('staff_set_order_branch', params: {'p_order_id': orderId, 'p_branch_id': branchId});
+
+  Future<List<Map<String, dynamic>>> activeBranches() async =>
+      List<Map<String, dynamic>>.from(await _db.from('branches').select('id, name_ar, name_en, is_hq').eq('is_active', true).order('name_ar'));
 
   /// Message to the customer without changing the status (timeline + notification).
   Future<void> postOrderUpdate(String id, String message) =>
