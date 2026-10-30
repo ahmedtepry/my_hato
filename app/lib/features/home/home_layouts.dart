@@ -76,6 +76,7 @@ class HomeProducts extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (items.isEmpty) return const SizedBox.shrink(); // never build a layout without products (hero used items.first)
     switch (layout) {
       case HomeLayout.current:
         return HorizontalProducts(items: items);

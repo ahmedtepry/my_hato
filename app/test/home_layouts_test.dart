@@ -39,7 +39,7 @@ void main() {
             locale: const Locale('ar'),
             supportedLocales: supportedLocales,
             localizationsDelegates: const [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
-            theme: ThemeData(useMaterial3: true, scaffoldBackgroundColor: BrandColors.offWhite),
+            theme: AppTheme.light(const Locale('ar')),
             home: Scaffold(body: SingleChildScrollView(child: Column(children: [HomeProducts(items: data(n), layout: layout)]))),
           ),
         ));
