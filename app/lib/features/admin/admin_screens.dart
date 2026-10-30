@@ -43,6 +43,7 @@ import 'storefront_panel.dart';
 import 'wallets_panel.dart';
 import 'online_panel.dart';
 import 'online_review_panel.dart';
+import 'wallet_inbox_panel.dart';
 import 'robot_dock.dart';
 import 'cashier_assistant.dart' show assistantFlagsProvider;
 import 'stock_panel.dart';
@@ -265,6 +266,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'wallets': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFFE60000), 'محافظ الدفع', 'Wallet payments', 'أرقام فودافون كاش واتصالات كاش وإنستا باي اللي العميل يحوّل عليها', 'The Vodafone Cash, Etisalat Cash and InstaPay numbers customers transfer to'),
   'online': _SectionInfo(Icons.flag_circle_outlined, Color(0xFF0E9384), 'ساعات وتارجت الأونلاين', 'Online hours and targets', 'حدد ساعات شيفت كل موظف أونلاين وتارجت الأوردرات وقيمتها', 'Set each online employee\'s shift hours and orders and value targets'),
   'online_review': _SectionInfo(Icons.public_rounded, Color(0xFF2F6BFF), 'الأونلاين', 'Online', 'أوردرات الأونلاين: عمولة كل موظف، الفلوس فين، استلام من فرع ولا توصيل، وتنبيه تكرار الفلوس', 'Online orders: each employee commission, where the money is, branch pickup or delivery, and double-counting alerts'),
+  'wallet_inbox': _SectionInfo(Icons.mark_email_unread_outlined, Color(0xFFE60000), 'استقبال المحافظ', 'Wallet inbox', 'الفلوس اللي بتوصل المحافظ لحظة بلحظة، وربطها بالأوردرات، والمرتجعات للمحاسب', 'Money arriving in the wallets live, linking it to orders, and refunds for the accountant'),
   'storefront': _SectionInfo(Icons.view_quilt_rounded, Color(0xFF2F6BFF), 'طريقة عرض الواجهة', 'Storefront layout', 'اختار شكل عرض المنتجات في تطبيق العملا، ويتطبق على الكل', 'Pick how products are shown in the customer app; it applies to everyone'),
   'assistant': _SectionInfo(Icons.smart_toy_rounded, Color(0xFF0E9384), 'المساعد الآلي', 'Assistant', 'المحاسب الآلي وروبوت خدمة العملاء: شغّلهم وشوف شغلهم', 'The automatic accountant and the customer-service robot: switch them on and see their work'),
   'shortcuts': _SectionInfo(Icons.bolt_rounded, Color(0xFFDC6803), 'اختصارات', 'Shortcuts', 'استلام بضاعة، جرد، تعديل أسعار، وتصدير بيانات', 'Receive goods, stocktake, edit prices and export data'),
@@ -595,6 +597,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'wallets' => const WalletNumbersPanel(),
                       'online' => const OnlinePlanPanel(),
                       'online_review' => const OnlineReviewPanel(),
+                      'wallet_inbox' => const WalletInboxPanel(),
                       'wheel' => const WheelAdminPanel(),
                       'stock' => const StockPanel(),
                       'shortcuts' => const ShortcutsPanel(),

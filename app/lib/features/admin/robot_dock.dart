@@ -187,6 +187,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
   Timer? _watch;
   int _lastPending = -1;
   int _lastDone = -1;
+  int _lastTransfer = -1;
   bool? _shiftOpen;
 
   @override
@@ -307,6 +308,24 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
           playRobotCheer(context, _t(context, c.$1, c.$2));
         }
         _lastDone = done;
+      } catch (_) {}
+    }
+    if (ref.read(staffContextProvider).valueOrNull?.permissions.contains('wallet.view') ?? false) {
+      try {
+        final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('wallet_inbox_list', params: {'p_limit': 5}) as Map);
+        final list = (r['transfers'] as List? ?? const []);
+        final top = list.isEmpty ? 0 : ((list.first as Map)['id'] as num).toInt();
+        if (_lastTransfer >= 0 && top > _lastTransfer && mounted) {
+          for (final e in list.reversed) {
+            final m = e as Map;
+            if ((m['id'] as num) > _lastTransfer && m['status'] == 'new') {
+              final amt = (m['amount_minor'] as num?) == null ? '' : _egp(m['amount_minor'] as num);
+              _add(RobotMsg(false, _t(context, 'وصل تحويل $amt${m['sender'] == null ? '' : ' من ${m['sender']}'}. افتح «استقبال المحافظ» واربطه بالأوردر.', 'A transfer arrived $amt${m['sender'] == null ? '' : ' from ${m['sender']}'}. Open the wallet inbox and link it to the order.')));
+              playRobotCheer(context, _t(context, 'وصل تحويل $amt', 'Transfer received $amt'));
+            }
+          }
+        }
+        _lastTransfer = top;
       } catch (_) {}
     }
     final c = await _counts();
