@@ -265,23 +265,31 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
           'It changes on each customer\'s home screen the next time they open the app. Some phones take a moment, and it will not change for someone who has not opened the app.'),
           style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
       const SizedBox(height: 10),
+      Text(_t(context, 'الشكل', 'Shape'), style: const TextStyle(fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
       Wrap(spacing: 8, runSpacing: 8, children: [
-        for (final i in appIcons)
+        for (var n = 1; n <= 10; n++)
           GestureDetector(
-            onTap: () => setState(() => _icon = i),
+            onTap: () => setState(() => _icon = _iconKey(n, _iconBg(_icon))),
             child: Container(
-              width: 84,
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _icon == i ? BrandColors.electric : BrandColors.border, width: _icon == i ? 2.5 : 1),
+                border: Border.all(color: _iconShape(_icon) == n ? BrandColors.electric : BrandColors.border, width: _iconShape(_icon) == n ? 2.5 : 1),
               ),
-              child: Column(children: [
-                ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.asset(i == 'default' ? 'assets/brand/app_icon.png' : 'assets/brand/icon_$i.png', width: 60, height: 60, fit: BoxFit.cover)),
-                const SizedBox(height: 6),
-                Text(_iconName(context, i), textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: _icon == i ? FontWeight.w900 : FontWeight.w500)),
-              ]),
+              child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.asset('assets/brand/wave_${n}_${_iconBg(_icon)}.png', width: 64, height: 64, fit: BoxFit.cover)),
             ),
+          ),
+      ]),
+      const SizedBox(height: 12),
+      Text(_t(context, 'خلفية الأيقونة', 'Icon background'), style: const TextStyle(fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
+      Wrap(spacing: 8, children: [
+        for (final v in const ['n', 'e', 'l'])
+          ChoiceChip(
+            label: Text(_t(context, const {'n': 'كحلي', 'e': 'أزرق متدرّج', 'l': 'فاتح'}[v]!, const {'n': 'Navy', 'e': 'Electric blue', 'l': 'Light'}[v]!)),
+            selected: _iconBg(_icon) == v,
+            onSelected: (_) => setState(() => _icon = _iconKey(_iconShape(_icon), v)),
           ),
       ]),
       const Divider(height: 28),
@@ -324,11 +332,9 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
   }
 }
 
-String _iconName(BuildContext context, String i) {
-  const ar = {'default': 'الحالية', 'a': 'شكل ا', 'b': 'شكل ب', 'c': 'شكل ج', 'liquid': 'السائل', 'orbit': 'الأولوية', 'phone': 'الجوال', 'neon': 'النيون', 'pulse': 'النبض', 'bird': 'الحمامة'};
-  const en = {'default': 'Current', 'a': 'Style A', 'b': 'Style B', 'c': 'Style C', 'liquid': 'Liquid', 'orbit': 'Priority', 'phone': 'Phone', 'neon': 'Neon', 'pulse': 'Pulse', 'bird': 'Dove'};
-  return _t(context, ar[i] ?? i, en[i] ?? i);
-}
+int _iconShape(String i) => int.tryParse(RegExp(r'^w(\d+)[nel]$').firstMatch(i)?.group(1) ?? '') ?? 2;
+String _iconBg(String i) => RegExp(r'^w\d+([nel])$').firstMatch(i)?.group(1) ?? 'n';
+String _iconKey(int shape, String bg) => 'w$shape$bg';
 
 String _animName(BuildContext context, String v) {
   const ar = {'classic': 'كلاسيك', 'zoom': 'تكبير', 'slide': 'انزلاق', 'liquid': 'السائل', 'orbit': 'الأولوية', 'phone': 'الجوال', 'neon': 'النيون', 'pulse': 'النبض', 'bird': 'الحمامة'};

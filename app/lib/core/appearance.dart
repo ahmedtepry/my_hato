@@ -13,13 +13,24 @@ import 'supabase_providers.dart';
 import 'theme.dart';
 
 const launchAnimations = ['classic', 'zoom', 'slide', 'liquid', 'orbit', 'phone', 'neon', 'pulse', 'bird'];
-const appIcons = ['default', 'a', 'b', 'c', 'liquid', 'orbit', 'phone', 'neon', 'pulse', 'bird'];
+/// Ten wave logos x three backgrounds (n = navy, e = electric blue, l = light). 'default' = wave 2 on navy.
+const appIcons = ['default', for (var n = 1; n <= 10; n++) for (final v in ['n', 'e', 'l']) 'w$n$v'];
 
 /// The app's name, set by the owner. Read wherever the app writes its own name.
 class AppName {
   static String ar = 'My Hatō';
   static String en = 'My Hatō';
   static String of(String languageCode) => languageCode == 'ar' ? ar : en;
+}
+
+/// Which of the ten wave logos the owner picked; read by BrandMark.
+class AppLogo {
+  static int shape = 2;
+  static void setFromIcon(String icon) {
+    final m = RegExp(r'^w(\d+)[nel]$').firstMatch(icon);
+    final n = m == null ? 2 : int.parse(m.group(1)!);
+    shape = n >= 1 && n <= 10 ? n : 2;
+  }
 }
 
 /// The occasion running now (stamp on the logo), or empty. Read by the logo widgets.
@@ -68,6 +79,7 @@ void applySavedPalette(SharedPreferences prefs) {
   AppPalette.apply(AppConfig.teamOnly ? TeamTheme.palette(TeamTheme.id, a.palette) : a.palette);
   AppName.ar = a.nameAr;
   AppName.en = a.nameEn;
+  AppLogo.setFromIcon(a.icon);
   AppOccasion.key = a.occasion;
   AppOccasion.stamp = a.stamp;
 }
@@ -127,7 +139,9 @@ class AppearanceController extends Notifier<Appearance> {
   Future<void> _apply(Appearance a) async {
     final prefs = ref.read(sharedPrefsProvider);
     final paletteChanged = AppPalette.apply(AppConfig.teamOnly ? TeamTheme.palette(TeamTheme.id, a.palette) : a.palette);
-    final nameChanged = AppName.ar != a.nameAr || AppName.en != a.nameEn;
+    final oldShape = AppLogo.shape;
+    AppLogo.setFromIcon(a.icon);
+    final nameChanged = AppName.ar != a.nameAr || AppName.en != a.nameEn || oldShape != AppLogo.shape;
     AppName.ar = a.nameAr;
     AppName.en = a.nameEn;
     final occasionChanged = AppOccasion.key != a.occasion || AppOccasion.stamp != a.stamp;

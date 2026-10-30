@@ -22,7 +22,20 @@ class BrandMark extends StatelessWidget {
     final mark = SizedBox(
       width: size,
       height: size * 0.82,
-      child: CustomPaint(painter: _MPainter(onDark: onDark, progress: progress)),
+      child: ClipRect(
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          widthFactor: 1,
+          child: ShaderMask(
+            // the mark is revealed left to right while progress runs 0..1 (order-confirmation animation)
+            shaderCallback: (r) => LinearGradient(
+              colors: const [Colors.white, Colors.white, Colors.transparent, Colors.transparent],
+              stops: [0, (progress * 1.1).clamp(0.0, 1.0), (progress * 1.1 + 0.001).clamp(0.0, 1.0), 1],
+            ).createShader(r),
+            child: Image.asset('assets/brand/mark_${AppLogo.shape}${onDark ? '_w' : ''}.png', fit: BoxFit.contain, filterQuality: FilterQuality.high),
+          ),
+        ),
+      ),
     );
     // seasonal stamp (Ramadan, Eid, 6 October) while the owner has an occasion running; not on tiny logos
     if (AppOccasion.key.isEmpty || AppOccasion.stamp.isEmpty || size < 28) return mark;

@@ -14,7 +14,8 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
     private val aliases = mapOf("default" to "IconDefault", "a" to "IconA", "b" to "IconB", "c" to "IconC",
-        "bird" to "IconBird", "pulse" to "IconPulse", "phone" to "IconPhone", "neon" to "IconNeon", "orbit" to "IconOrbit", "liquid" to "IconLiquid")
+        "bird" to "IconBird", "pulse" to "IconPulse", "phone" to "IconPhone", "neon" to "IconNeon", "orbit" to "IconOrbit", "liquid" to "IconLiquid",
+        "w1n" to "IconW1N", "w1e" to "IconW1E", "w1l" to "IconW1L", "w2n" to "IconW2N", "w2e" to "IconW2E", "w2l" to "IconW2L", "w3n" to "IconW3N", "w3e" to "IconW3E", "w3l" to "IconW3L", "w4n" to "IconW4N", "w4e" to "IconW4E", "w4l" to "IconW4L", "w5n" to "IconW5N", "w5e" to "IconW5E", "w5l" to "IconW5L", "w6n" to "IconW6N", "w6e" to "IconW6E", "w6l" to "IconW6L", "w7n" to "IconW7N", "w7e" to "IconW7E", "w7l" to "IconW7L", "w8n" to "IconW8N", "w8e" to "IconW8E", "w8l" to "IconW8L", "w9n" to "IconW9N", "w9e" to "IconW9E", "w9l" to "IconW9L", "w10n" to "IconW10N", "w10e" to "IconW10E", "w10l" to "IconW10L")
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
