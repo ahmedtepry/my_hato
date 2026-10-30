@@ -2,6 +2,7 @@
 // Open both and they stack (messages on top, robot below); each closes on its own and goes back to just its icon in the left column.
 // After "Start the shift" the robot flies to the side, says it is around, and its panel opens. "Close the shift for me" lets the robot run
 // the closing on the employee's behalf (he still gives the count and his fingerprint/password: the robot never closes anything alone).
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -146,7 +147,7 @@ class _RobotDockState extends ConsumerState<RobotDock> with SingleTickerProvider
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 230),
-                  child: Text(_t(context, 'لو احتجت تسألني عن حاجة أنا موجود 👋', 'If you need to ask me anything, I am here 👋'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  child: Text(_t(context, 'لو احتجت تسألني عن حاجة أنا موجود', 'If you need to ask me anything, I am here'), style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
             ),
@@ -165,10 +166,14 @@ class RobotChatPanel extends ConsumerStatefulWidget {
 
 class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
   final _scroll = ScrollController();
+  Timer? _watch;
+  int _lastPending = -1;
 
   @override
   void initState() {
     super.initState();
+    // online employees: the robot keeps an eye on the orders and tells them when a new one arrives or one has waited too long
+    _watch = Timer.periodic(const Duration(seconds: 60), (_) => _poll());
     Future.microtask(() {
       if (ref.read(robotMessagesProvider).isEmpty) {
         ref.read(robotMessagesProvider.notifier).state = [
@@ -181,6 +186,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
 
   @override
   void dispose() {
+    _watch?.cancel();
     _scroll.dispose();
     super.dispose();
   }
@@ -203,6 +209,71 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
       ref.read(robotCommandProvider.notifier).state = null;
       _add(RobotMsg(false, _t(context, 'افتح شاشة الكاشير الأول وأنا أكمّل معاك.', 'Open the cashier screen first and I will continue.')));
     }
+  }
+
+  /// Counts the things an online employee has to act on. Null when it cannot be read.
+  Future<({int pending, int oldestMin, int walletWait, int branchWait, int accounts})?> _counts() async {
+    try {
+      final rows = await ref.read(supabaseProvider).from('orders')
+          .select('created_at, status, fulfillment, payment_method, payment_status, branch_confirmed')
+          .isFilter('closed_at', null)
+          .not('status', 'in', '(delivered,cancelled)')
+          .limit(500) as List;
+      var pending = 0, wallet = 0, branch = 0;
+      DateTime? oldest;
+      for (final r in rows) {
+        final m = r as Map;
+        if (m['status'] == 'pending') {
+          pending++;
+          final at = DateTime.tryParse('${m['created_at']}');
+          if (at != null && (oldest == null || at.isBefore(oldest))) oldest = at;
+        }
+        if (m['payment_method'] == 'wallet' && m['payment_status'] == 'unpaid') wallet++;
+        if (m['fulfillment'] == 'pickup' && m['branch_confirmed'] != true) branch++;
+      }
+      ref.invalidate(pendingAccountsCountProvider);
+      final acc = await ref.read(pendingAccountsCountProvider.future).catchError((_) => 0);
+      return (pending: pending, oldestMin: oldest == null ? 0 : DateTime.now().difference(oldest).inMinutes, walletWait: wallet, branchWait: branch, accounts: acc);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _poll() async {
+    if (!mounted) return;
+    final online = ref.read(staffContextProvider).valueOrNull?.permissions.contains('orders.view') ?? false;
+    if (!online) return;
+    final c = await _counts();
+    if (c == null || !mounted) return;
+    if (_lastPending >= 0 && c.pending > _lastPending) {
+      _add(RobotMsg(false, _t(context, 'وصل طلب جديد! عندك دلوقتي ${c.pending} طلب مستني التأكيد.', 'A new order arrived! You now have ${c.pending} waiting for confirmation.')));
+    } else if (c.pending > 0 && c.oldestMin >= 30 && (_lastPending < 0 || c.oldestMin % 30 < 1)) {
+      _add(RobotMsg(false, _t(context, 'في طلب مستني من ${_ago(c.oldestMin)}. الأحسن تتصل بالعميل وتأكده.', 'An order has waited for ${_ago(c.oldestMin)}. Better call the customer and confirm it.')));
+    }
+    _lastPending = c.pending;
+  }
+
+  String _ago(int min) => min < 60 ? _t(context, '$min دقيقة', '$min min') : _t(context, '${min ~/ 60} ساعة', '${min ~/ 60} h');
+
+  /// "What should I do now?": everything that is waiting, in the order to do it.
+  Future<void> _summary() async {
+    _add(RobotMsg(true, _t(context, 'إيه المطلوب مني دلوقتي؟', 'What should I do now?')));
+    final c = await _counts();
+    if (!mounted) return;
+    if (c == null) {
+      _add(RobotMsg(false, _t(context, 'معرفتش أقرا الطلبات دلوقتي. جرّب تاني بعد شوية.', 'I could not read the orders now. Try again in a moment.')));
+      return;
+    }
+    final todo = <String>[
+      if (c.pending > 0) _t(context, '${c.pending} طلب جديد مستني التأكيد (أقدمهم من ${_ago(c.oldestMin)})', '${c.pending} new order(s) to confirm (oldest ${_ago(c.oldestMin)})'),
+      if (c.branchWait > 0) _t(context, '${c.branchWait} طلب استلام محتاج تحدد له الفرع بعد ما تكلّم العميل', '${c.branchWait} pickup order(s) need a branch after you call the customer'),
+      if (c.walletWait > 0) _t(context, '${c.walletWait} طلب بمحفظة محتاج تتأكد إن التحويل وصل', '${c.walletWait} wallet order(s): check the transfer arrived'),
+      if (c.accounts > 0) _t(context, '${c.accounts} حساب مستني التوثيق', '${c.accounts} account(s) waiting for verification'),
+    ];
+    _add(RobotMsg(false, todo.isEmpty
+        ? _t(context, 'كله تمام، مفيش حاجة مستنياك دلوقتي.', 'All clear, nothing is waiting for you right now.')
+        : [for (var i = 0; i < todo.length; i++) '${i + 1}. ${todo[i]}'].join('\n')));
+    _lastPending = c.pending;
   }
 
   Future<void> _newOrders() async {
@@ -297,6 +368,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
               if (canClose) ActionChip(avatar: const Icon(Icons.lock_clock_outlined, size: 16), label: Text(_t(context, 'قفّل الوردية عني', 'Close the shift for me')), onPressed: () => _ask('close', _t(context, 'قفّل الوردية عني', 'Close the shift for me'))),
               if (canFind) ActionChip(avatar: const Icon(Icons.search_rounded, size: 16), label: Text(_t(context, 'دوّر على منتج', 'Find a product')), onPressed: () => _ask('find', _t(context, 'دوّر على منتج', 'Find a product'))),
               if (online) ...[
+                ActionChip(avatar: const Icon(Icons.checklist_rounded, size: 16), label: Text(_t(context, 'إيه المطلوب دلوقتي؟', 'What now?')), onPressed: _summary),
                 ActionChip(avatar: const Icon(Icons.shopping_bag_outlined, size: 16), label: Text(_t(context, 'طلبات جديدة', 'New orders')), onPressed: _newOrders),
                 ActionChip(avatar: const Icon(Icons.verified_user_outlined, size: 16), label: Text(_t(context, 'حسابات مستنية', 'Accounts waiting')), onPressed: _pendingAccounts),
                 for (final q in onlineFaq)
@@ -308,6 +380,17 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
                       final a = _t(context, q.$3, q.$4);
                       Clipboard.setData(ClipboardData(text: a));
                       _add(RobotMsg(false, '$a\n\n${_t(context, '(اتنسخ الرد، ابعته للعميل في الشات)', '(Copied: paste it to the customer in the chat)')}'));
+                    },
+                  ),
+                for (final q in onlineScripts)
+                  ActionChip(
+                    avatar: const Icon(Icons.call_outlined, size: 15),
+                    label: Text(_t(context, q.$1, q.$2)),
+                    onPressed: () {
+                      _add(RobotMsg(true, _t(context, q.$1, q.$2)));
+                      final a = _t(context, q.$3, q.$4);
+                      Clipboard.setData(ClipboardData(text: a));
+                      _add(RobotMsg(false, '$a\n\n${_t(context, '(اتنسخ، غيّر الأقواس بالبيانات)', '(Copied: replace the brackets with the details)')}'));
                     },
                   ),
                 for (final g in onlineGuides)
@@ -452,6 +535,12 @@ const onlineFaq = <(String, String, String, String)>[
   ('الاستلام من الفرع', 'Pickup from a branch', 'هنكلمك نحدد أقرب فرع ليك وميعاد الاستلام، وبتستلم طلبك من هناك.', 'We will call you to set the nearest branch and the pickup time, then you collect your order there.'),
   ('الضمان والاستبدال', 'Warranty and exchange', 'المنتجات عليها ضمان حسب النوع. لو في مشكلة ابعتلنا رقم الطلب وهنساعدك في الاستبدال أو الصيانة.', 'Products come with a warranty depending on the type. If there is a problem, send us the order number and we will help with exchange or repair.'),
   ('تتبّع الطلب', 'Track my order', 'تقدر تتابع حالة طلبك من التطبيق في «طلباتي»، وهيوصلك إشعار مع كل تغيير.', 'You can follow your order in the app under My Orders, and you get a notification with every change.'),
+];
+
+const onlineScripts = <(String, String, String, String)>[
+  ('كلام مكالمة تأكيد الطلب', 'Order confirmation call', 'السلام عليكم، معاك {اسمك} من My Hatō. بخصوص طلبك رقم {رقم الطلب}: عايز أتأكد من العنوان وميعاد التوصيل المناسب ليك.', 'Hello, this is {your name} from My Hatō. About your order {number}: I would like to confirm the address and a delivery time that suits you.'),
+  ('كلام تحديد فرع الاستلام', 'Choosing the pickup branch', 'السلام عليكم، معاك {اسمك} من My Hatō. بخصوص طلبك {رقم الطلب}: إنت ساكن في أنهي منطقة؟ هنقولك أقرب فرع ليك وميعاد الاستلام.', 'Hello, this is {your name} from My Hatō. About your order {number}: which area do you live in? We will tell you the nearest branch and the pickup time.'),
+  ('كلام تأكيد تحويل المحفظة', 'Wallet transfer follow-up', 'السلام عليكم، بخصوص طلبك {رقم الطلب}: لسه ماوصلناش تحويل المبلغ. لو حوّلت قولي من أنهي رقم عشان أطابقه، وشكرًا لك.', 'Hello, about your order {number}: we have not received the transfer yet. If you sent it, tell me from which number so I can match it. Thank you.'),
 ];
 
 const onlineGuides = <(String, String, List<String>, List<String>)>[
