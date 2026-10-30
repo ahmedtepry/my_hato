@@ -126,7 +126,7 @@ class StageController extends ChangeNotifier {
   void _ping() {
     if (_dead || _pending) return;
     _pending = true;
-    Timer(const Duration(milliseconds: 90), () {
+    Timer(const Duration(milliseconds: 120), () {
       _pending = false;
       if (!_dead) notifyListeners();
     });
@@ -156,11 +156,13 @@ class StageController extends ChangeNotifier {
     final id = ++_sayId;
     said = '';
     _ping();
-    for (var i = 1; i <= text.length; i++) {
+    for (var i = 2; ; i += 2) {
       if (_dead || id != _sayId) return;
-      said = text.substring(0, i);
+      final n = i >= text.length ? text.length : i;
+      said = text.substring(0, n);
       _ping();
-      await _wait(ms);
+      if (n >= text.length) return;
+      await _wait(ms * 2);
     }
   }
 
@@ -173,11 +175,13 @@ class StageController extends ChangeNotifier {
     final l = ConsoleLine('', kind);
     lines.add(l);
     if (lines.length > 9) lines.removeAt(0);
-    for (var i = 1; i <= text.length; i++) {
+    for (var i = 3; ; i += 3) {
       if (_dead) return l;
-      l.text = text.substring(0, i);
+      final n = i >= text.length ? text.length : i;
+      l.text = text.substring(0, n);
       _ping();
-      await _wait(ms);
+      if (n >= text.length) break;
+      await _wait(ms * 3 + 20);
     }
     if (toss && kind == LineKind.code) this.toss(text);
     return l;
@@ -190,7 +194,7 @@ class StageController extends ChangeNotifier {
   }
 
   static const _pool = [
-    'rows.fetch(page=%d)', 'hash 9f3a1c%d…e7', 'sum(total) = %d.00', 'assert refunds <= limit', 'cursor.next() -> %d',
+    'rows.fetch(page=%d)', 'hash 9f3a1c%d..e7', 'sum(total) = %d.00', 'assert refunds <= limit', 'cursor.next() -> %d',
     'invoice[%d].lines ok', 'checksum 0x%d ok', 'diff = 0.00', 'lock shift.284', 'verify row %d/37',
   ];
 
@@ -271,7 +275,7 @@ class _FlyingChipState extends State<_FlyingChip> with SingleTickerProviderState
                           border: Border.all(color: const Color(0xFF2DC4B2)),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(widget.text, style: const TextStyle(fontFamily: 'Consolas', fontFamilyFallback: _monoFallback, fontSize: 12, color: Color(0xFF9FE7D6), decoration: TextDecoration.none, fontWeight: FontWeight.w500)),
+                        child: Text(widget.text, style: const TextStyle(fontSize: 12, color: Color(0xFF9FE7D6), decoration: TextDecoration.none, fontWeight: FontWeight.w500)),
                       ),
                     ),
                   ),
@@ -285,7 +289,6 @@ class _FlyingChipState extends State<_FlyingChip> with SingleTickerProviderState
   }
 }
 
-const _monoFallback = ['Courier New', 'DejaVu Sans Mono', 'monospace'];
 
 /// The dark console box. Put it anywhere; the flying chips start from it.
 class StageConsole extends StatelessWidget {
@@ -316,9 +319,9 @@ class StageConsole extends StatelessWidget {
                       text: l.kind == LineKind.note ? '// ${l.text}' : (l.text.startsWith('  ') ? l.text : '> ${l.text}'),
                       style: TextStyle(color: l.kind == LineKind.note ? const Color(0xFF4F7F75) : const Color(0xFF9FE7D6), fontFamily: l.kind == LineKind.note ? Theme.of(context).textTheme.bodyMedium?.fontFamily : null),
                     ),
-                    if (l.tail.isNotEmpty) TextSpan(text: '  ${l.warn ? '▲' : '√'} ${l.tail}', style: TextStyle(color: l.warn ? const Color(0xFFFFB454) : const Color(0xFF4FE0A0))),
+                    if (l.tail.isNotEmpty) TextSpan(text: '  ${l.warn ? '!' : 'ok'} ${l.tail}', style: TextStyle(color: l.warn ? const Color(0xFFFFB454) : const Color(0xFF4FE0A0))),
                   ]),
-                  style: const TextStyle(fontFamily: 'Consolas', fontFamilyFallback: _monoFallback, fontSize: 12.5, height: 1.65),
+                  style: const TextStyle(fontSize: 12.5, height: 1.65),
                   maxLines: 1,
                   overflow: TextOverflow.clip,
                 ),
@@ -449,9 +452,7 @@ class RobotViewState extends State<RobotView> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tick = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (mounted) _loop.value = (_loop.value + .025) % 1;
-    });
+    // Static idle pose: no continuous repaint. The robot only repaints when its mood changes or on a pulse / power-off.
   }
 
   /// Lights go off one by one: eyes, chest, antenna, then the glow underneath.
