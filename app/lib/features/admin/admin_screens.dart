@@ -337,8 +337,14 @@ List<Widget> _robotTiles(BuildContext ctx, WidgetRef ref) {
         }
         try {
           await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': !on});
-          ref.read(robotPanelOpenProvider.notifier).state = !on;
           ref.invalidate(assistantFlagsProvider);
+          final online = ref.read(staffContextProvider).valueOrNull?.permissions.contains('orders.view') ?? false;
+          if (!on && online && ctx.mounted) {
+            // online employee: the robot walks in with a time-of-day greeting, then its panel opens at the left strip
+            playOnlineWelcome(ctx, onSettled: () => ref.read(robotPanelOpenProvider.notifier).state = true);
+          } else {
+            ref.read(robotPanelOpenProvider.notifier).state = !on;
+          }
         } catch (e) {
           if (ctx.mounted) showSnack(ctx, friendlyError(ctx, e), error: true);
         }

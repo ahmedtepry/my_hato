@@ -2,12 +2,17 @@
 // Open both and they stack (messages on top, robot below); each closes on its own and goes back to just its icon in the left column.
 // After "Start the shift" the robot flies to the side, says it is around, and its panel opens. "Close the shift for me" lets the robot run
 // the closing on the employee's behalf (he still gives the count and his fingerprint/password: the robot never closes anything alone).
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import 'accounts_tab.dart' show pendingAccountsCountProvider;
+import 'admin_repository.dart' show staffContextProvider;
 import 'cashier_assistant.dart';
 import 'shift_robot.dart';
 
@@ -200,6 +205,29 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     }
   }
 
+  Future<void> _newOrders() async {
+    _add(RobotMsg(true, _t(context, 'طلبات جديدة', 'New orders')));
+    try {
+      final rows = await ref.read(supabaseProvider).from('orders').select('id').eq('status', 'pending').isFilter('closed_at', null);
+      final n = (rows as List).length;
+      _add(RobotMsg(false, n == 0
+          ? _t(context, 'مفيش طلبات جديدة مستنية دلوقتي.', 'No new orders are waiting right now.')
+          : _t(context, 'في $n طلب جديد مستني التأكيد. افتح «طلبات المبيعات» وابدأ بأقدمهم، وكلّم العميل لو محتاج تأكيد.', '$n new order(s) waiting for confirmation. Open Sales orders and start with the oldest; call the customer if you need to confirm.')));
+    } catch (_) {
+      _add(RobotMsg(false, _t(context, 'معرفتش أجيب الطلبات دلوقتي. افتح «طلبات المبيعات» بنفسك.', 'I could not load the orders. Open Sales orders yourself.')));
+    }
+  }
+
+  Future<void> _pendingAccounts() async {
+    _add(RobotMsg(true, _t(context, 'حسابات مستنية', 'Accounts waiting')));
+    ref.invalidate(pendingAccountsCountProvider);
+    final n = await ref.read(pendingAccountsCountProvider.future).catchError((_) => 0);
+    if (!mounted) return;
+    _add(RobotMsg(false, n == 0
+        ? _t(context, 'مفيش حسابات مستنية التوثيق.', 'No accounts are waiting for verification.')
+        : _t(context, 'في $n حساب مستني التوثيق. افتح قسم «الحسابات» وراجعهم واحد واحد.', '$n account(s) waiting. Open Accounts and review them one by one.')));
+  }
+
   Future<void> _off() async {
     try {
       await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': false});
@@ -220,6 +248,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     });
     ref.listen<List<RobotMsg>>(robotMessagesProvider, (p, n) => _toBottom());
     final canClose = f['robot_close'] == true, canFind = f['find'] == true;
+    final online = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('orders.view') ?? false;
     return Material(
       elevation: 10,
       color: Colors.white,
@@ -267,6 +296,30 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
             Wrap(spacing: 6, runSpacing: 6, children: [
               if (canClose) ActionChip(avatar: const Icon(Icons.lock_clock_outlined, size: 16), label: Text(_t(context, 'قفّل الوردية عني', 'Close the shift for me')), onPressed: () => _ask('close', _t(context, 'قفّل الوردية عني', 'Close the shift for me'))),
               if (canFind) ActionChip(avatar: const Icon(Icons.search_rounded, size: 16), label: Text(_t(context, 'دوّر على منتج', 'Find a product')), onPressed: () => _ask('find', _t(context, 'دوّر على منتج', 'Find a product'))),
+              if (online) ...[
+                ActionChip(avatar: const Icon(Icons.shopping_bag_outlined, size: 16), label: Text(_t(context, 'طلبات جديدة', 'New orders')), onPressed: _newOrders),
+                ActionChip(avatar: const Icon(Icons.verified_user_outlined, size: 16), label: Text(_t(context, 'حسابات مستنية', 'Accounts waiting')), onPressed: _pendingAccounts),
+                for (final q in onlineFaq)
+                  ActionChip(
+                    avatar: const Icon(Icons.copy_rounded, size: 15),
+                    label: Text(_t(context, q.$1, q.$2)),
+                    onPressed: () {
+                      _add(RobotMsg(true, _t(context, q.$1, q.$2)));
+                      final a = _t(context, q.$3, q.$4);
+                      Clipboard.setData(ClipboardData(text: a));
+                      _add(RobotMsg(false, '$a\n\n${_t(context, '(اتنسخ الرد، ابعته للعميل في الشات)', '(Copied: paste it to the customer in the chat)')}'));
+                    },
+                  ),
+                for (final g in onlineGuides)
+                  ActionChip(
+                    label: Text(_t(context, g.$1, g.$2)),
+                    onPressed: () {
+                      _add(RobotMsg(true, _t(context, g.$1, g.$2)));
+                      final steps = context.isAr ? g.$3 : g.$4;
+                      _add(RobotMsg(false, [for (var i = 0; i < steps.length; i++) '${i + 1}. ${steps[i]}'].join('\n')));
+                    },
+                  ),
+              ],
               for (final g in assistantGuides)
                 ActionChip(
                   label: Text(_t(context, g.$1, g.$2)),
@@ -283,3 +336,143 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     );
   }
 }
+
+
+// ============================================================ online staff: the robot's welcome walk and its help
+/// Good morning / afternoon / evening / night, from the computer's clock.
+({String greet, IconData icon, Color color}) timeOfDayGreeting(BuildContext c) {
+  final h = DateTime.now().hour;
+  if (h >= 5 && h < 12) return (greet: _t(c, 'صباح الخير! يوم جديد وشغل حلو', 'Good morning! A fresh day ahead'), icon: Icons.wb_sunny_rounded, color: const Color(0xFFF59E0B));
+  if (h >= 12 && h < 17) return (greet: _t(c, 'نهارك سعيد! يلا نشتغل', 'Good afternoon! Let us get to work'), icon: Icons.wb_sunny_outlined, color: const Color(0xFFF97316));
+  if (h >= 17 && h < 21) return (greet: _t(c, 'مساء الخير! أنا معاك', 'Good evening! I am with you'), icon: Icons.wb_twilight_rounded, color: const Color(0xFF8B5CF6));
+  return (greet: _t(c, 'مساء النور! سهرانين النهارده؟ أنا معاك', 'Good night! Working late? I am with you'), icon: Icons.nightlight_round, color: const Color(0xFF6366F1));
+}
+
+/// A small, cheap animation (only transforms, no heavy painting): the robot comes in from the side of the screen, hops along while
+/// saying hello according to the time of day, then settles at the left strip. Calls [onSettled] when it arrives.
+void playOnlineWelcome(BuildContext context, {required VoidCallback onSettled}) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) {
+    onSettled();
+    return;
+  }
+  final g = timeOfDayGreeting(context);
+  late OverlayEntry entry;
+  entry = OverlayEntry(builder: (_) => IgnorePointer(child: _WalkingRobot(greet: g.greet, icon: g.icon, color: g.color, onDone: () {
+        entry.remove();
+        onSettled();
+      })));
+  overlay.insert(entry);
+}
+
+class _WalkingRobot extends StatefulWidget {
+  const _WalkingRobot({required this.greet, required this.icon, required this.color, required this.onDone});
+  final String greet;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onDone;
+  @override
+  State<_WalkingRobot> createState() => _WalkingRobotState();
+}
+
+class _WalkingRobotState extends State<_WalkingRobot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 4600))
+    ..forward().whenComplete(() {
+      if (mounted) widget.onDone();
+    });
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value;
+        // 0..0.18 slides in from the right edge, 0.18..0.82 walks (hops) to the left, 0.82..1 settles and fades
+        final walk = Curves.easeInOut.transform(((t - 0.12) / 0.78).clamp(0.0, 1.0));
+        final x = size.width + 30 - (size.width - 40 + 30) * walk; // right edge -> left strip
+        final hop = t > 0.12 && t < 0.9 ? (math.sin(t * 2 * math.pi * 9)).abs() * 16 : 0.0;
+        final tilt = t > 0.12 && t < 0.9 ? math.sin(t * 2 * math.pi * 9) * 0.1 : 0.0;
+        final fade = t > 0.88 ? (1 - (t - 0.88) / 0.12).clamp(0.0, 1.0) : 1.0;
+        final bubble = t > 0.08 && t < 0.86;
+        return Opacity(
+          opacity: fade,
+          child: Stack(children: [
+            Positioned(
+              left: x - 28,
+              bottom: 90 + hop,
+              child: Transform.rotate(
+                angle: tilt,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(color: const Color(0xFF0B1F2A), shape: BoxShape.circle, border: Border.all(color: const Color(0xFF2DD4BF), width: 2)),
+                  child: const Icon(Icons.smart_toy_rounded, color: Color(0xFF2DD4BF), size: 32),
+                ),
+              ),
+            ),
+            if (bubble)
+              Positioned(
+                left: (x + 34).clamp(8.0, size.width - 270),
+                bottom: 160 + hop,
+                child: Material(
+                  elevation: 4,
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(widget.icon, color: widget.color, size: 22),
+                        const SizedBox(width: 8),
+                        Flexible(child: Text(widget.greet, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, decoration: TextDecoration.none, color: Color(0xFF0B1F2A)))),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// Ready answers the online employee can send to customers (he copies one and sends it in the chat).
+const onlineFaq = <(String, String, String, String)>[
+  ('مدة التوصيل', 'Delivery time', 'التوصيل بياخد من يوم لتلات أيام عمل حسب المحافظة. هنكلمك لتأكيد العنوان قبل ما نشحن.', 'Delivery takes one to three working days depending on the governorate. We will call to confirm the address before shipping.'),
+  ('طرق الدفع', 'Payment methods', 'تقدر تدفع كاش عند الاستلام، أو تحوّل على فودافون كاش أو اتصالات كاش أو إنستا باي من نفس رقمك أو من رقم تاني وتكتبه لنا في الطلب.', 'You can pay cash on delivery, or transfer by Vodafone Cash, Etisalat Cash or InstaPay from your own number or another one that you write in the order.'),
+  ('الاستلام من الفرع', 'Pickup from a branch', 'هنكلمك نحدد أقرب فرع ليك وميعاد الاستلام، وبتستلم طلبك من هناك.', 'We will call you to set the nearest branch and the pickup time, then you collect your order there.'),
+  ('الضمان والاستبدال', 'Warranty and exchange', 'المنتجات عليها ضمان حسب النوع. لو في مشكلة ابعتلنا رقم الطلب وهنساعدك في الاستبدال أو الصيانة.', 'Products come with a warranty depending on the type. If there is a problem, send us the order number and we will help with exchange or repair.'),
+  ('تتبّع الطلب', 'Track my order', 'تقدر تتابع حالة طلبك من التطبيق في «طلباتي»، وهيوصلك إشعار مع كل تغيير.', 'You can follow your order in the app under My Orders, and you get a notification with every change.'),
+];
+
+const onlineGuides = <(String, String, List<String>, List<String>)>[
+  ('إزاي أجهّز أوردر؟', 'How do I prepare an order?', [
+    'افتح طلبات المبيعات واختار الطلب الجديد.',
+    'كلّم العميل لو محتاج تأكيد (العنوان أو الفرع أو التحويل).',
+    'جهّز المنتجات وغيّر الحالة لـ «قيد التجهيز» ثم «جاهز» أو «تم الشحن».',
+    'لو الدفع بمحفظة: اتأكد إن التحويل وصل واضغط «استلمت التحويل».',
+  ], [
+    'Open Sales orders and pick the new order.',
+    'Call the customer if you need to confirm (address, branch or transfer).',
+    'Prepare the items and change the status to Preparing, then Ready or Shipped.',
+    'For wallet payments: check the transfer arrived and press Transfer received.',
+  ]),
+  ('إزاي أوثّق حساب عميل؟', 'How do I verify a customer account?', [
+    'افتح قسم الحسابات (الرقم عليه بيبيّن عدد اللي مستنيين).',
+    'راجع بيانات العميل ورقمه.',
+    'اضغط قبول أو رفض، ولو رفضت اكتب السبب.',
+  ], [
+    'Open Accounts (the number shows how many are waiting).',
+    'Check the customer details and phone.',
+    'Press Approve or Reject, and write a reason if you reject.',
+  ]),
+];
