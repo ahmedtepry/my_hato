@@ -221,7 +221,8 @@ class _Header extends ConsumerWidget {
           final size = MediaQuery.sizeOf(context);
           final cur = ref.read(chatPosProvider);
           ref.read(chatPosProvider.notifier).set(Offset(
-                (cur.dx + d.delta.dx).clamp(-250.0, size.width - 100),
+                // the panel lives inside the centred 1100px column: keep it fully inside that column (it used to slide under the white margin)
+                (cur.dx + d.delta.dx).clamp(0.0, (size.width < 1100 ? size.width : 1100.0) - (chatPanelSpace - 24)),
                 (cur.dy + d.delta.dy).clamp(0.0, size.height - 60),
               ));
         },

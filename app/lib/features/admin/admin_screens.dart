@@ -723,7 +723,7 @@ class AdminHomeScreen extends ConsumerWidget {
                               const ChatWatcher(),
                               if (chatFloating)
                                 Positioned(
-                                  left: ref.watch(chatPosProvider).dx,
+                                  left: ref.watch(chatPosProvider).dx.clamp(0.0, ((MediaQuery.sizeOf(context).width < 1100 ? MediaQuery.sizeOf(context).width : 1100.0) - (chatPanelSpace - 24)).clamp(0.0, 4000.0)),
                                   top: ref.watch(chatPosProvider).dy,
                                   width: chatPanelSpace - 24,
                                   height: 560,
