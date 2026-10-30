@@ -38,7 +38,7 @@ String shiftUserName(User? u) {
 
 bool get _isWindows => !kIsWeb && Platform.isWindows;
 
-Widget _frame(BuildContext context, {required Widget scene, required Widget panel}) {
+Widget _frame(BuildContext context, {required Widget scene, required Widget panel, bool closeResult = false}) {
   final size = MediaQuery.of(context).size;
   final wide = size.width >= 760;
   final h = math.min(size.height * .92, 640.0);
@@ -48,15 +48,34 @@ Widget _frame(BuildContext context, {required Widget scene, required Widget pane
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     child: ConstrainedBox(
       constraints: BoxConstraints(maxWidth: 900, maxHeight: h),
-      child: wide
-          ? Row(children: [
-              SizedBox(width: 360, height: h, child: scene),
-              Expanded(child: panel),
-            ])
-          : Column(children: [
-              SizedBox(height: math.min(300, h * .42), width: double.infinity, child: scene),
-              Expanded(child: panel),
-            ]),
+      child: Stack(children: [
+        wide
+            ? Row(children: [
+                SizedBox(width: 360, height: h, child: scene),
+                Expanded(child: panel),
+              ])
+            : Column(children: [
+                SizedBox(height: math.min(300, h * .42), width: double.infinity, child: scene),
+                Expanded(child: panel),
+              ]),
+        // always-available way out (top right): if anything ever hangs, this closes the robot window
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Tooltip(
+            message: context.isAr ? 'إغلاق' : 'Close',
+            child: Material(
+              color: Colors.black54,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.of(context).pop(closeResult),
+                child: const Padding(padding: EdgeInsets.all(7), child: Icon(Icons.close_rounded, size: 20, color: Colors.white)),
+              ),
+            ),
+          ),
+        ),
+      ]),
     ),
   );
 }
@@ -340,6 +359,7 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
   Widget build(BuildContext context) {
     return _frame(
       context,
+      closeResult: _phase == _Phase.done || _phase == _Phase.pc, // once the shift is really closed, the register must refresh
       scene: RobotScene(ctl: ctl, robotWidth: MediaQuery.of(context).size.width >= 760 ? 250 : 120),
       panel: Padding(padding: const EdgeInsets.all(20), child: SingleChildScrollView(child: _panel(context))),
     );
