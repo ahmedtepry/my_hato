@@ -302,6 +302,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   /// Team accounts carry a placeholder address: treat it as "no email yet".
   static String _realEmail(String? e) => (e == null || e.endsWith('@team.myhato.app')) ? '' : e;
+  late final String _phone0 = _phone.text.trim();
+  bool get _phoneChanged {
+    final n = _phone.text.trim().isEmpty ? '' : normalizeEgyptMobile(_phone.text.trim());
+    final o = _phone0.isEmpty ? '' : normalizeEgyptMobile(_phone0);
+    return n != o;
+  }
   bool get _emailChanged => _email.text.trim().toLowerCase() != _email0.toLowerCase();
 
   static String _localPhone(String? e164) => (e164 != null && e164.startsWith('+20')) ? '0${e164.substring(3)}' : (e164 ?? '');
@@ -339,6 +345,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             controller: _phone,
             keyboardType: TextInputType.phone,
             textDirection: TextDirection.ltr,
+            onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: context.tr('contact_phone'),
               hintText: '01XXXXXXXXX',
@@ -371,7 +378,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               prefixIcon: const Icon(Icons.alternate_email_rounded),
             ),
           ),
-          if (_showPass) ...[
+          if (_showPass || _phoneChanged) ...[
             const SizedBox(height: 12),
             TextField(
               controller: _curPass,
@@ -379,7 +386,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               textDirection: TextDirection.ltr,
               decoration: InputDecoration(
                 labelText: context.tr('current_password'),
-                helperText: context.tr('email_change_hint'),
+                helperText: context.tr(_phoneChanged && !_showPass ? 'phone_change_hint' : 'email_change_hint'),
                 helperMaxLines: 2,
                 errorText: _passError,
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
@@ -398,7 +405,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       setState(() => _emailError = context.tr('err_invalid_email'));
                       return;
                     }
-                    if (wantsEmail && _email0.isNotEmpty && _curPass.text.isEmpty) {
+                    if ((wantsEmail && _email0.isNotEmpty || _phoneChanged) && _curPass.text.isEmpty) {
                       setState(() => _passError = context.tr('required'));
                       return;
                     }
@@ -417,7 +424,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       _busy = true;
                     });
                     try {
-                      await ref.read(profileRepoProvider).update(fullName: _name.text, contactPhone: phone);
+                      final phoneChanged = _phoneChanged;
+                      await ref.read(profileRepoProvider).update(fullName: _name.text);
+                      if (phoneChanged) await ref.read(authRepoProvider).changePhone(phone, _curPass.text);
                       if (wantsEmail) {
                         await ref.read(authRepoProvider).changeEmail(newEmail, _curPass.text);
                       }

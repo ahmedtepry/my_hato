@@ -309,6 +309,7 @@ const Map<String, Map<String, String>> _strings = {
   'profile': {'ar': 'الملف الشخصي', 'en': 'Profile'},
   'email_label': {'ar': 'البريد الإلكتروني', 'en': 'Email'},
   'email_add_hint': {'ar': 'ضيف إيميلك علشان تستفيد بكل مزايا My Hatō: استرجاع الحساب، وإيصالات الطلبات، والعروض.', 'en': 'Add your email to get the most out of My Hatō: account recovery, order receipts and offers.'},
+  'phone_change_hint': {'ar': 'لتغيير رقم الموبايل اكتب كلمة المرور الحالية للتأكيد إنك صاحب الحساب.', 'en': 'To change your phone number, enter your current password to confirm it is you.'},
   'email_change_hint': {'ar': 'لتغيير الإيميل اكتب كلمة المرور الحالية للتأكيد إنك صاحب الحساب.', 'en': 'To change your email, enter your current password to confirm it is you.'},
   'current_password': {'ar': 'كلمة المرور الحالية', 'en': 'Current password'},
   'err_wrong_password': {'ar': 'كلمة المرور غلط.', 'en': 'Wrong password.'},

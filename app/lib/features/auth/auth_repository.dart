@@ -110,6 +110,16 @@ class AuthRepository {
     await _auth.refreshSession();
   }
 
+  /// Changes the contact phone; the server checks the account password first.
+  Future<void> changePhone(String phone, String password) async {
+    try {
+      await _db.functions.invoke('account-change-phone', body: {'phone': phone, 'password': password});
+    } on FunctionException catch (e) {
+      final d = e.details;
+      throw Exception(d is Map ? '${d['error']}' : 'FAILED');
+    }
+  }
+
   /// Creates the account server side (account-signup), already confirmed, then signs in. No email is sent.
   Future<SignUpResult> signUpWithEmail(String email, String password, String fullName, {String? username, String? phone}) async {
     // The account is created server side already confirmed (no confirmation email: the built-in
