@@ -46,9 +46,13 @@ Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, 
       home: Scaffold(body: panel),
     ),
   ));
-  await t.pump(const Duration(milliseconds: 300));
-  await t.pump(const Duration(milliseconds: 300));
+  for (var i = 0; i < 4; i++) {
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
+    await t.pump(const Duration(milliseconds: 200));
+  }
 }
+
+String _dump(WidgetTester t) => 'ON SCREEN: ${find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? '').where((x) => x.isNotEmpty).take(25).join(' | ')}';
 
 void main() {
   testWidgets('wallet inbox: accountant sees transfers, suggestion, balances', (t) async {
@@ -67,7 +71,7 @@ void main() {
       ],
     });
     expect(t.takeException(), isNull);
-    expect(find.textContaining('1,991.50'), findsWidgets);
+    expect(find.textContaining('1,991.50'), findsWidgets, reason: _dump(t));
     expect(find.textContaining('MH-1'), findsWidgets);
     expect(find.text('رسالة غريبة'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
@@ -104,7 +108,7 @@ void main() {
       },
     });
     expect(t.takeException(), isNull);
-    expect(find.text('منى'), findsOneWidget);
+    expect(find.text('منى'), findsOneWidget, reason: _dump(t));
     expect(find.textContaining('تنبيه تكرار الفلوس'), findsOneWidget);
     expect(find.textContaining('MH-1'), findsWidgets);
   });
