@@ -14,6 +14,13 @@ import 'package:myhato/features/admin/online_review_panel.dart';
 import 'package:myhato/features/admin/wallet_inbox_panel.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+class _Obs extends ProviderObserver {
+  @override
+  void providerDidFail(ProviderBase<Object?> provider, Object error, StackTrace stackTrace, ProviderContainer container) {
+    _log.add('FAIL ${provider.name ?? provider.runtimeType}: ${'$error'.split('\n').first} @ ${stackTrace.toString().split('\n').take(3).join(' / ')}');
+  }
+}
+
 class _Staff extends StaffContextController {
   _Staff(this.perms);
   final Set<String> perms;
@@ -38,6 +45,7 @@ Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, 
   });
   final sb = SupabaseClient('https://example.supabase.co', 'anon', httpClient: client, authOptions: const AuthClientOptions(autoRefreshToken: false));
   await t.pumpWidget(ProviderScope(
+    observers: [_Obs()],
     overrides: [
       supabaseProvider.overrideWithValue(sb),
       staffContextProvider.overrideWith(() => _Staff(perms)),
@@ -51,12 +59,6 @@ Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, 
       home: Scaffold(body: panel),
     ),
   ));
-  try {
-    final probe = await t.runAsync(() => sb.rpc(rpc.keys.first));
-    _log.add('PROBE ${probe.runtimeType}');
-  } catch (e) {
-    _log.add('PROBE ERR $e');
-  }
   for (var i = 0; i < 4; i++) {
     await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
     await t.pump(const Duration(milliseconds: 200));
