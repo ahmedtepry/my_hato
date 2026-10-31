@@ -22,12 +22,16 @@ class _Staff extends StaffContextController {
 }
 
 /// Opens the new team screens against a fake server, so a build error or a wrong reading of the data shows up here and not on the accountant's screen.
+final _log = <String>[];
+
 Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, Object> rpc) async {
   t.view.physicalSize = const Size(1600, 1400);
   t.view.devicePixelRatio = 1;
   addTearDown(t.view.reset);
+  _log.clear();
   final client = MockClient((req) async {
     final name = req.url.pathSegments.last;
+    _log.add('${req.method} ${req.url.path}');
     final body = rpc[name];
     if (body == null) return http.Response(jsonEncode({'message': 'no such fake: $name'}), 404, headers: {'content-type': 'application/json'});
     return http.Response(jsonEncode(body), 200, headers: {'content-type': 'application/json; charset=utf-8'});
@@ -42,7 +46,7 @@ Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, 
       locale: const Locale('ar'),
       supportedLocales: supportedLocales,
       localizationsDelegates: const [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
-      theme: AppTheme.light(const Locale('ar')),
+      theme: ThemeData(useMaterial3: true, scaffoldBackgroundColor: BrandColors.offWhite),
       home: Scaffold(body: panel),
     ),
   ));
@@ -52,7 +56,7 @@ Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, 
   }
 }
 
-String _dump(WidgetTester t) => 'ON SCREEN: ${find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? '').where((x) => x.isNotEmpty).take(25).join(' | ')}';
+String _dump(WidgetTester t) => 'REQS: ${_log.join(', ')} ON SCREEN: ${find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? '').where((x) => x.isNotEmpty).take(25).join(' | ')}';
 
 void main() {
   testWidgets('wallet inbox: accountant sees transfers, suggestion, balances', (t) async {
