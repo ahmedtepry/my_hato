@@ -36,9 +36,7 @@ class _WelcomeRobotState extends State<WelcomeRobot> with SingleTickerProviderSt
   String _hello(BuildContext context) {
     final nameAr = AppName.ar == 'My Hatō' ? 'ماي هاتو' : AppName.ar;
     final nameEn = AppName.en.replaceAll(' ', '');
-    return _call
-        ? (context.isAr ? 'ألو؟ أهلاً بيك في $nameAr!' : 'Hello! Welcome to $nameEn!')
-        : (context.isAr ? 'أهلاً بيك في $nameAr!' : 'Welcome to $nameEn!');
+    return context.isAr ? 'أهلاً بيك في $nameAr!' : 'Welcome to $nameEn!';
   }
 
   @override
