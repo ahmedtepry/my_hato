@@ -323,6 +323,7 @@ class _RegisterState extends ConsumerState<_Register> {
   Timer? _debounce;
   bool _busy = false;
   bool _showCart = false; // narrow screens: products or cart
+  bool _tipInDrawer = false; // what the cashier said about the tip: left in the drawer, or taken out
   bool _tip = false; // the customer left the change as a tip (recorded on the sale right after it is saved)
   String? _key; // idempotency key of the sale being sent (kept while the result is unknown)
   bool _unknown = false; // the last send may have reached the server: the cart is locked until it is re-sent
@@ -480,6 +481,12 @@ class _RegisterState extends ConsumerState<_Register> {
       final r = await showDialog<String>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
       if (r == null || r == 'back' || !mounted) return;
       _tip = r == 'tip';
+      _tipInDrawer = false;
+      if (_tip) {
+        final where = await showDialog<String>(context: context, barrierDismissible: false, builder: (_) => const _TipWhereDialog());
+        if (where == null) return;
+        _tipInDrawer = where == 'drawer';
+      }
     }
     setState(() => _busy = true);
     try {
@@ -512,7 +519,7 @@ class _RegisterState extends ConsumerState<_Register> {
       var done = sale;
       if (_tip) {
         try {
-          done = await ref.read(posRepoProvider).markTip('${sale['id']}');
+          done = await ref.read(posRepoProvider).markTip('${sale['id']}', inDrawer: _tipInDrawer);
         } catch (_) {
           if (mounted) showSnack(context, _t(context, 'البيعة اتسجلت لكن البقشيش ماتسجلش، سجّله من الفاتورة', 'The sale was saved but the tip was not recorded'), error: true);
         }
@@ -906,7 +913,7 @@ class _ChangeDialog extends StatelessWidget {
           Text(_t(context, 'رجعت الباقي للعميل؟ ولا سابه بقشيش؟', 'Did you hand the change back, or did the customer leave it as a tip?'),
               textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(_t(context, 'الدرج بيحسب قيمة المنتج بس، والبقشيش بيتسجل باسمك على الفاتورة.', 'The drawer counts the product value only; a tip is recorded on the invoice.'),
+          Text(_t(context, 'البقشيش بيتسجل في السيستم باسمك، ومش بيظهر على فاتورة العميل.', 'The tip is recorded in the system under your name and never shown on the customer invoice.'),
               textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, color: BrandColors.gray)),
         ]),
         actionsAlignment: MainAxisAlignment.center,
@@ -942,9 +949,8 @@ String receiptText(BuildContext c, Map<String, dynamic> sale) {
   if ((sale['discount_minor'] as num) > 0) lines.writeln('${_t(c, 'خصم', 'Discount')}: ${_money(c, sale['discount_minor'] as num)}');
   lines
     ..writeln('${_t(c, 'الإجمالي', 'Total')}: ${_money(c, sale['total_minor'] as num)}')
-    ..writeln('${_t(c, 'المستلم', 'Cash')}: ${_money(c, sale['cash_received_minor'] as num)}')
+    ..writeln('${_t(c, 'المستلم', 'Cash')}: ${_money(c, (sale['cash_received_minor'] as num) - ((sale['tip_minor'] as num?) ?? 0))}')
     ..writeln('${_t(c, 'الباقي', 'Change')}: ${_money(c, ((sale['change_minor'] as num) - ((sale['tip_minor'] as num?) ?? 0)))}')
-    ..writeln(((sale['tip_minor'] as num?) ?? 0) > 0 ? '${_t(c, 'بقشيش', 'Tip')}: ${_money(c, sale['tip_minor'] as num)}' : '')
     ..writeln(_t(c, 'شكراً لثقتكم', 'Thank you'));
   return lines.toString();
 }
@@ -1331,6 +1337,8 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
               row(_t(context, 'المرتجعات', 'Refunds'), '- ${_money(context, s['refunds_minor'] as num)}'),
               if (((s['tips_minor'] as num?) ?? 0) > 0)
                 row(_t(context, 'بقشيش (خدته من الدرج)', 'Tips (taken from the drawer)'), _money(context, s['tips_minor'] as num), c: BrandColors.gray),
+              if (((s['tips_kept_minor'] as num?) ?? 0) > 0)
+                row(_t(context, 'بقشيش (سايبه في الدرج)', 'Tips (left in the drawer)'), _money(context, s['tips_kept_minor'] as num), c: BrandColors.gray),
               const Divider(),
               row(_t(context, 'المفروض في الدرج', 'Expected in drawer'), _money(context, expected), b: true),
               const SizedBox(height: 10),
@@ -1374,4 +1382,23 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
       ],
     );
   }
+}
+
+/// Second question after "left as a tip": does it stay in the drawer or does the cashier take it? Either answer is fine ("تمام").
+class _TipWhereDialog extends StatelessWidget {
+  const _TipWhereDialog();
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        icon: const Icon(Icons.volunteer_activism_rounded, color: BrandColors.success, size: 44),
+        title: Text(_t(context, 'هتعمل إيه في البقشيش؟', 'What will you do with the tip?'), textAlign: TextAlign.center),
+        content: Text(_t(context, 'هتسيبه في الدرج ولا هتاخده؟ الاتنين تمام، وهيتسجل في السيستم.', 'Leave it in the drawer or take it? Both are fine; it is recorded.'),
+            textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsOverflowButtonSpacing: 8,
+        actions: [
+          OutlinedButton(onPressed: () => Navigator.pop(context, 'drawer'), child: Text(_t(context, 'هسيبه في الدرج', 'Leave in the drawer'))),
+          FilledButton(autofocus: true, onPressed: () => Navigator.pop(context, 'take'), child: Text(_t(context, 'هاخده', 'I will take it'))),
+        ],
+      );
 }

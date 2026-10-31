@@ -347,9 +347,8 @@ class ReceiptPaper extends ConsumerWidget {
         );
     Widget solid() => const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Divider(height: 1.5, thickness: 1.5, color: ink));
     Widget pay() => Column(children: [
-          kv(_t(context, 'المستلم', 'Cash'), _egp(context, sale['cash_received_minor'] as num)),
+          kv(_t(context, 'المستلم', 'Cash'), _egp(context, (sale['cash_received_minor'] as num) - tip)),
           if (change > 0) kv(_t(context, 'الباقي', 'Change'), _egp(context, change)),
-          if (tip > 0) kv(_t(context, 'بقشيش', 'Tip'), _egp(context, tip)),
           if (refunded > 0) kv(_t(context, 'مرتجع', 'Refunded'), _egp(context, refunded)),
         ]);
     Widget footer({Color? c}) => Column(children: [

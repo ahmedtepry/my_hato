@@ -325,9 +325,8 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
   pw.Widget center(String t, pw.TextStyle s) => pw.Center(child: pw.Text(t, style: s, textAlign: pw.TextAlign.center));
   pw.Widget ltr(String t, pw.TextStyle s) => pw.Text(t, textDirection: pw.TextDirection.ltr, style: s);
   pw.Widget payRows() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        kv('المستلم', _egp(sale['cash_received_minor'] as num)),
+        kv('المستلم', _egp((sale['cash_received_minor'] as num) - tip)),
         if (change > 0) kv('الباقي', _egp(change)),
-        if (tip > 0) kv('بقشيش', _egp(tip)),
         if (refunded > 0) kv('مرتجع', _egp(refunded)),
       ]);
   pw.Widget footer({bool navy = false}) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
