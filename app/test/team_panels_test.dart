@@ -36,9 +36,10 @@ Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, 
     if (body == null) return http.Response(jsonEncode({'message': 'no such fake: $name'}), 404, headers: {'content-type': 'application/json'});
     return http.Response(jsonEncode(body), 200, headers: {'content-type': 'application/json; charset=utf-8'});
   });
+  final sb = SupabaseClient('https://example.supabase.co', 'anon', httpClient: client, authOptions: const AuthClientOptions(autoRefreshToken: false));
   await t.pumpWidget(ProviderScope(
     overrides: [
-      supabaseProvider.overrideWithValue(SupabaseClient('https://example.supabase.co', 'anon', httpClient: client, authOptions: const AuthClientOptions(autoRefreshToken: false))),
+      supabaseProvider.overrideWithValue(sb),
       staffContextProvider.overrideWith(() => _Staff(perms)),
     ],
     child: MaterialApp(
@@ -50,6 +51,12 @@ Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, 
       home: Scaffold(body: panel),
     ),
   ));
+  try {
+    final probe = await t.runAsync(() => sb.rpc(rpc.keys.first));
+    _log.add('PROBE ${probe.runtimeType}');
+  } catch (e) {
+    _log.add('PROBE ERR $e');
+  }
   for (var i = 0; i < 4; i++) {
     await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
     await t.pump(const Duration(milliseconds: 200));
