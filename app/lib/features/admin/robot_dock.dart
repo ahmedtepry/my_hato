@@ -187,6 +187,7 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
   Timer? _watch;
   int _lastPending = -1;
   int _lastDone = -1;
+  final Set<String> _nudged = {}; // orders already reminded about, so the robot nags once per order
   int _lastTransfer = -1;
   bool? _shiftOpen;
 
@@ -308,6 +309,21 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
           playRobotCheer(context, _t(context, c.$1, c.$2));
         }
         _lastDone = done;
+      } catch (_) {}
+      try {
+        // A customer waiting more than 15 minutes for confirmation: remind the online employee once per order.
+        final rows = await ref.read(supabaseProvider).from('orders').select('id, created_at').eq('status', 'pending_confirmation').isFilter('closed_at', null).limit(50) as List;
+        final late = <String>[];
+        for (final r in rows) {
+          final m = r as Map;
+          final at = DateTime.tryParse('${m['created_at']}');
+          if (at != null && DateTime.now().difference(at).inMinutes >= 15 && _nudged.add('${m['id']}')) late.add('${m['id']}');
+        }
+        if (late.isNotEmpty && mounted) {
+          final msg = _t(context, 'فيه ${late.length} عميل مستني التأكيد من أكتر من ربع ساعة. افتح «طلبات المبيعات» وكلّمهم دلوقتي.', '${late.length} customer(s) have been waiting for confirmation for over 15 minutes. Open Sales orders and call them now.');
+          _add(RobotMsg(false, msg));
+          playRobotCheer(context, _t(context, 'فيه عميل مستني', 'A customer is waiting'));
+        }
       } catch (_) {}
     }
     if (ref.read(staffContextProvider).valueOrNull?.permissions.contains('wallet.view') ?? false) {
