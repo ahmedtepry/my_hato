@@ -30,5 +30,6 @@ jobs:
         continue-on-error: true
         run: |
           flutter test test/home_layouts_test.dart test/team_panels_test.dart 2>&1 | tee /tmp/t.txt || true
-          grep -E "EXCEPTION CAUGHT|Expected:|Actual:|first build:|toggle to|\[E\]|Some tests failed|All tests passed|ON SCREEN" /tmp/t.txt | head -40 | while IFS= read -r l; do echo "::warning::HL $l"; done
-          grep -A12 "EXCEPTION CAUGHT" /tmp/t.txt | head -60 | while IFS= read -r l; do echo "::warning::HX $l"; done
+          echo "::warning::HL $(grep -E 'Some tests failed|All tests passed' /tmp/t.txt | tail -1)"
+          echo "::warning::HX $(grep -v '^$' /tmp/t.txt | grep -A40 -m1 'EXCEPTION CAUGHT' | tr '\n' '~' | cut -c1-3500)"
+          echo "::warning::HY $(grep -v '^$' /tmp/t.txt | grep -E 'ON SCREEN|Error|error|Exception' | head -12 | tr '\n' '~' | cut -c1-3500)"
