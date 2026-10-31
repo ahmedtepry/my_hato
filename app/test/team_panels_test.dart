@@ -36,12 +36,13 @@ Future<void> _pump(WidgetTester t, Widget panel, Set<String> perms, Map<String, 
   t.view.devicePixelRatio = 1;
   addTearDown(t.view.reset);
   _log.clear();
-  final client = MockClient((req) async {
+  final client = MockClient.streaming((req, bodyStream) async {
+    await bodyStream.drain<void>();
     final name = req.url.pathSegments.last;
     _log.add('${req.method} ${req.url.path}');
     final body = rpc[name];
-    if (body == null) return http.Response(jsonEncode({'message': 'no such fake: $name'}), 404, headers: {'content-type': 'application/json'});
-    return http.Response(jsonEncode(body), 200, headers: {'content-type': 'application/json; charset=utf-8'});
+    final bytes = utf8.encode(jsonEncode(body ?? {'message': 'no such fake: $name'}));
+    return http.StreamedResponse(Stream.value(bytes), body == null ? 404 : 200, request: req, headers: {'content-type': 'application/json; charset=utf-8'}, contentLength: bytes.length);
   });
   final sb = SupabaseClient('https://example.supabase.co', 'anon', httpClient: client, authOptions: const AuthClientOptions(autoRefreshToken: false));
   await t.pumpWidget(ProviderScope(
