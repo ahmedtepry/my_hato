@@ -12,7 +12,9 @@ import 'team_theme.dart';
 import 'supabase_providers.dart';
 import 'theme.dart';
 
-const launchAnimations = ['classic', 'zoom', 'slide', 'liquid', 'orbit', 'phone', 'neon', 'pulse', 'bird'];
+const launchAnimations = ['classic', 'zoom', 'slide', 'liquid', 'orbit', 'phone', 'neon', 'pulse', 'bird', 'peek', 'call'];
+/// The two "APK welcome logo" animations (robot), switched on by whoever has appearance.welcome.
+const welcomeAnimations = ['peek', 'call'];
 /// Ten wave logos x three backgrounds (n = navy, e = electric blue, l = light). 'default' = wave 2 on navy.
 final appIcons = ['default', for (var n = 1; n <= 10; n++) for (final v in ['n', 'e', 'l']) 'w$n$v'];
 

@@ -17,20 +17,32 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  bool _gone = false;
+
+  void _go() {
+    if (_gone || !mounted) return;
+    _gone = true;
+    // no intro slides: straight to the store (language can be changed from My account)
+    context.go('/');
+  }
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 1700), () {
-      if (!mounted) return;
-      // no intro slides: straight to the store (language can be changed from My account)
-      context.go('/');
-    });
+    final v = ref.read(appearanceProvider).animation;
+    // the robot welcome needs a little longer; tapping the screen skips it
+    final ms = v == 'call' ? 4500 : (v == 'peek' ? 3700 : 1700);
+    Future.delayed(Duration(milliseconds: ms), _go);
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: BrandColors.navy,
-        body: Center(child: LaunchAnimation(variant: ref.read(appearanceProvider).animation)),
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _go,
+          child: Center(child: LaunchAnimation(variant: ref.read(appearanceProvider).animation)),
+        ),
       );
 }
 

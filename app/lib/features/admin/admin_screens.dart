@@ -37,9 +37,11 @@ import 'profit_panel.dart';
 import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
+import 'welcome_logo_panel.dart';
 import 'contests.dart';
 import 'feature_switches.dart';
 import 'storefront_panel.dart';
+import 'pos_receipt.dart' show InvoiceLookPanel;
 import 'wallets_panel.dart';
 import 'online_panel.dart';
 import 'online_review_panel.dart';
@@ -509,6 +511,9 @@ class _AppearanceHost extends ConsumerWidget {
     return _HostTabs(tabs: [
       ('ألوان التطبيق وأيقونته', 'App colours & icon', Icons.palette_outlined, const AppearancePanel()),
       if (p.contains('occasions.manage')) ('مؤثرات المناسبات', 'Occasion effects', Icons.auto_awesome_rounded, const OccasionsPanel()),
+      if (p.contains('appearance.welcome')) ('apk welcome logo', 'apk welcome logo', Icons.waving_hand_rounded, const WelcomeLogoPanel()),
+      if (p.contains('storefront.layout')) ('طريقة عرض الواجهة', 'Storefront layout', Icons.view_quilt_rounded, const StorefrontLayoutPanel()),
+      if (p.contains('receipt.style')) ('شكل الفاتورة', 'Invoice look', Icons.receipt_long_rounded, const InvoiceLookPanel()),
       ('ألوان برنامج الفريق', 'Team app colours', Icons.color_lens_outlined, TeamThemeCard(isOwner: owner)),
     ]);
   }

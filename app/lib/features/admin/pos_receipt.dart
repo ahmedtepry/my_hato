@@ -243,6 +243,13 @@ class _ReceiptSettingsState extends State<_ReceiptSettings> {
   }
 }
 
+/// The invoice look as its own page (inside the Appearance section).
+class InvoiceLookPanel extends StatelessWidget {
+  const InvoiceLookPanel({super.key});
+  @override
+  Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: const [_StylePicker(mm: 80)]);
+}
+
 /// Lets the owner (receipt.style) choose the invoice look for the whole shop; everybody else just sees which one is on.
 class _StylePicker extends ConsumerWidget {
   const _StylePicker({required this.mm});

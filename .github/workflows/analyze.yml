@@ -29,7 +29,7 @@ jobs:
         working-directory: app
         run: |
           set +e
-          flutter test test/home_layouts_test.dart test/team_panels_test.dart > /tmp/t.txt 2>&1
+          flutter test test/home_layouts_test.dart test/team_panels_test.dart test/welcome_robot_test.dart > /tmp/t.txt 2>&1
           RC=$?
           echo "::warning::HL rc=$RC $(tr '\r' '\n' < /tmp/t.txt | grep -v '^$' | tail -2 | tr '\n' '~' | cut -c1-400)"
           echo "::warning::HL $(grep -E 'Some tests failed|All tests passed' /tmp/t.txt | tail -1)"

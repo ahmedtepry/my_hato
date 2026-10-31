@@ -297,11 +297,18 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
       const SizedBox(height: 4),
       Text(_t(context, 'بتتغيّر عند العملاء أول ما يقفلوا التطبيق ويفتحوه تاني.', 'It changes for customers the next time they close and reopen the app.'), style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
       const SizedBox(height: 10),
+      if (welcomeAnimations.contains(_anim))
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: BrandColors.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+          child: Text(_t(context, 'شغّال دلوقتي: apk welcome logo (الروبوت). بتغيّره من تبويب «apk welcome logo». لو اخترت حركة من تحت وطبّقت، هتقفله.', 'Running now: apk welcome logo (the robot). Change it from the "apk welcome logo" tab. Picking one below and applying turns it off.'), style: const TextStyle(fontSize: 12.5)),
+        ),
       Container(
         height: 190,
         decoration: BoxDecoration(color: p['primary'], borderRadius: BorderRadius.circular(18)),
         child: Stack(children: [
-          Center(child: LaunchAnimation(key: ValueKey('$_anim$_replay'), variant: _anim, scale: 0.8)),
+          Center(child: LaunchAnimation(key: ValueKey('$_anim$_replay'), variant: welcomeAnimations.contains(_anim) ? 'classic' : _anim, scale: 0.8)),
           PositionedDirectional(
             top: 6,
             end: 6,
@@ -311,7 +318,7 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
       ),
       const SizedBox(height: 10),
       Wrap(spacing: 8, runSpacing: 4, children: [
-        for (final v in launchAnimations)
+        for (final v in launchAnimations.where((v) => !welcomeAnimations.contains(v)))
           ChoiceChip(
             label: Text(_animName(context, v)),
             selected: _anim == v,

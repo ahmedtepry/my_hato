@@ -64,6 +64,11 @@ class AdminRepository {
     await _db.rpc('set_appearance', params: {'p_palette': palette, 'p_animation': animation, 'p_icon': icon});
   }
 
+  /// 'peek' | 'call' | 'off': the APK welcome logo (needs appearance.welcome; the database checks it).
+  Future<void> setWelcomeLogo(String style) async {
+    await _db.rpc('welcome_logo_set', params: {'p_style': style});
+  }
+
   Future<Map<String, dynamic>> salesReport(String period) async =>
       Map<String, dynamic>.from(await _db.rpc('sales_report', params: {'p_period': period}) as Map);
 

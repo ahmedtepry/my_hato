@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import 'brand_logo.dart';
 import 'launch_art.dart';
+import 'welcome_robot.dart';
 
 /// The opening animations the owner can choose from the console (classic, zoom, slide, plus the six artwork ones).
 class LaunchAnimation extends StatefulWidget {
@@ -31,6 +32,8 @@ class _LaunchAnimationState extends State<LaunchAnimation> with SingleTickerProv
       animation: _c,
       builder: (_, __) {
         switch (widget.variant) {
+          case 'peek' || 'call':
+            return WelcomeRobot(key: ValueKey(widget.variant), variant: widget.variant, scale: s);
           case 'zoom':
             final pop = _iv(0, 0.6, Curves.easeOutBack);
             final ring = _iv(0.1, 0.9);
