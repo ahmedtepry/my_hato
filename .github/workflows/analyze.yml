@@ -27,9 +27,12 @@ jobs:
           fi
       - name: Home layout widget tests
         working-directory: app
-        continue-on-error: true
         run: |
-          flutter test test/home_layouts_test.dart test/team_panels_test.dart 2>&1 | tee /tmp/t.txt || true
+          set +e
+          flutter test test/home_layouts_test.dart test/team_panels_test.dart > /tmp/t.txt 2>&1
+          RC=$?
+          echo "::warning::HL rc=$RC $(tr '\r' '\n' < /tmp/t.txt | grep -v '^$' | tail -2 | tr '\n' '~' | cut -c1-400)"
           echo "::warning::HL $(grep -E 'Some tests failed|All tests passed' /tmp/t.txt | tail -1)"
           echo "::warning::HX $(grep -v '^$' /tmp/t.txt | grep -A40 -m1 'EXCEPTION CAUGHT' | tr '\n' '~' | cut -c1-3500)"
           echo "::warning::HY $(grep -v '^$' /tmp/t.txt | grep -E 'ON SCREEN|Error|error|Exception' | head -12 | tr '\n' '~' | cut -c1-3500)"
+          exit $RC
