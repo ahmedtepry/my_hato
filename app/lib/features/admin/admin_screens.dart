@@ -38,6 +38,7 @@ import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
 import 'welcome_logo_panel.dart';
+import 'team_login_panel.dart';
 import '../../shared/welcome_robot.dart';
 import 'contests.dart';
 import 'feature_switches.dart';
@@ -158,7 +159,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
   }
 
   /// Windows team app on a wide window: a clean light form on one side, the navy brand panel with the waving robot on the other.
-  Widget _wideLayout(BuildContext context) {
+  Widget _wideLayout(BuildContext context, String style) {
     const ink = Color(0xFF0F2145), navy = Color(0xFF152C58), line = Color(0xFFC9D4E8);
     final notice = _error ?? ref.watch(_loginNoticeProvider);
     InputDecoration deco(String label, IconData icon, {Widget? suffix}) => InputDecoration(
@@ -247,26 +248,38 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
           ),
         ),
         Expanded(
-          child: Container(
-            decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [Color(0xFF1B386F), navy, Color(0xFF0F2145)])),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 150),
-                child: WelcomeRobot(
-                  variant: 'peek',
-                  scale: 1.5,
-                  greeting: _user.text.trim().length >= 2 ? _t(context, 'أهلاً يا ${_user.text.trim()}، يوم موفّق!', 'Hi ${_user.text.trim()}, have a great day!') : null,
+          child: style == 'hello'
+              ? Container(
+                  color: const Color(0xFFEAF3FF),
+                  child: Center(
+                    child: Stack(alignment: Alignment.center, children: [
+                      Container(width: 560, height: 560, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0x591F5FD6), width: 2))),
+                      Container(width: 470, height: 470, decoration: const BoxDecoration(shape: BoxShape.circle, color: navy)),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 130),
+                        child: WelcomeRobot(
+                          variant: 'peek',
+                          scale: 1.2,
+                          greeting: _user.text.trim().length >= 2 ? _t(context, 'أهلاً يا ${_user.text.trim()}، يوم موفّق!', 'Hi ${_user.text.trim()}, have a great day!') : null,
+                        ),
+                      ),
+                    ]),
+                  ),
+                )
+              : Container(
+                  decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [Color(0xFF1B386F), navy, Color(0xFF0F2145)])),
+                  child: const Center(child: Padding(padding: EdgeInsets.only(top: 150), child: WelcomeRobot(variant: 'peek', scale: 1.5))),
                 ),
-              ),
-            ),
-          ),
         ),
       ]),
     );
   }
 
   @override
-  Widget build(BuildContext context) => AppConfig.teamOnly && MediaQuery.of(context).size.width >= 900 ? _wideLayout(context) : _narrowLayout(context);
+  Widget build(BuildContext context) {
+    final style = ref.watch(teamLoginStyleProvider).valueOrNull ?? 'split';
+    return AppConfig.teamOnly && style != 'classic' && MediaQuery.of(context).size.width >= 900 ? _wideLayout(context, style) : _narrowLayout(context);
+  }
 
   Widget _narrowLayout(BuildContext context) => Scaffold(
         backgroundColor: BrandColors.navyDeep,
@@ -631,6 +644,7 @@ class _AppearanceHost extends ConsumerWidget {
       ('ألوان التطبيق وأيقونته', 'App colours & icon', Icons.palette_outlined, const AppearancePanel()),
       if (p.contains('occasions.manage')) ('مؤثرات المناسبات', 'Occasion effects', Icons.auto_awesome_rounded, const OccasionsPanel()),
       if (p.contains('appearance.welcome')) ('apk welcome logo', 'apk welcome logo', Icons.waving_hand_rounded, const WelcomeLogoPanel()),
+      if (p.contains('appearance.login')) ('شاشة دخول الفريق', 'Team login screen', Icons.login_rounded, const TeamLoginPanel()),
       if (p.contains('storefront.layout')) ('طريقة عرض الواجهة', 'Storefront layout', Icons.view_quilt_rounded, const StorefrontLayoutPanel()),
       if (p.contains('receipt.style')) ('شكل الفاتورة', 'Invoice look', Icons.receipt_long_rounded, const InvoiceLookPanel()),
       ('ألوان برنامج الفريق', 'Team app colours', Icons.color_lens_outlined, TeamThemeCard(isOwner: owner)),
