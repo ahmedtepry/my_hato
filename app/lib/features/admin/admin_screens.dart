@@ -565,8 +565,25 @@ class _RailTile extends StatelessWidget {
 final List<String> _navBack = [];
 
 /// Pages that live inside another page's tabs, so they leave the sidebar when that page is there.
+/// The sidebar sections, grouped by what they are for so related pages sit together under one heading.
+const _sidebarGroups = <(String, String, List<String>)>[
+  ('', '', ['overview']),
+  ('البيع والطلبات', 'Sales & orders', ['pos', 'orders', 'repairs', 'shifts', 'sales', 'ops', 'products', 'stock', 'shortcuts']),
+  ('الفلوس والمحاسبة', 'Money & accounting', ['books', 'wallets', 'wallet_inbox']),
+  ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'online_review', 'assistant', 'accounts']),
+  ('العملاء والتسويق', 'Customers & marketing', ['reviews', 'offers', 'gifts', 'wheel', 'contests']),
+  ('النظام والمظهر', 'System & look', ['appearance', 'occasions', 'storefront', 'features']),
+];
+
+(String, int) _sidebarGroupOf(BuildContext c, String k) {
+  for (var i = 0; i < _sidebarGroups.length; i++) {
+    if (_sidebarGroups[i].$3.contains(k)) return (_t(c, _sidebarGroups[i].$1, _sidebarGroups[i].$2), i);
+  }
+  return (_t(c, 'أخرى', 'Other'), _sidebarGroups.length);
+}
+
 bool _hiddenInSidebar(String k, List<String> tabs) =>
-    (k == 'repairs' && tabs.contains('orders')) || (k == 'occasions' && tabs.contains('appearance')) || (k == 'team' && tabs.contains('accounts')) ||
+    (k == 'repairs' && tabs.contains('orders')) || ((k == 'occasions' || k == 'storefront') && tabs.contains('appearance')) || (k == 'team' && tabs.contains('accounts')) ||
     (tabs.contains('sales') && (k == 'products' || k == 'reviews' || k == 'offers'));
 
 class _HostTabs extends StatelessWidget {
@@ -805,13 +822,16 @@ class AdminHomeScreen extends ConsumerWidget {
                         child: Row(children: [
                           DesktopSidebar(
                             items: [
-                              for (final k in available)
-                                if (!_hiddenInSidebar(k, tabs))
+                              for (final e in ([
+                                for (final k in available)
+                                  if (!_hiddenInSidebar(k, tabs)) (_sidebarGroupOf(ctx, k), k, available.indexOf(k)),
+                              ]..sort((a, b) => a.$1.$2 != b.$1.$2 ? a.$1.$2.compareTo(b.$1.$2) : a.$3.compareTo(b.$3)))
                                 DesktopNavItem(
-                                  keyName: k,
-                                  icon: _sectionInfo[k]!.icon,
-                                  label: k == 'overview' ? _t(ctx, 'الرئيسية', 'Home') : _t(ctx, _sectionInfo[k]!.ar, _sectionInfo[k]!.en),
-                                  badge: badgeFor(k),
+                                  keyName: e.$2,
+                                  group: e.$1.$1,
+                                  icon: _sectionInfo[e.$2]!.icon,
+                                  label: e.$2 == 'overview' ? _t(ctx, 'الرئيسية', 'Home') : _t(ctx, _sectionInfo[e.$2]!.ar, _sectionInfo[e.$2]!.en),
+                                  badge: badgeFor(e.$2),
                                 ),
                             ],
                             selected: current,

@@ -23,8 +23,8 @@ bool isDesktopWidth(BuildContext c) => MediaQuery.sizeOf(c).width >= desktopBrea
 
 // ============================================================================================ sidebar
 class DesktopNavItem {
-  const DesktopNavItem({required this.keyName, required this.icon, required this.label, this.badge = 0});
-  final String keyName, label;
+  const DesktopNavItem({required this.keyName, required this.icon, required this.label, this.badge = 0, this.group = ''});
+  final String keyName, label, group;
   final IconData icon;
   final int badge;
 }
@@ -127,7 +127,14 @@ class DesktopSidebar extends ConsumerWidget {
           ),
           Expanded(
             child: ListView(padding: const EdgeInsets.fromLTRB(12, 4, 12, 12), children: [
-              for (final it in items) _NavTile(item: it, selected: it.keyName == selected, onTap: () => onSelect(it.keyName)),
+              for (var i = 0; i < items.length; i++) ...[
+                if (items[i].group.isNotEmpty && (i == 0 || items[i - 1].group != items[i].group))
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(8, i == 0 ? 2 : 14, 8, 6),
+                    child: Text(items[i].group, style: TextStyle(color: Colors.white.withValues(alpha: 0.42), fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+                  ),
+                _NavTile(item: items[i], selected: items[i].keyName == selected, onTap: () => onSelect(items[i].keyName)),
+              ],
             ]),
           ),
         ]),
