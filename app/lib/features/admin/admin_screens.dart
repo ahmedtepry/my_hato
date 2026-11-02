@@ -825,7 +825,7 @@ class AdminHomeScreen extends ConsumerWidget {
                               for (final e in ([
                                 for (final k in available)
                                   if (!_hiddenInSidebar(k, tabs)) (_sidebarGroupOf(ctx, k), k, available.indexOf(k)),
-                              ]..sort((a, b) => a.$1.$2 != b.$1.$2 ? a.$1.$2.compareTo(b.$1.$2) : a.$3.compareTo(b.$3)))
+                              ]..sort((a, b) => a.$1.$2 != b.$1.$2 ? a.$1.$2.compareTo(b.$1.$2) : a.$3.compareTo(b.$3))))
                                 DesktopNavItem(
                                   keyName: e.$2,
                                   group: e.$1.$1,
