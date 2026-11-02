@@ -11,9 +11,12 @@ import 'brand_logo.dart';
 ///  - 'call': slides out holding a phone, puts it to its ear, jumps onto the top of the M, sits with its legs crossed and talks.
 /// Played once (about 3.4 / 4.2 seconds). The customer app shows it as the opening animation when the owner turns it on.
 class WelcomeRobot extends StatefulWidget {
-  const WelcomeRobot({super.key, required this.variant, this.scale = 1});
+  const WelcomeRobot({super.key, required this.variant, this.scale = 1, this.greeting});
   final String variant;
   final double scale;
+
+  /// Replaces the default "Welcome to ..." line (the team login greets the employee by the name typed).
+  final String? greeting;
 
   static bool isWelcome(String v) => v == 'peek' || v == 'call';
   static Duration durationOf(String v) => Duration(milliseconds: v == 'call' ? 4200 : 3400);
@@ -42,7 +45,7 @@ class _WelcomeRobotState extends State<WelcomeRobot> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final s = widget.scale;
-    final text = _hello(context);
+    final text = widget.greeting ?? _hello(context);
     return AnimatedBuilder(
       animation: _c,
       builder: (_, __) {

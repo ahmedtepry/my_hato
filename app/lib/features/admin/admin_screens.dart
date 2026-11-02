@@ -117,6 +117,14 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _user.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
     _user.dispose();
     _pass.dispose();
@@ -241,7 +249,16 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
         Expanded(
           child: Container(
             decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [Color(0xFF1B386F), navy, Color(0xFF0F2145)])),
-            child: const Center(child: Padding(padding: EdgeInsets.only(top: 150), child: WelcomeRobot(variant: 'peek', scale: 1.5))),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 150),
+                child: WelcomeRobot(
+                  variant: 'peek',
+                  scale: 1.5,
+                  greeting: _user.text.trim().length >= 2 ? _t(context, 'أهلاً يا ${_user.text.trim()}، يوم موفّق!', 'Hi ${_user.text.trim()}, have a great day!') : null,
+                ),
+              ),
+            ),
           ),
         ),
       ]),
