@@ -1,5 +1,6 @@
 // The daily lucky wheel (customer side). The server picks the winning slice and pays it; this screen only shows the wheel, spins it to the answer
 // and lists the gifts won. Look: light "gifts" style (pastel slices, white borders, pink rim, 🎁 hub, confetti on a win).
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../shared/states.dart';
 import '../admin/feature_switches.dart';
+import '../orders/orders_repository.dart' show pendingCouponProvider;
 
 final wheelStateProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   ref.watch(currentUserProvider);
@@ -75,7 +77,7 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
       await _ctl.forward(from: 0);
       if (!mounted) return;
       final kind = '${r['kind']}';
-      if (kind == 'points' || kind == 'gift' || kind == 'again') {
+      if (kind == 'points' || kind == 'gift' || kind == 'again' || kind == 'discount') {
         setState(() => _confetti = true);
         Future.delayed(const Duration(milliseconds: 2200), () {
           if (mounted) setState(() => _confetti = false);
@@ -91,12 +93,18 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
     }
   }
 
+  void _useVoucher(String code) {
+    ref.read(pendingCouponProvider.notifier).state = code.toUpperCase();
+    context.go('/cart');
+  }
+
   Future<void> _showResult(Map<String, dynamic> r) {
     final ar = context.isAr;
     final label = ar ? '${r['label_ar']}' : '${r['label_en']}';
     final (emoji, title, body) = switch ('${r['kind']}') {
       'points' => ('⭐', ar ? 'مبروك! كسبت $label' : 'You won $label', ar ? 'النقاط اتضافت لحسابك.' : 'The points were added to your account.'),
       'gift' => ('🎁', ar ? 'مبروك! كسبت $label' : 'You won $label', ar ? 'هنكلّمك لتسليمها، أو تعالى استلمها من المحل.' : 'We will contact you, or pick it up from the shop.'),
+      'discount' => ('🏷️', ar ? 'مبروك! كسبت $label' : 'You won $label', ar ? 'الخصم محفوظ في حسابك لمدة ${r['valid_hours']} ساعة، ويُستخدم مرة واحدة بس. استخدمه في طلبك.' : 'Saved in your account for ${r['valid_hours']} hours, one-time use. Use it on your order.'),
       'again' => ('🔁', ar ? 'لفّة تانية!' : 'Spin again!', ar ? 'لف تاني من غير ما تتحسب.' : 'One more spin for free.'),
       _ => ('🍀', ar ? 'حظ أوفر المرة دي' : 'Better luck next time', ar ? 'ارجع بكرة والعجلة مستنياك.' : 'Come back tomorrow, the wheel is waiting.'),
     };
@@ -105,7 +113,17 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
       builder: (ctx) => AlertDialog(
         title: Column(children: [Text(emoji, style: const TextStyle(fontSize: 44)), const SizedBox(height: 4), Text(title, textAlign: TextAlign.center)]),
         content: Text(body, textAlign: TextAlign.center),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ar ? 'تمام' : 'OK'))],
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ar ? 'تمام' : 'OK')),
+          if (r['voucher'] is Map)
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _useVoucher('${(r['voucher'] as Map)['code']}');
+              },
+              child: Text(ar ? 'استخدمه دلوقتي' : 'Use it now'),
+            ),
+        ],
       ),
     );
   }
@@ -129,6 +147,7 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
           final left = (d['spins_left'] as num?)?.toInt() ?? 0;
           final preview = d['preview'] == true;
           final gifts = (d['gifts'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          final vouchers = (d['vouchers'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
           final canSpin = block == null && left > 0 && segs.length >= 3;
           return Stack(children: [
             ListView(padding: const EdgeInsets.all(16), children: [
@@ -179,6 +198,18 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(_error ?? _wheelError(context, block!), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF9F1239))),
                 ),
+              if (vouchers.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                Text(ar ? 'خصوماتي' : 'My discounts', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: _ink)),
+                const SizedBox(height: 6),
+                for (final v in vouchers)
+                  _VoucherCard(
+                    key: ValueKey('${v['code']}-${v['seconds_left']}'),
+                    voucher: v,
+                    onUse: () => _useVoucher('${v['code']}'),
+                    onExpired: () => ref.invalidate(wheelStateProvider),
+                  ),
+              ],
               if (gifts.isNotEmpty) ...[
                 const SizedBox(height: 22),
                 Text(ar ? 'هداياي' : 'My gifts', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: _ink)),
@@ -197,6 +228,68 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
             if (_confetti) const IgnorePointer(child: _Confetti()),
           ]);
         },
+      ),
+    );
+  }
+}
+
+/// A won discount: live "time remaining" countdown, one-time use, tap to use it on the next order.
+class _VoucherCard extends StatefulWidget {
+  const _VoucherCard({super.key, required this.voucher, required this.onUse, required this.onExpired});
+  final Map<String, dynamic> voucher;
+  final VoidCallback onUse, onExpired;
+  @override
+  State<_VoucherCard> createState() => _VoucherCardState();
+}
+
+class _VoucherCardState extends State<_VoucherCard> {
+  late final DateTime _end = DateTime.now().add(Duration(seconds: (widget.voucher['seconds_left'] as num?)?.toInt() ?? 0));
+  Timer? _t;
+  bool _fired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _t = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (_left <= Duration.zero && !_fired && widget.voucher['in_order'] != true) {
+        _fired = true;
+        widget.onExpired();
+      }
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    super.dispose();
+  }
+
+  Duration get _left => _end.difference(DateTime.now());
+
+  String _fmt(Duration d) {
+    if (d.isNegative) d = Duration.zero;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.inHours)}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = context.isAr;
+    final v = widget.voucher;
+    final inOrder = v['in_order'] == true;
+    final expired = !inOrder && _left <= Duration.zero;
+    return Card(
+      child: ListTile(
+        leading: const Text('🏷️', style: TextStyle(fontSize: 26)),
+        title: Text(ar ? 'خصم ${v['percent']}%' : '${v['percent']}% off', style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(inOrder
+            ? (ar ? 'مستخدم في طلبك وبانتظار تأكيده' : 'Used on your order, waiting for confirmation')
+            : expired
+                ? (ar ? 'انتهت المدة' : 'Expired')
+                : (ar ? 'الوقت المتبقي ${_fmt(_left)} · استعمال مرة واحدة' : 'Time remaining ${_fmt(_left)} · one-time use')),
+        trailing: inOrder || expired ? null : FilledButton(onPressed: widget.onUse, child: Text(ar ? 'استخدمه' : 'Use it')),
       ),
     );
   }
@@ -226,7 +319,7 @@ class _WheelPainter extends CustomPainter {
       canvas.save();
       canvas.rotate(i * a + a / 2 - math.pi / 2);   // x axis now points outwards through the middle of this slice
       final label = (ar ? segs[i]['label_ar'] : segs[i]['label_en']) as String? ?? '';
-      final emoji = switch (segs[i]['kind']) { 'gift' => '🎁', 'points' => '⭐', 'again' => '🔁', _ => '🍀' };
+      final emoji = switch (segs[i]['kind']) { 'gift' => '🎁', 'points' => '⭐', 'again' => '🔁', 'discount' => '🏷️', _ => '🍀' };
       final tp = TextPainter(
         text: TextSpan(text: label, style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 13)),
         textDirection: ar ? TextDirection.rtl : TextDirection.ltr,

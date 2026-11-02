@@ -9,18 +9,20 @@ import '../../core/supabase_providers.dart';
 import '../../shared/states.dart';
 
 class _Seg {
-  _Seg({String labelAr = '', String labelEn = '', this.kind = 'lose', int? points, int weight = 10, int? limit, this.active = true})
+  _Seg({String labelAr = '', String labelEn = '', this.kind = 'lose', int? points, int? percent, int hours = 24, int weight = 10, int? limit, this.active = true})
       : ar = TextEditingController(text: labelAr),
         en = TextEditingController(text: labelEn),
         pts = TextEditingController(text: points?.toString() ?? ''),
+        pct = TextEditingController(text: percent?.toString() ?? ''),
+        hrs = TextEditingController(text: '$hours'),
         w = TextEditingController(text: '$weight'),
         lim = TextEditingController(text: limit?.toString() ?? '');
-  final TextEditingController ar, en, pts, w, lim;
+  final TextEditingController ar, en, pts, pct, hrs, w, lim;
   String kind;
   bool active;
   int get weight => int.tryParse(w.text) ?? 0;
   void dispose() {
-    for (final c in [ar, en, pts, w, lim]) {
+    for (final c in [ar, en, pts, pct, hrs, w, lim]) {
       c.dispose();
     }
   }
@@ -30,6 +32,8 @@ class _Seg {
         'label_en': en.text.trim().isEmpty ? ar.text.trim() : en.text.trim(),
         'kind': kind,
         'points': kind == 'points' ? int.tryParse(pts.text) : null,
+        'discount_percent': kind == 'discount' ? int.tryParse(pct.text) : null,
+        'valid_hours': kind == 'discount' ? (int.tryParse(hrs.text) ?? 24) : null,
         'weight': weight,
         'daily_limit': lim.text.trim().isEmpty ? null : int.tryParse(lim.text),
         'active': active,
@@ -80,6 +84,7 @@ class _WheelAdminPanelState extends ConsumerState<WheelAdminPanel> {
         ..clear()
         ..addAll(_maps(d['segments']).map((s) => _Seg(
             labelAr: '${s['label_ar']}', labelEn: '${s['label_en']}', kind: '${s['kind']}', points: (s['points'] as num?)?.toInt(),
+            percent: (s['discount_percent'] as num?)?.toInt(), hours: (s['valid_hours'] as num?)?.toInt() ?? 24,
             weight: (s['weight'] as num).toInt(), limit: (s['daily_limit'] as num?)?.toInt(), active: s['active'] == true)));
       if (!mounted) return;
       setState(() {
@@ -116,7 +121,7 @@ class _WheelAdminPanelState extends ConsumerState<WheelAdminPanel> {
       if (mounted) showSnack(context, context.isAr ? 'اتحفظت' : 'Saved');
       await _load();
     } catch (e) {
-      if (mounted) showSnack(context, context.isAr ? 'مش قادر يحفظ: لازم 3 خانات شغّالة على الأقل، والأسماء مكتوبة، والنقاط رقم.' : friendlyError(context, e), error: true);
+      if (mounted) showSnack(context, context.isAr ? 'مش قادر يحفظ: لازم 3 خانات شغّالة على الأقل، والأسماء مكتوبة، والنقاط رقم، والخصم من 1 لـ 90% ومن 1 لـ 48 ساعة.' : friendlyError(context, e), error: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -174,6 +179,7 @@ class _WheelAdminPanelState extends ConsumerState<WheelAdminPanel> {
       Wrap(spacing: 8, children: [
         OutlinedButton.icon(onPressed: _segs.length >= 12 ? null : () => setState(() => _segs.add(_Seg(labelAr: 'جايزة جديدة', labelEn: 'New prize', kind: 'gift', weight: 5))), icon: const Icon(Icons.card_giftcard), label: Text(ar ? 'هدية' : 'Gift')),
         OutlinedButton.icon(onPressed: _segs.length >= 12 ? null : () => setState(() => _segs.add(_Seg(labelAr: '50 نقطة', labelEn: '50 points', kind: 'points', points: 50, weight: 10))), icon: const Icon(Icons.star_rounded), label: Text(ar ? 'نقاط' : 'Points')),
+        OutlinedButton.icon(onPressed: _segs.length >= 12 ? null : () => setState(() => _segs.add(_Seg(labelAr: 'خصم 10%', labelEn: '10% off', kind: 'discount', percent: 10, hours: 24, weight: 8))), icon: const Icon(Icons.local_offer_outlined), label: Text(ar ? 'خصم' : 'Discount')),
         OutlinedButton.icon(onPressed: _segs.length >= 12 ? null : () => setState(() => _segs.add(_Seg(labelAr: 'حظ أوفر', labelEn: 'Better luck', kind: 'lose', weight: 20))), icon: const Icon(Icons.eco_outlined), label: Text(ar ? 'حظ أوفر' : 'Better luck')),
         OutlinedButton.icon(onPressed: _segs.length >= 12 ? null : () => setState(() => _segs.add(_Seg(labelAr: 'لفّة تانية', labelEn: 'Spin again', kind: 'again', weight: 8))), icon: const Icon(Icons.replay), label: Text(ar ? 'لفّة تانية' : 'Spin again')),
       ]),
@@ -211,14 +217,19 @@ class _WheelAdminPanelState extends ConsumerState<WheelAdminPanel> {
               items: [
                 DropdownMenuItem(value: 'points', child: Text(ar ? 'نقاط' : 'Points')),
                 DropdownMenuItem(value: 'gift', child: Text(ar ? 'هدية' : 'Gift')),
+                DropdownMenuItem(value: 'discount', child: Text(ar ? 'خصم' : 'Discount')),
                 DropdownMenuItem(value: 'lose', child: Text(ar ? 'حظ أوفر' : 'Better luck')),
                 DropdownMenuItem(value: 'again', child: Text(ar ? 'لفّة تانية' : 'Spin again')),
               ],
               onChanged: (v) => setState(() => s.kind = v ?? s.kind),
             ),
             if (s.kind == 'points') SizedBox(width: 80, child: TextField(controller: s.pts, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'نقاط' : 'Points'), onChanged: (_) => setState(() {}))),
+            if (s.kind == 'discount') ...[
+              SizedBox(width: 80, child: TextField(controller: s.pct, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'نسبة %' : 'Percent %'))),
+              SizedBox(width: 90, child: TextField(controller: s.hrs, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'ساعات (1-48)' : 'Hours (1-48)'))),
+            ],
             SizedBox(width: 72, child: TextField(controller: s.w, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'الوزن' : 'Weight'), onChanged: (_) => setState(() {}))),
-            if (s.kind == 'gift' || s.kind == 'points')
+            if (s.kind == 'gift' || s.kind == 'points' || s.kind == 'discount')
               SizedBox(width: 90, child: TextField(controller: s.lim, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'حد/يوم' : 'Per day'))),
             Column(children: [Text('${(odd * 100).toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.w800)), Text(ar ? 'الفرصة' : 'chance', style: Theme.of(context).textTheme.bodySmall)]),
             Switch(value: s.active, onChanged: (v) => setState(() => s.active = v)),
