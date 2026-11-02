@@ -38,6 +38,7 @@ import 'loyalty_gifts.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
 import 'welcome_logo_panel.dart';
+import '../../shared/welcome_robot.dart';
 import 'contests.dart';
 import 'feature_switches.dart';
 import 'storefront_panel.dart';
@@ -148,8 +149,109 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
     }
   }
 
+  /// Windows team app on a wide window: a clean light form on one side, the navy brand panel with the waving robot on the other.
+  Widget _wideLayout(BuildContext context) {
+    const ink = Color(0xFF0F2145), navy = Color(0xFF152C58), line = Color(0xFFC9D4E8);
+    final notice = _error ?? ref.watch(_loginNoticeProvider);
+    InputDecoration deco(String label, IconData icon, {Widget? suffix}) => InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Color(0xFF4A5A78)),
+          prefixIcon: Icon(icon, color: const Color(0xFF4A5A78)),
+          suffixIcon: suffix,
+          filled: true,
+          fillColor: Colors.white,
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: line, width: 1.5)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1F5FD6), width: 2)),
+        );
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FC),
+      body: Row(children: [
+        Expanded(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(40),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const BrandWordmark(size: 24),
+                  const SizedBox(height: 28),
+                  Text(_t(context, 'أهلاً بيك تاني', 'Welcome back'), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: ink)),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.signedInAsCustomer
+                        ? _t(context, 'المساحة دي مش متاحة للعملاء.', 'This area is not available to customers.')
+                        : _t(context, 'ادخل باسم المستخدم وكلمة السر عشان تبدأ شغلك.', 'Sign in with your username and password to start work.'),
+                    style: const TextStyle(fontSize: 15, color: Color(0xFF4A5A78)),
+                  ),
+                  if (!widget.signedInAsCustomer) ...[
+                    const SizedBox(height: 22),
+                    TextField(
+                      controller: _user,
+                      autocorrect: false,
+                      textDirection: TextDirection.ltr,
+                      textInputAction: TextInputAction.next,
+                      style: const TextStyle(color: ink),
+                      decoration: deco(_t(context, 'اسم المستخدم', 'Username'), Icons.person_outline),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _pass,
+                      obscureText: _obscure,
+                      autocorrect: false,
+                      textDirection: TextDirection.ltr,
+                      onSubmitted: (_) => _login(),
+                      style: const TextStyle(color: ink),
+                      decoration: deco(_t(context, 'كلمة السر', 'Password'), Icons.lock_outline,
+                          suffix: IconButton(
+                            icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: const Color(0xFF4A5A78)),
+                            onPressed: () => setState(() => _obscure = !_obscure),
+                          )),
+                    ),
+                    if (notice != null)
+                      Container(
+                        margin: const EdgeInsets.only(top: 14),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: const Color(0xFFFEE4E2), borderRadius: BorderRadius.circular(12)),
+                        child: Row(children: [
+                          const Icon(Icons.block_rounded, color: Color(0xFFB42318), size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(notice, style: const TextStyle(color: Color(0xFFB42318), fontWeight: FontWeight.w600))),
+                        ]),
+                      ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      height: 54,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1F5FD6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                        onPressed: _busy ? null : _login,
+                        child: _busy
+                            ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                            : Text(_t(context, 'دخول', 'Sign in'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(_t(context, 'للموظفين فقط. لو نسيت كلمة السر كلّم المسؤول.', 'Staff only. If you forgot your password, ask the manager.'),
+                        textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFF4A5A78))),
+                  ],
+                ]),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [Color(0xFF1B386F), navy, Color(0xFF0F2145)])),
+            child: const Center(child: Padding(padding: EdgeInsets.only(top: 150), child: WelcomeRobot(variant: 'peek', scale: 1.5))),
+          ),
+        ),
+      ]),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppConfig.teamOnly && MediaQuery.of(context).size.width >= 900 ? _wideLayout(context) : _narrowLayout(context);
+
+  Widget _narrowLayout(BuildContext context) => Scaffold(
         backgroundColor: BrandColors.navyDeep,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
