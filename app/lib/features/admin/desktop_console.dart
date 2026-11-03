@@ -143,6 +143,112 @@ class DesktopSidebar extends ConsumerWidget {
   }
 }
 
+/// Top bar of the Windows console: Home, then one menu per group (sales, money, team, customers, system) listing its sections.
+class DesktopTopBar extends ConsumerWidget {
+  const DesktopTopBar({super.key, required this.items, required this.selected, required this.onSelect, required this.onSearch, required this.onSignOut});
+  final List<DesktopNavItem> items;
+  final String? selected;
+  final void Function(String key) onSelect;
+  final VoidCallback onSearch;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ctx = ref.watch(staffContextProvider).valueOrNull;
+    final role = roleOf(_primaryRole(ctx?.roles ?? const <String>{}));
+    final name = _displayName(ref.watch(currentUserProvider));
+    final groups = <String, List<DesktopNavItem>>{};
+    for (final it in items) {
+      groups.putIfAbsent(it.group, () => []).add(it);
+    }
+    Widget groupButton(String g, List<DesktopNavItem> list) {
+      final on = list.any((e) => e.keyName == selected);
+      final badge = list.fold<int>(0, (a, e) => a + e.badge);
+      final single = g.isEmpty || list.length == 1;
+      final label = single ? list.first.label : g;
+      final chip = Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(color: on ? BrandColors.electric : Colors.transparent, borderRadius: BorderRadius.circular(10)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(label, style: TextStyle(color: on ? Colors.white : Colors.white70, fontWeight: on ? FontWeight.w800 : FontWeight.w600, fontSize: 14.5)),
+          if (!single) Icon(Icons.expand_more_rounded, size: 18, color: on ? Colors.white : Colors.white54),
+          if (badge > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(color: const Color(0xFFF04466), borderRadius: BorderRadius.circular(9)),
+              child: Text('$badge', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ]),
+      );
+      if (single) return InkWell(borderRadius: BorderRadius.circular(10), onTap: () => onSelect(list.first.keyName), child: chip);
+      return PopupMenuButton<String>(
+        tooltip: '',
+        position: PopupMenuPosition.under,
+        onSelected: onSelect,
+        itemBuilder: (_) => [
+          for (final e in list)
+            PopupMenuItem<String>(
+              value: e.keyName,
+              child: Row(children: [
+                Icon(e.icon, size: 20, color: e.keyName == selected ? BrandColors.electric : BrandColors.gray),
+                const SizedBox(width: 10),
+                Expanded(child: Text(e.label, style: TextStyle(fontWeight: e.keyName == selected ? FontWeight.w800 : FontWeight.w500))),
+                if (e.badge > 0) Text('${e.badge}', style: const TextStyle(color: Color(0xFFF04466), fontWeight: FontWeight.w800)),
+              ]),
+            ),
+        ],
+        child: chip,
+      );
+    }
+
+    return Container(
+      height: 64,
+      color: BrandColors.navyDeep,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(children: [
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Text.rich(
+            TextSpan(children: [
+              const TextSpan(text: 'My ', style: TextStyle(color: Colors.white)),
+              TextSpan(text: 'Hatō', style: TextStyle(color: BrandColors.electric)),
+            ]),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(width: 22),
+        for (final e in groups.entries) ...[groupButton(e.key, e.value), const SizedBox(width: 4)],
+        const Spacer(),
+        InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onSearch,
+          child: Container(
+            width: 260,
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+            child: Row(children: [
+              const Icon(Icons.search_rounded, size: 18, color: Colors.white60),
+              const SizedBox(width: 8),
+              Expanded(child: Text(_t(context, 'بحث', 'Search'), style: const TextStyle(color: Colors.white60, fontSize: 13))),
+              Text('Ctrl K', style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 11)),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(name.isEmpty ? role.label(context) : name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
+          if (name.isNotEmpty) Text(role.label(context), style: const TextStyle(color: Colors.white54, fontSize: 11.5)),
+        ]),
+        IconButton(tooltip: _t(context, 'خروج', 'Sign out'), icon: const Icon(Icons.logout_rounded, color: Colors.white70, size: 20), onPressed: onSignOut),
+      ]),
+    );
+  }
+}
+
 class _NavTile extends StatelessWidget {
   const _NavTile({required this.item, required this.selected, required this.onTap});
   final DesktopNavItem item;
@@ -257,8 +363,17 @@ void refreshDesktopHome(WidgetRef ref) {
   ref.invalidate(_dOrdersProvider);
 }
 
+/// One thing that needs the member's attention right now (shown in the "needs action" strip of the home page).
+class DesktopAttention {
+  const DesktopAttention(this.tab, this.label, this.count, this.color, this.bg);
+  final String tab, label;
+  final int count;
+  final Color color, bg;
+}
+
 class DesktopHome extends ConsumerWidget {
-  const DesktopHome({super.key, required this.onOpen, required this.onSearch, required this.available, required this.pendingAccounts});
+  const DesktopHome({super.key, required this.onOpen, required this.onSearch, required this.available, required this.pendingAccounts, this.attention = const []});
+  final List<DesktopAttention> attention;
   final void Function(String key) onOpen;
   final VoidCallback onSearch;
   final List<String> available;
@@ -348,6 +463,36 @@ class DesktopHome extends ConsumerWidget {
           ],
         ]),
         const SizedBox(height: 22),
+        if (attention.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_t(context, 'محتاج تصرف دلوقتي', 'Needs action now'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: BrandColors.navy)),
+              const SizedBox(height: 12),
+              Row(children: [
+                for (var i = 0; i < attention.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => onOpen(attention[i].tab),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(color: attention[i].bg, borderRadius: BorderRadius.circular(14)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('${attention[i].count}', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: attention[i].color)),
+                          Text(attention[i].label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: attention[i].color)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              ]),
+            ]),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (cards.isNotEmpty)
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             for (var i = 0; i < cards.length; i++) ...[if (i > 0) const SizedBox(width: 16), Expanded(child: cards[i])],

@@ -819,8 +819,8 @@ class AdminHomeScreen extends ConsumerWidget {
                     autofocus: true,
                     child: Column(children: [
                       Expanded(
-                        child: Row(children: [
-                          DesktopSidebar(
+                        child: Column(children: [
+                          DesktopTopBar(
                             items: [
                               for (final e in ([
                                 for (final k in available)
@@ -1174,7 +1174,20 @@ class _Overview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (isDesktopWidth(context)) {
       final tabs = ref.watch(consoleTabsProvider);
+      final st = ref.watch(_statsProvider).valueOrNull ?? const <String, dynamic>{};
+      int sn(String k) => ((st[k] as num?) ?? 0).toInt();
+      final cancels = ref.watch(_cancelCountProvider).valueOrNull ?? 0;
+      final accounts = ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0;
+      const amberBg = Color(0xFFFFF1D6), amber = Color(0xFF9A5B00), redBg = Color(0xFFFDE3E1), red = Color(0xFFB42318), blueBg = Color(0xFFDCEBFF), blue = Color(0xFF1F5FD6);
+      final attention = <DesktopAttention>[
+        if (tabs.contains('orders') && sn('pending_orders') > 0) DesktopAttention('orders', _t(context, 'طلبات محتاجة تأكيد', 'Orders to confirm'), sn('pending_orders'), amber, amberBg),
+        if (tabs.contains('orders') && cancels > 0) DesktopAttention('orders', _t(context, 'طلبات إلغاء', 'Cancel requests'), cancels, red, redBg),
+        if (tabs.contains('accounts') && accounts > 0) DesktopAttention('accounts', _t(context, 'حسابات للتوثيق', 'Accounts to verify'), accounts, blue, blueBg),
+        if (tabs.contains('repairs') && sn('repairs_awaiting_approval') > 0) DesktopAttention('repairs', _t(context, 'صيانة مستنية موافقة', 'Repairs awaiting approval'), sn('repairs_awaiting_approval'), amber, amberBg),
+        if (tabs.contains('products') && sn('low_stock') > 0) DesktopAttention('products', _t(context, 'مخزون قليل', 'Low stock'), sn('low_stock'), red, redBg),
+      ];
       return DesktopHome(
+        attention: attention,
         available: tabs,
         pendingAccounts: ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0,
         onSearch: () => _openSearch(context, ref),
