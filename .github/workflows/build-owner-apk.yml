@@ -1,0 +1,38 @@
+# Builds the "MyHato Owner" Android app (AI chat for the owner) and publishes it as release "owner-N".
+# Start it by pushing the branch `owner-apk-build` (or from the Actions tab once this file is on main).
+name: Build owner APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [owner-apk-build]
+permissions:
+  contents: write
+concurrency:
+  group: owner-apk-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - name: Build
+        shell: bash
+        run: bash app/tool/ci_build_owner.sh 2>&1 | tee build.log
+      - uses: actions/upload-artifact@v4
+        with: { name: myhato-owner-apk, path: dist/MyHatoOwner.apk, if-no-files-found: ignore }
+      - name: Publish release
+        if: success()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          TAG="owner-${{ github.run_number }}"
+          for i in 1 2 3; do
+            gh release create "$TAG" dist/MyHatoOwner.apk --target "${{ github.sha }}" --title "MyHato Owner (build ${{ github.run_number }})" \
+              --notes "The owner's AI chat app. Download MyHatoOwner.apk and open it on Android." && exit 0
+            sleep 10
+          done
+          exit 1
