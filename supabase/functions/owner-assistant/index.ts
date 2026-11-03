@@ -18,6 +18,7 @@ const TOOLS: A[] = [
   { name: "shop_overview", description: "Today's dashboard numbers of the shop (orders, sales, pending work).", input_schema: { type: "object", properties: {} } },
   { name: "sales", description: "Sales report for a period.", input_schema: { type: "object", properties: { period: { type: "string", enum: ["day", "week", "month"] } }, required: ["period"] } },
   { name: "profit", description: "Profit report for the last N days (default 30).", input_schema: { type: "object", properties: { days: { type: "integer" } } } },
+  { name: "order_profit", description: "Net profit of ONE online order (reference like MH-261030-1014) or one POS invoice (its number): revenue, product cost, net profit, margin, per item. Amounts in piasters.", input_schema: { type: "object", properties: { ref: { type: "string" } }, required: ["ref"] } },
   { name: "find_products", description: "Search products by name or SKU. Prices are in minor units (piasters, divide by 100 for EGP).", input_schema: { type: "object", properties: { q: { type: "string" }, limit: { type: "integer" } }, required: ["q"] } },
   { name: "recent_orders", description: "Latest online orders, optionally filtered by status.", input_schema: { type: "object", properties: { status: { type: "string" }, limit: { type: "integer" } } } },
   { name: "staff_list", description: "The team: names, roles, ids.", input_schema: { type: "object", properties: {} } },
@@ -42,6 +43,7 @@ Current time (Cairo): ${now}.
 Rules for changes:
 - To change anything, call the matching "propose" tool. It does NOT change anything yet. Then tell the owner in ONE short line exactly what will change and ask "أنفّذ؟".
 - Only when the owner's NEXT message clearly agrees (أيوه، نفذ، تمام، yes) call confirm_pending. If he says no / cancel call cancel_pending. If he changes his mind or asks something else, ignore the old proposal.
+- For "net profit of order X" call order_profit, then answer in one or two lines: revenue (subtotal), product cost, net profit and margin %. The delivery fee is not profit. If missing_cost_lines > 0, say the cost of those items is not set so the profit cannot be known.
 - Look things up first (find_products, staff_list...) to get the real ids and exact names. If several items match, ask which one.
 - Never propose giving 'permissions.manage', and never touch the owner's own account.
 - If a tool returns an error, explain it simply (e.g. FORBIDDEN = not allowed) and do not retry blindly.
@@ -144,6 +146,8 @@ async function runTool(name: string, a: A, ctx: { user: SupabaseClient; svc: Sup
       const d = Math.max(1, Math.min(Number(a.days) || 30, 366));
       return out(await user.rpc("profit_report", { p_from: new Date(Date.now() - d * 86400000).toISOString(), p_to: new Date().toISOString() }));
     }
+    case "order_profit":
+      return out(await user.rpc("order_profit", { p_ref: String(a.ref ?? "").slice(0, 60) }));
     case "find_products": {
       const q = String(a.q ?? "").replace(/[%,()]/g, " ").trim().slice(0, 60);
       if (!q) return { error: "INVALID_INPUT" };
