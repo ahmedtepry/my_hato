@@ -15,16 +15,17 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'core/config.dart';
 
-// My Hatō brand, robot mood: deep navy, electric blue, cyan glow.
-const _bg = Color(0xFF061428);
-const _panel = Color(0xFF0B2D5B);
-const _panel2 = Color(0xFF0E3A73);
-const _electric = Color(0xFF00A3FF);
+// "Ghost" look: near-black, terminal green-cyan, secret-ops mood (still the My Hatō robot).
+const _bg = Color(0xFF020604);
+const _panel = Color(0xFF07130F);
+const _panel2 = Color(0xFF0C241D);
+const _electric = Color(0xFF14B8A0);
 const _cyan = Color(0xFF2DD4BF);
-const _ink = Color(0xFFEAF4FF);
-const _muted = Color(0xFF8FA9C8);
+const _ink = Color(0xFFD8F5EC);
+const _muted = Color(0xFF5F8F83);
 const _danger = Color(0xFFFF6B6B);
 
 const int _kBuild = int.fromEnvironment('BUILD_NUMBER', defaultValue: 0);
@@ -76,6 +77,10 @@ class _OwnerAppState extends State<OwnerApp> {
         );
         return base.copyWith(textTheme: GoogleFonts.tajawalTextTheme(base.textTheme));
       }(),
+      builder: (context, child) => Stack(children: [
+        child ?? const SizedBox.shrink(),
+        const IgnorePointer(child: SizedBox.expand(child: CustomPaint(painter: _Scanlines()))),
+      ]),
       home: StreamBuilder<AuthState>(
         stream: Supabase.instance.client.auth.onAuthStateChange,
         builder: (context, child) {
@@ -85,6 +90,20 @@ class _OwnerAppState extends State<OwnerApp> {
       ),
     );
   }
+}
+
+class _Scanlines extends CustomPainter {
+  const _Scanlines();
+  @override
+  void paint(Canvas canvas, Size s) {
+    final p = Paint()..color = const Color(0x0B2DD4BF)..strokeWidth = 1;
+    for (double y = 0; y < s.height; y += 4) {
+      canvas.drawLine(Offset(0, y), Offset(s.width, y), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Scanlines o) => false;
 }
 
 // ------------------------------------------------------------------ the robot
@@ -217,7 +236,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 14),
                 const Text('MyHato Owner', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: _ink, letterSpacing: .5)),
                 const SizedBox(height: 4),
-                const Text('كلّم النظام زي ما بتكلّم موظف شاطر', style: TextStyle(color: _muted)),
+                const Text('// RESTRICTED ACCESS — OWNER ONLY', textDirection: TextDirection.ltr, style: TextStyle(color: _cyan, fontSize: 12, letterSpacing: 2.5, fontFamily: 'monospace')),
                 const SizedBox(height: 26),
                 _field(_email, 'اسم المستخدم أو الإيميل', TextInputType.emailAddress, false),
                 const SizedBox(height: 12),
@@ -230,7 +249,7 @@ class _LoginPageState extends State<LoginPage> {
                   child: FilledButton(
                     style: FilledButton.styleFrom(backgroundColor: _electric, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                     onPressed: _busy ? null : _go,
-                    child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)) : const Text('دخول', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                    child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)) : const Text('[ AUTHENTICATE ]', textDirection: TextDirection.ltr, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 2, fontFamily: 'monospace')),
                   ),
                 ),
               ]),
@@ -462,15 +481,73 @@ class _ChatPageState extends State<ChatPage> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final List<_Msg> _msgs = [];
-  bool _busy = false;
+  bool _busy = false, _listening = false;
   final _upd = ownerUpdater;
+  final _stt = stt.SpeechToText();
+  String? _sttLocale;
 
   static const _quick = ['مبيعات النهارده', 'الأوردرات الجديدة', 'مين في الفريق؟', 'صلاحيات الكاشير', 'التحويلات اللي وصلت'];
+
+  void _note(String m) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  /// Tap the mic, talk, and when you pause the command is sent by itself.
+  Future<void> _mic() async {
+    if (_busy) return;
+    if (_listening) {
+      await _stt.stop();
+      return;
+    }
+    final ok = await _stt.initialize(
+      onStatus: (st) {
+        if ((st == 'done' || st == 'notListening') && mounted) setState(() => _listening = false);
+      },
+      onError: (e) {
+        if (mounted) setState(() => _listening = false);
+        if (e.errorMsg != 'error_no_match' && e.errorMsg != 'error_speech_timeout') _note('الصوت مش شغال: ${e.errorMsg}');
+      },
+    );
+    if (!ok) {
+      _note('اسمح للتطبيق بالميكروفون من إعدادات الموبايل');
+      return;
+    }
+    if (_sttLocale == null) {
+      final locs = await _stt.locales();
+      String? pick;
+      for (final pref in ['ar_EG', 'ar-EG', 'ar_SA', 'ar-SA']) {
+        for (final l in locs) {
+          if (l.localeId == pref) pick = l.localeId;
+        }
+        if (pick != null) break;
+      }
+      pick ??= locs.where((l) => l.localeId.toLowerCase().startsWith('ar')).map((l) => l.localeId).firstOrNull;
+      _sttLocale = pick ?? '';
+    }
+    setState(() => _listening = true);
+    _input.clear();
+    await _stt.listen(
+      localeId: _sttLocale!.isEmpty ? null : _sttLocale,
+      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 45),
+      listenOptions: stt.SpeechListenOptions(partialResults: true, cancelOnError: true, listenMode: stt.ListenMode.dictation),
+      onResult: (r) {
+        _input.text = r.recognizedWords;
+        _input.selection = TextSelection.collapsed(offset: _input.text.length);
+        if (r.finalResult) {
+          if (mounted) setState(() => _listening = false);
+          final t = _input.text.trim();
+          if (t.isNotEmpty) _send(t);
+        }
+      },
+    );
+  }
 
   void _onUpd() => mounted ? setState(() {}) : null;
 
   @override
   void dispose() {
+    _stt.cancel();
     _upd.removeListener(_onUpd);
     super.dispose();
   }
@@ -576,7 +653,7 @@ class _ChatPageState extends State<ChatPage> {
           ],
         ),
         body: Container(
-          decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_bg, Color(0xFF040E1D)])),
+          decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_bg, Color(0xFF010302)])),
           child: Column(children: [
             if (_upd.status.isNotEmpty) _updateBar(),
             Expanded(
@@ -600,7 +677,7 @@ class _ChatPageState extends State<ChatPage> {
   Widget _updateBar() {
     final dl = _upd.status == 'downloading';
     return Material(
-      color: const Color(0xFF0A2447),
+      color: const Color(0xFF0A1C17),
       child: InkWell(
         onTap: dl ? null : _upd.install,
         child: Padding(
@@ -660,7 +737,7 @@ class _ChatPageState extends State<ChatPage> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .82),
           decoration: BoxDecoration(
-            gradient: mine ? const LinearGradient(colors: [_electric, Color(0xFF0072D6)]) : null,
+            gradient: mine ? const LinearGradient(colors: [_electric, Color(0xFF0E8C7A)]) : null,
             color: mine ? null : _panel,
             border: mine ? null : Border.all(color: _electric.withValues(alpha: .25)),
             borderRadius: BorderRadius.only(
@@ -681,7 +758,7 @@ class _ChatPageState extends State<ChatPage> {
         margin: const EdgeInsets.only(top: 4, bottom: 6),
         padding: const EdgeInsets.all(12),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .82),
-        decoration: BoxDecoration(color: const Color(0xFF0A2447), borderRadius: BorderRadius.circular(16), border: Border.all(color: _cyan.withValues(alpha: .6))),
+        decoration: BoxDecoration(color: const Color(0xFF0A1C17), borderRadius: BorderRadius.circular(16), border: Border.all(color: _cyan.withValues(alpha: .6))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Row(children: [Icon(Icons.bolt_rounded, color: _cyan, size: 18), SizedBox(width: 6), Text('جاهز للتنفيذ', style: TextStyle(color: _cyan, fontWeight: FontWeight.w800))]),
           const SizedBox(height: 6),
@@ -699,7 +776,7 @@ class _ChatPageState extends State<ChatPage> {
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-          decoration: const BoxDecoration(color: _panel, border: Border(top: BorderSide(color: Color(0x3300A3FF)))),
+          decoration: const BoxDecoration(color: _panel, border: Border(top: BorderSide(color: Color(0x332DD4BF)))),
           child: Row(children: [
             Expanded(
               child: TextField(
@@ -710,13 +787,30 @@ class _ChatPageState extends State<ChatPage> {
                 onSubmitted: _send,
                 style: const TextStyle(color: _ink),
                 decoration: InputDecoration(
-                  hintText: 'اكتب أمرك للنظام…',
+                  hintText: _listening ? 'بسمعك… اتكلم' : 'اكتب أو اضغط المايك واتكلم…',
                   hintStyle: const TextStyle(color: _muted),
                   filled: true,
                   fillColor: _bg,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                 ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: _busy ? null : _mic,
+              borderRadius: BorderRadius.circular(24),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _listening ? _danger.withValues(alpha: .18) : _bg,
+                  border: Border.all(color: _listening ? _danger : _cyan.withValues(alpha: .7), width: _listening ? 2 : 1),
+                  boxShadow: _listening ? [BoxShadow(color: _danger.withValues(alpha: .5), blurRadius: 16, spreadRadius: 2)] : null,
+                ),
+                child: Icon(_listening ? Icons.graphic_eq_rounded : Icons.mic_rounded, color: _listening ? _danger : _cyan, size: 22),
               ),
             ),
             const SizedBox(width: 8),
