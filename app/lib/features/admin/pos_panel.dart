@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -306,10 +307,34 @@ class _Line {
 
 /// A sale put on hold (customer went to fetch something): kept on this screen only, until it is resumed or the shift screen closes.
 class _Held {
-  _Held(this.lines, this.discount, this.pm, this.at);
+  _Held(this.lines, this.discount, this.pm, this.at, [this.customer]);
   final List<_Line> lines;
   final String discount, pm;
   final DateTime at;
+  final Map<String, dynamic>? customer;
+
+  Map<String, dynamic> toJson() => {
+        'lines': [for (final l in lines) {'p': l.p, 'q': l.q}],
+        'discount': discount,
+        'pm': pm,
+        'at': at.toIso8601String(),
+        'customer': customer,
+      };
+
+  static _Held? fromJson(Object? j) {
+    try {
+      final m = Map<String, dynamic>.from(j as Map);
+      return _Held(
+        [for (final l in (m['lines'] as List)) _Line(Map<String, dynamic>.from((l as Map)['p'] as Map), (l['q'] as num).toInt())],
+        '${m['discount'] ?? ''}',
+        '${m['pm'] ?? 'cash'}',
+        DateTime.parse('${m['at']}'),
+        m['customer'] is Map ? Map<String, dynamic>.from(m['customer'] as Map) : null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 class _Register extends ConsumerStatefulWidget {
@@ -326,6 +351,9 @@ class _RegisterState extends ConsumerState<_Register> {
   final _cash = TextEditingController();
   final _cart = <String, _Line>{};
   final _held = <_Held>[];
+  Map<String, dynamic>? _customer; // the customer this sale is tied to (found by phone)
+  final _custPhone = TextEditingController();
+  bool _findingCustomer = false;
   List<Map<String, dynamic>> _products = const [];
   bool _loadingProducts = true;
   String? _productsError;
@@ -348,6 +376,7 @@ class _RegisterState extends ConsumerState<_Register> {
   void initState() {
     super.initState();
     _loadProducts('');
+    _loadDrafts();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final f = await ref.read(assistantFlagsProvider.future);
@@ -365,6 +394,7 @@ class _RegisterState extends ConsumerState<_Register> {
     _searchFocus.dispose();
     _discount.dispose();
     _cash.dispose();
+    _custPhone.dispose();
     super.dispose();
   }
 
@@ -468,6 +498,8 @@ class _RegisterState extends ConsumerState<_Register> {
     _discount.clear();
     _cash.clear();
     _pm = 'cash';
+    _customer = null;
+    _custPhone.clear();
     _key = null;
     _tip = false;
     _unknown = false;
@@ -512,12 +544,61 @@ class _RegisterState extends ConsumerState<_Register> {
     }
   }
 
+  // Drafts survive closing the shift screen or the app: kept on this computer, per shift.
+  String get _draftsKey => 'pos_drafts_$_shiftId';
+
+  Future<void> _loadDrafts() async {
+    try {
+      final raw = (await SharedPreferences.getInstance()).getString(_draftsKey);
+      if (raw == null || !mounted) return;
+      final list = [for (final j in (jsonDecode(raw) as List)) _Held.fromJson(j)].whereType<_Held>().toList();
+      if (list.isNotEmpty) setState(() => _held.addAll(list));
+    } catch (_) {}
+  }
+
+  Future<void> _saveDrafts() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      if (_held.isEmpty) {
+        await p.remove(_draftsKey);
+      } else {
+        await p.setString(_draftsKey, jsonEncode([for (final h in _held) h.toJson()]));
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _findCustomer() async {
+    final ph = _custPhone.text.trim();
+    if (ph.replaceAll(RegExp(r'\D'), '').length < 8) {
+      showSnack(context, _t(context, 'اكتب رقم العميل كامل', 'Enter the full phone number'), error: true);
+      return;
+    }
+    setState(() => _findingCustomer = true);
+    try {
+      final c = await ref.read(posRepoProvider).findCustomer(ph);
+      if (!mounted) return;
+      if (c == null) {
+        showSnack(context, _t(context, 'مفيش عميل مسجّل بالرقم ده', 'No customer with this number'), error: true);
+      } else {
+        setState(() {
+          _customer = c;
+          _custPhone.clear();
+        });
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, _err(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _findingCustomer = false);
+    }
+  }
+
   void _hold() {
     if (_cart.isEmpty || _unknown || _busy) return;
     setState(() {
-      _held.add(_Held([for (final l in _cart.values) _Line(l.p, l.q)], _discount.text, _pm, DateTime.now()));
+      _held.add(_Held([for (final l in _cart.values) _Line(l.p, l.q)], _discount.text, _pm, DateTime.now(), _customer));
       _reset();
     });
+    _saveDrafts();
     showSnack(context, _t(context, 'اتحفظت كمسودة. كمّل بيع تاني وارجعلها من المسودات اللي فوق', 'Saved as a draft. Serve someone else and come back to it from the drafts above'));
   }
 
@@ -532,7 +613,10 @@ class _RegisterState extends ConsumerState<_Register> {
         ],
       ),
     );
-    if (ok == true && mounted && i < _held.length) setState(() => _held.removeAt(i));
+    if (ok == true && mounted && i < _held.length) {
+      setState(() => _held.removeAt(i));
+      _saveDrafts();
+    }
   }
 
   void _resume(int i) {
@@ -548,7 +632,9 @@ class _RegisterState extends ConsumerState<_Register> {
       }
       _discount.text = h.discount;
       _pm = h.pm;
+      _customer = h.customer;
     });
+    _saveDrafts();
   }
 
   Future<void> _complete() async {
@@ -590,6 +676,7 @@ class _RegisterState extends ConsumerState<_Register> {
                 discountMinor: discount,
                 cashMinor: cash,
                 approvalId: approval,
+                customerId: _customer?['id'] as String?,
               );
           break;
         } on PostgrestException catch (e) {
@@ -901,6 +988,32 @@ class _RegisterState extends ConsumerState<_Register> {
           if (disc > 0) _row(_t(context, 'الخصم', 'Discount'), '- ${_money(context, disc)}'),
           _row(_t(context, 'الإجمالي', 'Total'), _money(context, total < 0 ? 0 : total), big: true),
           const SizedBox(height: 8),
+          if (_customer != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InputChip(
+                avatar: const Icon(Icons.person_rounded, size: 18),
+                label: Text('${_customer!['name'] ?? ''} · ${_customer!['phone'] ?? ''}'),
+                onDeleted: _unknown ? null : () => setState(() => _customer = null),
+              ),
+            )
+          else if (!_unknown)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _custPhone,
+                    keyboardType: TextInputType.phone,
+                    textDirection: TextDirection.ltr,
+                    onSubmitted: (_) => _findCustomer(),
+                    decoration: InputDecoration(isDense: true, prefixIcon: const Icon(Icons.person_search_rounded, size: 18), labelText: _t(context, 'ربط عميل (رقم موبايله)', 'Link a customer (phone)')),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                OutlinedButton(onPressed: _findingCustomer ? null : _findCustomer, child: Text(_t(context, 'بحث', 'Find'))),
+              ]),
+            ),
           SegmentedButton<String>(
             showSelectedIcon: false,
             segments: [

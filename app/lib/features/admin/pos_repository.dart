@@ -75,6 +75,7 @@ class PosRepository {
     required int discountMinor,
     required int cashMinor,
     String? approvalId,
+    String? customerId,
   }) async =>
       _m(await _db.rpc('pos_create_sale', params: {
         'p_idempotency_key': idempotencyKey,
@@ -83,6 +84,17 @@ class PosRepository {
         'p_discount_minor': discountMinor,
         'p_cash_received_minor': cashMinor,
         'p_approval': approvalId,
+        'p_customer': customerId,
+      }));
+
+  /// A customer by his exact phone number (null when there is none), so a till sale can be tied to him.
+  Future<Map<String, dynamic>?> findCustomer(String phone) async {
+    final r = await _db.rpc('pos_find_customer', params: {'p_phone': phone});
+    return r is Map ? Map<String, dynamic>.from(r) : null;
+  }
+
+  Future<List<Map<String, dynamic>>> expenseReport(int days) async => _l(await _db.rpc('pos_expense_report', params: {
+        'p_from': DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String(),
       }));
 
   Future<void> addExpense(String shiftId, int amountMinor, String reason) =>

@@ -1487,6 +1487,9 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
             message: 'أهلاً ${o['customer_name'] ?? ''}، معاك فريق المبيعات في ${AppName.ar} بخصوص طلبك رقم ${o['reference']}.',
           ),
         DocumentButtons(fileName: 'MyHato-${o['reference']}', build: () => orderInvoicePdf(o)),
+        if ((ref.read(staffContextProvider).valueOrNull?.permissions.contains('wallet.refund') ?? false) &&
+            (o['payment_status'] == 'paid' || o['payment_status'] == 'partially_refunded' || o['status'] == 'delivered'))
+          _OrderRefundRow(order: o),
         const SizedBox(height: 16),
         if (o['closed_at'] == null) ...[
         _StatusUpdate(
@@ -3480,6 +3483,118 @@ class _WalletStaffRowState extends ConsumerState<_WalletStaffRow> {
           ]),
         );
       },
+    );
+  }
+}
+
+
+/// Money given back to the customer for an online order (by hand: cash, wallet or bank). It is recorded with the reason, the customer is told,
+/// and the order is marked refunded once the whole amount is back. Needs "wallet.refund". The stock is not put back by this: do that from the stock screen.
+class _OrderRefundRow extends ConsumerStatefulWidget {
+  const _OrderRefundRow({required this.order});
+  final Map<String, dynamic> order;
+  @override
+  ConsumerState<_OrderRefundRow> createState() => _OrderRefundRowState();
+}
+
+class _OrderRefundRowState extends ConsumerState<_OrderRefundRow> {
+  List<Map<String, dynamic>> _done = const [];
+  bool _busy = false;
+
+  int get _total => (widget.order['total_minor'] as num).toInt();
+  int get _refunded => _done.fold<int>(0, (a, r) => a + (r['amount_minor'] as num).toInt());
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await ref.read(supabaseProvider).rpc('staff_order_refunds', params: {'p_order_id': widget.order['id']});
+      if (mounted) setState(() => _done = [for (final x in (r as List)) Map<String, dynamic>.from(x as Map)]);
+    } catch (_) {}
+  }
+
+  Future<void> _refund() async {
+    final left = _total - _refunded;
+    final amount = TextEditingController(text: (left / 100).toStringAsFixed(left % 100 == 0 ? 0 : 2));
+    final reason = TextEditingController();
+    var method = 'cash';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => StatefulBuilder(
+        builder: (d, setD) => AlertDialog(
+          title: Text(_t(d, 'رد فلوس للعميل', 'Refund the customer')),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: _t(d, 'المبلغ (ج.م)', 'Amount (EGP)'), helperText: _t(d, 'المتبقي: ${formatEgp(left, d.lang)}', 'Left: ${formatEgp(left, d.lang)}'))),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: method,
+              decoration: InputDecoration(labelText: _t(d, 'اترد بإيه', 'Returned by')),
+              items: [
+                DropdownMenuItem(value: 'cash', child: Text(_t(d, 'كاش', 'Cash'))),
+                DropdownMenuItem(value: 'wallet', child: Text(_t(d, 'محفظة إلكترونية', 'E-wallet'))),
+                DropdownMenuItem(value: 'bank', child: Text(_t(d, 'تحويل بنكي', 'Bank transfer'))),
+                DropdownMenuItem(value: 'other', child: Text(_t(d, 'غير ذلك', 'Other'))),
+              ],
+              onChanged: (v) => setD(() => method = v ?? 'cash'),
+            ),
+            const SizedBox(height: 8),
+            TextField(controller: reason, decoration: InputDecoration(labelText: _t(d, 'السبب', 'Reason'))),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(d, 'إلغاء', 'Cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(_t(d, 'سجّل الرد', 'Record refund'))),
+          ],
+        ),
+      ),
+    );
+    final minor = parseEgpToMinor(amount.text);
+    final why = reason.text.trim();
+    amount.dispose();
+    reason.dispose();
+    if (ok != true || !mounted) return;
+    if (minor == null || minor <= 0 || minor > left || why.length < 3) {
+      showSnack(context, _t(context, 'اكتب مبلغ صحيح (مايزيدش عن المتبقي) وسبب', 'Enter a valid amount (not above what is left) and a reason'), error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(supabaseProvider).rpc('staff_order_refund', params: {'p_order_id': widget.order['id'], 'p_amount_minor': minor, 'p_reason': why, 'p_method': method});
+      ref.invalidate(_ordersProvider);
+      await _load();
+      if (mounted) showSnack(context, _t(context, 'اتسجّل الرد والعميل اتبلّغ', 'Refund recorded and the customer was told'));
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final left = _total - _refunded;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (_done.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '${_t(context, 'اترد', 'Refunded')} ${formatEgp(_refunded, context.lang)}: ${[for (final r in _done) '${formatEgp((r['amount_minor'] as num).toInt(), context.lang)} (${r['reason']})'].join(' · ')}',
+              style: const TextStyle(color: BrandColors.gray, fontSize: 12.5),
+            ),
+          ),
+        if (left > 0)
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42), foregroundColor: BrandColors.error),
+            icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.undo_rounded, size: 18),
+            label: Text(_t(context, 'رد فلوس للعميل', 'Refund the customer')),
+            onPressed: _busy ? null : _refund,
+          ),
+      ]),
     );
   }
 }

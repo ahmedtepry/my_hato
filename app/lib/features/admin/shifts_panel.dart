@@ -25,6 +25,7 @@ String _when(String? iso) => iso == null ? '—' : DateFormat('d/M  HH:mm').form
 
 final _approvalsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) => ref.watch(posRepoProvider).pendingApprovals());
 final _shiftsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) => ref.watch(posRepoProvider).shifts());
+final _expenseReportProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int>((ref, days) => ref.watch(posRepoProvider).expenseReport(days));
 final _branchReportProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int>((ref, days) => ref.watch(posRepoProvider).branchReport(days));
 
 /// Shifts and approvals: another person approves big discounts and refunds, the cash difference of every shift is
@@ -200,6 +201,34 @@ class _ShiftsPanelState extends ConsumerState<ShiftsPanel> {
                       ),
                     ),
                 ]),
+              ),
+        ],
+        if (canReport) ...[
+          title('مصروفات الدرج', 'Drawer expenses'),
+          ref.watch(_expenseReportProvider(_days)).when(
+                loading: () => const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
+                error: (e, _) => Text(_err(context, e)),
+                data: (list) => list.isEmpty
+                    ? Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_t(context, 'مفيش مصروفات في الفترة دي', 'No expenses in this period'), style: const TextStyle(color: BrandColors.gray))))
+                    : Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('${_t(context, 'الإجمالي', 'Total')}: ${_money(context, list.fold<num>(0, (a, e) => a + (e['amount_minor'] as num)))}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                            const SizedBox(height: 6),
+                            for (final e in list)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 3),
+                                child: Row(children: [
+                                  Expanded(child: Text('${e['reason']}  ·  ${e['branch_name_ar']}  ·  ${e['cashier_name'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis)),
+                                  Text(_when(e['created_at'] as String?), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+                                  const SizedBox(width: 10),
+                                  Text(_money(context, e['amount_minor'] as num), style: const TextStyle(fontWeight: FontWeight.w700)),
+                                ]),
+                              ),
+                          ]),
+                        ),
+                      ),
               ),
         ],
         if (isOwner) ...[
