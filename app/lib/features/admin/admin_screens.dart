@@ -1383,7 +1383,16 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
   final items = List<Map<String, dynamic>>.from(o['order_items'] as List? ?? const []);
   final addr = o['delivery_address'] as Map<String, dynamic>?;
   final wide = MediaQuery.of(context).size.width >= 800;
-  Widget body(BuildContext ctx, ScrollController? sc) => ListView(
+  // The app-wide buttons stretch to full width (minimumSize.fromHeight); inside this sheet's rows/wraps that stacks them and leaves a big blank, so use natural widths here.
+  ThemeData sheetTheme(BuildContext ctx) {
+    final t = Theme.of(ctx);
+    final small = WidgetStatePropertyAll<Size>(const Size(0, 40));
+    return t.copyWith(
+      outlinedButtonTheme: OutlinedButtonThemeData(style: (t.outlinedButtonTheme.style ?? const ButtonStyle()).copyWith(minimumSize: small)),
+      filledButtonTheme: FilledButtonThemeData(style: (t.filledButtonTheme.style ?? const ButtonStyle()).copyWith(minimumSize: small)),
+    );
+  }
+  Widget body(BuildContext ctx, ScrollController? sc) => Theme(data: sheetTheme(ctx), child: ListView(
       controller: sc,
       shrinkWrap: sc == null,
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -1501,7 +1510,7 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           },
         ),
         ],
-      ]);
+      ]));
   if (wide) {
     await showDialog(
       context: context,
