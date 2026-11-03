@@ -8,6 +8,11 @@ step "flutter create (android)"
 flutter create --platforms=android --org com.myhato --project-name myhato . || exit 1
 rm -f test/widget_test.dart
 cp tool/owner/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+mkdir -p android/app/src/main/res/xml && cp tool/android_overrides/res/xml/update_file_paths.xml android/app/src/main/res/xml/
+MA=$(find android/app/src/main -name MainActivity.kt | head -1)
+[ -n "$MA" ] || { echo "FAILURE: MainActivity.kt not found"; exit 1; }
+PKG=$(grep -m1 '^package ' "$MA" | awk '{print $2}')
+sed "s/__PKG__/$PKG/" tool/android_overrides/MainActivity.kt.tpl > "$MA"   # fingerprint prompt + in-app update installer
 for f in android/app/src/main/res/values/styles.xml android/app/src/main/res/values-night/styles.xml; do
   [ -f "$f" ] && sed -i -E 's#parent="@android:style/Theme\.(Light|Black)\.NoTitleBar"#parent="Theme.AppCompat.DayNight.NoActionBar"#g' "$f"
 done
@@ -43,7 +48,9 @@ dart run flutter_launcher_icons -f tool/owner/launcher_icons.yaml || echo "WARN:
 step "flutter build apk --release (owner)"
 flutter build apk --release --target-platform android-arm64 -t lib/owner_main.dart --build-number="${GITHUB_RUN_NUMBER:-1}" --obfuscate --split-debug-info=build/symbols \
   --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
+  --dart-define=BUILD_NUMBER="${GITHUB_RUN_NUMBER:-0}" \
   --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg || exit 1
 mkdir -p ../dist && cp build/app/outputs/flutter-apk/app-release.apk ../dist/MyHatoOwner.apk
+if [ -f tool/release.keystore.b64 ]; then echo ok > ../dist/stable-key.flag; fi
 ls -la ../dist
 step "BUILD OK"

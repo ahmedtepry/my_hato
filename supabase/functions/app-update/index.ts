@@ -18,8 +18,8 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json(req, 400, { error: "invalid_json" }); }
   const platform = String(body.platform ?? "windows");
   const build = Number(body.build);
-  if (!["windows", "android"].includes(platform) || !Number.isInteger(build) || build < 1 || build > 10000000) return json(req, 400, { error: "invalid_input" });
-  const fileName = platform === "android" ? `MyHato-${build}.apk` : `MyHatoTeam-Setup-${build}.exe`;
+  if (!["windows", "android", "android_owner"].includes(platform) || !Number.isInteger(build) || build < 1 || build > 10000000) return json(req, 400, { error: "invalid_input" });
+  const fileName = platform === "android" ? `MyHato-${build}.apk` : platform === "android_owner" ? `MyHatoOwner-${build}.apk` : `MyHatoTeam-Setup-${build}.exe`;
   const path = `${platform}/${fileName}`;
 
   if (body.action === "prepare") {

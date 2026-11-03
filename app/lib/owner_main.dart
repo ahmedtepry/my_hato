@@ -3,11 +3,15 @@
 // every change it proposes needs the owner's confirmation in a later message. Only an owner account can use it.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,6 +26,8 @@ const _cyan = Color(0xFF2DD4BF);
 const _ink = Color(0xFFEAF4FF);
 const _muted = Color(0xFF8FA9C8);
 const _danger = Color(0xFFFF6B6B);
+
+const int _kBuild = int.fromEnvironment('BUILD_NUMBER', defaultValue: 0);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,7 +65,7 @@ class OwnerApp extends StatelessWidget {
         stream: Supabase.instance.client.auth.onAuthStateChange,
         builder: (context, _) {
           final signedIn = Supabase.instance.client.auth.currentSession != null;
-          return signedIn ? ChatPage(prefs: prefs) : const LoginPage();
+          return signedIn ? LockGate(child: ChatPage(prefs: prefs)) : LoginPage(prefs: prefs);
         },
       ),
     );
@@ -136,13 +142,14 @@ class _RobotPainter extends CustomPainter {
 // ------------------------------------------------------------------ login
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, required this.prefs});
+  final SharedPreferences prefs;
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _email = TextEditingController();
+  late final _email = TextEditingController(text: widget.prefs.getString('owner_email') ?? '');
   final _pass = TextEditingController();
   bool _busy = false;
   String? _err;
@@ -157,6 +164,8 @@ class _LoginPageState extends State<LoginPage> {
       if (ok != true) {
         await db.auth.signOut();
         setState(() => _err = 'الحساب ده مش حساب المالك.');
+      } else {
+        await widget.prefs.setString('owner_email', _email.text.trim().toLowerCase());
       }
     } on AuthException {
       setState(() => _err = 'الإيميل أو كلمة السر غلط.');
@@ -222,6 +231,182 @@ class _LoginPageState extends State<LoginPage> {
       );
 }
 
+
+// ------------------------------------------------------------------ owner lock (phone fingerprint / lock code)
+
+/// After the first sign-in the session stays, but the app opens only after the owner proves it is him with the phone's
+/// fingerprint / face / lock code. It asks again when the app comes back after more than a minute in the background.
+class LockGate extends StatefulWidget {
+  const LockGate({super.key, required this.child});
+  final Widget child;
+  @override
+  State<LockGate> createState() => _LockGateState();
+}
+
+class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
+  final _auth = LocalAuthentication();
+  bool _open = false, _asking = false;
+  DateTime? _away;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _ask();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState st) {
+    if (st == AppLifecycleState.paused) _away = DateTime.now();
+    if (st == AppLifecycleState.resumed && _open && !_asking && _away != null && DateTime.now().difference(_away!) > const Duration(minutes: 1)) {
+      setState(() => _open = false);
+      _ask();
+    }
+  }
+
+  Future<void> _ask() async {
+    if (_asking) return;
+    _asking = true;
+    try {
+      // a phone with no lock at all cannot prove anything: let it in (the owner should set a lock code)
+      if (!await _auth.isDeviceSupported()) {
+        if (mounted) setState(() => _open = true);
+        return;
+      }
+      final ok = await _auth.authenticate(
+        localizedReason: 'افتح MyHato Owner',
+        options: const AuthenticationOptions(biometricOnly: false, stickyAuth: true),
+      );
+      if (mounted) setState(() => _open = ok);
+    } catch (_) {
+      if (mounted) setState(() => _open = false);
+    } finally {
+      _asking = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_open) return widget.child;
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const RobotFace(size: 120),
+            const SizedBox(height: 16),
+            const Text('MyHato Owner', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _ink)),
+            const SizedBox(height: 6),
+            const Text('مقفول: اثبت إنك المالك', style: TextStyle(color: _muted)),
+            const SizedBox(height: 22),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: _electric, padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+              onPressed: _ask,
+              icon: const Icon(Icons.fingerprint_rounded),
+              label: const Text('افتح بالبصمة أو الرمز', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+            TextButton(onPressed: () => Supabase.instance.client.auth.signOut(), child: const Text('تسجيل الخروج', style: TextStyle(color: _muted))),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ------------------------------------------------------------------ auto update (same key as the installed app, so it installs over it)
+
+class OwnerUpdater extends ChangeNotifier {
+  static const _ch = MethodChannel('myhato/update');
+  String status = ''; // '' | 'downloading' | 'ready' | 'need_permission'
+  double progress = 0;
+  int? build;
+  bool _busy = false;
+  Timer? _timer;
+
+  void start() {
+    if (_kBuild <= 0 || !Platform.isAndroid) return;
+    check();
+    _timer = Timer.periodic(const Duration(minutes: 10), (_) => check());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> check() async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      final db = Supabase.instance.client;
+      final rows = (await db.rpc('latest_app_update', params: {'p_platform': 'android_owner'})) as List? ?? const [];
+      if (rows.isEmpty) return;
+      final r = Map<String, dynamic>.from(rows.first as Map);
+      final b = (r['build'] as num).toInt();
+      if (b <= _kBuild) return;
+      build = b;
+      status = 'downloading';
+      progress = 0;
+      notifyListeners();
+      final dir = await _ch.invokeMethod<String>('cacheDir') ?? Directory.systemTemp.path;
+      final file = File('$dir/updates/owner-$b.apk');
+      await file.parent.create(recursive: true);
+      final url = db.storage.from('app-updates').getPublicUrl('${r['path']}');
+      final want = '${r['sha256']}'.toLowerCase();
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
+      try {
+        final res = await (await client.getUrl(Uri.parse(url))).close();
+        if (res.statusCode != 200) throw HttpException('HTTP ${res.statusCode}');
+        final total = res.contentLength > 0 ? res.contentLength : ((r['size_bytes'] as num?)?.toInt() ?? 0);
+        final sink = file.openWrite();
+        final out = AccumulatorSink<Digest>();
+        final h = sha256.startChunkedConversion(out);
+        var got = 0;
+        await for (final c in res) {
+          sink.add(c);
+          h.add(c);
+          got += c.length;
+          if (total > 0) {
+            progress = got / total;
+            notifyListeners();
+          }
+        }
+        await sink.flush();
+        await sink.close();
+        h.close();
+        if (out.events.single.toString() != want) {
+          await file.delete();
+          throw const FormatException('CHECKSUM');
+        }
+      } finally {
+        client.close();
+      }
+      status = 'ready';
+      notifyListeners();
+      await install();
+    } catch (_) {
+      status = '';
+      notifyListeners();
+    } finally {
+      _busy = false;
+    }
+  }
+
+  Future<void> install() async {
+    if (build == null) return;
+    final dir = await _ch.invokeMethod<String>('cacheDir') ?? Directory.systemTemp.path;
+    final res = await _ch.invokeMethod<String>('install', '$dir/updates/owner-$build.apk');
+    status = res == 'need_permission' ? 'need_permission' : 'ready';
+    notifyListeners();
+  }
+}
+
 // ------------------------------------------------------------------ chat
 
 class _Msg {
@@ -245,12 +430,21 @@ class _ChatPageState extends State<ChatPage> {
   final _scroll = ScrollController();
   final List<_Msg> _msgs = [];
   bool _busy = false;
+  final _upd = OwnerUpdater();
 
   static const _quick = ['مبيعات النهارده', 'الأوردرات الجديدة', 'مين في الفريق؟', 'صلاحيات الكاشير', 'التحويلات اللي وصلت'];
 
   @override
+  void dispose() {
+    _upd.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
+    _upd.addListener(() => mounted ? setState(() {}) : null);
+    _upd.start();
     try {
       final raw = widget.prefs.getString(_key);
       if (raw != null) {
@@ -348,6 +542,7 @@ class _ChatPageState extends State<ChatPage> {
         body: Container(
           decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_bg, Color(0xFF040E1D)])),
           child: Column(children: [
+            if (_upd.status.isNotEmpty) _updateBar(),
             Expanded(
               child: _msgs.isEmpty
                   ? _welcome()
@@ -360,6 +555,32 @@ class _ChatPageState extends State<ChatPage> {
             ),
             if (_msgs.isNotEmpty && !_busy) _chips(),
             _composer(),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _updateBar() {
+    final dl = _upd.status == 'downloading';
+    return Material(
+      color: const Color(0xFF0A2447),
+      child: InkWell(
+        onTap: dl ? null : _upd.install,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          child: Row(children: [
+            const Icon(Icons.system_update_alt_rounded, color: _cyan, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: dl
+                  ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('بنحمّل تحديث جديد…', style: TextStyle(color: _ink, fontSize: 13)),
+                      const SizedBox(height: 4),
+                      LinearProgressIndicator(value: _upd.progress > 0 ? _upd.progress : null, color: _cyan, backgroundColor: _panel),
+                    ])
+                  : Text(_upd.status == 'need_permission' ? 'اسمح بتثبيت التطبيقات من المصدر ده، وارجع اضغط هنا' : 'التحديث جاهز: اضغط للتثبيت', style: const TextStyle(color: _ink, fontSize: 13)),
+            ),
           ]),
         ),
       ),
