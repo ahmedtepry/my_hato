@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'core/config.dart';
@@ -851,6 +853,7 @@ class CallScreen extends StatefulWidget {
 
 class _CallScreenState extends State<CallScreen> {
   final _tts = FlutterTts();
+  final _player = AudioPlayer();
   final _stt = stt.SpeechToText();
   String _state = 'ring'; // ring | speak | listen | think
   String _caption = '';
@@ -873,6 +876,7 @@ class _CallScreenState extends State<CallScreen> {
     _ended = true;
     _clock?.cancel();
     _tts.stop();
+    _player.dispose();
     _stt.cancel();
     super.dispose();
   }
@@ -887,11 +891,33 @@ class _CallScreenState extends State<CallScreen> {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
-  Future<void> _say(String t) async {
+  /// A natural Egyptian female voice from the server (free Gemini TTS); the phone's own voice is only the fallback.
+  Future<Uint8List?> _synth(String t) async {
+    try {
+      final r = await Supabase.instance.client.functions.invoke('owner-tts', body: {'text': _spoken(t)}).timeout(const Duration(seconds: 35));
+      final d = r.data;
+      if (d is Map && d['audio'] is String) return base64Decode(d['audio'] as String);
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _say(String t, {Future<Uint8List?>? pre}) async {
     if (_ended) return;
     _set('speak', t);
+    final bytes = await (pre ?? _synth(t));
+    if (_ended) return;
     try {
-      await _tts.speak(_spoken(t));
+      if (bytes != null) {
+        final done = Completer<void>();
+        final sub = _player.onPlayerComplete.listen((_) {
+          if (!done.isCompleted) done.complete();
+        });
+        await _player.play(BytesSource(bytes, mimeType: 'audio/wav'));
+        await done.future.timeout(const Duration(seconds: 90), onTimeout: () {});
+        await sub.cancel();
+      } else {
+        await _tts.speak(_spoken(t));
+      }
     } catch (_) {}
   }
 
@@ -951,8 +977,10 @@ class _CallScreenState extends State<CallScreen> {
       await _tts.setSpeechRate(0.48);
       await _tts.setPitch(1.05);
     } catch (_) {}
-    await Future<void>.delayed(const Duration(milliseconds: 1400));
-    await _say('معاك يا استاذ أحمد، أساعدك إزاي؟');
+    const hello = 'معاك يا استاذ أحمد، أساعدك إزاي؟';
+    final pre = _synth(hello);
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    await _say(hello, pre: pre);
     var silent = 0;
     while (!_ended) {
       final heard = await _listen();
