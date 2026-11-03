@@ -40,9 +40,24 @@ Future<void> main() async {
   runApp(OwnerApp(prefs: prefs));
 }
 
-class OwnerApp extends StatelessWidget {
+/// One updater for the whole app: it works on the login and lock screens too, so the app never gets stuck on an old build.
+final OwnerUpdater ownerUpdater = OwnerUpdater();
+
+class OwnerApp extends StatefulWidget {
   const OwnerApp({super.key, required this.prefs});
   final SharedPreferences prefs;
+  @override
+  State<OwnerApp> createState() => _OwnerAppState();
+}
+
+class _OwnerAppState extends State<OwnerApp> {
+  SharedPreferences get prefs => widget.prefs;
+
+  @override
+  void initState() {
+    super.initState();
+    ownerUpdater.start();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +78,7 @@ class OwnerApp extends StatelessWidget {
       }(),
       home: StreamBuilder<AuthState>(
         stream: Supabase.instance.client.auth.onAuthStateChange,
-        builder: (context, _) {
+        builder: (context, child) {
           final signedIn = Supabase.instance.client.auth.currentSession != null;
           return signedIn ? LockGate(child: ChatPage(prefs: prefs)) : LoginPage(prefs: prefs);
         },
@@ -357,7 +372,7 @@ class OwnerUpdater extends ChangeNotifier {
     _busy = true;
     try {
       final db = Supabase.instance.client;
-      final rows = (await db.rpc('latest_app_update', params: {'p_platform': 'android_owner'})) as List? ?? const [];
+      final rows = (await db.rpc('latest_owner_update')) as List? ?? const [];
       if (rows.isEmpty) return;
       final r = Map<String, dynamic>.from(rows.first as Map);
       final b = (r['build'] as num).toInt();
@@ -442,21 +457,22 @@ class _ChatPageState extends State<ChatPage> {
   final _scroll = ScrollController();
   final List<_Msg> _msgs = [];
   bool _busy = false;
-  final _upd = OwnerUpdater();
+  final _upd = ownerUpdater;
 
   static const _quick = ['مبيعات النهارده', 'الأوردرات الجديدة', 'مين في الفريق؟', 'صلاحيات الكاشير', 'التحويلات اللي وصلت'];
 
+  void _onUpd() => mounted ? setState(() {}) : null;
+
   @override
   void dispose() {
-    _upd.dispose();
+    _upd.removeListener(_onUpd);
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
-    _upd.addListener(() => mounted ? setState(() {}) : null);
-    _upd.start();
+    _upd.addListener(_onUpd);
     try {
       final raw = widget.prefs.getString(_key);
       if (raw != null) {
