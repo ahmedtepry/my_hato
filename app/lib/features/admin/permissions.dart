@@ -579,6 +579,15 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
               icon: const Icon(Icons.edit_rounded, size: 16),
               label: Text(_s(context, 'rename_branches', 'تعديل أسماء الفروع', 'Rename branches')),
             ),
+          if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('branches.manage') ?? false)
+            TextButton.icon(
+              onPressed: () async {
+                final added = await showDialog<bool>(context: context, builder: (_) => const _AddBranchDialog());
+                if (added == true && mounted) _loadBranches();
+              },
+              icon: const Icon(Icons.add_business_rounded, size: 16),
+              label: Text(_s(context, 'add_branch', 'إضافة فرع', 'Add a branch')),
+            ),
         ]),
         const SizedBox(height: 8),
         if (all.isEmpty)
@@ -691,6 +700,76 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
   }
 }
 
+
+/// Adds a branch (needs "branches.manage"). It works like every other branch right away: sales, stock, transfers, reports; the staff who
+/// work in all the other branches get it too, anyone limited to some branches is left as he is (the owner can add it to him).
+class _AddBranchDialog extends ConsumerStatefulWidget {
+  const _AddBranchDialog();
+  @override
+  ConsumerState<_AddBranchDialog> createState() => _AddBranchDialogState();
+}
+
+class _AddBranchDialogState extends ConsumerState<_AddBranchDialog> {
+  final _name = TextEditingController();
+  final _addr = TextEditingController();
+  final _phone = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _addr.dispose();
+    _phone.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_name.text.trim().isEmpty) {
+      showSnack(context, _s(context, 'branch_name_needed', 'اكتب اسم الفرع', 'Enter the branch name'), error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(supabaseProvider).rpc('staff_add_branch', params: {
+        'p_name_ar': _name.text.trim(),
+        'p_address_ar': _addr.text.trim().isEmpty ? null : _addr.text.trim(),
+        'p_phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+      });
+      if (mounted) {
+        showSnack(context, _s(context, 'branch_added', 'اتضاف الفرع وبيشتغل زي باقي الفروع', 'Branch added; it works like the others'));
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        final dup = '$e'.contains('ALREADY_EXISTS');
+        showSnack(context, dup ? _s(context, 'branch_dup', 'فيه فرع بنفس الاسم', 'A branch with this name exists') : _permError(context, e), error: true);
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(_s(context, 'add_branch', 'إضافة فرع', 'Add a branch')),
+        content: SizedBox(
+          width: 380,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: _name, autofocus: true, maxLength: 40, decoration: InputDecoration(counterText: '', labelText: _s(context, 'branch_name', 'اسم الفرع', 'Branch name'))),
+            const SizedBox(height: 8),
+            TextField(controller: _addr, maxLength: 200, decoration: InputDecoration(counterText: '', labelText: _s(context, 'branch_address', 'العنوان (اختياري)', 'Address (optional)'))),
+            const SizedBox(height: 8),
+            TextField(controller: _phone, keyboardType: TextInputType.phone, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: _s(context, 'branch_phone', 'التليفون (اختياري)', 'Phone (optional)'))),
+            const SizedBox(height: 10),
+            Text(_s(context, 'branch_add_note', 'الموظفين اللي شغالين في كل الفروع بيشوفوه تلقائي. غيرهم تديهوله من "الفرع اللي بيشتغل فيه".', 'Staff who work in every branch get it automatically; for anyone else add it under "Branch he works in".'),
+                style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: Text(_s(context, 'cancel', 'إلغاء', 'Cancel'))),
+          FilledButton(onPressed: _busy ? null : _save, child: Text(_s(context, 'save', 'حفظ', 'Save'))),
+        ],
+      );
+}
 
 /// Renames the branches (needs the "branches.rename" permission).
 class _RenameBranchesDialog extends ConsumerStatefulWidget {
