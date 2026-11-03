@@ -819,9 +819,10 @@ class AdminHomeScreen extends ConsumerWidget {
                     autofocus: true,
                     child: Column(children: [
                       Expanded(
-                        child: Column(children: [
-                          DesktopTopBar(
-                            items: [
+                        child: Flex(direction: ref.watch(consoleNavStyleProvider) == 1 ? Axis.horizontal : Axis.vertical, children: [
+                          ref.watch(consoleNavStyleProvider) == 1
+                              ? DesktopSidebar(
+                                  items: [
                               for (final e in ([
                                 for (final k in available)
                                   if (!_hiddenInSidebar(k, tabs)) (_sidebarGroupOf(ctx, k), k, available.indexOf(k)),
@@ -835,10 +836,31 @@ class AdminHomeScreen extends ConsumerWidget {
                                 ),
                             ],
                             selected: current,
-                            onSelect: open,
-                            onSearch: () => _openSearch(ctx, ref),
-                            onSignOut: signOut,
-                          ),
+                                  onSelect: open,
+                                  onSearch: () => _openSearch(ctx, ref),
+                                  onSignOut: signOut,
+                                  onToggleLayout: () => toggleConsoleNavStyle(ref),
+                                )
+                              : DesktopTopBar(
+                                  items: [
+                              for (final e in ([
+                                for (final k in available)
+                                  if (!_hiddenInSidebar(k, tabs)) (_sidebarGroupOf(ctx, k), k, available.indexOf(k)),
+                              ]..sort((a, b) => a.$1.$2 != b.$1.$2 ? a.$1.$2.compareTo(b.$1.$2) : a.$3.compareTo(b.$3))))
+                                DesktopNavItem(
+                                  keyName: e.$2,
+                                  group: e.$1.$1,
+                                  icon: _sectionInfo[e.$2]!.icon,
+                                  label: e.$2 == 'overview' ? _t(ctx, 'الرئيسية', 'Home') : _t(ctx, _sectionInfo[e.$2]!.ar, _sectionInfo[e.$2]!.en),
+                                  badge: badgeFor(e.$2),
+                                ),
+                            ],
+                            selected: current,
+                                  onSelect: open,
+                                  onSearch: () => _openSearch(ctx, ref),
+                                  onSignOut: signOut,
+                                  onToggleLayout: () => toggleConsoleNavStyle(ref),
+                                ),
                           Expanded(
                             child: Stack(children: [
                               // a gutter on the left holds the device controls in one tidy column

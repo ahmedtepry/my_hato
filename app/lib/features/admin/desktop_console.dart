@@ -21,6 +21,24 @@ String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 const desktopBreakpoint = 900.0;
 bool isDesktopWidth(BuildContext c) => MediaQuery.sizeOf(c).width >= desktopBreakpoint;
 
+// ============================================================================================ layout choice
+/// 1 = grouped sidebar on the side, 2 = top bar with group menus. The small "arrange" icon switches between them; it is remembered per computer.
+final consoleNavStyleProvider = StateProvider<int>((ref) {
+  try {
+    return (ref.read(sharedPrefsProvider).getInt('console_nav_style') ?? 1) == 2 ? 2 : 1;
+  } catch (_) {
+    return 1;
+  }
+});
+
+void toggleConsoleNavStyle(WidgetRef ref) {
+  final next = ref.read(consoleNavStyleProvider) == 1 ? 2 : 1;
+  ref.read(consoleNavStyleProvider.notifier).state = next;
+  try {
+    ref.read(sharedPrefsProvider).setInt('console_nav_style', next);
+  } catch (_) {}
+}
+
 // ============================================================================================ sidebar
 class DesktopNavItem {
   const DesktopNavItem({required this.keyName, required this.icon, required this.label, this.badge = 0, this.group = ''});
@@ -30,7 +48,8 @@ class DesktopNavItem {
 }
 
 class DesktopSidebar extends ConsumerWidget {
-  const DesktopSidebar({super.key, required this.items, required this.selected, required this.onSelect, required this.onSearch, required this.onSignOut});
+  const DesktopSidebar({super.key, required this.items, required this.selected, required this.onSelect, required this.onSearch, required this.onSignOut, this.onToggleLayout});
+  final VoidCallback? onToggleLayout;
   final List<DesktopNavItem> items;
   final String? selected;
   final void Function(String key) onSelect;
@@ -110,7 +129,8 @@ class DesktopSidebar extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: InkWell(
+            child: Row(children: [
+              Expanded(child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: onSearch,
               child: Container(
@@ -123,7 +143,14 @@ class DesktopSidebar extends ConsumerWidget {
                   Text('Ctrl K', style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 11)),
                 ]),
               ),
-            ),
+            )),
+              if (onToggleLayout != null)
+                IconButton(
+                  tooltip: _t(context, 'ترتيب: غيّر شكل القايمة', 'Arrange: switch the menu layout'),
+                  icon: const Icon(Icons.view_agenda_outlined, color: Colors.white70, size: 20),
+                  onPressed: onToggleLayout,
+                ),
+            ]),
           ),
           Expanded(
             child: ListView(padding: const EdgeInsets.fromLTRB(12, 4, 12, 12), children: [
@@ -145,7 +172,8 @@ class DesktopSidebar extends ConsumerWidget {
 
 /// Top bar of the Windows console: Home, then one menu per group (sales, money, team, customers, system) listing its sections.
 class DesktopTopBar extends ConsumerWidget {
-  const DesktopTopBar({super.key, required this.items, required this.selected, required this.onSelect, required this.onSearch, required this.onSignOut});
+  const DesktopTopBar({super.key, required this.items, required this.selected, required this.onSelect, required this.onSearch, required this.onSignOut, this.onToggleLayout});
+  final VoidCallback? onToggleLayout;
   final List<DesktopNavItem> items;
   final String? selected;
   final void Function(String key) onSelect;
@@ -220,13 +248,17 @@ class DesktopTopBar extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 22),
-        for (final e in groups.entries) ...[groupButton(e.key, e.value), const SizedBox(width: 4)],
-        const Spacer(),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [for (final e in groups.entries) ...[groupButton(e.key, e.value), const SizedBox(width: 4)]]),
+          ),
+        ),
         InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: onSearch,
           child: Container(
-            width: 260,
+            width: 190,
             height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
@@ -238,7 +270,8 @@ class DesktopTopBar extends ConsumerWidget {
             ]),
           ),
         ),
-        const SizedBox(width: 14),
+        if (onToggleLayout != null) IconButton(tooltip: _t(context, 'ترتيب: غيّر شكل القايمة', 'Arrange: switch the menu layout'), icon: const Icon(Icons.view_sidebar_outlined, color: Colors.white70, size: 20), onPressed: onToggleLayout),
+        const SizedBox(width: 6),
         Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(name.isEmpty ? role.label(context) : name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
           if (name.isNotEmpty) Text(role.label(context), style: const TextStyle(color: Colors.white54, fontSize: 11.5)),
