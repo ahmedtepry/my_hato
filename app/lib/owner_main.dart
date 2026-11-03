@@ -513,6 +513,7 @@ class _ChatPageState extends State<ChatPage> {
       final code = e.details is Map ? (e.details as Map)['error'] : null;
       answer = switch (code) {
         'no_ai_key' => 'المخ لسه ما اتوصلش: ضيف مفتاح Gemini المجاني (GEMINI_API_KEY) في إعدادات Supabase.',
+        'ai_failed' => 'الذكاء الاصطناعي المجاني مزحوم دلوقتي، جرب تاني بعد دقيقة.',
         'ai_busy' => 'الذكاء الاصطناعي مشغول (حد الاستخدام المجاني)، جرب بعد دقيقة.',
         'bad_ai_key' => 'مفتاح الذكاء الاصطناعي غلط أو منتهي.',
         'owner_only' => 'التطبيق ده للمالك بس.',

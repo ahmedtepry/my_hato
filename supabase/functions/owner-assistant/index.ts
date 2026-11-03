@@ -238,19 +238,32 @@ Deno.serve(async (req) => {
       if (Object.keys(props).length) d.parameters = { type: "object", properties: props, required: t.input_schema.required };
       return d;
     });
-    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-flash-latest";
+    // the free tier is often "high demand" on one model: try the next model instead of failing
+    const models = [Deno.env.get("GEMINI_MODEL") ?? "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"];
     const contents: A[] = history.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
     for (let i = 0; i < MAX_LOOPS; i++) {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "x-goog-api-key": gemKey, "content-type": "application/json" },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM(now) }] }, contents, tools: [{ functionDeclarations: decls }], generationConfig: { maxOutputTokens: 1500 } }),
-      });
-      if (!res.ok) {
-        const t = await res.text();
-        console.error("gemini", res.status, t.slice(0, 400));
-        return reply(502, { error: res.status === 400 || res.status === 403 ? "bad_ai_key" : res.status === 429 ? "ai_busy" : "ai_failed" });
+      const payload = JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM(now) }] }, contents, tools: [{ functionDeclarations: decls }], generationConfig: { maxOutputTokens: 1500 } });
+      let res: Response | null = null;
+      let last = 0;
+      for (const model of models) {
+        try {
+          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+            method: "POST",
+            headers: { "x-goog-api-key": gemKey, "content-type": "application/json" },
+            body: payload,
+            signal: AbortSignal.timeout(25000),
+          });
+          if (r.ok) { res = r; break; }
+          last = r.status;
+          const t = await r.text();
+          console.error("gemini", model, r.status, t.slice(0, 300));
+          if (r.status === 400 || r.status === 401 || r.status === 403) break; // a key / request problem: another model will not help
+        } catch (e) {
+          last = 0;
+          console.error("gemini fetch", model, String(e).slice(0, 120));
+        }
       }
+      if (!res) return reply(502, { error: last === 400 || last === 401 || last === 403 ? "bad_ai_key" : last === 429 ? "ai_busy" : "ai_failed" });
       const j: A = await res.json();
       const content = j.candidates?.[0]?.content;
       if (!content) break;
