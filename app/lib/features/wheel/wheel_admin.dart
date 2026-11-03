@@ -226,7 +226,7 @@ class _WheelAdminPanelState extends ConsumerState<WheelAdminPanel> {
             if (s.kind == 'points') SizedBox(width: 80, child: TextField(controller: s.pts, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'نقاط' : 'Points'), onChanged: (_) => setState(() {}))),
             if (s.kind == 'discount') ...[
               SizedBox(width: 80, child: TextField(controller: s.pct, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'نسبة %' : 'Percent %'))),
-              SizedBox(width: 90, child: TextField(controller: s.hrs, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'ساعات (1-48)' : 'Hours (1-48)'))),
+              SizedBox(width: 90, child: TextField(controller: s.hrs, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'أقصى ساعات (1-24)' : 'Max hours (1-24)'))),
             ],
             SizedBox(width: 72, child: TextField(controller: s.w, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: ar ? 'الوزن' : 'Weight'), onChanged: (_) => setState(() {}))),
             if (s.kind == 'gift' || s.kind == 'points' || s.kind == 'discount')

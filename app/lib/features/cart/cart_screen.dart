@@ -10,7 +10,7 @@ import '../../core/theme.dart';
 import '../../shared/product_card.dart';
 import '../../shared/states.dart';
 import 'cart_repository.dart';
-import '../orders/orders_repository.dart' show pendingCouponProvider;
+import '../orders/orders_repository.dart' show isWheelVoucherCode, pendingCouponProvider;
 
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
@@ -104,9 +104,11 @@ class CartScreen extends ConsumerWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      context.isAr
-                          ? 'كود الخصم ${ref.watch(pendingCouponProvider)} هيتطبق تلقائي في خطوة الدفع 🎁'
-                          : 'Code ${ref.watch(pendingCouponProvider)} will be applied at checkout 🎁',
+                      isWheelVoucherCode(ref.watch(pendingCouponProvider))
+                          ? (context.isAr ? 'خصمك هيتطبق تلقائي على طلبك 🎁' : 'Your discount will be applied to your order 🎁')
+                          : context.isAr
+                              ? 'كود الخصم ${ref.watch(pendingCouponProvider)} هيتطبق تلقائي في خطوة الدفع 🎁'
+                              : 'Code ${ref.watch(pendingCouponProvider)} will be applied at checkout 🎁',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),

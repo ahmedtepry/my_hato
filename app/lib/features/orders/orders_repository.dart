@@ -87,6 +87,9 @@ class OrdersRepository {
 /// Code from an offer notification (/cart?coupon=CODE), applied automatically at checkout.
 final pendingCouponProvider = StateProvider<String?>((_) => null);
 
+/// A lucky-wheel discount code (made for one customer when he taps the discount). The customer never sees the code itself.
+bool isWheelVoucherCode(String? c) => c != null && RegExp(r'^W[A-Z0-9]{9}$').hasMatch(c);
+
 final ordersRepoProvider = Provider((ref) => OrdersRepository(ref.watch(supabaseProvider)));
 final walletOptionsProvider = FutureProvider.autoDispose((ref) => ref.watch(ordersRepoProvider).walletOptions());
 final branchesProvider = FutureProvider((ref) => ref.watch(ordersRepoProvider).branches());

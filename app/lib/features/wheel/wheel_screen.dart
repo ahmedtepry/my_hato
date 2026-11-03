@@ -2,6 +2,7 @@
 // and lists the gifts won. Look: light "gifts" style (pastel slices, white borders, pink rim, 🎁 hub, confetti on a win).
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,9 +94,16 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
     }
   }
 
-  void _useVoucher(String code) {
-    ref.read(pendingCouponProvider.notifier).state = code.toUpperCase();
-    context.go('/cart');
+  /// Tapping the discount makes the customer's own one-time code, then sends it to the cart (it is applied at checkout).
+  Future<void> _useVoucher(String id) async {
+    try {
+      final code = await ref.read(supabaseProvider).rpc('wheel_voucher_claim', params: {'p_id': id}) as String;
+      ref.read(pendingCouponProvider.notifier).state = code.toUpperCase();
+      if (mounted) context.go('/cart');
+    } catch (e) {
+      ref.invalidate(wheelStateProvider);
+      if (mounted) setState(() => _error = context.isAr ? 'الخصم ده خلص أو اتستخدم.' : 'This discount has expired or was used.');
+    }
   }
 
   Future<void> _showResult(Map<String, dynamic> r) {
@@ -104,7 +112,7 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
     final (emoji, title, body) = switch ('${r['kind']}') {
       'points' => ('⭐', ar ? 'مبروك! كسبت $label' : 'You won $label', ar ? 'النقاط اتضافت لحسابك.' : 'The points were added to your account.'),
       'gift' => ('🎁', ar ? 'مبروك! كسبت $label' : 'You won $label', ar ? 'هنكلّمك لتسليمها، أو تعالى استلمها من المحل.' : 'We will contact you, or pick it up from the shop.'),
-      'discount' => ('🏷️', ar ? 'مبروك! كسبت $label' : 'You won $label', ar ? 'الخصم محفوظ في حسابك لمدة ${r['valid_hours']} ساعة، ويُستخدم مرة واحدة بس. استخدمه في طلبك.' : 'Saved in your account for ${r['valid_hours']} hours, one-time use. Use it on your order.'),
+      'discount' => ('🏷️', ar ? 'مبروك! كسبت $label' : 'You won $label', ar ? 'الخصم محفوظ في حسابك لفترة قصيرة، ويُستخدم مرة واحدة بس. اضغط عليه واستخدمه في طلبك.' : 'Saved in your account for a short time, one-time use. Tap it to use it on your order.'),
       'again' => ('🔁', ar ? 'لفّة تانية!' : 'Spin again!', ar ? 'لف تاني من غير ما تتحسب.' : 'One more spin for free.'),
       _ => ('🍀', ar ? 'حظ أوفر المرة دي' : 'Better luck next time', ar ? 'ارجع بكرة والعجلة مستنياك.' : 'Come back tomorrow, the wheel is waiting.'),
     };
@@ -119,7 +127,7 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
             FilledButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                _useVoucher('${(r['voucher'] as Map)['code']}');
+                _useVoucher('${(r['voucher'] as Map)['id']}');
               },
               child: Text(ar ? 'استخدمه دلوقتي' : 'Use it now'),
             ),
@@ -204,9 +212,9 @@ class _WheelScreenState extends ConsumerState<WheelScreen> with SingleTickerProv
                 const SizedBox(height: 6),
                 for (final v in vouchers)
                   _VoucherCard(
-                    key: ValueKey('${v['code']}-${v['seconds_left']}'),
+                    key: ValueKey('${v['id']}-${v['seconds_left']}'),
                     voucher: v,
-                    onUse: () => _useVoucher('${v['code']}'),
+                    onUse: () => _useVoucher('${v['id']}'),
                     onExpired: () => ref.invalidate(wheelStateProvider),
                   ),
               ],
@@ -280,16 +288,14 @@ class _VoucherCardState extends State<_VoucherCard> {
     final v = widget.voucher;
     final inOrder = v['in_order'] == true;
     final expired = !inOrder && _left <= Duration.zero;
+    if (expired) return const SizedBox.shrink(); // an expired discount disappears
     return Card(
       child: ListTile(
+        onTap: inOrder ? null : widget.onUse,
         leading: const Text('🏷️', style: TextStyle(fontSize: 26)),
         title: Text(ar ? 'خصم ${v['percent']}%' : '${v['percent']}% off', style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(inOrder
-            ? (ar ? 'مستخدم في طلبك وبانتظار تأكيده' : 'Used on your order, waiting for confirmation')
-            : expired
-                ? (ar ? 'انتهت المدة' : 'Expired')
-                : (ar ? 'الوقت المتبقي ${_fmt(_left)} · استعمال مرة واحدة' : 'Time remaining ${_fmt(_left)} · one-time use')),
-        trailing: inOrder || expired ? null : FilledButton(onPressed: widget.onUse, child: Text(ar ? 'استخدمه' : 'Use it')),
+        subtitle: inOrder ? Text(ar ? 'مستخدم في طلبك وبانتظار تأكيده' : 'Used on your order, waiting for confirmation') : null,
+        trailing: inOrder ? null : Text(_fmt(_left), textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 13, color: Colors.black54, fontFeatures: [FontFeature.tabularFigures()])),
       ),
     );
   }

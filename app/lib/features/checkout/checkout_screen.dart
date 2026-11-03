@@ -446,7 +446,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(context.isAr ? 'اتطبق الكود $_coupon ✅' : 'Code $_coupon applied ✅', style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.success)),
+                        Text(isWheelVoucherCode(_coupon) ? (context.isAr ? 'اتطبق خصمك ✅' : 'Your discount is applied ✅') : (context.isAr ? 'اتطبق الكود $_coupon ✅' : 'Code $_coupon applied ✅'), style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.success)),
                         Text(context.isAr ? 'وفّرت ${formatEgp(_couponDiscount, lang)}' : 'You save ${formatEgp(_couponDiscount, lang)}', style: const TextStyle(fontSize: 12.5)),
                       ]),
                     ),
@@ -498,7 +498,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               const Divider(height: 20),
               _sum(context.tr('subtotal'), formatEgp(cart?.listTotal ?? 0, lang)),
               if ((cart?.discount ?? 0) > 0) _sum(context.tr('discount'), '- ${formatEgp(cart!.discount, lang)}'),
-              if (_couponDiscount > 0) _sum('${context.isAr ? 'كود الخصم' : 'Discount code'} ($_coupon)', '- ${formatEgp(_couponDiscount, lang)}'),
+              if (_couponDiscount > 0) _sum(isWheelVoucherCode(_coupon) ? (context.isAr ? 'خصمك' : 'Your discount') : '${context.isAr ? 'كود الخصم' : 'Discount code'} ($_coupon)', '- ${formatEgp(_couponDiscount, lang)}'),
               _sum(context.tr('delivery_fee'), _fulfillment == 'pickup' ? formatEgp(0, lang) : (_deliveryFee == null ? '—' : formatEgp(_deliveryFee, lang))),
               const Divider(height: 20),
               _sum(context.tr('total'), formatEgp(subtotal - _couponDiscount + fee, lang), bold: true),
