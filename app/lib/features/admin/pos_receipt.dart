@@ -36,6 +36,18 @@ final receiptStyleProvider = FutureProvider.autoDispose<String>((ref) async {
   }
 });
 
+/// VAT percent for the invoices (0 = off); kept on this computer too so printing works offline.
+final receiptVatProvider = FutureProvider.autoDispose<double>((ref) async {
+  final p = await SharedPreferences.getInstance();
+  try {
+    final v = ((await ref.watch(supabaseProvider).rpc('receipt_vat_get')) as num).toDouble();
+    await p.setDouble(kReceiptVatKey, v);
+    return v;
+  } catch (_) {
+    return p.getDouble(kReceiptVatKey) ?? 0;
+  }
+});
+
 Future<String> _currentStyle(BuildContext context) => ProviderScope.containerOf(context).read(receiptStyleProvider.future);
 
 Future<bool> receiptAutoPrintOn() async {
@@ -270,6 +282,8 @@ class _StylePicker extends ConsumerWidget {
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _VatBox(canEdit: can),
+      const SizedBox(height: 16),
       Text(_t(context, 'شكل الفاتورة', 'Invoice look'), style: const TextStyle(fontWeight: FontWeight.w700)),
       if (!can)
         Padding(
@@ -316,6 +330,99 @@ class _StylePicker extends ConsumerWidget {
   }
 }
 
+/// Owner: turn VAT on the invoice on/off and set its percent. Prices already include it, so the total never changes: the invoice just shows how much of it is VAT.
+class _VatBox extends ConsumerStatefulWidget {
+  const _VatBox({required this.canEdit});
+  final bool canEdit;
+  @override
+  ConsumerState<_VatBox> createState() => _VatBoxState();
+}
+
+class _VatBoxState extends ConsumerState<_VatBox> {
+  final _ctl = TextEditingController();
+  bool _on = false;
+  bool _loaded = false;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final pct = _on ? double.tryParse(_ctl.text.trim().replaceAll(',', '.')) : 0.0;
+    if (pct == null || pct < 0 || pct > 100) {
+      showSnack(context, _t(context, 'اكتب نسبة من 0 إلى 100', 'Enter a percent from 0 to 100'), error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(supabaseProvider).rpc('receipt_vat_set', params: {'p_pct': pct});
+      ref.invalidate(receiptVatProvider);
+      if (mounted) showSnack(context, _t(context, 'اتحفظت الضريبة ✅', 'VAT saved ✅'));
+    } catch (e) {
+      if (mounted) showSnack(context, '$e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = ref.watch(receiptVatProvider).valueOrNull;
+    if (v != null && !_loaded) {
+      _loaded = true;
+      _on = v > 0;
+      _ctl.text = v > 0 ? vatPctText(v) : '14';
+    }
+    final pct = double.tryParse(_ctl.text.trim().replaceAll(',', '.')) ?? 0;
+    final (net, vat) = vatSplit(10000, pct);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(border: Border.all(color: BrandColors.border), borderRadius: BorderRadius.circular(14)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: Text(_t(context, 'تطبيق الضريبة (VAT) على الفاتورة', 'Apply VAT on the invoice'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(_t(context, 'السعر شامل الضريبة: بتتقص من إجمالي المنتجات وبتظهر في الفاتورة، والإجمالي مابيتغيرش', 'Prices include VAT: it is taken out of the products total and shown; the total does not change'),
+              style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+          value: _on,
+          onChanged: widget.canEdit ? (x) => setState(() => _on = x) : null,
+        ),
+        if (_on)
+          Row(children: [
+            SizedBox(
+              width: 110,
+              child: TextField(
+                controller: _ctl,
+                enabled: widget.canEdit,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                textDirection: TextDirection.ltr,
+                decoration: InputDecoration(labelText: _t(context, 'النسبة %', 'Percent %'), isDense: true),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(_t(context, 'مثال: 100 ج.م → صافي ${net / 100} + ضريبة ${vat / 100}', 'e.g. 100 EGP → net ${net / 100} + VAT ${vat / 100}'),
+                  style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+            ),
+          ]),
+        if (widget.canEdit)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: FilledButton(onPressed: _busy ? null : _save, child: Text(_t(context, 'حفظ', 'Save'))),
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
 /// The invoice as a paper on the screen, in the look chosen for the shop (clean / banner / cards).
 class ReceiptPaper extends ConsumerWidget {
   const ReceiptPaper({super.key, required this.sale});
@@ -326,6 +433,7 @@ class ReceiptPaper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(receiptStyleProvider).valueOrNull ?? 'clean';
+    final vatPct = ref.watch(receiptVatProvider).valueOrNull ?? 0;
     final items = [for (final i in (sale['items'] as List? ?? const [])) Map<String, dynamic>.from(i as Map)];
     final discount = (sale['discount_minor'] as num?) ?? 0;
     final refunded = (sale['refunded_minor'] as num?) ?? 0;
@@ -353,7 +461,16 @@ class ReceiptPaper extends ConsumerWidget {
           child: Row(children: [for (var i = 0; i < 44; i++) Expanded(child: Container(height: 1.2, margin: const EdgeInsets.symmetric(horizontal: 1.2), color: i.isEven ? BrandColors.border : Colors.transparent))]),
         );
     Widget solid() => const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Divider(height: 1.5, thickness: 1.5, color: ink));
+    Widget vatRows() {
+      if (vatPct <= 0) return const SizedBox.shrink();
+      final (net, vat) = vatSplit(sale['total_minor'] as num, vatPct);
+      return Column(children: [
+        kv(_t(context, 'الصافي قبل الضريبة', 'Net before VAT'), _egp(context, net), s: 11.5, c: BrandColors.gray),
+        kv(_t(context, 'ضريبة ${vatPctText(vatPct)}% (شاملة)', 'VAT ${vatPctText(vatPct)}% (incl.)'), _egp(context, vat), s: 11.5, c: BrandColors.gray),
+      ]);
+    }
     Widget pay() => Column(children: [
+          vatRows(),
           kv(_t(context, 'المستلم', 'Cash'), _egp(context, (sale['cash_received_minor'] as num) - tip)),
           if (change > 0) kv(_t(context, 'الباقي', 'Change'), _egp(context, change)),
           if (refunded > 0) kv(_t(context, 'مرتجع', 'Refunded'), _egp(context, refunded)),

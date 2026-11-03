@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config.dart';
@@ -114,11 +115,31 @@ pw.Widget _footer() => pw.Column(children: [
           style: const pw.TextStyle(color: _grey, fontSize: 10)),
     ]);
 
+
+/// VAT rate (percent) the owner set for the invoices. Prices already include it: the invoice only shows how much of the total is VAT.
+const kReceiptVatKey = 'pos_receipt_vat';
+Future<double> receiptVatPct() async {
+  try {
+    return ((await SharedPreferences.getInstance()).getDouble(kReceiptVatKey) ?? 0).clamp(0, 100).toDouble();
+  } catch (_) {
+    return 0;
+  }
+}
+
+/// (net before VAT, VAT) of a VAT-inclusive total, in minor units.
+(num, num) vatSplit(num total, double pct) {
+  final net = (total / (1 + pct / 100)).round();
+  return (net, total - net);
+}
+
+String vatPctText(double p) => p == p.roundToDouble() ? '${p.round()}' : p.toStringAsFixed(1);
+
 Future<Uint8List> orderInvoicePdf(Map<String, dynamic> o) async {
   final (regular, bold) = await _fonts();
   final items = List<Map<String, dynamic>>.from(o['order_items'] as List? ?? const []);
   final total = (o['total_minor'] as num).toInt();
   final fee = (o['delivery_fee_minor'] as num?)?.toInt() ?? 0;
+  final vatPct = await receiptVatPct();
   final addr = o['delivery_address'] as Map<String, dynamic>?;
   final doc = pw.Document(theme: pw.ThemeData.withFont(base: regular, bold: bold));
   doc.addPage(pw.Page(
@@ -161,6 +182,10 @@ Future<Uint8List> orderInvoicePdf(Map<String, dynamic> o) async {
             _kv('التوصيل', fee == 0 ? 'مجاني' : _egp(fee)),
             pw.Divider(color: _line),
             _kv('الإجمالي', _egp(total), bold: bold),
+            if (vatPct > 0) ...[
+              _kv('الصافي قبل الضريبة', _egp(vatSplit(total, vatPct).$1)),
+              _kv('ضريبة القيمة المضافة ${vatPctText(vatPct)}%', _egp(vatSplit(total, vatPct).$2)),
+            ],
           ]),
         ),
       ),
@@ -300,6 +325,7 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
   final tip = (sale['tip_minor'] as num?) ?? 0;
   final change = ((sale['change_minor'] as num?) ?? 0) - tip;
   final subtotal = items.fold<num>(0, (a, i) => a + ((i['line_total_minor'] as num?) ?? 0));
+  final vatPct = await receiptVatPct();
   final phone = AppConfig.supportPhone.replaceFirst('+20', '0');
   // the Arabic font has no "ō": print the name with a plain o so no empty box shows
   final brand = AppName.ar.replaceAll('ō', 'o').replaceAll('Ō', 'O');
@@ -324,6 +350,14 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
   pw.Widget solid() => pw.Divider(color: ink, thickness: 0.9, height: 8);
   pw.Widget center(String t, pw.TextStyle s) => pw.Center(child: pw.Text(t, style: s, textAlign: pw.TextAlign.center));
   pw.Widget ltr(String t, pw.TextStyle s) => pw.Text(t, textDirection: pw.TextDirection.ltr, style: s);
+  pw.Widget vatRows() {
+    if (vatPct <= 0) return pw.SizedBox();
+    final (net, vat) = vatSplit(sale['total_minor'] as num, vatPct);
+    return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+      kv('الصافي قبل الضريبة', _egp(net), size: 8.5, c: _grey),
+      kv('ضريبة ${vatPctText(vatPct)}% (شاملة)', _egp(vat), size: 8.5, c: _grey),
+    ]);
+  }
   pw.Widget payRows() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
         kv('المستلم', _egp((sale['cash_received_minor'] as num) - tip)),
         if (change > 0) kv('الباقي', _egp(change)),
@@ -366,6 +400,7 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
         solid(),
         if (discount > 0) ...[kv('المجموع', _egp(subtotal)), kv('خصم', '- ${_egp(discount)}')],
         pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 3), child: kv('الإجمالي', _egp(sale['total_minor'] as num), b: true, size: 14)),
+        vatRows(),
         solid(),
         payRows(),
         dashed(),
@@ -415,6 +450,7 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
             pw.Text(_egp(sale['total_minor'] as num), textDirection: pw.TextDirection.rtl, style: ts(16, b: true, c: PdfColors.white)),
           ]),
         ),
+        vatRows(),
         payRows(),
         pw.SizedBox(height: 7),
         pw.Row(children: [
@@ -480,7 +516,7 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
             pw.Text(_egp(sale['total_minor'] as num), textDirection: pw.TextDirection.rtl, style: ts(16, b: true, c: PdfColors.white)),
           ]),
         ),
-        card([if (discount > 0) kv('المجموع', _egp(subtotal)), payRows()]),
+        card([if (discount > 0) kv('المجموع', _egp(subtotal)), vatRows(), payRows()]),
         pw.SizedBox(height: 4),
         footer(navy: true),
       ];
