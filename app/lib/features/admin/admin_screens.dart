@@ -1382,15 +1382,12 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
   if (!context.mounted) return;
   final items = List<Map<String, dynamic>>.from(o['order_items'] as List? ?? const []);
   final addr = o['delivery_address'] as Map<String, dynamic>?;
-  await showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (ctx) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.75,
-      maxChildSize: 0.95,
-      builder: (_, sc) => ListView(controller: sc, padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), children: [
+  final wide = MediaQuery.of(context).size.width >= 800;
+  Widget body(BuildContext ctx, ScrollController? sc) => ListView(
+      controller: sc,
+      shrinkWrap: sc == null,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      children: [
         Row(children: [
           Expanded(child: Text(o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20))),
           _orderChip(context, o),
@@ -1504,9 +1501,32 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
           },
         ),
         ],
-      ]),
-    ),
-  );
+      ]);
+  if (wide) {
+    await showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(24),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 640, maxHeight: MediaQuery.of(ctx).size.height * 0.9),
+          child: body(ctx, null),
+        ),
+      ),
+    );
+  } else {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        maxChildSize: 0.95,
+        builder: (_, sc) => body(ctx, sc),
+      ),
+    );
+  }
 }
 
 /// to == null: message only. Cancelling needs a reason (the message counts as one).
