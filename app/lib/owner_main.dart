@@ -365,7 +365,7 @@ class OwnerUpdater extends ChangeNotifier {
         if (res.statusCode != 200) throw HttpException('HTTP ${res.statusCode}');
         final total = res.contentLength > 0 ? res.contentLength : ((r['size_bytes'] as num?)?.toInt() ?? 0);
         final sink = file.openWrite();
-        final out = AccumulatorSink<Digest>();
+        final out = _DigestSink();
         final h = sha256.startChunkedConversion(out);
         var got = 0;
         await for (final c in res) {
@@ -380,7 +380,7 @@ class OwnerUpdater extends ChangeNotifier {
         await sink.flush();
         await sink.close();
         h.close();
-        if (out.events.single.toString() != want) {
+        if (out.value.toString() != want) {
           await file.delete();
           throw const FormatException('CHECKSUM');
         }
@@ -734,4 +734,12 @@ class _TypingState extends State<_Typing> with SingleTickerProviderStateMixin {
           ),
         ),
       );
+}
+
+class _DigestSink implements Sink<Digest> {
+  Digest? value;
+  @override
+  void add(Digest d) => value = d;
+  @override
+  void close() {}
 }
