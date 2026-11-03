@@ -471,7 +471,7 @@ class ReceiptPaper extends ConsumerWidget {
     }
     Widget pay() => Column(children: [
           vatRows(),
-          kv(sale['payment_method'] == 'card' ? _t(context, 'مدفوع بالفيزا', 'Paid by visa') : _t(context, 'المستلم', 'Cash'), _egp(context, (sale['cash_received_minor'] as num) - tip)),
+          kv(switch (sale['payment_method']) { 'card' => _t(context, 'مدفوع بالفيزا', 'Paid by visa'), 'wallet' => _t(context, 'مدفوع بمحفظة', 'Paid by e-wallet'), _ => _t(context, 'المستلم', 'Cash') }, _egp(context, (sale['cash_received_minor'] as num) - tip)),
           if (change > 0) kv(_t(context, 'الباقي', 'Change'), _egp(context, change)),
           if (refunded > 0) kv(_t(context, 'مرتجع', 'Refunded'), _egp(context, refunded)),
         ]);

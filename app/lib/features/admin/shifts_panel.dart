@@ -189,6 +189,7 @@ class _ShiftsPanelState extends ConsumerState<ShiftsPanel> {
                             if (b['card_minor'] != null) ...[
                               _stat(context, _t(context, 'كاش', 'Cash'), _money(context, b['cash_minor'] as num), null),
                               _stat(context, _t(context, 'فيزا', 'Visa'), '${_money(context, b['card_minor'] as num)} (${b['card_count']})', null),
+                              _stat(context, _t(context, 'محافظ إلكترونية', 'E-wallets'), _money(context, (b['wallet_minor'] as num?) ?? 0), null),
                             ],
                             _stat(context, _t(context, 'المرتجعات', 'Refunds'), _money(context, b['refunds_minor'] as num), null),
                             _stat(context, _t(context, 'ورديات مقفولة', 'Closed shifts'), '${b['shifts_closed']}', null),

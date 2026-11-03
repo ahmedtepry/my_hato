@@ -559,9 +559,10 @@ class _ShiftDialog extends ConsumerWidget {
               _kv(ctx, _t(ctx, 'عهدة الفتح', 'Opening cash'), _money(ctx, (s['opening_minor'] as num?) ?? 0)),
               _kv(ctx, _t(ctx, 'عدد الفواتير', 'Invoices'), '${s['sales_count']}'),
               _kv(ctx, _t(ctx, 'المبيعات', 'Sales'), _money(ctx, (s['sales_minor'] as num?) ?? 0)),
-              if (((s['card_sales_minor'] as num?) ?? 0) > 0) ...[
+              if ((((s['card_sales_minor'] as num?) ?? 0) + ((s['wallet_sales_minor'] as num?) ?? 0)) > 0) ...[
                 _kv(ctx, _t(ctx, 'كاش', 'Cash'), _money(ctx, (s['cash_sales_minor'] as num?) ?? 0)),
                 _kv(ctx, _t(ctx, 'فيزا', 'Visa'), _money(ctx, (s['card_sales_minor'] as num?) ?? 0)),
+                _kv(ctx, _t(ctx, 'محافظ إلكترونية', 'E-wallets'), _money(ctx, (s['wallet_sales_minor'] as num?) ?? 0)),
               ],
               _kv(ctx, _t(ctx, 'المرتجعات', 'Refunds'), _money(ctx, (s['refunds_minor'] as num?) ?? 0)),
               _kv(ctx, _t(ctx, 'المفروض في الدرج', 'Expected in drawer'), _money(ctx, (s['expected_minor'] as num?) ?? 0), bold: true),

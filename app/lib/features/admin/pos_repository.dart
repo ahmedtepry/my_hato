@@ -127,7 +127,7 @@ class PosRepository {
     final rows = _l(await _db.rpc('pos_branch_report', params: {'p_from': from}));
     try {
       // cash vs card per branch (needs migration 0128; without it the report just has no split)
-      final split = {for (final r in _l(await _db.rpc('pos_branch_payment_split', params: {'p_from': from}))) '${r['branch_id']}': r};
+      final split = {for (final r in _l(await _db.rpc('pos_branch_payment_split2', params: {'p_from': from}))) '${r['branch_id']}': r};
       return [for (final r in rows) {...r, ...?split['${r['branch_id']}']}];
     } catch (_) {
       return rows;
