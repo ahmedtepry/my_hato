@@ -290,10 +290,15 @@ class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState st) {
-    if (st == AppLifecycleState.paused) _away = DateTime.now();
-    if (st == AppLifecycleState.resumed && _open && !_asking && _away != null && DateTime.now().difference(_away!) > const Duration(minutes: 1)) {
-      setState(() => _open = false);
-      _ask();
+    // the system fingerprint sheet itself pauses the app: that is not "leaving the app"
+    if (st == AppLifecycleState.paused && !_asking) _away = DateTime.now();
+    if (st == AppLifecycleState.resumed && !_asking) {
+      final away = _away;
+      _away = null;
+      if (_open && away != null && DateTime.now().difference(away) > const Duration(minutes: 1)) {
+        setState(() => _open = false);
+        _ask();
+      }
     }
   }
 
@@ -308,7 +313,8 @@ class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
       }
       final ok = await _auth.authenticate(
         localizedReason: 'افتح MyHato Owner',
-        options: const AuthenticationOptions(biometricOnly: false, stickyAuth: true),
+        // stickyAuth must stay false: with it some phones re-open the fingerprint sheet again and again after a correct fingerprint
+        options: const AuthenticationOptions(biometricOnly: false, stickyAuth: false),
       );
       if (mounted) setState(() => _open = ok);
     } catch (_) {
