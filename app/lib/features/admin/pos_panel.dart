@@ -518,12 +518,26 @@ class _RegisterState extends ConsumerState<_Register> {
       _held.add(_Held([for (final l in _cart.values) _Line(l.p, l.q)], _discount.text, _pm, DateTime.now()));
       _reset();
     });
-    showSnack(context, _t(context, 'البيعة اتعلّقت، كمّل بيع تاني وارجعلها من "المعلّقة"', 'Sale put on hold; resume it from "On hold"'));
+    showSnack(context, _t(context, 'اتحفظت كمسودة. كمّل بيع تاني وارجعلها من المسودات اللي فوق', 'Saved as a draft. Serve someone else and come back to it from the drafts above'));
+  }
+
+  Future<void> _discard(int i) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text(_t(d, 'إلغاء المسودة؟', 'Discard this draft?')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(d, 'لأ', 'No'))),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: BrandColors.error), onPressed: () => Navigator.pop(d, true), child: Text(_t(d, 'إلغاء المسودة', 'Discard'))),
+        ],
+      ),
+    );
+    if (ok == true && mounted && i < _held.length) setState(() => _held.removeAt(i));
   }
 
   void _resume(int i) {
     if (_cart.isNotEmpty) {
-      showSnack(context, _t(context, 'خلّص أو علّق السلة الحالية الأول', 'Finish or hold the current cart first'), error: true);
+      showSnack(context, _t(context, 'خلّص السلة الحالية أو احفظها مسودة الأول', 'Finish the current cart or save it as a draft first'), error: true);
       return;
     }
     final h = _held[i];
@@ -811,24 +825,8 @@ class _RegisterState extends ConsumerState<_Register> {
             if (_cart.isNotEmpty && !_unknown)
               TextButton.icon(
                 icon: const Icon(Icons.pause_circle_outline, size: 18),
-                label: Text(_t(context, 'علّق', 'Hold')),
+                label: Text(_t(context, 'مسودة', 'Draft')),
                 onPressed: _hold,
-              ),
-            if (_held.isNotEmpty)
-              PopupMenuButton<int>(
-                tooltip: _t(context, 'البيعات المعلّقة', 'Sales on hold'),
-                onSelected: _resume,
-                itemBuilder: (_) => [
-                  for (var i = 0; i < _held.length; i++)
-                    PopupMenuItem(
-                      value: i,
-                      child: Text('${_held[i].lines.fold<int>(0, (a, l) => a + l.q)} ${_t(context, 'قطعة', 'items')} · ${_money(context, _held[i].lines.fold<int>(0, (a, l) => a + l.price * l.q))} · ${_held[i].at.hour.toString().padLeft(2, '0')}:${_held[i].at.minute.toString().padLeft(2, '0')}'),
-                    ),
-                ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Chip(avatar: const Icon(Icons.pause_circle_filled_rounded, size: 18), label: Text('${_t(context, 'معلّقة', 'On hold')} (${_held.length})'), visualDensity: VisualDensity.compact),
-                ),
               ),
             if (_cart.isNotEmpty && !_unknown)
               TextButton.icon(
@@ -837,6 +835,27 @@ class _RegisterState extends ConsumerState<_Register> {
                 onPressed: () => setState(_reset),
               ),
           ]),
+          if (_held.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                height: 44,
+                child: ListView(scrollDirection: Axis.horizontal, children: [
+                  for (var i = 0; i < _held.length; i++)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 8),
+                      child: InputChip(
+                        avatar: const Icon(Icons.edit_note_rounded, size: 18),
+                        label: Text('${_t(context, 'مسودة', 'Draft')} ${i + 1} · ${_money(context, _held[i].lines.fold<int>(0, (a, l) => a + l.price * l.q))}'),
+                        onPressed: () => _resume(i),
+                        onDeleted: () => _discard(i),
+                        deleteIconColor: BrandColors.error,
+                        deleteButtonTooltipMessage: _t(context, 'إلغاء المسودة', 'Discard draft'),
+                      ),
+                    ),
+                ]),
+              ),
+            ),
           if (_unknown)
             Container(
               margin: const EdgeInsets.only(bottom: 8),
