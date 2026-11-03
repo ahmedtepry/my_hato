@@ -122,9 +122,20 @@ class PosRepository {
         'p_limit': 100,
       }));
 
-  Future<List<Map<String, dynamic>>> branchReport(int days) async => _l(await _db.rpc('pos_branch_report', params: {
-        'p_from': DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String(),
-      }));
+  Future<List<Map<String, dynamic>>> branchReport(int days) async {
+    final from = DateTime.now().subtract(Duration(days: days)).toUtc().toIso8601String();
+    final rows = _l(await _db.rpc('pos_branch_report', params: {'p_from': from}));
+    try {
+      // cash vs card per branch (needs migration 0128; without it the report just has no split)
+      final split = {for (final r in _l(await _db.rpc('pos_branch_payment_split', params: {'p_from': from}))) '${r['branch_id']}': r};
+      return [for (final r in rows) {...r, ...?split['${r['branch_id']}']}];
+    } catch (_) {
+      return rows;
+    }
+  }
+
+  Future<Map<String, dynamic>> setSalePayment(String saleId, String method) async =>
+      _m(await _db.rpc('pos_set_sale_payment', params: {'p_sale': saleId, 'p_method': method}));
 
   /// Branch totals since a moment (used by the dashboard for "today").
   Future<List<Map<String, dynamic>>> branchReportSince(DateTime from) async =>

@@ -359,7 +359,7 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
     ]);
   }
   pw.Widget payRows() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        kv('المستلم', _egp((sale['cash_received_minor'] as num) - tip)),
+        kv(sale['payment_method'] == 'card' ? 'مدفوع بالفيزا' : 'المستلم', _egp((sale['cash_received_minor'] as num) - tip)),
         if (change > 0) kv('الباقي', _egp(change)),
         if (refunded > 0) kv('مرتجع', _egp(refunded)),
       ]);

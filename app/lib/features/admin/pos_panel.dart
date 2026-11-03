@@ -324,6 +324,7 @@ class _RegisterState extends ConsumerState<_Register> {
   bool _busy = false;
   bool _showCart = false; // narrow screens: products or cart
   bool _tipInDrawer = false; // what the cashier said about the tip: left in the drawer, or taken out
+  bool _card = false; // paid by visa (the branch's card machine): no cash, no change
   bool _tip = false; // the customer left the change as a tip (recorded on the sale right after it is saved)
   String? _key; // idempotency key of the sale being sent (kept while the result is unknown)
   bool _unknown = false; // the last send may have reached the server: the cart is locked until it is re-sent
@@ -456,6 +457,7 @@ class _RegisterState extends ConsumerState<_Register> {
     _cart.clear();
     _discount.clear();
     _cash.clear();
+    _card = false;
     _key = null;
     _tip = false;
     _unknown = false;
@@ -466,7 +468,7 @@ class _RegisterState extends ConsumerState<_Register> {
   Future<void> _complete() async {
     if (_busy || _cart.isEmpty) return;
     final discount = _discountMinor;
-    final cash = parseEgpToMinor(_cash.text);
+    final cash = _card ? _total : parseEgpToMinor(_cash.text);
     if (discount < 0 || discount > _subtotal) {
       showSnack(context, _t(context, 'الخصم مش مظبوط', 'Invalid discount'), error: true);
       return;
@@ -477,7 +479,7 @@ class _RegisterState extends ConsumerState<_Register> {
       return;
     }
     // more than the total: the cashier must hand the change back, and confirms he did, before the sale is completed
-    if (cash > _total && _key == null) {
+    if (!_card && cash > _total && _key == null) {
       final r = await showDialog<String>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
       if (r == null || r == 'back' || !mounted) return;
       _tip = r == 'tip';
@@ -517,6 +519,13 @@ class _RegisterState extends ConsumerState<_Register> {
       }
       if (sale == null || !mounted) return;
       var done = sale;
+      if (_card) {
+        try {
+          done = await ref.read(posRepoProvider).setSalePayment('${sale['id']}', 'card');
+        } catch (_) {
+          if (mounted) showSnack(context, _t(context, 'البيعة اتسجلت لكن الدفع بالفيزا ماتسجلش، قول للمالك', 'The sale was saved but the visa payment was not recorded'), error: true);
+        }
+      }
       if (_tip) {
         try {
           done = await ref.read(posRepoProvider).markTip('${sale['id']}', inDrawer: _tipInDrawer);
@@ -586,6 +595,8 @@ class _RegisterState extends ConsumerState<_Register> {
           Text(_t(context, 'وردية مفتوحة', 'Shift open'), style: const TextStyle(fontWeight: FontWeight.w800)),
           Text('· ${s['branch_name_ar'] ?? ''}', style: const TextStyle(color: BrandColors.gray)),
           Text('· ${_t(context, 'مبيعات', 'Sales')} ${_money(context, (s['sales_minor'] as num?) ?? 0)} (${s['sales_count'] ?? 0})', style: const TextStyle(color: BrandColors.gray)),
+          if (((s['card_sales_minor'] as num?) ?? 0) > 0)
+            Text('· ${_t(context, 'كاش', 'Cash')} ${_money(context, (s['cash_sales_minor'] as num?) ?? 0)} · ${_t(context, 'فيزا', 'Visa')} ${_money(context, (s['card_sales_minor'] as num?) ?? 0)}', style: const TextStyle(color: BrandColors.gray)),
           Text('· ${_t(context, 'المفروض في الدرج', 'Expected in drawer')} ${_money(context, (s['expected_minor'] as num?) ?? 0)}', style: const TextStyle(color: BrandColors.gray)),
           OutlinedButton.icon(
             icon: const Icon(Icons.assignment_return_outlined, size: 18),
@@ -772,6 +783,17 @@ class _RegisterState extends ConsumerState<_Register> {
           if (disc > 0) _row(_t(context, 'الخصم', 'Discount'), '- ${_money(context, disc)}'),
           _row(_t(context, 'الإجمالي', 'Total'), _money(context, total < 0 ? 0 : total), big: true),
           const SizedBox(height: 8),
+          SegmentedButton<bool>(
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(value: false, icon: const Icon(Icons.payments_outlined, size: 18), label: Text(_t(context, 'كاش', 'Cash'))),
+              ButtonSegment(value: true, icon: const Icon(Icons.credit_card_rounded, size: 18), label: Text(_t(context, 'فيزا', 'Visa'))),
+            ],
+            selected: {_card},
+            onSelectionChanged: _unknown ? null : (v) => setState(() => _card = v.first),
+          ),
+          const SizedBox(height: 8),
+          if (!_card)
           TextField(
             controller: _cash,
             enabled: !_unknown,
@@ -780,7 +802,9 @@ class _RegisterState extends ConsumerState<_Register> {
             onSubmitted: (_) => _complete(),
             decoration: InputDecoration(isDense: true, labelText: _t(context, 'المبلغ المستلم (ج.م)', 'Cash received (EGP)')),
           ),
-          if (quick.isNotEmpty && !_unknown)
+          if (_card)
+            Text(_t(context, 'الدفع بماكينة الفيزا: مفيش باقي وماتدخلش الدرج', 'Paid on the card machine: no change, not added to the drawer'), style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+          if (!_card && quick.isNotEmpty && !_unknown)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Wrap(spacing: 6, runSpacing: 4, children: [
@@ -792,7 +816,7 @@ class _RegisterState extends ConsumerState<_Register> {
                   ),
               ]),
             ),
-          if (change != null && total > 0)
+          if (!_card && change != null && total > 0)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: _row(change >= 0 ? _t(context, 'الباقي للعميل', 'Change') : _t(context, 'ناقص', 'Missing'), _money(context, change.abs()), color: change >= 0 ? BrandColors.success : BrandColors.error, big: true),
@@ -1334,6 +1358,10 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
               const SizedBox(height: 8),
               row(_t(context, 'العهدة أول الوردية', 'Opening cash'), _money(context, s['opening_minor'] as num)),
               row('${_t(context, 'المبيعات', 'Sales')} (${s['sales_count']})', _money(context, s['sales_minor'] as num)),
+              if (((s['card_sales_minor'] as num?) ?? 0) > 0) ...[
+                row(_t(context, '   منها كاش', '   of which cash'), _money(context, (s['cash_sales_minor'] as num?) ?? 0), c: BrandColors.gray),
+                row(_t(context, '   منها فيزا (مش في الدرج)', '   of which visa (not in drawer)'), _money(context, (s['card_sales_minor'] as num?) ?? 0), c: BrandColors.gray),
+              ],
               row(_t(context, 'المرتجعات', 'Refunds'), '- ${_money(context, s['refunds_minor'] as num)}'),
               if (((s['tips_minor'] as num?) ?? 0) > 0)
                 row(_t(context, 'بقشيش (خدته من الدرج)', 'Tips (taken from the drawer)'), _money(context, s['tips_minor'] as num), c: BrandColors.gray),

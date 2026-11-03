@@ -186,6 +186,10 @@ class _ShiftsPanelState extends ConsumerState<ShiftsPanel> {
                           Wrap(spacing: 18, runSpacing: 6, children: [
                             _stat(context, _t(context, 'صافي المبيعات', 'Net sales'), _money(context, b['net_minor'] as num), BrandColors.navy),
                             _stat(context, _t(context, 'المبيعات', 'Sales'), '${_money(context, b['sales_minor'] as num)} (${b['sales_count']})', null),
+                            if (b['card_minor'] != null) ...[
+                              _stat(context, _t(context, 'كاش', 'Cash'), _money(context, b['cash_minor'] as num), null),
+                              _stat(context, _t(context, 'فيزا', 'Visa'), '${_money(context, b['card_minor'] as num)} (${b['card_count']})', null),
+                            ],
                             _stat(context, _t(context, 'المرتجعات', 'Refunds'), _money(context, b['refunds_minor'] as num), null),
                             _stat(context, _t(context, 'ورديات مقفولة', 'Closed shifts'), '${b['shifts_closed']}', null),
                             _stat(context, _t(context, 'فرق الدرج', 'Drawer difference'), _money(context, b['variance_minor'] as num),
