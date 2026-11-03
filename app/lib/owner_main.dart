@@ -512,7 +512,8 @@ class _ChatPageState extends State<ChatPage> {
     } on FunctionException catch (e) {
       final code = e.details is Map ? (e.details as Map)['error'] : null;
       answer = switch (code) {
-        'no_ai_key' => 'المخ لسه ما اتوصلش: لازم تضيف مفتاح الذكاء الاصطناعي (ANTHROPIC_API_KEY) في إعدادات Supabase.',
+        'no_ai_key' => 'المخ لسه ما اتوصلش: ضيف مفتاح Gemini المجاني (GEMINI_API_KEY) في إعدادات Supabase.',
+        'ai_busy' => 'الذكاء الاصطناعي مشغول (حد الاستخدام المجاني)، جرب بعد دقيقة.',
         'bad_ai_key' => 'مفتاح الذكاء الاصطناعي غلط أو منتهي.',
         'owner_only' => 'التطبيق ده للمالك بس.',
         'unauthorized' => 'سجّل دخول تاني.',

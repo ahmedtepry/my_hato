@@ -212,8 +212,9 @@ Deno.serve(async (req) => {
   if (!uid) return reply(401, { error: "unauthorized" });
   const { data: isOwner } = await svc.from("user_roles").select("user_id").eq("user_id", uid).eq("role", "owner").limit(1);
   if (!isOwner?.length) return reply(403, { error: "owner_only" });
-  const key = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!key) return reply(503, { error: "no_ai_key" });
+  const gemKey = Deno.env.get("GEMINI_API_KEY"); // free tier (Google AI Studio), preferred
+  const antKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!gemKey && !antKey) return reply(503, { error: "no_ai_key" });
 
   let body: A;
   try { body = await req.json(); } catch { return reply(400, { error: "invalid_body" }); }
@@ -228,32 +229,73 @@ Deno.serve(async (req) => {
   const turn = crypto.randomUUID();
   const ctx = { user, svc, uid, turn };
   const now = new Date().toLocaleString("en-GB", { timeZone: "Africa/Cairo" });
-  const msgs: A[] = [...history];
   let text = "";
-  for (let i = 0; i < MAX_LOOPS; i++) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system: SYSTEM(now), tools: TOOLS, messages: msgs }),
+  if (gemKey) {
+    // Gemini: functionDeclarations, the model's own content (with any thought signature) is echoed back untouched
+    const decls = TOOLS.map((t) => {
+      const props = t.input_schema.properties as A;
+      const d: A = { name: t.name, description: t.description };
+      if (Object.keys(props).length) d.parameters = { type: "object", properties: props, required: t.input_schema.required };
+      return d;
     });
-    if (!res.ok) {
-      const t = await res.text();
-      console.error("anthropic", res.status, t.slice(0, 300));
-      return reply(502, { error: res.status === 401 ? "bad_ai_key" : "ai_failed" });
+    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-flash-latest";
+    const contents: A[] = history.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+    for (let i = 0; i < MAX_LOOPS; i++) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "x-goog-api-key": gemKey, "content-type": "application/json" },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM(now) }] }, contents, tools: [{ functionDeclarations: decls }], generationConfig: { maxOutputTokens: 1500 } }),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        console.error("gemini", res.status, t.slice(0, 400));
+        return reply(502, { error: res.status === 400 || res.status === 403 ? "bad_ai_key" : res.status === 429 ? "ai_busy" : "ai_failed" });
+      }
+      const j: A = await res.json();
+      const content = j.candidates?.[0]?.content;
+      if (!content) break;
+      contents.push(content);
+      const parts = (content.parts ?? []) as A[];
+      text = parts.filter((p) => typeof p.text === "string" && !p.thought).map((p) => p.text).join("\n").trim();
+      const calls = parts.filter((p) => p.functionCall);
+      if (!calls.length) break;
+      const out: A[] = [];
+      for (const p of calls) {
+        let r: unknown;
+        try { r = await runTool(p.functionCall.name, p.functionCall.args ?? {}, ctx); } catch (e) { r = { error: String(e).slice(0, 200) }; }
+        const s2 = JSON.stringify(r);
+        out.push({ functionResponse: { name: p.functionCall.name, response: { result: s2.length > 12000 ? s2.slice(0, 12000) + "...(cut)" : r } } });
+      }
+      contents.push({ role: "user", parts: out });
     }
-    const j: A = await res.json();
-    msgs.push({ role: "assistant", content: j.content });
-    const uses = (j.content as A[]).filter((c) => c.type === "tool_use");
-    text = (j.content as A[]).filter((c) => c.type === "text").map((c) => c.text).join("\n").trim();
-    if (j.stop_reason !== "tool_use" || !uses.length) break;
-    const results: A[] = [];
-    for (const u of uses) {
-      let r: unknown;
-      try { r = await runTool(u.name, u.input ?? {}, ctx); } catch (e) { r = { error: String(e).slice(0, 200) }; }
-      const s = JSON.stringify(r);
-      results.push({ type: "tool_result", tool_use_id: u.id, content: s.length > 12000 ? s.slice(0, 12000) + "…(cut)" : s });
+  } else {
+    const key = antKey!;
+    const msgs: A[] = [...history];
+    for (let i = 0; i < MAX_LOOPS; i++) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: MODEL, max_tokens: 1500, system: SYSTEM(now), tools: TOOLS, messages: msgs }),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        console.error("anthropic", res.status, t.slice(0, 300));
+        return reply(502, { error: res.status === 401 ? "bad_ai_key" : "ai_failed" });
+      }
+      const j: A = await res.json();
+      msgs.push({ role: "assistant", content: j.content });
+      const uses = (j.content as A[]).filter((c) => c.type === "tool_use");
+      text = (j.content as A[]).filter((c) => c.type === "text").map((c) => c.text).join("\n").trim();
+      if (j.stop_reason !== "tool_use" || !uses.length) break;
+      const results: A[] = [];
+      for (const u of uses) {
+        let r: unknown;
+        try { r = await runTool(u.name, u.input ?? {}, ctx); } catch (e) { r = { error: String(e).slice(0, 200) }; }
+        const s = JSON.stringify(r);
+        results.push({ type: "tool_result", tool_use_id: u.id, content: s.length > 12000 ? s.slice(0, 12000) + "…(cut)" : s });
+      }
+      msgs.push({ role: "user", content: results });
     }
-    msgs.push({ role: "user", content: results });
   }
   const { data: pend } = await svc.from("assistant_pending").select("summary").eq("user_id", uid).eq("turn", turn);
   return reply(200, { reply: text || "تمام.", pending: (pend ?? []).map((p: A) => p.summary) });
