@@ -380,6 +380,7 @@ class OwnerUpdater extends ChangeNotifier {
   String status = ''; // '' | 'downloading' | 'ready' | 'need_permission'
   double progress = 0;
   int? build;
+  String note = ''; // result of a manual check, shown by the update button
   bool _busy = false;
   Timer? _timer;
 
@@ -395,16 +396,25 @@ class OwnerUpdater extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<void> check() async {
-    if (_busy) return;
+  Future<void> check({bool manual = false}) async {
+    if (_busy) {
+      if (manual) note = 'بيحمّل تحديث بالفعل…';
+      return;
+    }
     _busy = true;
     try {
       final db = Supabase.instance.client;
       final rows = (await db.rpc('latest_owner_update')) as List? ?? const [];
-      if (rows.isEmpty) return;
+      if (rows.isEmpty) {
+        if (manual) note = 'مفيش تحديث جديد';
+        return;
+      }
       final r = Map<String, dynamic>.from(rows.first as Map);
       final b = (r['build'] as num).toInt();
-      if (b <= _kBuild) return;
+      if (b <= _kBuild) {
+        if (manual) note = 'إنت على أحدث نسخة (رقم $_kBuild) ✔';
+        return;
+      }
       build = b;
       status = 'downloading';
       progress = 0;
@@ -447,6 +457,7 @@ class OwnerUpdater extends ChangeNotifier {
       await install();
     } catch (_) {
       status = '';
+      if (manual) note = 'ما قدرتش أحمّل التحديث، اتأكد من النت وجرب تاني';
       notifyListeners();
     } finally {
       _busy = false;
@@ -617,6 +628,18 @@ class _ChatPageState extends State<ChatPage> {
     return answer;
   }
 
+  Future<void> _updateTap() async {
+    if (_upd.status == 'ready' || _upd.status == 'need_permission') {
+      await _upd.install();
+      return;
+    }
+    if (_upd.status == 'downloading') return;
+    _upd.note = '';
+    _note('بدوّر على تحديث…');
+    await _upd.check(manual: true);
+    if (mounted && _upd.note.isNotEmpty) _note(_upd.note);
+  }
+
   void _call() {
     Navigator.of(context).push(PageRouteBuilder(
       opaque: true,
@@ -652,6 +675,22 @@ class _ChatPageState extends State<ChatPage> {
             ]),
           ]),
           actions: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
+              child: (_upd.status == 'ready' || _upd.status == 'need_permission')
+                  ? FilledButton.icon(
+                      onPressed: _updateTap,
+                      icon: const Icon(Icons.system_update_alt_rounded, size: 18),
+                      label: const Text('ثبّت التحديث', style: TextStyle(fontWeight: FontWeight.w800)),
+                      style: FilledButton.styleFrom(backgroundColor: _cyan, foregroundColor: const Color(0xFF031022), padding: const EdgeInsets.symmetric(horizontal: 12), visualDensity: VisualDensity.compact),
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: _upd.status == 'downloading' ? null : _updateTap,
+                      icon: const Icon(Icons.system_update_alt_rounded, size: 18),
+                      label: Text(_upd.status == 'downloading' ? 'بيحمّل…' : 'تحديث', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      style: OutlinedButton.styleFrom(foregroundColor: _cyan, side: BorderSide(color: _cyan.withValues(alpha: .7)), padding: const EdgeInsets.symmetric(horizontal: 12), visualDensity: VisualDensity.compact),
+                    ),
+            ),
             IconButton(tooltip: 'اتصل بالسكرتيرة', icon: const Icon(Icons.call_rounded, color: _cyan), onPressed: _call),
             PopupMenuButton<String>(
               color: _panel,
