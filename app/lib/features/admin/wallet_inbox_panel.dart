@@ -188,6 +188,11 @@ class _WalletInboxPanelState extends ConsumerState<WalletInboxPanel> {
         ref.invalidate(_inboxProvider);
       });
 
+  Future<void> _setAuto(bool on) => _run(() async {
+        await ref.read(supabaseProvider).rpc('wallet_inbox_set_auto', params: {'p_on': on});
+        ref.invalidate(_stateProvider);
+      });
+
   Future<void> _newKey() async {
     final sure = await showDialog<bool>(
       context: context,
@@ -316,6 +321,14 @@ class _WalletInboxPanelState extends ConsumerState<WalletInboxPanel> {
                 subtitle: Text(has ? _t(context, 'لو قفلته، أي رسالة جاية هتتجاهل.', 'When off, any incoming message is ignored.') : _t(context, 'اعمل مفتاح الأول.', 'Make a key first.')),
                 value: s['enabled'] == true,
                 onChanged: (_busy || !has) ? null : _setEnabled,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(_t(context, 'تأكيد الدفع تلقائي', 'Confirm payments automatically')),
+                subtitle: Text(_t(context, 'لما توصل رسالة حقيقية من المحفظة بنفس المبلغ ومن نفس رقم العميل، الأوردر يتأكد لوحده. أي حالة مش واضحة بتفضل لمراجعة الفريق.',
+                    'When the real wallet SMS arrives with the same amount and from the customer\'s number, the order is confirmed by itself. Unclear cases stay for the team.')),
+                value: s['auto_confirm'] == true,
+                onChanged: (_busy || !has || s['enabled'] != true) ? null : _setAuto,
               ),
               Wrap(spacing: 8, children: [
                 OutlinedButton.icon(onPressed: _busy ? null : _newKey, icon: const Icon(Icons.vpn_key_outlined, size: 18), label: Text(has ? _t(context, 'مفتاح جديد', 'New key') : _t(context, 'اعمل المفتاح', 'Make the key'))),
