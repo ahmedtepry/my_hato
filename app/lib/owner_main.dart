@@ -15,6 +15,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'core/config.dart';
 
@@ -575,9 +576,9 @@ class _ChatPageState extends State<ChatPage> {
         if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent + 200, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
       });
 
-  Future<void> _send(String text) async {
+  Future<String> _send(String text, {bool voice = false}) async {
     text = text.trim();
-    if (text.isEmpty || _busy) return;
+    if (text.isEmpty || _busy) return '';
     _input.clear();
     setState(() { _msgs.add(_Msg('user', text)); _busy = true; });
     _save();
@@ -588,6 +589,7 @@ class _ChatPageState extends State<ChatPage> {
       final hist = _msgs.length > 16 ? _msgs.sublist(_msgs.length - 16) : _msgs;
       final res = await Supabase.instance.client.functions.invoke('owner-assistant', body: {
         'messages': [for (final m in hist) {'role': m.role, 'content': m.text}],
+        if (voice) 'voice': true,
       });
       final d = res.data is Map ? res.data as Map : <dynamic, dynamic>{};
       answer = (d['reply'] ?? 'تمام.').toString();
@@ -606,10 +608,19 @@ class _ChatPageState extends State<ChatPage> {
     } catch (_) {
       answer = 'مفيش اتصال، جرب تاني.';
     }
-    if (!mounted) return;
+    if (!mounted) return answer;
     setState(() { _msgs.add(_Msg('assistant', answer, pending: pending)); _busy = false; });
     _save();
     _down();
+    return answer;
+  }
+
+  void _call() {
+    Navigator.of(context).push(PageRouteBuilder(
+      opaque: true,
+      pageBuilder: (_, __, ___) => CallScreen(ask: (t) => _send(t, voice: true)),
+      transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+    ));
   }
 
   void _clear() {
@@ -639,6 +650,7 @@ class _ChatPageState extends State<ChatPage> {
             ]),
           ]),
           actions: [
+            IconButton(tooltip: 'اتصل بالسكرتيرة', icon: const Icon(Icons.call_rounded, color: _cyan), onPressed: _call),
             PopupMenuButton<String>(
               color: _panel,
               onSelected: (v) async {
@@ -827,6 +839,193 @@ class _ChatPageState extends State<ChatPage> {
           ]),
         ),
       );
+}
+
+/// A phone call with the secretary: she picks up, greets, listens, answers aloud, and keeps going until you hang up.
+class CallScreen extends StatefulWidget {
+  const CallScreen({super.key, required this.ask});
+  final Future<String> Function(String text) ask;
+  @override
+  State<CallScreen> createState() => _CallScreenState();
+}
+
+class _CallScreenState extends State<CallScreen> {
+  final _tts = FlutterTts();
+  final _stt = stt.SpeechToText();
+  String _state = 'ring'; // ring | speak | listen | think
+  String _caption = '';
+  bool _ended = false, _sttReady = false;
+  String? _locale;
+  Completer<String>? _heard;
+  String _partial = '';
+  int _secs = 0;
+  Timer? _clock;
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) => mounted && _state != 'ring' ? setState(() => _secs++) : null);
+    _run();
+  }
+
+  @override
+  void dispose() {
+    _ended = true;
+    _clock?.cancel();
+    _tts.stop();
+    _stt.cancel();
+    super.dispose();
+  }
+
+  void _set(String st, [String cap = '']) {
+    if (mounted) setState(() { _state = st; _caption = cap; });
+  }
+
+  String _spoken(String t) => t
+      .replaceAll(RegExp(r'[*_`#>|~]'), ' ')
+      .replaceAll('ج.م', 'جنيه')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  Future<void> _say(String t) async {
+    if (_ended) return;
+    _set('speak', t);
+    try {
+      await _tts.speak(_spoken(t));
+    } catch (_) {}
+  }
+
+  Future<String> _listen() async {
+    if (_ended) return '';
+    if (!_sttReady) {
+      _sttReady = await _stt.initialize(
+        onStatus: (st) {
+          if (st == 'done' || st == 'notListening') {
+            final c = _heard;
+            if (c != null && !c.isCompleted) c.complete(_partial);
+          }
+        },
+        onError: (e) {
+          final c = _heard;
+          if (c != null && !c.isCompleted) c.complete('');
+        },
+      );
+      if (!_sttReady) return '';
+      final locs = await _stt.locales();
+      for (final pref in ['ar_EG', 'ar-EG', 'ar_SA', 'ar-SA']) {
+        for (final l in locs) {
+          if (l.localeId == pref && _locale == null) _locale = l.localeId;
+        }
+      }
+      _locale ??= locs.where((l) => l.localeId.toLowerCase().startsWith('ar')).map((l) => l.localeId).firstOrNull;
+    }
+    _partial = '';
+    _heard = Completer<String>();
+    _set('listen');
+    await _stt.listen(
+      localeId: _locale,
+      pauseFor: const Duration(seconds: 2),
+      listenFor: const Duration(seconds: 30),
+      listenOptions: stt.SpeechListenOptions(partialResults: true, cancelOnError: true, listenMode: stt.ListenMode.dictation),
+      onResult: (r) {
+        _partial = r.recognizedWords;
+        if (mounted) setState(() => _caption = _partial);
+        if (r.finalResult && !_heard!.isCompleted) _heard!.complete(_partial);
+      },
+    );
+    final t = await _heard!.future;
+    await _stt.stop();
+    return t.trim();
+  }
+
+  Future<void> _run() async {
+    try {
+      await _tts.awaitSpeakCompletion(true);
+      final ar = await _tts.isLanguageAvailable('ar-EG') == true ? 'ar-EG' : 'ar';
+      await _tts.setLanguage(ar);
+      await _tts.setSpeechRate(0.48);
+      await _tts.setPitch(1.05);
+    } catch (_) {}
+    await Future<void>.delayed(const Duration(milliseconds: 1400));
+    await _say('معاك يا استاذ أحمد، أساعدك إزاي؟');
+    var silent = 0;
+    while (!_ended) {
+      final heard = await _listen();
+      if (_ended) break;
+      if (heard.isEmpty) {
+        if (++silent >= 3) {
+          await _say('أنا موجودة لو احتجتني يا استاذ أحمد.');
+          break;
+        }
+        continue;
+      }
+      silent = 0;
+      final low = heard.replaceAll(RegExp(r'\s+'), ' ');
+      if (RegExp(r'^(سلام|مع السلامة|باي|اقفلي|اقفل الخط|شكرا مع السلامة)').hasMatch(low)) {
+        await _say('في أمان الله يا استاذ أحمد.');
+        break;
+      }
+      _set('think', heard);
+      final answer = await widget.ask(heard);
+      if (_ended) break;
+      await _say(answer.isEmpty ? 'مسمعتش كويس، ممكن تعيد؟' : answer);
+    }
+    if (mounted && !_ended) Navigator.of(context).maybePop();
+  }
+
+  String get _label => switch (_state) {
+        'ring' => 'بيرن…',
+        'speak' => 'بتتكلم',
+        'listen' => 'بسمعك…',
+        _ => 'بفكر…',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final mm = (_secs ~/ 60).toString().padLeft(2, '0'), ss = (_secs % 60).toString().padLeft(2, '0');
+    return Scaffold(
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: Column(children: [
+          const SizedBox(height: 28),
+          const Text('// SECURE LINE', textDirection: TextDirection.ltr, style: TextStyle(color: _cyan, fontSize: 12, letterSpacing: 3, fontFamily: 'monospace')),
+          const SizedBox(height: 8),
+          const Text('السكرتيرة', style: TextStyle(color: _ink, fontSize: 26, fontWeight: FontWeight.w900)),
+          Text(_state == 'ring' ? _label : '$_label  •  $mm:$ss', style: const TextStyle(color: _muted)),
+          const Spacer(),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: _state == 'listen' ? _danger : _cyan.withValues(alpha: .6), width: _state == 'listen' ? 3 : 1),
+              boxShadow: [BoxShadow(color: (_state == 'listen' ? _danger : _cyan).withValues(alpha: .35), blurRadius: _state == 'ring' ? 10 : 40, spreadRadius: 4)],
+            ),
+            child: RobotFace(size: 150, thinking: _state == 'think' || _state == 'speak'),
+          ),
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Text(_caption, maxLines: 5, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: _ink, fontSize: 16, height: 1.6)),
+          ),
+          const SizedBox(height: 28),
+          InkWell(
+            onTap: () => Navigator.of(context).maybePop(),
+            customBorder: const CircleBorder(),
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE5484D)),
+              child: const Icon(Icons.call_end_rounded, color: Colors.white, size: 34),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text('إنهاء المكالمة', style: TextStyle(color: _muted, fontSize: 12)),
+          const SizedBox(height: 28),
+        ]),
+      ),
+    );
+  }
 }
 
 class _Typing extends StatefulWidget {
