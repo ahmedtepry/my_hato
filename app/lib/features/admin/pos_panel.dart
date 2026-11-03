@@ -304,6 +304,14 @@ class _Line {
   int get price => (p['price_minor'] as num).toInt();
 }
 
+/// A sale put on hold (customer went to fetch something): kept on this screen only, until it is resumed or the shift screen closes.
+class _Held {
+  _Held(this.lines, this.discount, this.pm, this.at);
+  final List<_Line> lines;
+  final String discount, pm;
+  final DateTime at;
+}
+
 class _Register extends ConsumerStatefulWidget {
   const _Register({super.key, required this.shift});
   final Map<String, dynamic> shift;
@@ -317,6 +325,7 @@ class _RegisterState extends ConsumerState<_Register> {
   final _discount = TextEditingController();
   final _cash = TextEditingController();
   final _cart = <String, _Line>{};
+  final _held = <_Held>[];
   List<Map<String, dynamic>> _products = const [];
   bool _loadingProducts = true;
   String? _productsError;
@@ -466,6 +475,68 @@ class _RegisterState extends ConsumerState<_Register> {
     _approvalAmount = 0;
   }
 
+  /// Cash paid out of the drawer (cleaning, a delivery fee...): needs a reason and comes off the expected drawer.
+  Future<void> _addExpense() async {
+    final amount = TextEditingController();
+    final reason = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text(_t(d, 'مصروف من الدرج', 'Expense from the drawer')),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: amount, autofocus: true, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: _t(d, 'المبلغ (ج.م)', 'Amount (EGP)'))),
+          const SizedBox(height: 8),
+          TextField(controller: reason, decoration: InputDecoration(labelText: _t(d, 'السبب', 'Reason'))),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(d, 'إلغاء', 'Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(_t(d, 'سجّل', 'Save'))),
+        ],
+      ),
+    );
+    final minor = parseEgpToMinor(amount.text);
+    final why = reason.text.trim();
+    amount.dispose();
+    reason.dispose();
+    if (ok != true || !mounted) return;
+    if (minor == null || minor <= 0 || why.length < 3) {
+      showSnack(context, _t(context, 'اكتب المبلغ والسبب', 'Enter the amount and a reason'), error: true);
+      return;
+    }
+    try {
+      await ref.read(posRepoProvider).addExpense(_shiftId, minor, why);
+      ref.invalidate(posShiftProvider);
+      if (mounted) showSnack(context, _t(context, 'اتسجّل المصروف واتخصم من الدرج', 'Expense saved and taken off the drawer'));
+    } catch (e) {
+      if (mounted) showSnack(context, _err(context, e), error: true);
+    }
+  }
+
+  void _hold() {
+    if (_cart.isEmpty || _unknown || _busy) return;
+    setState(() {
+      _held.add(_Held([for (final l in _cart.values) _Line(l.p, l.q)], _discount.text, _pm, DateTime.now()));
+      _reset();
+    });
+    showSnack(context, _t(context, 'البيعة اتعلّقت، كمّل بيع تاني وارجعلها من "المعلّقة"', 'Sale put on hold; resume it from "On hold"'));
+  }
+
+  void _resume(int i) {
+    if (_cart.isNotEmpty) {
+      showSnack(context, _t(context, 'خلّص أو علّق السلة الحالية الأول', 'Finish or hold the current cart first'), error: true);
+      return;
+    }
+    final h = _held[i];
+    setState(() {
+      _held.removeAt(i);
+      for (final l in h.lines) {
+        _cart[l.p['id'] as String] = l;
+      }
+      _discount.text = h.discount;
+      _pm = h.pm;
+    });
+  }
+
   Future<void> _complete() async {
     if (_busy || _cart.isEmpty) return;
     final discount = _discountMinor;
@@ -600,6 +671,11 @@ class _RegisterState extends ConsumerState<_Register> {
             Text('· ${_t(context, 'كاش', 'Cash')} ${_money(context, (s['cash_sales_minor'] as num?) ?? 0)} · ${_t(context, 'فيزا', 'Visa')} ${_money(context, (s['card_sales_minor'] as num?) ?? 0)} · ${_t(context, 'محافظ', 'Wallets')} ${_money(context, (s['wallet_sales_minor'] as num?) ?? 0)}', style: const TextStyle(color: BrandColors.gray)),
           Text('· ${_t(context, 'المفروض في الدرج', 'Expected in drawer')} ${_money(context, (s['expected_minor'] as num?) ?? 0)}', style: const TextStyle(color: BrandColors.gray)),
           OutlinedButton.icon(
+            icon: const Icon(Icons.receipt_long_outlined, size: 18),
+            label: Text(_t(context, 'مصروف', 'Expense')),
+            onPressed: _unknown ? null : _addExpense,
+          ),
+          OutlinedButton.icon(
             icon: const Icon(Icons.assignment_return_outlined, size: 18),
             label: Text(_t(context, 'مرتجع', 'Refund')),
             onPressed: _unknown ? null : () => showDialog<void>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((_) => ref.invalidate(posShiftProvider)),
@@ -732,6 +808,28 @@ class _RegisterState extends ConsumerState<_Register> {
           Row(children: [
             Text(_t(context, 'السلة', 'Cart'), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
             const Spacer(),
+            if (_cart.isNotEmpty && !_unknown)
+              TextButton.icon(
+                icon: const Icon(Icons.pause_circle_outline, size: 18),
+                label: Text(_t(context, 'علّق', 'Hold')),
+                onPressed: _hold,
+              ),
+            if (_held.isNotEmpty)
+              PopupMenuButton<int>(
+                tooltip: _t(context, 'البيعات المعلّقة', 'Sales on hold'),
+                onSelected: _resume,
+                itemBuilder: (_) => [
+                  for (var i = 0; i < _held.length; i++)
+                    PopupMenuItem(
+                      value: i,
+                      child: Text('${_held[i].lines.fold<int>(0, (a, l) => a + l.q)} ${_t(context, 'قطعة', 'items')} · ${_money(context, _held[i].lines.fold<int>(0, (a, l) => a + l.price * l.q))} · ${_held[i].at.hour.toString().padLeft(2, '0')}:${_held[i].at.minute.toString().padLeft(2, '0')}'),
+                    ),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Chip(avatar: const Icon(Icons.pause_circle_filled_rounded, size: 18), label: Text('${_t(context, 'معلّقة', 'On hold')} (${_held.length})'), visualDensity: VisualDensity.compact),
+                ),
+              ),
             if (_cart.isNotEmpty && !_unknown)
               TextButton.icon(
                 icon: const Icon(Icons.delete_sweep_outlined, size: 18),
@@ -1366,6 +1464,7 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
                 row(_t(context, '   محافظ إلكترونية', '   E-wallets'), _money(context, (s['wallet_sales_minor'] as num?) ?? 0), c: BrandColors.gray),
               ],
               row(_t(context, 'المرتجعات', 'Refunds'), '- ${_money(context, s['refunds_minor'] as num)}'),
+              if (((s['expenses_minor'] as num?) ?? 0) > 0) row(_t(context, 'مصروفات من الدرج', 'Drawer expenses'), '- ${_money(context, s['expenses_minor'] as num)}'),
               if (((s['tips_minor'] as num?) ?? 0) > 0)
                 row(_t(context, 'بقشيش (خدته من الدرج)', 'Tips (taken from the drawer)'), _money(context, s['tips_minor'] as num), c: BrandColors.gray),
               if (((s['tips_kept_minor'] as num?) ?? 0) > 0)

@@ -85,6 +85,9 @@ class PosRepository {
         'p_approval': approvalId,
       }));
 
+  Future<void> addExpense(String shiftId, int amountMinor, String reason) =>
+      _db.rpc('pos_add_expense', params: {'p_shift': shiftId, 'p_amount_minor': amountMinor, 'p_reason': reason});
+
   Future<Map<String, dynamic>> markTip(String saleId, {bool inDrawer = false}) async => _m(await _db.rpc('pos_mark_tip', params: {'p_sale': saleId, 'p_in_drawer': inDrawer}));
 
   Future<List<Map<String, dynamic>>> recentSales(String shiftId) async => _l(await _db

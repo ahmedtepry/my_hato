@@ -565,6 +565,7 @@ class _ShiftDialog extends ConsumerWidget {
                 _kv(ctx, _t(ctx, 'محافظ إلكترونية', 'E-wallets'), _money(ctx, (s['wallet_sales_minor'] as num?) ?? 0)),
               ],
               _kv(ctx, _t(ctx, 'المرتجعات', 'Refunds'), _money(ctx, (s['refunds_minor'] as num?) ?? 0)),
+              if (((s['expenses_minor'] as num?) ?? 0) > 0) _kv(ctx, _t(ctx, 'مصروفات من الدرج', 'Drawer expenses'), _money(ctx, (s['expenses_minor'] as num?) ?? 0)),
               _kv(ctx, _t(ctx, 'المفروض في الدرج', 'Expected in drawer'), _money(ctx, (s['expected_minor'] as num?) ?? 0), bold: true),
               const SizedBox(height: 10),
               OutlinedButton.icon(
