@@ -78,7 +78,7 @@ class _OwnerAppState extends State<OwnerApp> {
         );
         return base.copyWith(textTheme: GoogleFonts.tajawalTextTheme(base.textTheme));
       }(),
-      builder: (context, child) => Stack(children: [
+      builder: (context, child) => Stack(fit: StackFit.expand, children: [
         child ?? const SizedBox.shrink(),
         const IgnorePointer(child: SizedBox.expand(child: CustomPaint(painter: _Scanlines()))),
       ]),
@@ -906,11 +906,16 @@ class _CallScreenState extends State<CallScreen> {
           }
         },
         onError: (e) {
+          if (mounted && _state == 'listen') setState(() => _caption = 'مش سامعك (${e.errorMsg})');
           final c = _heard;
           if (c != null && !c.isCompleted) c.complete('');
         },
       );
-      if (!_sttReady) return '';
+      if (!_sttReady) {
+        if (mounted) setState(() => _caption = 'التعرف على الصوت مش متاح: اسمح بالميكروفون وفعّل Google من إعدادات الموبايل');
+        await Future<void>.delayed(const Duration(seconds: 4));
+        return '';
+      }
       final locs = await _stt.locales();
       for (final pref in ['ar_EG', 'ar-EG', 'ar_SA', 'ar-SA']) {
         for (final l in locs) {
@@ -953,10 +958,13 @@ class _CallScreenState extends State<CallScreen> {
       final heard = await _listen();
       if (_ended) break;
       if (heard.isEmpty) {
-        if (++silent >= 3) {
+        silent++;
+        if (silent == 3) await _say('لسه معايا يا استاذ أحمد؟');
+        if (silent >= 6) {
           await _say('أنا موجودة لو احتجتني يا استاذ أحمد.');
           break;
         }
+        await Future<void>.delayed(const Duration(milliseconds: 600));
         continue;
       }
       silent = 0;
@@ -986,7 +994,9 @@ class _CallScreenState extends State<CallScreen> {
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
-        child: Column(children: [
+        child: SizedBox(
+          width: double.infinity,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
           const SizedBox(height: 28),
           const Text('// SECURE LINE', textDirection: TextDirection.ltr, style: TextStyle(color: _cyan, fontSize: 12, letterSpacing: 3, fontFamily: 'monospace')),
           const SizedBox(height: 8),
@@ -1006,7 +1016,11 @@ class _CallScreenState extends State<CallScreen> {
           const Spacer(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Text(_caption, maxLines: 5, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: _ink, fontSize: 16, height: 1.6)),
+            child: SizedBox(
+              height: 130,
+              width: double.infinity,
+              child: Center(child: Text(_caption, maxLines: 5, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: _ink, fontSize: 17, height: 1.6))),
+            ),
           ),
           const SizedBox(height: 28),
           InkWell(
@@ -1023,6 +1037,7 @@ class _CallScreenState extends State<CallScreen> {
           const Text('إنهاء المكالمة', style: TextStyle(color: _muted, fontSize: 12)),
           const SizedBox(height: 28),
         ]),
+        ),
       ),
     );
   }
