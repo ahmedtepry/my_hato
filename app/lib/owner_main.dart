@@ -158,17 +158,29 @@ class _LoginPageState extends State<LoginPage> {
     setState(() { _busy = true; _err = null; });
     final db = Supabase.instance.client;
     try {
-      await db.auth.signInWithPassword(email: _email.text.trim().toLowerCase(), password: _pass.text);
+      var id = _email.text.trim();
+      if (id.isEmpty || _pass.text.isEmpty) {
+        setState(() => _err = 'اكتب اسم المستخدم وكلمة السر.');
+        return;
+      }
+      var email = id.toLowerCase();
+      if (!id.contains('@')) {
+        // a username or mobile number: the database checks the password and gives back the account email (same as the team app)
+        final e = await db.rpc('login_email_for', params: {'p_identifier': id, 'p_password': _pass.text}) as String?;
+        if (e == null) throw const AuthException('Invalid login credentials', code: 'invalid_credentials');
+        email = e.trim().toLowerCase();
+      }
+      await db.auth.signInWithPassword(email: email, password: _pass.text);
       // only the owner holds this permission
       final ok = await db.rpc('has_permission', params: {'p_permission': 'permissions.manage'});
       if (ok != true) {
         await db.auth.signOut();
         setState(() => _err = 'الحساب ده مش حساب المالك.');
       } else {
-        await widget.prefs.setString('owner_email', _email.text.trim().toLowerCase());
+        await widget.prefs.setString('owner_email', id);
       }
     } on AuthException {
-      setState(() => _err = 'الإيميل أو كلمة السر غلط.');
+      setState(() => _err = 'اسم المستخدم أو كلمة السر غلط.');
     } catch (_) {
       setState(() => _err = 'مفيش اتصال، جرب تاني.');
     } finally {
@@ -192,7 +204,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 4),
                 const Text('كلّم النظام زي ما بتكلّم موظف شاطر', style: TextStyle(color: _muted)),
                 const SizedBox(height: 26),
-                _field(_email, 'الإيميل', TextInputType.emailAddress, false),
+                _field(_email, 'اسم المستخدم أو الإيميل', TextInputType.emailAddress, false),
                 const SizedBox(height: 12),
                 _field(_pass, 'كلمة السر', TextInputType.visiblePassword, true),
                 if (_err != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_err!, style: const TextStyle(color: _danger))),
