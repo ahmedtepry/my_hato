@@ -3,6 +3,7 @@
 // After "Start the shift" the robot flies to the side, says it is around, and its panel opens. "Close the shift for me" lets the robot run
 // the closing on the employee's behalf (he still gives the count and his fingerprint/password: the robot never closes anything alone).
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -50,12 +51,70 @@ final robotCommandProvider = StateProvider<String?>((ref) => null);
 final robotReplyProvider = StateProvider<String?>((ref) => null);
 
 class RobotMsg {
-  RobotMsg(this.mine, this.text);
+  RobotMsg(this.mine, this.text, [DateTime? at]) : at = at ?? DateTime.now();
   final bool mine;
   final String text;
+  final DateTime at;
+
+  Map<String, dynamic> toJson() => {'m': mine, 't': text, 'a': at.millisecondsSinceEpoch};
+  static RobotMsg? fromJson(Object? j) {
+    if (j is! Map || j['t'] is! String) return null;
+    return RobotMsg(j['m'] == true, j['t'] as String, DateTime.fromMillisecondsSinceEpoch((j['a'] as num?)?.toInt() ?? 0));
+  }
 }
 
-final robotMessagesProvider = StateProvider<List<RobotMsg>>((ref) => []);
+/// Each employee has his own robot conversation: it is kept on this computer under his own account id, survives closing and reopening the
+/// program (the last [robotKeepDays] days, at most [robotKeepMax] messages), and is never shown to another employee who signs in afterwards.
+const robotKeepDays = 7;
+const robotKeepMax = 200;
+
+class RobotMessages extends StateNotifier<List<RobotMsg>> {
+  RobotMessages(this._prefs, this._uid) : super(const []) {
+    final key = _key;
+    if (key == null || _prefs == null) return;
+    try {
+      final raw = _prefs.getString(key);
+      if (raw == null) return;
+      final cutoff = DateTime.now().subtract(const Duration(days: robotKeepDays));
+      final list = <RobotMsg>[
+        for (final e in jsonDecode(raw) as List)
+          if (RobotMsg.fromJson(e) case final m? when m.at.isAfter(cutoff)) m,
+      ];
+      super.state = list;
+    } catch (_) {}
+  }
+
+  final dynamic _prefs; // SharedPreferences (null when it is not ready)
+  final String? _uid;
+  String? get _key => _uid == null || _uid.isEmpty ? null : 'robot_chat_$_uid';
+
+  @override
+  set state(List<RobotMsg> v) {
+    final kept = v.length > robotKeepMax ? v.sublist(v.length - robotKeepMax) : v;
+    super.state = kept;
+    final key = _key;
+    if (key == null || _prefs == null) return;
+    try {
+      _prefs.setString(key, jsonEncode([for (final m in kept) m.toJson()]));
+    } catch (_) {}
+  }
+
+  /// True when the robot has not said anything yet today (so it greets once per day, not on every start).
+  bool get noneToday {
+    final n = DateTime.now();
+    return !state.any((m) => m.at.year == n.year && m.at.month == n.month && m.at.day == n.day);
+  }
+}
+
+/// Rebuilt for every account that signs in, so one employee's conversation can never leak into the next one's.
+final robotMessagesProvider = StateNotifierProvider<RobotMessages, List<RobotMsg>>((ref) {
+  final uid = ref.watch(currentUserProvider)?.id;
+  dynamic prefs;
+  try {
+    prefs = ref.read(sharedPrefsProvider);
+  } catch (_) {}
+  return RobotMessages(prefs, uid);
+});
 
 /// Lives inside the till. Plays the welcome flight and carries out what the robot panel asks for.
 class RobotDock extends ConsumerStatefulWidget {
@@ -197,23 +256,26 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     // online employees: the robot keeps an eye on the orders and tells them when a new one arrives or one has waited too long
     _watch = Timer.periodic(const Duration(seconds: 60), (_) => _poll());
     Future.microtask(() {
-      if (ref.read(robotMessagesProvider).isEmpty && _isAcct()) {
+      if (ref.read(robotMessagesProvider.notifier).noneToday && _isAcct()) {
         final g = timeOfDayGreeting(context).greet;
         final w = accountantWelcome[DateTime.now().day % accountantWelcome.length];
         ref.read(robotMessagesProvider.notifier).state = [
+          ...ref.read(robotMessagesProvider),
           RobotMsg(false, '$g\n${_t(context, 'أنا مساعد المحاسب. هراجع معاك الأرقام والورديات والفروق، والقرار المالي دايمًا ليك.', 'I am the accountant assistant. I will go over the figures, shifts and differences with you; the financial decision is always yours.')}'),
           RobotMsg(false, _t(context, w.$1, w.$2)),
         ];
-      } else if (ref.read(robotMessagesProvider).isEmpty && _group() != null) {
+      } else if (ref.read(robotMessagesProvider.notifier).noneToday && _group() != null) {
         final g = timeOfDayGreeting(context).greet;
         final k = _group()!;
         final w = staffWelcome[k]!;
         ref.read(robotMessagesProvider.notifier).state = [
+          ...ref.read(robotMessagesProvider),
           RobotMsg(false, '$g\n${_t(context, w.$1, w.$2)}'),
           RobotMsg(false, _t(context, staffValues[DateTime.now().day % staffValues.length].$1, staffValues[DateTime.now().day % staffValues.length].$2)),
         ];
-      } else if (ref.read(robotMessagesProvider).isEmpty) {
+      } else if (ref.read(robotMessagesProvider.notifier).noneToday) {
         ref.read(robotMessagesProvider.notifier).state = [
+          ...ref.read(robotMessagesProvider),
           RobotMsg(false, _t(context, 'أنا روبوت الوردية. لو عايز تسألني، اختار من الحاجات الشائعة تحت. أنا بشرح وبساعد بس، والقرار دايمًا ليك.',
               'I am the shift robot. Pick one of the common questions below. I only explain and help, the decision is always yours.')),
         ];
