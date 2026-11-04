@@ -1917,6 +1917,24 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   late final _desc = TextEditingController();
   late final _sku = TextEditingController(text: p?['sku'] as String? ?? widget.initialSku ?? '');
   late final _model = TextEditingController(text: p?['model'] as String? ?? '');
+  late int? _warrantyMonths = _parseWarranty(p?['warranty_ar'] as String? ?? p?['warranty_en'] as String?);
+  static const _warrantyOptions = [1, 3, 6, 12, 24, 36];
+  static int? _parseWarranty(String? t) {
+    if (t == null || t.trim().isEmpty) return null;
+    if (RegExp('سنتين|سنتان').hasMatch(t)) return 24;
+    final m = RegExp(r'(\d+)\s*(شهر|شهور|أشهر|اشهر|month)').firstMatch(t);
+    if (m != null) return int.parse(m.group(1)!);
+    final y = RegExp(r'(\d+)\s*(سنة|سنين|سنوات|year)').firstMatch(t);
+    if (y != null) return int.parse(y.group(1)!) * 12;
+    if (t.contains('سنة') || t.contains('year')) return 12;
+    return null;
+  }
+
+  static String _warrantyAr(int m) => m == 12 ? 'سنة' : m == 24 ? 'سنتين' : m == 36 ? '3 سنين' : m == 1 ? 'شهر' : '$m شهور';
+  Map<String, dynamic> _warrantyFields() => {
+        'warranty_ar': _warrantyMonths == null ? null : _warrantyAr(_warrantyMonths!),
+        'warranty_en': _warrantyMonths == null ? null : '$_warrantyMonths ${_warrantyMonths == 1 ? 'month' : 'months'}',
+      };
   final _commission = TextEditingController();
   DateTime? _comFrom, _comTo; // optional start / end day of the commission
   bool _canCommission = false;
@@ -2011,6 +2029,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
         );
         await _saveCommission(newId);
         await _saveCost(newId);
+        if (_warrantyMonths != null) await repo.updateProduct(newId, _warrantyFields());
       } else {
         final sku = _sku.text.trim();
         if (sku.isNotEmpty && sku != p!['sku'] && await repo.skuTaken(sku, exceptId: p!['id'] as String)) throw Exception('SKU_TAKEN');
@@ -2025,6 +2044,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
           'category_id': _categoryId,
           'status': _published ? 'published' : 'draft',
           'is_featured': _featured,
+          if (_warrantyMonths != null || p!['warranty_ar'] != null) ..._warrantyFields(),
         });
         await repo.setStock(p!['id'] as String, (p!['stock_quantity'] as num).toInt(), stock);
         await _saveCommission(p!['id'] as String);
@@ -2200,6 +2220,16 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
                 ),
               ),
             ]),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int?>(
+              value: (_warrantyMonths == null || _warrantyOptions.contains(_warrantyMonths)) ? _warrantyMonths : null,
+              decoration: InputDecoration(labelText: _t(context, 'مدة الضمان', 'Warranty period'), prefixIcon: const Icon(Icons.verified_user_outlined)),
+              items: [
+                DropdownMenuItem<int?>(value: null, child: Text(_t(context, 'بدون ضمان', 'No warranty'))),
+                for (final m in _warrantyOptions) DropdownMenuItem<int?>(value: m, child: Text(_warrantyAr(m))),
+              ],
+              onChanged: (v) => setState(() => _warrantyMonths = v),
+            ),
             Padding(
               padding: const EdgeInsetsDirectional.only(start: 4, top: 4),
               child: Text(

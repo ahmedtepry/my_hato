@@ -319,7 +319,7 @@ class AdminRepository {
   // ---------------- products
   Future<List<Map<String, dynamic>>> products({String? search, bool lowStockOnly = false}) async {
     var q = _db.from('products').select(
-        'id, sku, name_ar, name_en, model, brand_id, price_minor, compare_at_price_minor, stock_quantity, status, is_featured, category_id, brands(name_ar, name_en), product_images(storage_path, sort_order)');
+        'id, sku, name_ar, name_en, model, warranty_ar, warranty_en, brand_id, price_minor, compare_at_price_minor, stock_quantity, status, is_featured, category_id, brands(name_ar, name_en), product_images(storage_path, sort_order)');
     if (search != null && search.trim().isNotEmpty) {
       final s = search.trim().replaceAll(RegExp(r'[,()%*]'), ' ');
       q = q.or('name_ar.ilike.*$s*,name_en.ilike.*$s*,sku.ilike.*$s*');
