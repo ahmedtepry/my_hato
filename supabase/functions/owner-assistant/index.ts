@@ -278,21 +278,23 @@ Deno.serve(async (req) => {
       return d;
     });
     // the free tier is often "high demand" on one model: try the next model instead of failing
-    const models = [Deno.env.get("GEMINI_MODEL") ?? "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"];
+    // Google retired the 2.5 models for new keys (404): the 3.x names first, then the "latest" aliases. A model that works is kept for the next loop.
+    const models = [Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-flash-latest"];
+    let good = 0;
     const contents: A[] = history.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
     for (let i = 0; i < MAX_LOOPS; i++) {
       const payload = JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM(now, mem, voice) }] }, contents, tools: [{ functionDeclarations: decls }], generationConfig: { maxOutputTokens: 1500 } });
       let res: Response | null = null;
       let last = 0;
-      for (const model of models) {
+      for (const model of models.slice(good)) {
         try {
           const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
             method: "POST",
             headers: { "x-goog-api-key": gemKey, "content-type": "application/json" },
             body: payload,
-            signal: AbortSignal.timeout(25000),
+            signal: AbortSignal.timeout(18000),
           });
-          if (r.ok) { res = r; break; }
+          if (r.ok) { res = r; good = models.indexOf(model); break; }
           last = r.status;
           const t = await r.text();
           console.error("gemini", model, r.status, t.slice(0, 300));
