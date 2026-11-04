@@ -32,6 +32,7 @@ jobs:
         shell: bash   # explicit bash => pipefail, so a failed build fails the job
         run: bash app/tool/ci_build.sh 2>&1 | tee build.log
       - uses: actions/upload-artifact@v4
+        continue-on-error: true # the release below is the real delivery; GitHub's artifact storage quota can be full
         with:
           name: myhato-release-apk
           path: dist/myhato-release.apk

@@ -67,6 +67,7 @@ jobs:
           powershell -NoProfile -Command "Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath '../dist/MyHatoTeam-windows.zip' -Force"
           ls -la ../dist
       - uses: actions/upload-artifact@v4
+        continue-on-error: true # the release below is the real delivery; GitHub's artifact storage quota can be full
         with:
           name: myhato-team-windows
           path: dist/*
