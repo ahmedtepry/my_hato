@@ -11,6 +11,7 @@ import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'books_period.dart';
 import 'pos_repository.dart';
+import '../../shared/motion.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
@@ -56,7 +57,7 @@ class ShiftReportsList extends ConsumerWidget {
                                 style: TextStyle(fontWeight: FontWeight.w800, color: v == 0 ? BrandColors.success : BrandColors.error)),
                             if (corr != 0) Text(_t(context, 'فيها تصحيح', 'Corrected'), style: const TextStyle(fontSize: 11, color: BrandColors.warning)),
                           ]),
-                          onTap: () => showDialog<void>(context: context, builder: (_) => ShiftReportDialog(shiftId: '${r['shift_id']}')).then((_) => ref.invalidate(shiftReportsProvider)),
+                          onTap: () => showSmoothDialog<void>(context: context, builder: (_) => ShiftReportDialog(shiftId: '${r['shift_id']}')).then((_) => ref.invalidate(shiftReportsProvider)),
                         ),
                       );
                     }),
@@ -102,7 +103,7 @@ class _ShiftReportDialogState extends ConsumerState<ShiftReportDialog> {
   }
 
   Future<void> _addCorrection() async {
-    final done = await showDialog<bool>(context: context, builder: (_) => _CorrectionDialog(shiftId: widget.shiftId));
+    final done = await showSmoothDialog<bool>(context: context, builder: (_) => _CorrectionDialog(shiftId: widget.shiftId));
     if (done == true && mounted) {
       setState(() => _future = ref.read(posRepoProvider).shiftReport(widget.shiftId));
       ref.invalidate(shiftReportsProvider);

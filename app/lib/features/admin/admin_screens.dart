@@ -2,6 +2,7 @@ import '../../core/app_update.dart';
 import '../../core/appearance.dart';
 import 'dart:async';
 import 'dart:typed_data';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -518,7 +519,7 @@ List<Widget> _chatTiles(BuildContext ctx, WidgetRef ref) {
       const SizedBox(height: 8),
       _RailTile(
         tooltip: _t(ctx, 'سجل الرسايل المباشرة (للرجوع ليها)', 'Direct message log'),
-        onTap: () => showDialog<void>(context: ctx, builder: (_) => ChatLogsDialog(canPurge: perms.contains('chat.purge'))),
+        onTap: () => showSmoothDialog<void>(context: ctx, builder: (_) => ChatLogsDialog(canPurge: perms.contains('chat.purge'))),
         label: _t(ctx, 'سجل الشات', 'Chat log'),
         child: const Icon(Icons.history_rounded, size: 32, color: BrandColors.electric),
       ),
@@ -733,7 +734,7 @@ class AdminHomeScreen extends ConsumerWidget {
             final onConsole = c.index >= consoleIdx;
             final current = onConsole ? null : tabs[c.index];
             final selected = current == null ? layout.pinned.length : layout.pinned.indexOf(current);
-            final pagesRaw = TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
+            final pagesRaw = SoftPageSwitch(index: c.index, children: [
                   for (final t in tabs)
                     switch (t) {
                       'pos' => const PosPanel(),
@@ -1354,7 +1355,7 @@ class _OrdersTab extends ConsumerWidget {
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (_, i) {
                       final o = list[i];
-                      return Card(
+                      return _Rise(i, child: Card(
                         child: ListTile(
                           onTap: () => _orderSheet(context, ref, o),
                           title: Text(o['reference'] as String, style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -1368,7 +1369,7 @@ class _OrdersTab extends ConsumerWidget {
                             _orderChip(context, o),
                           ]),
                         ),
-                      );
+                      ));
                     },
                   ),
           ),
@@ -1517,7 +1518,7 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
         ],
       ]));
   if (wide) {
-    await showDialog(
+    await showSmoothDialog(
       context: context,
       builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.all(24),
@@ -1571,7 +1572,7 @@ Future<void> _changeOrder(BuildContext ctx, WidgetRef ref, String id, String? to
 
 Future<String?> _askText(BuildContext context, String title, {String? hint, TextInputType? keyboard}) {
   final c = TextEditingController();
-  return showDialog<String>(
+  return showSmoothDialog<String>(
     context: context,
     builder: (d) => AlertDialog(
       title: Text(title),
@@ -1628,7 +1629,7 @@ class _RepairsTab extends ConsumerWidget {
                 itemBuilder: (_, i) {
                   final r = list[i];
                   final st = r['status'] as String;
-                  return Card(
+                  return _Rise(i, child: Card(
                     child: ListTile(
                       onTap: () => _repairSheet(context, ref, r),
                       title: Text('${r['reference']} • ${r['device_brand']} ${r['device_model']}', style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -1639,7 +1640,7 @@ class _RepairsTab extends ConsumerWidget {
                       isThreeLine: true,
                       trailing: _repairChip(context, labels, r),
                     ),
-                  );
+                  ));
                 },
               ),
       ),
@@ -1896,6 +1897,15 @@ class _ProductsTab extends ConsumerWidget {
   }
 }
 
+/// Rows of a list rise in one after another (first ten only, so scrolling a long list never replays).
+class _Rise extends StatelessWidget {
+  const _Rise(this.index, {required this.child});
+  final int index;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => index >= 10 ? child : FadeSlideIn(delay: FadeSlideIn.stagger(index, stepMs: 45, maxMs: 360), offset: 14, child: child);
+}
+
 class _ProductEditor extends ConsumerStatefulWidget {
   const _ProductEditor({this.product, this.initialSku});
   final Map<String, dynamic>? product;
@@ -2066,7 +2076,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   Future<String?> _newBrand() async {
     final ar = TextEditingController();
     final en = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(context, 'ماركة جديدة', 'New brand')),
@@ -2094,7 +2104,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
   }
 
   Future<void> _archive() async {
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(context, 'حذف المنتج؟', 'Delete product?')),
@@ -2660,7 +2670,7 @@ class _CancelRequestCardState extends ConsumerState<_CancelRequestCard> {
   Future<void> _decide(bool approve) async {
     String? note;
     if (approve) {
-      final ok = await showDialog<bool>(
+      final ok = await showSmoothDialog<bool>(
         context: context,
         builder: (d) => AlertDialog(
           title: Text(_t(context, 'توافق على الإلغاء؟', 'Approve cancellation?')),
@@ -3189,7 +3199,7 @@ class _ReviewModerationCardState extends ConsumerState<_ReviewModerationCard> {
 
   Future<void> _act(String action) async {
     if (action == 'remove') {
-      final ok = await showDialog<bool>(
+      final ok = await showSmoothDialog<bool>(
         context: context,
         builder: (d) => AlertDialog(
           title: Text(_t(context, 'مسح التقييم؟', 'Remove review?')),
@@ -3411,7 +3421,7 @@ class _PickupBranchRowState extends ConsumerState<_PickupBranchRow> {
     final repo = ref.read(adminRepoProvider);
     final list = await repo.activeBranches();
     if (!mounted) return;
-    final chosen = await showDialog<Map<String, dynamic>>(
+    final chosen = await showSmoothDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: Text(_t(context, 'اختار فرع الاستلام', 'Choose the pickup branch')),
@@ -3468,7 +3478,7 @@ class _WalletStaffRowState extends ConsumerState<_WalletStaffRow> {
   bool _busy = false;
 
   Future<void> _confirm() async {
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'التحويل وصل فعلاً؟', 'Did the transfer really arrive?')),
@@ -3542,7 +3552,7 @@ class _TransferProofState extends State<_TransferProof> {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: InkWell(
-              onTap: () => showDialog<void>(context: context, builder: (d) => Dialog(child: InteractiveViewer(child: Image.network(s.data!)))),
+              onTap: () => showSmoothDialog<void>(context: context, builder: (d) => Dialog(child: InteractiveViewer(child: Image.network(s.data!)))),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(s.data!, width: 72, height: 72, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))),
                 const SizedBox(width: 8),
@@ -3588,7 +3598,7 @@ class _OrderRefundRowState extends ConsumerState<_OrderRefundRow> {
     final amount = TextEditingController(text: (left / 100).toStringAsFixed(left % 100 == 0 ? 0 : 2));
     final reason = TextEditingController();
     var method = 'cash';
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => StatefulBuilder(
         builder: (d, setD) => AlertDialog(

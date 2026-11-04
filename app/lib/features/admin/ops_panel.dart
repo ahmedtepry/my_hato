@@ -2,6 +2,7 @@
 // the latest sales and actions. Every card opens the full detail behind it. Refreshes by itself every 5 seconds.
 import 'dart:async';
 import 'dart:convert';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,7 +186,7 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
             for (final b in branches)
               _Card(
                 width: 280,
-                onTap: () => showDialog<void>(
+                onTap: () => showSmoothDialog<void>(
                     context: context,
                     builder: (_) => _SalesDialog(title: '${_t(context, 'مبيعات', 'Sales of')} ${b['name_ar']}', branch: '${b['id']}')),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -223,7 +224,7 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
                 subtitle:
                     '${_t(context, 'فتح', 'Opened')} ${_clock(s['opened_at'])} (${_ago(context, s['opened_at'])}) · ${s['sales_count']} ${_t(context, 'فاتورة', 'invoices')} · ${_t(context, 'آخر بيعة', 'last sale')} ${_ago(context, s['last_sale_at'])}',
                 trailing: _money(context, (s['sales_minor'] as num?) ?? 0),
-                onTap: () => showDialog<void>(context: context, builder: (_) => _ShiftDialog(shift: s)),
+                onTap: () => showSmoothDialog<void>(context: context, builder: (_) => _ShiftDialog(shift: s)),
               ),
           _Title(_t(context, 'الفريق: مين أونلاين ومين فاتح إيه', 'Team: who is online and doing what'), Icons.groups_rounded),
           for (final t in team)
@@ -244,7 +245,7 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
                 _ => '${_t(context, 'أوفلاين', 'Offline')} · ${_ago(context, t['last_seen_at'])}',
               },
               trailing: '',
-              onTap: () => showDialog<void>(context: context, builder: (_) => _ActionsDialog(actor: '${t['user_id']}', name: '${t['name']}')),
+              onTap: () => showSmoothDialog<void>(context: context, builder: (_) => _ActionsDialog(actor: '${t['user_id']}', name: '${t['name']}')),
             ),
           _Title(_t(context, 'آخر الفواتير', 'Latest invoices'), Icons.receipt_long_rounded),
           if (sales.isEmpty)
@@ -258,13 +259,13 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
                 subtitle: '${s['cashier_name']} · ${_clock(s['created_at'])} (${_ago(context, s['created_at'])})'
                     '${((s['refunded_minor'] as num?) ?? 0) > 0 ? ' · ${_t(context, 'مرتجع', 'refund')} ${_money(context, s['refunded_minor'] as num)}' : ''}',
                 trailing: _money(context, (s['total_minor'] as num?) ?? 0),
-                onTap: () => showDialog<void>(context: context, builder: (_) => _SaleDialog(sale: null, id: '${s['id']}', number: '${s['number']}')),
+                onTap: () => showSmoothDialog<void>(context: context, builder: (_) => _SaleDialog(sale: null, id: '${s['id']}', number: '${s['number']}')),
               ),
           _Title(_t(context, 'آخر اللي حصل', 'Latest activity'), Icons.history_rounded),
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
-              onPressed: () => showDialog<void>(context: context, builder: (_) => const _ActionsDialog(actor: null, name: '')),
+              onPressed: () => showSmoothDialog<void>(context: context, builder: (_) => const _ActionsDialog(actor: null, name: '')),
               icon: const Icon(Icons.list_alt_rounded),
               label: Text(_t(context, 'كل السجل', 'Full log')),
             ),
@@ -387,7 +388,7 @@ class _ActionRow extends StatelessWidget {
         title: '${a['actor_name']} · ${_actionLabel(context, '${a['action']}')}',
         subtitle: '${a['entity_type']} ${a['entity_id'] ?? ''} · ${_clock(a['created_at'])} (${_ago(context, a['created_at'])})',
         trailing: '',
-        onTap: () => showDialog<void>(
+        onTap: () => showSmoothDialog<void>(
           context: context,
           builder: (_) => AlertDialog(
             title: Text(_actionLabel(context, '${a['action']}')),
@@ -569,7 +570,7 @@ class _ShiftDialog extends ConsumerWidget {
               _kv(ctx, _t(ctx, 'المفروض في الدرج', 'Expected in drawer'), _money(ctx, (s['expected_minor'] as num?) ?? 0), bold: true),
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: () => showDialog<void>(
+                onPressed: () => showSmoothDialog<void>(
                     context: ctx,
                     builder: (_) => _SalesDialog(title: '${_t(ctx, 'فواتير الوردية', 'Shift invoices')}', shift: '${shift['shift_id']}', today: false)),
                 icon: const Icon(Icons.receipt_long_rounded),
@@ -577,7 +578,7 @@ class _ShiftDialog extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               OutlinedButton.icon(
-                onPressed: () => showDialog<void>(
+                onPressed: () => showSmoothDialog<void>(
                     context: ctx, builder: (_) => _ActionsDialog(actor: '${shift['cashier_id']}', name: '${shift['cashier_name']}')),
                 icon: const Icon(Icons.history_rounded),
                 label: Text(_t(ctx, 'اللي عمله الكاشير', 'What this cashier did')),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -43,7 +44,7 @@ Color _tone(num pct) => pct >= 100 ? BrandColors.success : (pct >= 70 ? BrandCol
 
 Future<int?> _askMoney(BuildContext context, String title, String hint, {int? current}) {
   final c = TextEditingController(text: current == null || current == 0 ? '' : (current / 100).toStringAsFixed(current % 100 == 0 ? 0 : 2));
-  return showDialog<int>(
+  return showSmoothDialog<int>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text(title),
@@ -202,7 +203,7 @@ class _TargetsPanelState extends ConsumerState<TargetsPanel> {
                     OutlinedButton.icon(
                       icon: const Icon(Icons.payments_outlined, size: 18),
                       label: Text(_t(context, 'عمولات المنتجات', 'Product commissions')),
-                      onPressed: () => showDialog<void>(context: context, builder: (_) => const _CommissionsDialog()),
+                      onPressed: () => showSmoothDialog<void>(context: context, builder: (_) => const _CommissionsDialog()),
                     ),
                 ]),
               ),

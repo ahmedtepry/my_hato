@@ -3,6 +3,7 @@
 // التحويلات: send pieces to another branch; the other branch gets a notification and confirms what it really received, or rejects with a reason.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -77,7 +78,7 @@ class _StockPanelState extends ConsumerState<StockPanel> {
   }
 
   Future<void> _newTransfer(BuildContext context, {Map<String, dynamic>? product}) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => Dialog(insetPadding: const EdgeInsets.all(16), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: Padding(padding: const EdgeInsets.only(top: 16), child: _NewTransferSheet(product: product)))));
+    final ok = await showSmoothDialog<bool>(context: context, builder: (_) => Dialog(insetPadding: const EdgeInsets.all(16), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: Padding(padding: const EdgeInsets.only(top: 16), child: _NewTransferSheet(product: product)))));
     if (ok == true && mounted) {
       ref.invalidate(_transfersProvider);
       setState(() => _tab = 1);
@@ -119,7 +120,7 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
   }
 
   Future<void> _allocate(Map<String, dynamic> p, List<Map<String, dynamic>> branches) async {
-    final changed = await showDialog<bool>(context: context, builder: (_) => _AllocateDialog(product: p, branches: branches));
+    final changed = await showSmoothDialog<bool>(context: context, builder: (_) => _AllocateDialog(product: p, branches: branches));
     if (changed == true) _load();
   }
 
@@ -369,7 +370,7 @@ class _TransferCard extends ConsumerWidget {
   }
 
   Future<void> _cancel(BuildContext context, WidgetRef ref) async {
-    final yes = await showDialog<bool>(
+    final yes = await showSmoothDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_t(ctx, 'نلغي التحويل؟', 'Cancel the transfer?')),

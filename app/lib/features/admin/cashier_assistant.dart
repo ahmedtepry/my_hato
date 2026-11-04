@@ -1,6 +1,7 @@
 // The smart assistant at the till ("المساعد الذكي") and the shift guard. READ ONLY: it looks things up, explains and warns.
 // It never changes a price, a stock quantity, an invoice or a refund: those stay with the cashier and the people who may approve them.
 import 'dart:async';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,7 +70,7 @@ class _AssistantModeSwitchState extends ConsumerState<AssistantModeSwitch> {
 final _reviewProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) async =>
     Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('assistant_shift_review', params: {'p_shift': id}) as Map));
 
-Future<void> showCashierAssistant(BuildContext context, {String? shiftId, required bool guard}) => showDialog<void>(
+Future<void> showCashierAssistant(BuildContext context, {String? shiftId, required bool guard}) => showSmoothDialog<void>(
       context: context,
       builder: (_) => Dialog(
         insetPadding: const EdgeInsets.all(16),

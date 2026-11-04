@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../shared/motion.dart';
 
 import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
@@ -37,7 +38,7 @@ Future<void> receiveStockByBarcode(BuildContext context, WidgetRef ref, {require
     }
     if (!context.mounted) return;
     if (p == null) {
-      final add = await showDialog<bool>(
+      final add = await showSmoothDialog<bool>(
         context: context,
         builder: (d) => AlertDialog(
           icon: const Icon(Icons.qr_code_2_rounded, size: 40, color: BrandColors.warning),

@@ -1,6 +1,7 @@
 // Owner: each online employee's daily shift hours and monthly targets (orders handled and their value). Windows team app only.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -22,7 +23,7 @@ class OnlinePlanPanel extends ConsumerWidget {
     final hours = TextEditingController(text: e['daily_hours'] == null ? '' : '${e['daily_hours']}');
     final orders = TextEditingController(text: e['orders_target'] == null ? '' : '${e['orders_target']}');
     final value = TextEditingController(text: e['value_target_minor'] == null ? '' : '${((e['value_target_minor'] as num) / 100).round()}');
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text('${e['name']}'),

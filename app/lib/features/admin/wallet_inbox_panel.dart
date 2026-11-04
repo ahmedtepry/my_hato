@@ -2,6 +2,7 @@
 // order. The accountant records refunds and withdrawals and compares the expected balance; the owner switches the inbox on and gets its secret key.
 // Windows team app only.
 import 'dart:async';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -108,7 +109,7 @@ class _WalletInboxPanelState extends ConsumerState<WalletInboxPanel> {
   Future<void> _withdraw() async {
     String wallet = 'vodafone';
     final amount = TextEditingController(), note = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => StatefulBuilder(
         builder: (d, set) => AlertDialog(
@@ -146,7 +147,7 @@ class _WalletInboxPanelState extends ConsumerState<WalletInboxPanel> {
 
   Future<void> _refund() async {
     final ref0 = TextEditingController(), amount = TextEditingController(), txn = TextEditingController(), note = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'مرتجع أوردر اتدفع بمحفظة', 'Refund a wallet order')),
@@ -194,7 +195,7 @@ class _WalletInboxPanelState extends ConsumerState<WalletInboxPanel> {
       });
 
   Future<void> _newKey() async {
-    final sure = await showDialog<bool>(
+    final sure = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'مفتاح جديد؟', 'New key?')),
@@ -211,7 +212,7 @@ class _WalletInboxPanelState extends ConsumerState<WalletInboxPanel> {
       final tok = await ref.read(supabaseProvider).rpc('wallet_inbox_token_rotate') as String;
       ref.invalidate(_stateProvider);
       if (!mounted) return;
-      await showDialog<void>(
+      await showSmoothDialog<void>(
         context: context,
         builder: (d) => AlertDialog(
           title: Text(_t(d, 'المفتاح السري (بيظهر مرة واحدة)', 'The secret key (shown once)')),
@@ -239,7 +240,7 @@ class _WalletInboxPanelState extends ConsumerState<WalletInboxPanel> {
   }
 
   Future<void> _howTo() async {
-    await showDialog<void>(
+    await showSmoothDialog<void>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'إزاي أركّب الاستقبال على تليفون المكتب', 'How to set up the inbox on the office phone')),

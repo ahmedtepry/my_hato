@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -155,7 +156,7 @@ class _EditAwardState extends ConsumerState<_EditAward> {
   Future<void> _save() async {
     if (_busy) return;
     if (_status == 'delivered') {
-      final ok = await showDialog<bool>(
+      final ok = await showSmoothDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
           title: Text(_t(c, 'تأكيد التسليم', 'Confirm delivery')),
@@ -521,7 +522,7 @@ class _DifficultyState extends ConsumerState<_Difficulty> {
   Future<void> _save(int saved) async {
     final v = _pct!.round();
     if (v == saved) return;
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: Text(_t(c, 'تطبيق الصعوبة؟', 'Apply difficulty?')),

@@ -1,6 +1,7 @@
 // "المساعد الآلي": the automatic accountant and the customer-service robot.
 // Each mode is switched on/off by whoever holds its permission (assistant.accountant / assistant.support), turning on asks "are you sure".
 import 'dart:typed_data';
+import '../../shared/motion.dart';
 
 import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
@@ -51,7 +52,7 @@ class _AssistantPanelState extends ConsumerState<AssistantPanel> {
 
   Future<void> _switch(String key, bool on, String titleAr, String titleEn, String whatAr, String whatEn) async {
     if (on) {
-      final ok = await showDialog<bool>(
+      final ok = await showSmoothDialog<bool>(
         context: context,
         builder: (d) => AlertDialog(
           title: Text(_t(d, 'متأكد؟', 'Are you sure?')),
@@ -156,7 +157,7 @@ class _AssistantPanelState extends ConsumerState<AssistantPanel> {
                   ),
                   if (gua['enabled'] == true)
                     OutlinedButton.icon(
-                      onPressed: () => showDialog<void>(context: context, builder: (_) => const GuardOverviewDialog()),
+                      onPressed: () => showSmoothDialog<void>(context: context, builder: (_) => const GuardOverviewDialog()),
                       icon: const Icon(Icons.fact_check_rounded),
                       label: Text(_t(context, 'مراجعة العمليات (آخر 7 أيام)', 'Operations review (last 7 days)')),
                     ),

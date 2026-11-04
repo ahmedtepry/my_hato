@@ -3,6 +3,7 @@
 // Team members and customers see a card, press Start, answer against a countdown and get their result. Everything is checked and graded
 // by the database (migration 0088); the right answers never reach the phone before the contest ends.
 import 'dart:async';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,7 +72,7 @@ class ContestBanner extends ConsumerWidget {
           child: _ContestCard(
             contest: c,
             onTap: () async {
-              await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => ContestPlayDialog(contest: c));
+              await showSmoothDialog<void>(context: context, barrierDismissible: false, builder: (_) => ContestPlayDialog(contest: c));
               ref.invalidate(contestActiveProvider);
             },
           ),
@@ -609,7 +610,7 @@ class _ContestTile extends ConsumerWidget {
   }
 }
 
-Future<bool?> _confirm(BuildContext context, String title, String body) => showDialog<bool>(
+Future<bool?> _confirm(BuildContext context, String title, String body) => showSmoothDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
@@ -621,7 +622,7 @@ Future<bool?> _confirm(BuildContext context, String title, String body) => showD
       ),
     );
 
-Future<int?> _pickMinutes(BuildContext context) => showDialog<int>(
+Future<int?> _pickMinutes(BuildContext context) => showSmoothDialog<int>(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: Text(_t(ctx, 'كام دقيقة تزوّد؟', 'How many minutes to add?')),

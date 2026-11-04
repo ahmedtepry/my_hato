@@ -10,6 +10,7 @@ import '../../core/theme.dart';
 import '../../shared/occasion_stamp.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
+import '../../shared/motion.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -81,7 +82,7 @@ class _OccasionsPanelState extends ConsumerState<OccasionsPanel> {
       );
 
   Future<void> _end(_Occasion o) async {
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_t(ctx, 'إنهاء ${o.ar}؟', 'End ${o.en}?')),
@@ -263,7 +264,7 @@ class _SendSheetState extends ConsumerState<_SendSheet> {
       showSnack(context, _t(context, 'الكوينات من ١ لـ٥٠٠٠.', 'Coins must be between 1 and 5000.'), error: true);
       return;
     }
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_t(ctx, 'تبعت لكل العملاء؟', 'Send to all customers?')),

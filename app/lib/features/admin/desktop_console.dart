@@ -7,6 +7,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/motion.dart';
 import '../../shared/states.dart';
 import '../../shared/avatars.dart';
 import '../auth/auth_repository.dart';
@@ -576,7 +577,7 @@ class _Kpi extends StatelessWidget {
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(label, style: const TextStyle(color: BrandColors.gray, fontSize: 13.5)),
-            FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: Text(value, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: BrandColors.navy))),
+            FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountUpText(value, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: BrandColors.navy))),
             Text(sub ?? ' ', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: subColor ?? BrandColors.gray, fontWeight: FontWeight.w600)),
           ]),
         ),

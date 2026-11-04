@@ -11,6 +11,7 @@ import '../../core/theme.dart';
 import '../../shared/launch_animation.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
+import '../../shared/motion.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -63,7 +64,7 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
       return;
     }
     final pass = TextEditingController();
-    final password = await showDialog<String>(
+    final password = await showSmoothDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_t(ctx, 'تأكيد بالرقم السري', 'Confirm with your password')),

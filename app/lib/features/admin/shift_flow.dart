@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -86,7 +87,7 @@ Widget _frame(BuildContext context, {required Widget scene, required Widget pane
 class ShiftRobotClose {
   /// Returns true when the shift was closed (the program is about to exit anyway).
   static Future<bool> show(BuildContext context, String shiftId) async {
-    final r = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _CloseDialog(shiftId: shiftId));
+    final r = await showSmoothDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _CloseDialog(shiftId: shiftId));
     return r == true;
   }
 }
@@ -515,7 +516,7 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
 // =====================================================================================================
 class ShiftRobotOpen {
   static Future<void> show(BuildContext context, {required String name, required int openingMinor, String branch = ''}) =>
-      showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _OpenDialog(name: name, openingMinor: openingMinor, branch: branch));
+      showSmoothDialog<void>(context: context, barrierDismissible: false, builder: (_) => _OpenDialog(name: name, openingMinor: openingMinor, branch: branch));
 }
 
 class _OpenDialog extends StatefulWidget {
@@ -633,7 +634,7 @@ class CashierReel {
       await p.setString('reel_day_$uid', today);
     } catch (_) {}
     if (!context.mounted) return;
-    await showDialog<void>(context: context, barrierColor: Colors.black87, builder: (_) => _ReelDialog(name: name, shift: shift));
+    await showSmoothDialog<void>(context: context, barrierColor: Colors.black87, builder: (_) => _ReelDialog(name: name, shift: shift));
   }
 }
 

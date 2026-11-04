@@ -2,6 +2,7 @@
 // The choice is stored on the server and every customer's phone app picks it up (no new install needed once the app has this feature).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -24,7 +25,7 @@ class _StorefrontLayoutPanelState extends ConsumerState<StorefrontLayoutPanel> {
 
   Future<void> _apply(HomeLayout l) async {
     final info = homeLayoutInfo[l]!;
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'تطبّق «${info.$1}» على كل العملاء؟', 'Apply "${info.$2}" to all customers?')),

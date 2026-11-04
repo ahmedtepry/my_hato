@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
+import '../../shared/motion.dart';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,7 +84,7 @@ Future<List<int>> barcodeLabelsPdf(List<(Map<String, dynamic>, int)> items, {req
 }
 
 /// Pick products and how many labels of each, then print (system print window; thermal or A4).
-Future<void> printBarcodeLabels(BuildContext context, WidgetRef ref) => showDialog<void>(context: context, builder: (_) => _LabelsDialog(ref: ref));
+Future<void> printBarcodeLabels(BuildContext context, WidgetRef ref) => showSmoothDialog<void>(context: context, builder: (_) => _LabelsDialog(ref: ref));
 
 class _LabelsDialog extends StatefulWidget {
   const _LabelsDialog({required this.ref});

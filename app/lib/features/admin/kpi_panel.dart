@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -207,7 +208,7 @@ class _EmployeeCard extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => showDialog<void>(context: context, builder: (_) => _LogDialog(userId: '${r['user_id']}', name: '${r['name']}', range: range)),
+        onTap: () => showSmoothDialog<void>(context: context, builder: (_) => _LogDialog(userId: '${r['user_id']}', name: '${r['name']}', range: range)),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

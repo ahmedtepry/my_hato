@@ -1,6 +1,7 @@
 // "اختصارات": four quick jobs, each shown only to the people who hold its permission.
 //   استلام بضاعة (shortcut.goods_receipt) · جرد (shortcut.stocktake) · تعديل الأسعار (shortcut.price_edit) · تصدير البيانات (shortcut.export)
 import 'dart:typed_data';
+import '../../shared/motion.dart';
 
 import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
@@ -405,7 +406,7 @@ class _StocktakeSheetState extends ConsumerState<_StocktakeSheet> {
       return;
     }
     final diffs = [for (final i in items) if (_expected[i['product_id']] != i['counted']) i];
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'تأكيد الجرد', 'Confirm the stocktake')),
@@ -505,7 +506,7 @@ class _PriceSheetState extends ConsumerState<_PriceSheet> {
   Future<void> _edit(Map<String, dynamic> p) async {
     final price = TextEditingController(text: _money(p['price_minor']));
     final compare = TextEditingController(text: p['compare_minor'] == null ? '' : _money(p['compare_minor']));
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text('${p['name_ar']}'),

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../shared/motion.dart';
 
 import '../../core/appearance.dart';
 import '../../core/errors.dart';
@@ -166,7 +167,7 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
       } catch (_) {}
       // the cashier may keep the fingerprint for the next shift (the password stays in the device's encrypted storage)
       if (_bioAvail && !_bioOn && mounted) {
-        final yes = await showDialog<bool>(
+        final yes = await showSmoothDialog<bool>(
           context: context,
           builder: (d) => AlertDialog(
             title: Text(_t(d, 'تفعّل البصمة؟', 'Turn on the fingerprint?')),
@@ -511,7 +512,7 @@ class _RegisterState extends ConsumerState<_Register> {
   Future<void> _addExpense() async {
     final amount = TextEditingController();
     final reason = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'مصروف من الدرج', 'Expense from the drawer')),
@@ -603,7 +604,7 @@ class _RegisterState extends ConsumerState<_Register> {
   }
 
   Future<void> _discard(int i) async {
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'إلغاء المسودة؟', 'Discard this draft?')),
@@ -652,12 +653,12 @@ class _RegisterState extends ConsumerState<_Register> {
     }
     // more than the total: the cashier must hand the change back, and confirms he did, before the sale is completed
     if (!_card && cash > _total && _key == null) {
-      final r = await showDialog<String>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
+      final r = await showSmoothDialog<String>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
       if (r == null || r == 'back' || !mounted) return;
       _tip = r == 'tip';
       _tipInDrawer = false;
       if (_tip) {
-        final where = await showDialog<String>(context: context, barrierDismissible: false, builder: (_) => const _TipWhereDialog());
+        final where = await showSmoothDialog<String>(context: context, barrierDismissible: false, builder: (_) => const _TipWhereDialog());
         if (where == null) return;
         _tipInDrawer = where == 'drawer';
       }
@@ -723,7 +724,7 @@ class _RegisterState extends ConsumerState<_Register> {
       _loadProducts(_search.text);
       if (await receiptAutoPrintOn() && mounted) unawaited(printReceipt(context, done));
       if (!mounted) return;
-      await showDialog<void>(context: context, builder: (_) => _ReceiptDialog(sale: done, bonusMinor: bonus));
+      await showSmoothDialog<void>(context: context, builder: (_) => _ReceiptDialog(sale: done, bonusMinor: bonus));
       if (mounted) _searchFocus.requestFocus();
     } catch (e) {
       if (!mounted) return;
@@ -750,7 +751,7 @@ class _RegisterState extends ConsumerState<_Register> {
       ref.invalidate(posShiftProvider); // also after the X: the shift may have been closed just before
       return;
     }
-    final ok = await showDialog<bool>(context: context, builder: (_) => _CloseShiftDialog(shiftId: _shiftId));
+    final ok = await showSmoothDialog<bool>(context: context, builder: (_) => _CloseShiftDialog(shiftId: _shiftId));
     if (ok == true) {
       ref.invalidate(posShiftProvider);
     }
@@ -779,7 +780,7 @@ class _RegisterState extends ConsumerState<_Register> {
           OutlinedButton.icon(
             icon: const Icon(Icons.assignment_return_outlined, size: 18),
             label: Text(_t(context, 'مرتجع', 'Refund')),
-            onPressed: _unknown ? null : () => showDialog<void>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((_) => ref.invalidate(posShiftProvider)),
+            onPressed: _unknown ? null : () => showSmoothDialog<void>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((_) => ref.invalidate(posShiftProvider)),
           ),
           const AssistantModeSwitch(),
           AssistantButton(shiftId: _shiftId),
@@ -1260,7 +1261,7 @@ class _ReceiptDialog extends StatelessWidget {
 // ---------------------------------------------------------------- approvals (cashier side)
 /// Asks for the reason, sends the request and waits for ANOTHER person to approve it. Returns the approval id, or null.
 Future<String?> askApproval(BuildContext context, PosRepository repo, {required String kind, required int amountMinor, required String branchId}) async {
-  final reason = await showDialog<String>(
+  final reason = await showSmoothDialog<String>(
     context: context,
     builder: (_) => _ReasonDialog(
       title: kind == 'discount' ? _t(context, 'طلب موافقة على خصم ${_money(context, amountMinor)}', 'Approval for a ${_money(context, amountMinor)} discount') : _t(context, 'طلب موافقة على مرتجع ${_money(context, amountMinor)}', 'Approval for a ${_money(context, amountMinor)} refund'),
@@ -1277,7 +1278,7 @@ Future<String?> askApproval(BuildContext context, PosRepository repo, {required 
     return null;
   }
   if (!context.mounted) return null;
-  final res = await showDialog<String>(context: context, barrierDismissible: false, builder: (_) => _WaitApprovalDialog(repo: repo, id: id));
+  final res = await showSmoothDialog<String>(context: context, barrierDismissible: false, builder: (_) => _WaitApprovalDialog(repo: repo, id: id));
   if (!context.mounted) return null;
   if (res == 'approved') return id;
   if (res != null && res.startsWith('rejected')) {
@@ -1556,7 +1557,7 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
       }
       _pass.clear();
       // the final closing report: shown at once, and kept for the accountant, the manager and the owner
-      await showDialog<void>(context: context, builder: (_) => ShiftReportDialog(shiftId: widget.shiftId, justClosed: true));
+      await showSmoothDialog<void>(context: context, builder: (_) => ShiftReportDialog(shiftId: widget.shiftId, justClosed: true));
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);

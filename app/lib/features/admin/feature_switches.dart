@@ -3,6 +3,7 @@
 // The team keeps seeing it, and the data is kept so turning it back on restores everything.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -37,7 +38,7 @@ class _FeatureSwitchesPanelState extends ConsumerState<FeatureSwitchesPanel> {
   Future<void> _toggle(String key, bool on, String nameAr, String nameEn) async {
     final ar = context.isAr;
     if (!on) {
-      final yes = await showDialog<bool>(
+      final yes = await showSmoothDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text(ar ? 'متأكد؟' : 'Are you sure?'),

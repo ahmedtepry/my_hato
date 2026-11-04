@@ -4,6 +4,7 @@ import '../../core/appearance.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import '../../shared/motion.dart';
 
 import 'package:excel/excel.dart' as xl;
 import 'package:flutter/material.dart';
@@ -599,7 +600,7 @@ class _CustomerTile extends ConsumerWidget {
             if (canReset && c['is_staff'] != true) ...[
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: () => showDialog<void>(context: context, builder: (_) => _ResetPasswordDialog(customer: c)),
+                onPressed: () => showSmoothDialog<void>(context: context, builder: (_) => _ResetPasswordDialog(customer: c)),
                 icon: const Icon(Icons.lock_reset_rounded, size: 18),
                 label: Text(_t(context, 'تغيير الرقم السري', 'Change password')),
               ),

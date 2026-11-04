@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -59,7 +60,7 @@ class _ShiftsPanelState extends ConsumerState<ShiftsPanel> {
   Future<void> _decide(Map<String, dynamic> a, bool approve) async {
     String? note;
     if (!approve) {
-      note = await showDialog<String>(context: context, builder: (_) => const _NoteDialog());
+      note = await showSmoothDialog<String>(context: context, builder: (_) => const _NoteDialog());
       if (note == null || !mounted) return;
     }
     setState(() => _busy.add('${a['id']}'));

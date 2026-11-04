@@ -4,6 +4,7 @@
 import '../../core/appearance.dart';
 import 'dart:async';
 import 'dart:math';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -595,7 +596,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
       final all = await repo.branches();
       final mine = (await repo.memberBranches(_id)).toSet();
       if (!mounted) return;
-      final picked = await showDialog<Set<String>>(context: context, builder: (_) => _BranchesDialog(all: all, selected: mine));
+      final picked = await showSmoothDialog<Set<String>>(context: context, builder: (_) => _BranchesDialog(all: all, selected: mine));
       if (picked == null || !mounted) return;
       await _run(() => repo.setMemberBranches(_id, picked.toList()), _t(context, 'اتحدّدت فروع الموظف ✅', 'Branches saved ✅'));
     } catch (e) {
@@ -604,7 +605,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   }
 
   Future<void> _newPassword() async {
-    final pw = await showDialog<String>(context: context, builder: (_) => const _PasswordDialog());
+    final pw = await showSmoothDialog<String>(context: context, builder: (_) => const _PasswordDialog());
     if (pw == null || !mounted) return;
     await _run(() async {
       await ref.read(teamRepoProvider).resetPassword(_id, pw);
@@ -615,7 +616,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   Future<void> _toggleSuspend() async {
     final to = !_suspended;
     final ok = !to ||
-        await showDialog<bool>(
+        await showSmoothDialog<bool>(
               context: context,
               builder: (d) => AlertDialog(
                 icon: const Icon(Icons.pause_circle_rounded, color: BrandColors.error, size: 36),
@@ -640,7 +641,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   }
 
   Future<void> _remove() async {
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(context, 'إزالة من الفريق؟', 'Remove from team?')),
@@ -987,7 +988,7 @@ Future<void> _addMember(BuildContext context, WidgetRef ref) async {
   final text = 'أهلاً 👋 ده حسابك في فريق ${AppName.ar} (${roleOf(creds.role).ar})\n'
       'اسم الدخول: ${creds.login}\nكلمة السر: ${creds.password}\n'
       'ادخل من صفحة تسجيل الدخول في التطبيق، وبعدها هتلاقي "لوحة الفريق" في حسابك.';
-  await showDialog<void>(
+  await showSmoothDialog<void>(
     context: context,
     builder: (d) => AlertDialog(
       icon: const Icon(Icons.verified_rounded, color: BrandColors.success, size: 44),

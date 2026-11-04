@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,7 +95,7 @@ Future<void> shareReceiptPdf(BuildContext context, Map<String, dynamic> sale) as
 /// Asks for the customer's number and opens WhatsApp with the receipt text ready to send.
 Future<void> sendReceiptWhatsApp(BuildContext context, String text) async {
   final ctl = TextEditingController();
-  final phone = await showDialog<String>(
+  final phone = await showSmoothDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text(_t(ctx, 'ابعت الإيصال على واتساب', 'Send the receipt on WhatsApp')),
@@ -160,7 +161,7 @@ class ReceiptButtons extends StatelessWidget {
       ]);
 }
 
-Future<void> showReceiptSettings(BuildContext context) => showDialog<void>(context: context, builder: (_) => const _ReceiptSettings());
+Future<void> showReceiptSettings(BuildContext context) => showSmoothDialog<void>(context: context, builder: (_) => const _ReceiptSettings());
 
 class _ReceiptSettings extends StatefulWidget {
   const _ReceiptSettings();
@@ -306,7 +307,7 @@ class _StylePicker extends ConsumerWidget {
         child: OutlinedButton.icon(
           icon: const Icon(Icons.visibility_outlined, size: 18),
           label: Text(_t(context, 'معاينة الشكل الحالي', 'Preview')),
-          onPressed: () => showDialog<void>(
+          onPressed: () => showSmoothDialog<void>(
             context: context,
             builder: (_) => Dialog(
               child: SizedBox(

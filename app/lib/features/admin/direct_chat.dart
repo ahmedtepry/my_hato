@@ -2,6 +2,7 @@
 // The member's side: a live panel with the manager that closes together with his shift.
 // The office's side: pick a member, talk to him in the same panel; every conversation is kept in the logs until the owner deletes it.
 import 'dart:async';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -139,7 +140,7 @@ class DirectChatPanel extends ConsumerWidget {
         onClose: close,
         chips: [_t(context, 'محتاج موافقة خصم', 'Need a discount approved'), _t(context, 'محتاج مساعدة', 'Need help'), _t(context, 'عميل مستني', 'A customer is waiting')],
         onClear: () async {
-          final ok = await showDialog<bool>(
+          final ok = await showSmoothDialog<bool>(
             context: context,
             builder: (d) => AlertDialog(
               title: Text(_t(d, 'مسح المحادثة؟', 'Clear the chat?')),
@@ -550,7 +551,7 @@ class _ChatLogsDialogState extends ConsumerState<ChatLogsDialog> {
   }
 
   Future<void> _delete({List<String>? ids, bool all = false}) async {
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(all ? _t(d, 'مسح كل المحادثات المقفولة؟', 'Delete every closed conversation?') : _t(d, 'مسح ${ids!.length} محادثة؟', 'Delete ${ids!.length} conversation(s)?')),

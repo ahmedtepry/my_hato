@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
@@ -129,4 +130,100 @@ class LivingGradient extends StatelessWidget {
         ),
         child: child,
       );
+}
+
+/// Section switch for the team console: the old page fades away fast, the new one fades in while rising a few pixels.
+class SoftPageSwitch extends StatelessWidget {
+  const SoftPageSwitch({super.key, required this.index, required this.children});
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => AnimatedSwitcher(
+        duration: const Duration(milliseconds: 280),
+        reverseDuration: const Duration(milliseconds: 110),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeIn,
+        layoutBuilder: (current, previous) => Stack(fit: StackFit.expand, children: [...previous, if (current != null) current]),
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: SlideTransition(position: Tween(begin: const Offset(0, .018), end: Offset.zero).animate(anim), child: child),
+        ),
+        child: KeyedSubtree(key: ValueKey(index), child: children[index]),
+      );
+}
+
+/// Counts a number up from 0 (and between values when it changes): "1,250 ج.م" keeps its prefix, suffix and thousands separators.
+class CountUpText extends StatelessWidget {
+  const CountUpText(this.text, {super.key, this.style, this.duration = const Duration(milliseconds: 750)});
+  final String text;
+  final TextStyle? style;
+  final Duration duration;
+
+  static final _num = RegExp(r'[0-9][0-9,]*(?:\.[0-9]+)?');
+
+  @override
+  Widget build(BuildContext context) {
+    final m = _num.firstMatch(text);
+    if (m == null) return Text(text, style: style);
+    final raw = m.group(0)!;
+    final target = double.tryParse(raw.replaceAll(',', ''));
+    if (target == null) return Text(text, style: style);
+    final decimals = raw.contains('.') ? raw.split('.').last.length : 0;
+    final grouped = raw.contains(',');
+    String fmt(double v) {
+      var s = v.toStringAsFixed(decimals);
+      if (grouped) {
+        final parts = s.split('.');
+        parts[0] = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+        s = parts.join('.');
+      }
+      return s;
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: target),
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      builder: (_, v, __) => Text('${text.substring(0, m.start)}${fmt(v)}${text.substring(m.end)}', style: style),
+    );
+  }
+}
+
+/// Dialog that scales in softly over a blurred, dimmed backdrop (instead of the plain fade).
+Future<T?> showSmoothDialog<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  bool barrierDismissible = true,
+  Color? barrierColor,
+  bool useRootNavigator = true,
+}) {
+  final theme = Theme.of(context);
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 240),
+    useRootNavigator: useRootNavigator,
+    pageBuilder: (ctx, a, b) => Theme(data: theme, child: SafeArea(child: Builder(builder: builder))),
+    transitionBuilder: (ctx, anim, _, child) {
+      final c = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeIn);
+      return AnimatedBuilder(
+        animation: c,
+        builder: (_, __) => Stack(fit: StackFit.expand, children: [
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: barrierDismissible ? () => Navigator.of(ctx, rootNavigator: useRootNavigator).maybePop() : null,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 6 * c.value, sigmaY: 6 * c.value),
+                child: ColoredBox(color: (barrierColor ?? Colors.black54).withValues(alpha: (barrierColor ?? Colors.black54).a * c.value)),
+              ),
+            ),
+          ),
+          Opacity(opacity: c.value, child: Transform.scale(scale: .94 + .06 * c.value, child: child)),
+        ]),
+      );
+    },
+  );
 }

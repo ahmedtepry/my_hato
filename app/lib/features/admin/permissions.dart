@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -221,7 +222,7 @@ final _staffProvider = FutureProvider.autoDispose((ref) => ref.watch(teamRepoPro
 void openPermissions(BuildContext context) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PermissionsScreen()));
 
 Future<bool> _confirm(BuildContext context, String title, String body) async {
-  final ok = await showDialog<bool>(
+  final ok = await showSmoothDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text(title),
@@ -573,7 +574,7 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
           if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('branches.rename') ?? false)
             TextButton.icon(
               onPressed: () async {
-                await showDialog<void>(context: context, builder: (_) => const _RenameBranchesDialog());
+                await showSmoothDialog<void>(context: context, builder: (_) => const _RenameBranchesDialog());
                 if (mounted) _loadBranches();
               },
               icon: const Icon(Icons.edit_rounded, size: 16),
@@ -582,7 +583,7 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
           if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('branches.manage') ?? false)
             TextButton.icon(
               onPressed: () async {
-                final added = await showDialog<bool>(context: context, builder: (_) => const _AddBranchDialog());
+                final added = await showSmoothDialog<bool>(context: context, builder: (_) => const _AddBranchDialog());
                 if (added == true && mounted) _loadBranches();
               },
               icon: const Icon(Icons.add_business_rounded, size: 16),
@@ -890,7 +891,7 @@ class _TargetBarState extends ConsumerState<_TargetBar> {
 
   Future<void> _edit() async {
     final ctl = TextEditingController(text: (_minor ?? 0) > 0 ? ((_minor ?? 0) / 100).toStringAsFixed((_minor ?? 0) % 100 == 0 ? 0 : 2) : '');
-    final text = await showDialog<String>(
+    final text = await showSmoothDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_s(context, 'target_title', 'تارجت ${widget.name} الشهري', 'Monthly target')),

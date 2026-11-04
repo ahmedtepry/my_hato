@@ -3,6 +3,7 @@
 import '../../core/appearance.dart';
 import 'dart:math';
 import 'dart:typed_data';
+import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -198,7 +199,7 @@ Future<void> _editCoupon(BuildContext context, WidgetRef ref, Map<String, dynami
   if (saved == null || !context.mounted) return;
   ref.invalidate(_couponsProvider);
   if (c == null && saved['is_active'] == true) {
-    final send = await showDialog<bool>(
+    final send = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(context, 'الكود ${saved['code']} جاهز 🎉', 'Code ${saved['code']} is ready 🎉')),
@@ -485,7 +486,7 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
       showSnack(context, _t(context, 'اكتب عنوان ونص العرض', 'Write a title and a message'), error: true);
       return;
     }
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(context, 'إرسال لكل العملاء؟', 'Send to all customers?')),

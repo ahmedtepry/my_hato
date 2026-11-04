@@ -3,6 +3,7 @@
 // flagged so the money is not counted twice. Windows team app only.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../shared/motion.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -55,7 +56,7 @@ class OnlineReviewPanel extends ConsumerWidget {
 
   Future<void> _settle(BuildContext context, WidgetRef ref, String reference) async {
     final note = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: Text(_t(d, 'تأكيد استلام فلوس الأوردر $reference', 'Confirm the money for $reference')),
