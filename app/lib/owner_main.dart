@@ -18,7 +18,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:record/record.dart';
 import 'core/config.dart';
 
 // "Ghost" look: near-black, terminal green-cyan, secret-ops mood (still the My Hatō robot).
@@ -473,6 +473,101 @@ class OwnerUpdater extends ChangeNotifier {
   }
 }
 
+// ------------------------------------------------------------------ voice
+
+/// Records the owner until he stops talking (silence detection), then Gemini writes down what he said.
+/// Works on every phone: it does not depend on the phone's own speech recognizer.
+class VoiceCapture {
+  final AudioRecorder _rec = AudioRecorder();
+  bool _stop = false;
+
+  static Uint8List _wav(Uint8List pcm, int rate) {
+    final h = ByteData(44);
+    void w(int o, String t) {
+      for (var i = 0; i < t.length; i++) {
+        h.setUint8(o + i, t.codeUnitAt(i));
+      }
+    }
+
+    w(0, 'RIFF');
+    h.setUint32(4, 36 + pcm.length, Endian.little);
+    w(8, 'WAVE');
+    w(12, 'fmt ');
+    h.setUint32(16, 16, Endian.little);
+    h.setUint16(20, 1, Endian.little);
+    h.setUint16(22, 1, Endian.little);
+    h.setUint32(24, rate, Endian.little);
+    h.setUint32(28, rate * 2, Endian.little);
+    h.setUint16(32, 2, Endian.little);
+    h.setUint16(34, 16, Endian.little);
+    w(36, 'data');
+    h.setUint32(40, pcm.length, Endian.little);
+    return Uint8List.fromList([...h.buffer.asUint8List(), ...pcm]);
+  }
+
+  /// Returns what he said, '' when nothing was said, or throws a short Arabic message.
+  Future<String> listen({int noSpeechMs = 9000, int maxMs = 25000, void Function()? onSpeechStart, void Function()? onSpeechEnd}) async {
+    _stop = false;
+    if (!await _rec.hasPermission()) throw 'اسمح للتطبيق بالميكروفون من إعدادات الموبايل';
+    final stream = await _rec.startStream(const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1));
+    final buf = BytesBuilder(copy: false);
+    final done = Completer<void>();
+    var speaking = false, n = 0;
+    var noise = 0.0, quietMs = 0.0;
+    final sw = Stopwatch()..start();
+    final sub = stream.listen((chunk) {
+      buf.add(chunk);
+      final bd = ByteData.sublistView(chunk);
+      final cnt = chunk.length ~/ 2;
+      if (cnt == 0) return;
+      var sum = 0.0;
+      for (var i = 0; i < cnt; i++) {
+        final v = bd.getInt16(i * 2, Endian.little);
+        sum += v * v;
+      }
+      final rms = math.sqrt(sum / cnt);
+      final ms = cnt * 1000 / 16000;
+      if (n < 3) {
+        noise = noise == 0 ? rms : (noise + rms) / 2;
+        n++;
+        return;
+      }
+      final thr = math.min(math.max(650.0, noise * 2.5), 2500.0);
+      if (rms > thr) {
+        if (!speaking) onSpeechStart?.call();
+        speaking = true;
+        quietMs = 0;
+      } else if (speaking) {
+        quietMs += ms;
+      }
+      if (done.isCompleted) return;
+      if (_stop || (speaking && quietMs >= 900) || (!speaking && sw.elapsedMilliseconds > noSpeechMs) || sw.elapsedMilliseconds > maxMs) done.complete();
+    });
+    await done.future;
+    await sub.cancel();
+    await _rec.stop();
+    if (!speaking || buf.length < 16000) return '';
+    onSpeechEnd?.call();
+    final wav = _wav(buf.toBytes(), 16000);
+    try {
+      final r = await Supabase.instance.client.functions.invoke('owner-stt', body: {'audio': base64Encode(wav)}).timeout(const Duration(seconds: 25));
+      final d = r.data;
+      return d is Map ? (d['text'] ?? '').toString().trim() : '';
+    } catch (_) {
+      throw 'مقدرتش أفهم الصوت دلوقتي، جرب تاني';
+    }
+  }
+
+  void stopNow() => _stop = true;
+
+  Future<void> dispose() async {
+    _stop = true;
+    try {
+      await _rec.dispose();
+    } catch (_) {}
+  }
+}
+
 // ------------------------------------------------------------------ chat
 
 class _Msg {
@@ -497,8 +592,7 @@ class _ChatPageState extends State<ChatPage> {
   final List<_Msg> _msgs = [];
   bool _busy = false, _listening = false;
   final _upd = ownerUpdater;
-  final _stt = stt.SpeechToText();
-  String? _sttLocale;
+  final _cap = VoiceCapture();
 
   static const _quick = ['مبيعات النهارده', 'الأوردرات الجديدة', 'مين في الفريق؟', 'صلاحيات الكاشير', 'التحويلات اللي وصلت'];
 
@@ -506,62 +600,33 @@ class _ChatPageState extends State<ChatPage> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
 
-  /// Tap the mic, talk, and when you pause the command is sent by itself.
+  /// Tap the mic, talk; when you stop talking the command is written down and sent by itself.
   Future<void> _mic() async {
     if (_busy) return;
     if (_listening) {
-      await _stt.stop();
+      _cap.stopNow();
       return;
-    }
-    final ok = await _stt.initialize(
-      onStatus: (st) {
-        if ((st == 'done' || st == 'notListening') && mounted) setState(() => _listening = false);
-      },
-      onError: (e) {
-        if (mounted) setState(() => _listening = false);
-        if (e.errorMsg != 'error_no_match' && e.errorMsg != 'error_speech_timeout') _note('الصوت مش شغال: ${e.errorMsg}');
-      },
-    );
-    if (!ok) {
-      _note('اسمح للتطبيق بالميكروفون من إعدادات الموبايل');
-      return;
-    }
-    if (_sttLocale == null) {
-      final locs = await _stt.locales();
-      String? pick;
-      for (final pref in ['ar_EG', 'ar-EG', 'ar_SA', 'ar-SA']) {
-        for (final l in locs) {
-          if (l.localeId == pref) pick = l.localeId;
-        }
-        if (pick != null) break;
-      }
-      pick ??= locs.where((l) => l.localeId.toLowerCase().startsWith('ar')).map((l) => l.localeId).firstOrNull;
-      _sttLocale = pick ?? '';
     }
     setState(() => _listening = true);
-    _input.clear();
-    await _stt.listen(
-      localeId: _sttLocale!.isEmpty ? null : _sttLocale,
-      pauseFor: const Duration(seconds: 3),
-      listenFor: const Duration(seconds: 45),
-      listenOptions: stt.SpeechListenOptions(partialResults: true, cancelOnError: true, listenMode: stt.ListenMode.dictation),
-      onResult: (r) {
-        _input.text = r.recognizedWords;
-        _input.selection = TextSelection.collapsed(offset: _input.text.length);
-        if (r.finalResult) {
-          if (mounted) setState(() => _listening = false);
-          final t = _input.text.trim();
-          if (t.isNotEmpty) _send(t);
-        }
-      },
-    );
+    try {
+      final t = await _cap.listen();
+      if (mounted) setState(() => _listening = false);
+      if (t.isNotEmpty) {
+        await _send(t);
+      } else {
+        _note('مسمعتش حاجة، جرب تاني');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _listening = false);
+      _note('$e');
+    }
   }
 
   void _onUpd() => mounted ? setState(() {}) : null;
 
   @override
   void dispose() {
-    _stt.cancel();
+    _cap.dispose();
     _upd.removeListener(_onUpd);
     super.dispose();
   }
@@ -893,13 +958,11 @@ class CallScreen extends StatefulWidget {
 class _CallScreenState extends State<CallScreen> {
   final _tts = FlutterTts();
   final _player = AudioPlayer();
-  final _stt = stt.SpeechToText();
+  final _cap = VoiceCapture();
+  Future<void>? _fillerPlaying;
   String _state = 'ring'; // ring | speak | listen | think
   String _caption = '';
-  bool _ended = false, _sttReady = false;
-  String? _locale;
-  Completer<String>? _heard;
-  String _partial = '';
+  bool _ended = false;
   int _secs = 0;
   Timer? _clock;
 
@@ -916,7 +979,7 @@ class _CallScreenState extends State<CallScreen> {
     _clock?.cancel();
     _tts.stop();
     _player.dispose();
-    _stt.cancel();
+    _cap.dispose();
     super.dispose();
   }
 
@@ -930,82 +993,107 @@ class _CallScreenState extends State<CallScreen> {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
-  /// A natural Egyptian female voice from the server (free Gemini TTS); the phone's own voice is only the fallback.
-  Future<Uint8List?> _synth(String t) async {
+  Future<File?> _cacheFile(String t) async {
     try {
-      final r = await Supabase.instance.client.functions.invoke('owner-tts', body: {'text': _spoken(t)}).timeout(const Duration(seconds: 35));
-      final d = r.data;
-      if (d is Map && d['audio'] is String) return base64Decode(d['audio'] as String);
-    } catch (_) {}
+      final dir = await const MethodChannel('myhato/update').invokeMethod<String>('cacheDir') ?? Directory.systemTemp.path;
+      final d = Directory('$dir/voice');
+      if (!await d.exists()) await d.create(recursive: true);
+      return File('${d.path}/v2_${t.hashCode}.wav');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// A natural Egyptian female voice from the server (free Gemini TTS); the phone's own voice is only the fallback.
+  /// Fixed phrases (greeting, fillers) are kept on the phone so they play at once.
+  Future<Uint8List?> _synth(String t, {bool cache = false}) async {
+    File? f;
+    if (cache) {
+      f = await _cacheFile(t);
+      if (f != null && await f.exists()) return f.readAsBytes();
+    }
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final r = await Supabase.instance.client.functions.invoke('owner-tts', body: {'text': _spoken(t)}).timeout(const Duration(seconds: 35));
+        final d = r.data;
+        if (d is Map && d['audio'] is String) {
+          final b = base64Decode(d['audio'] as String);
+          if (f != null) await f.writeAsBytes(b);
+          return b;
+        }
+      } catch (_) {}
+    }
     return null;
+  }
+
+  Future<void> _playBytes(Uint8List bytes) async {
+    final done = Completer<void>();
+    final sub = _player.onPlayerComplete.listen((_) {
+      if (!done.isCompleted) done.complete();
+    });
+    await _player.play(BytesSource(bytes, mimeType: 'audio/wav'));
+    await done.future.timeout(const Duration(seconds: 90), onTimeout: () {});
+    await sub.cancel();
+  }
+
+  /// First sentence is voiced as soon as it is ready while the rest is still being prepared.
+  List<String> _chunks(String t) {
+    final m = RegExp(r'[.!؟?]\s').firstMatch(t);
+    if (m != null && m.end < t.length - 2 && m.end > 12) return [t.substring(0, m.end).trim(), t.substring(m.end).trim()];
+    return [t];
   }
 
   Future<void> _say(String t, {Future<Uint8List?>? pre}) async {
     if (_ended) return;
     _set('speak', t);
-    final bytes = await (pre ?? _synth(t));
-    if (_ended) return;
+    final parts = pre != null ? [t] : _chunks(t);
+    final futures = [for (var i = 0; i < parts.length; i++) i == 0 && pre != null ? pre : _synth(parts[i])];
     try {
-      if (bytes != null) {
-        final done = Completer<void>();
-        final sub = _player.onPlayerComplete.listen((_) {
-          if (!done.isCompleted) done.complete();
-        });
-        await _player.play(BytesSource(bytes, mimeType: 'audio/wav'));
-        await done.future.timeout(const Duration(seconds: 90), onTimeout: () {});
-        await sub.cancel();
-      } else {
-        await _tts.speak(_spoken(t));
-      }
+      await _fillerPlaying;
     } catch (_) {}
+    for (var i = 0; i < parts.length && !_ended; i++) {
+      final bytes = await futures[i];
+      if (_ended) return;
+      try {
+        if (bytes != null) {
+          await _playBytes(bytes);
+        } else {
+          await _tts.speak(_spoken(parts[i]));
+        }
+      } catch (_) {}
+    }
+  }
+
+  static const _fillers = ['حاضر يا استاذ أحمد.', 'ثانية واحدة.', 'تمام، بشوفلك.'];
+  final Map<String, Uint8List> _fillerAudio = {};
+
+  Future<void> _loadFillers() async {
+    for (final f in _fillers) {
+      if (_ended) return;
+      final b = await _synth(f, cache: true);
+      if (b != null) _fillerAudio[f] = b;
+    }
+  }
+
+  void _filler() {
+    if (_ended || _fillerAudio.isEmpty) return;
+    final b = _fillerAudio.values.elementAt(math.Random().nextInt(_fillerAudio.length));
+    _fillerPlaying = _playBytes(b).catchError((_) {});
   }
 
   Future<String> _listen() async {
     if (_ended) return '';
-    if (!_sttReady) {
-      _sttReady = await _stt.initialize(
-        onStatus: (st) {
-          if (st == 'done' || st == 'notListening') {
-            final c = _heard;
-            if (c != null && !c.isCompleted) c.complete(_partial);
-          }
-        },
-        onError: (e) {
-          if (mounted && _state == 'listen') setState(() => _caption = 'مش سامعك (${e.errorMsg})');
-          final c = _heard;
-          if (c != null && !c.isCompleted) c.complete('');
-        },
-      );
-      if (!_sttReady) {
-        if (mounted) setState(() => _caption = 'التعرف على الصوت مش متاح: اسمح بالميكروفون وفعّل Google من إعدادات الموبايل');
-        await Future<void>.delayed(const Duration(seconds: 4));
-        return '';
-      }
-      final locs = await _stt.locales();
-      for (final pref in ['ar_EG', 'ar-EG', 'ar_SA', 'ar-SA']) {
-        for (final l in locs) {
-          if (l.localeId == pref && _locale == null) _locale = l.localeId;
-        }
-      }
-      _locale ??= locs.where((l) => l.localeId.toLowerCase().startsWith('ar')).map((l) => l.localeId).firstOrNull;
-    }
-    _partial = '';
-    _heard = Completer<String>();
     _set('listen');
-    await _stt.listen(
-      localeId: _locale,
-      pauseFor: const Duration(seconds: 2),
-      listenFor: const Duration(seconds: 30),
-      listenOptions: stt.SpeechListenOptions(partialResults: true, cancelOnError: true, listenMode: stt.ListenMode.dictation),
-      onResult: (r) {
-        _partial = r.recognizedWords;
-        if (mounted) setState(() => _caption = _partial);
-        if (r.finalResult && !_heard!.isCompleted) _heard!.complete(_partial);
-      },
-    );
-    final t = await _heard!.future;
-    await _stt.stop();
-    return t.trim();
+    try {
+      return await _cap.listen(onSpeechEnd: () {
+        _set('think');
+        _filler();
+      });
+    } catch (e) {
+      if (mounted) setState(() => _caption = '$e');
+      await Future<void>.delayed(const Duration(seconds: 3));
+      return '';
+    }
   }
 
   Future<void> _run() async {
@@ -1017,9 +1105,10 @@ class _CallScreenState extends State<CallScreen> {
       await _tts.setPitch(1.05);
     } catch (_) {}
     const hello = 'معاك يا استاذ أحمد، أساعدك إزاي؟';
-    final pre = _synth(hello);
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    final pre = _synth(hello, cache: true);
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     await _say(hello, pre: pre);
+    _loadFillers();
     var silent = 0;
     while (!_ended) {
       final heard = await _listen();
@@ -1031,7 +1120,6 @@ class _CallScreenState extends State<CallScreen> {
           await _say('أنا موجودة لو احتجتني يا استاذ أحمد.');
           break;
         }
-        await Future<void>.delayed(const Duration(milliseconds: 600));
         continue;
       }
       silent = 0;
