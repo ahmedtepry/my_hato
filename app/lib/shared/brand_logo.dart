@@ -10,6 +10,11 @@ import '../core/theme.dart';
 /// Reusable brand mark: stylised "M" with an electric-blue diagonal stroke,
 /// following the brand board. Replace the painter with the final vector asset
 /// (e.g. flutter_svg) when the official file is supplied — callers stay the same.
+// (dx, dy) in 512px units: where the drawn wave sits relative to the centre of each mark file
+const Map<int, (double, double)> _markOffset = {
+  1: (2.5, -3.5), 2: (5, 16), 3: (0, 6), 4: (0, -7.5), 5: (-0.5, -41.5), 6: (0, 0), 7: (-0.5, -16.5), 8: (0, 12.5), 9: (-12.5, -23), 10: (0, 0),
+};
+
 class BrandMark extends StatelessWidget {
   const BrandMark({super.key, this.size = 48, this.onDark = false, this.progress = 1});
   final double size;
@@ -23,16 +28,18 @@ class BrandMark extends StatelessWidget {
       width: size,
       height: size * 0.82,
       child: ClipRect(
-        child: Align(
-          alignment: AlignmentDirectional.centerStart,
-          widthFactor: 1,
+        child: Center(
           child: ShaderMask(
             // the mark is revealed left to right while progress runs 0..1 (order-confirmation animation)
             shaderCallback: (r) => LinearGradient(
               colors: const [Colors.white, Colors.white, Colors.transparent, Colors.transparent],
               stops: [0, (progress * 1.1).clamp(0.0, 1.0), (progress * 1.1 + 0.001).clamp(0.0, 1.0), 1],
             ).createShader(r),
-            child: Image.asset('assets/brand/mark_${AppLogo.shape}${onDark ? '_w' : ''}.png', fit: BoxFit.contain, filterQuality: FilterQuality.high),
+            child: Transform.translate(
+              // each wave PNG has its own padding; shift it so the drawn shape (not the file) is centred in its box
+              offset: Offset(-(_markOffset[AppLogo.shape]?.$1 ?? 0) / 512 * size * 0.82, -(_markOffset[AppLogo.shape]?.$2 ?? 0) / 512 * size * 0.82),
+              child: Image.asset('assets/brand/mark_${AppLogo.shape}${onDark ? '_w' : ''}.png', fit: BoxFit.contain, width: size * 0.82, height: size * 0.82, filterQuality: FilterQuality.high),
+            ),
           ),
         ),
       ),
