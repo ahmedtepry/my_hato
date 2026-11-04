@@ -49,7 +49,6 @@ pw.Widget _label(Map<String, dynamic> p, pw.Font reg, pw.Font bold, {required do
           data: sku,
           drawText: true,
           textStyle: const pw.TextStyle(fontSize: 6.5),
-          errorBuilder: (ctx, e) => pw.Text(sku, style: const pw.TextStyle(fontSize: 7)),
         ),
       ),
     ]),
