@@ -3476,6 +3476,7 @@ class _WalletStaffRowState extends ConsumerState<_WalletStaffRow> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_t(context, 'دفع بمحفظة: ${n.$1}', 'Wallet payment: ${n.$2}'), style: const TextStyle(fontWeight: FontWeight.w800)),
             Text('${_t(context, 'التحويل من', 'Sent from')}: ${w['from_phone']}${w['same_number'] == true ? _t(context, ' (نفس رقم العميل)', ' (customer\'s own number)') : _t(context, ' (رقم تاني)', ' (another number)')}', textDirection: TextDirection.ltr),
+            if (w['proof_path'] is String && (w['proof_path'] as String).isNotEmpty) _TransferProof(path: w['proof_path'] as String),
             if (done)
               Text(_t(context, '✓ التحويل اتأكد', '✓ Transfer confirmed'), style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w700))
             else if (canConfirm)
@@ -3487,6 +3488,36 @@ class _WalletStaffRowState extends ConsumerState<_WalletStaffRow> {
   }
 }
 
+
+/// The screenshot the customer attached to the transfer (private bucket, shown through a short-lived signed link).
+class _TransferProof extends StatefulWidget {
+  const _TransferProof({required this.path});
+  final String path;
+  @override
+  State<_TransferProof> createState() => _TransferProofState();
+}
+
+class _TransferProofState extends State<_TransferProof> {
+  late final Future<String> _url = Supabase.instance.client.storage.from('transfer-proofs').createSignedUrl(widget.path, 600);
+  @override
+  Widget build(BuildContext context) => FutureBuilder<String>(
+        future: _url,
+        builder: (_, s) {
+          if (!s.hasData) return const SizedBox(height: 40);
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: InkWell(
+              onTap: () => showDialog<void>(context: context, builder: (d) => Dialog(child: InteractiveViewer(child: Image.network(s.data!)))),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(s.data!, width: 72, height: 72, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))),
+                const SizedBox(width: 8),
+                Text(_t(context, 'صورة التحويل (اضغط للتكبير)', 'Transfer screenshot (tap to enlarge)'), style: const TextStyle(fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          );
+        },
+      );
+}
 
 /// Money given back to the customer for an online order (by hand: cash, wallet or bank). It is recorded with the reason, the customer is told,
 /// and the order is marked refunded once the whole amount is back. Needs "wallet.refund". The stock is not put back by this: do that from the stock screen.

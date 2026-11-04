@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -45,6 +47,14 @@ class OrdersRepository {
   /// After placing a wallet order: which wallet, and which number the money comes from (null = the order's own phone).
   Future<void> walletSubmit(String orderId, String wallet, String? fromPhone) =>
       _db.rpc('order_wallet_submit', params: {'p_order_id': orderId, 'p_wallet': wallet, 'p_from_phone': fromPhone});
+
+  /// Optional screenshot of the transfer: private bucket, path {customer uid}/{order id}.jpg
+  Future<void> walletProofUpload(String orderId, Uint8List bytes) async {
+    final uid = _db.auth.currentUser!.id;
+    final path = '$uid/$orderId.jpg';
+    await _db.storage.from('transfer-proofs').uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
+    await _db.rpc('order_wallet_proof_set', params: {'p_order_id': orderId, 'p_path': path});
+  }
 
   Future<Map<String, dynamic>?> myOrderWallet(String orderId) async {
     final r = await _db.rpc('my_order_wallet', params: {'p_order_id': orderId});
