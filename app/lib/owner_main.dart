@@ -473,6 +473,58 @@ class OwnerUpdater extends ChangeNotifier {
   }
 }
 
+// ------------------------------------------------------------------ morning brief
+
+String _egp(num minor) {
+  final v = minor / 100;
+  final t = v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+  return t.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
+}
+
+/// The brief as short lines (what the card shows). Alerts appear only when there is something to do.
+List<String> briefLines(Map b) {
+  final y = Map<String, dynamic>.from(b['yesterday'] as Map? ?? {});
+  final t = Map<String, dynamic>.from(b['today'] as Map? ?? {});
+  final a = Map<String, dynamic>.from(b['alerts'] as Map? ?? {});
+  int n(dynamic v) => (v as num?)?.toInt() ?? 0;
+  final out = <String>[
+    'امبارح: المحل ${n(y['pos_sales'])} عملية (${_egp(n(y['pos_total_minor']))} ج) • أونلاين ${n(y['online_orders'])} أوردر (${_egp(n(y['online_total_minor']))} ج) • الربح ${_egp(n(y['profit_minor']))} ج',
+    'النهارده لحد دلوقتي: المحل ${n(t['pos_sales'])} عملية (${_egp(n(t['pos_total_minor']))} ج) • أونلاين ${n(t['online_orders'])} أوردر (${_egp(n(t['online_total_minor']))} ج)',
+  ];
+  if (n(y['losing_sales']) > 0) out.add('⚠️ ${n(y['losing_sales'])} عملية بيع امبارح بخسارة');
+  if (n(a['orders_to_confirm']) > 0) out.add('🕐 ${n(a['orders_to_confirm'])} أوردر مستني تأكيد');
+  if (n(a['orders_stuck_3d']) > 0) out.add('🚚 ${n(a['orders_stuck_3d'])} أوردر متأخر أكتر من 3 أيام');
+  if (n(a['unpaid_wallet_orders']) > 0) out.add('💳 ${n(a['unpaid_wallet_orders'])} أوردر دفع بمحفظة لسه ماتأكدش');
+  if (n(a['unmatched_transfers']) > 0) out.add('📩 ${n(a['unmatched_transfers'])} تحويل وصل من غير أوردر');
+  if (n(a['low_stock']) > 0) {
+    final names = ((a['low_stock_items'] as List?) ?? const []).map((e) => '${(e as Map)['name']} (${e['stock']})').take(3).join('، ');
+    out.add('📦 ${n(a['low_stock'])} منتج مخزونه قليل${names.isEmpty ? '' : ': $names'}');
+  }
+  if (n(a['pending_accounts']) > 0) out.add('👤 ${n(a['pending_accounts'])} حساب مستني توثيق');
+  if (n(a['products_without_cost']) > 0) out.add('ℹ️ ${n(a['products_without_cost'])} منتج من غير تكلفة (الربح مش دقيق)');
+  return out;
+}
+
+/// The same brief written to be read aloud on the call.
+String briefSpeech(Map b) {
+  final y = Map<String, dynamic>.from(b['yesterday'] as Map? ?? {});
+  final t = Map<String, dynamic>.from(b['today'] as Map? ?? {});
+  final a = Map<String, dynamic>.from(b['alerts'] as Map? ?? {});
+  int n(dynamic v) => (v as num?)?.toInt() ?? 0;
+  final p = <String>[
+    'امبارح بعنا ${n(y['pos_sales'])} في المحل و${n(y['online_orders'])} أونلاين، والربح ${_egp(n(y['profit_minor']))} جنيه.',
+    'النهارده لحد دلوقتي ${n(t['pos_sales'])} في المحل و${n(t['online_orders'])} أونلاين.',
+  ];
+  final todo = <String>[];
+  if (n(a['orders_to_confirm']) > 0) todo.add('${n(a['orders_to_confirm'])} أوردر مستني تأكيد');
+  if (n(a['orders_stuck_3d']) > 0) todo.add('${n(a['orders_stuck_3d'])} أوردر متأخر');
+  if (n(a['unpaid_wallet_orders']) > 0) todo.add('${n(a['unpaid_wallet_orders'])} دفع محفظة لسه ماتأكدش');
+  if (n(a['low_stock']) > 0) todo.add('${n(a['low_stock'])} منتج مخزونه قليل');
+  if (n(a['pending_accounts']) > 0) todo.add('${n(a['pending_accounts'])} حساب مستني توثيق');
+  p.add(todo.isEmpty ? 'مفيش حاجة مستعجلة.' : 'محتاج انتباهك: ${todo.join('، ')}.');
+  return p.join(' ');
+}
+
 // ------------------------------------------------------------------ voice
 
 /// Records the owner until he stops talking (silence detection), then Gemini writes down what he said.
@@ -593,8 +645,31 @@ class _ChatPageState extends State<ChatPage> {
   bool _busy = false, _listening = false;
   final _upd = ownerUpdater;
   final _cap = VoiceCapture();
+  Map<String, dynamic>? _brief;
+  bool _briefLoading = false;
 
-  static const _quick = ['مبيعات النهارده', 'الأوردرات الجديدة', 'مين في الفريق؟', 'صلاحيات الكاشير', 'التحويلات اللي وصلت'];
+  Future<Map<String, dynamic>?> _fetchBrief() async {
+    try {
+      final r = await Supabase.instance.client.rpc('owner_brief');
+      return r is Map ? Map<String, dynamic>.from(r) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Shown once a day when the app opens (and any time from the "تقرير الصبح" button).
+  Future<void> _loadBrief({bool force = false}) async {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    if (!force && widget.prefs.getString('brief_day') == today) return;
+    setState(() => _briefLoading = true);
+    final b = await _fetchBrief();
+    if (!mounted) return;
+    setState(() { _brief = b; _briefLoading = false; });
+    if (b != null) widget.prefs.setString('brief_day', today);
+    else if (force) _note('مقدرتش أجيب التقرير دلوقتي');
+  }
+
+  static const _quick = ['تقرير الصبح', 'مبيعات النهارده', 'الأوردرات الجديدة', 'مين في الفريق؟', 'صلاحيات الكاشير', 'التحويلات اللي وصلت'];
 
   void _note(String m) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -635,6 +710,7 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _upd.addListener(_onUpd);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBrief());
     try {
       final raw = widget.prefs.getString(_key);
       if (raw != null) {
@@ -657,6 +733,11 @@ class _ChatPageState extends State<ChatPage> {
   Future<String> _send(String text, {bool voice = false}) async {
     text = text.trim();
     if (text.isEmpty || _busy) return '';
+    if (text == 'تقرير الصبح') {
+      _input.clear();
+      await _loadBrief(force: true);
+      return '';
+    }
     _input.clear();
     setState(() { _msgs.add(_Msg('user', text)); _busy = true; });
     _save();
@@ -708,7 +789,7 @@ class _ChatPageState extends State<ChatPage> {
   void _call() {
     Navigator.of(context).push(PageRouteBuilder(
       opaque: true,
-      pageBuilder: (_, __, ___) => CallScreen(ask: (t) => _send(t, voice: true)),
+      pageBuilder: (_, __, ___) => CallScreen(ask: (t) => _send(t, voice: true), loadBrief: _fetchBrief),
       transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
     ));
   }
@@ -774,6 +855,8 @@ class _ChatPageState extends State<ChatPage> {
           decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_bg, Color(0xFF010302)])),
           child: Column(children: [
             if (_upd.status.isNotEmpty) _updateBar(),
+            if (_brief != null) _briefCard(),
+            if (_briefLoading) const LinearProgressIndicator(minHeight: 2, color: _cyan, backgroundColor: _panel),
             Expanded(
               child: _msgs.isEmpty
                   ? _welcome()
@@ -789,6 +872,32 @@ class _ChatPageState extends State<ChatPage> {
           ]),
         ),
       ),
+    );
+  }
+
+  Widget _briefCard() {
+    final lines = briefLines(_brief!);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      constraints: const BoxConstraints(maxHeight: 230),
+      decoration: BoxDecoration(color: const Color(0xFF0A1C17), borderRadius: BorderRadius.circular(16), border: Border.all(color: _cyan.withValues(alpha: .5))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.wb_twilight_rounded, color: _cyan, size: 18),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('تقرير الصبح', style: TextStyle(color: _cyan, fontWeight: FontWeight.w900))),
+          IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.refresh_rounded, size: 18, color: _muted), onPressed: () => _loadBrief(force: true)),
+          IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.close_rounded, size: 18, color: _muted), onPressed: () => setState(() => _brief = null)),
+        ]),
+        Flexible(
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (final l in lines) Padding(padding: const EdgeInsets.only(bottom: 5), child: Text(l, style: const TextStyle(color: _ink, fontSize: 13, height: 1.5))),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -949,8 +1058,9 @@ class _ChatPageState extends State<ChatPage> {
 
 /// A phone call with the secretary: she picks up, greets, listens, answers aloud, and keeps going until you hang up.
 class CallScreen extends StatefulWidget {
-  const CallScreen({super.key, required this.ask});
+  const CallScreen({super.key, required this.ask, required this.loadBrief});
   final Future<String> Function(String text) ask;
+  final Future<Map<String, dynamic>?> Function() loadBrief;
   @override
   State<CallScreen> createState() => _CallScreenState();
 }
@@ -1129,6 +1239,13 @@ class _CallScreenState extends State<CallScreen> {
         break;
       }
       _set('think', heard);
+      if (RegExp(r'(تقرير|ملخص|الأخبار|اخبار|إيه الجديد|ايه الجديد|عامل إيه النهارده|عاملة ايه)').hasMatch(heard)) {
+        final b = await widget.loadBrief();
+        if (b != null) {
+          await _say(briefSpeech(b));
+          continue;
+        }
+      }
       final answer = await widget.ask(heard);
       if (_ended) break;
       await _say(answer.isEmpty ? 'مسمعتش كويس، ممكن تعيد؟' : answer);
