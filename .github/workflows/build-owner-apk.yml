@@ -24,9 +24,10 @@ jobs:
         shell: bash
         run: bash app/tool/ci_build_owner.sh 2>&1 | tee build.log
       - uses: actions/upload-artifact@v4
+        continue-on-error: true # the release below is the real delivery; GitHub's artifact quota can be full
         with: { name: myhato-owner-apk, path: dist/MyHatoOwner.apk, if-no-files-found: ignore }
       - name: Publish release
-        if: success()
+        if: ${{ !cancelled() }}
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           TAG="owner-${{ github.run_number }}"
