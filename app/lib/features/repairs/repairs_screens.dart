@@ -1,3 +1,4 @@
+import 'device_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -156,11 +157,7 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
               ActionChip(label: Text(b), onPressed: () => setState(() => _brand.text = b)),
           ]),
           const SizedBox(height: 12),
-          TextFormField(
-            controller: _model,
-            decoration: InputDecoration(labelText: context.tr('device_model')),
-            validator: (v) => (v == null || v.trim().isEmpty) ? context.tr('required') : null,
-          ),
+          ModelPicker(controller: _model, brand: _brand, validator: (v) => (v == null || v.trim().isEmpty) ? context.tr('required') : null),
           const SizedBox(height: 12),
           TextFormField(
             controller: _imei,
