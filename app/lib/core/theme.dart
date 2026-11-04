@@ -25,7 +25,7 @@ class AppPalette {
     int pick(String k) => _parse(json?[k]) ?? _parse(defaults[k])!;
     final primary = pick('primary');
     final hsl = HSLColor.fromColor(Color(primary));
-    final deep = hsl.withLightness((hsl.lightness * 0.62).clamp(0.0, 1.0)).toColor().toARGB32();
+    final deep = hsl.withLightness((hsl.lightness * 0.5).clamp(0.0, 1.0)).toColor().toARGB32();
     final next = [primary, deep, pick('accent'), pick('background'), pick('success'), pick('danger')];
     var changed = false;
     for (var i = 0; i < next.length; i++) {
