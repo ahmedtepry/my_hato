@@ -25,18 +25,21 @@ const TOOLS: A[] = [
   { name: "permissions", description: "Which permissions each role has, plus per-person overrides. Pass role to see one role.", input_schema: { type: "object", properties: { role: { type: "string" } } } },
   { name: "customers", description: "Search customers by name/phone/email.", input_schema: { type: "object", properties: { q: { type: "string" } } } },
   { name: "wallet_transfers", description: "Latest incoming wallet transfers and whether they were matched to an order.", input_schema: { type: "object", properties: {} } },
+  { name: "pending_accounts", description: "Customer accounts by verification status (default: pending = waiting for verification/توثيق): id, name, phone, email, code.", input_schema: { type: "object", properties: { status: { type: "string", enum: ["pending", "approved", "rejected"] } } } },
   { name: "set_role_permission", description: "PROPOSE granting or revoking a permission for a whole role. Needs the owner's confirmation.", input_schema: { type: "object", properties: { role: { type: "string", enum: ["manager", "sales", "technician", "support", "cashier", "accountant"] }, permission: { type: "string" }, grant: { type: "boolean" } }, required: ["role", "permission", "grant"] } },
   { name: "set_user_permission", description: "PROPOSE granting, denying or clearing a permission for ONE team member. Needs confirmation.", input_schema: { type: "object", properties: { user_id: { type: "string" }, permission: { type: "string" }, effect: { type: "string", enum: ["grant", "deny", "clear"] } }, required: ["user_id", "permission", "effect"] } },
   { name: "set_product_price", description: "PROPOSE a new price (in EGP) for a product. Needs confirmation.", input_schema: { type: "object", properties: { product_id: { type: "string" }, price_egp: { type: "number" }, compare_at_egp: { type: "number" } }, required: ["product_id", "price_egp"] } },
   { name: "adjust_stock", description: "PROPOSE adding (+) or removing (-) stock of a product. Needs confirmation.", input_schema: { type: "object", properties: { product_id: { type: "string" }, delta: { type: "integer" }, reason: { type: "string", enum: ["manual_adjust", "restock", "correction"] } }, required: ["product_id", "delta"] } },
   { name: "update_product", description: "PROPOSE editing a product's name, status (draft/published/archived) or featured flag. Needs confirmation.", input_schema: { type: "object", properties: { product_id: { type: "string" }, name_ar: { type: "string" }, name_en: { type: "string" }, status: { type: "string", enum: ["draft", "published", "archived"] }, is_featured: { type: "boolean" } }, required: ["product_id"] } },
   { name: "set_order_status", description: "PROPOSE changing an online order's status. Needs confirmation.", input_schema: { type: "object", properties: { order_id: { type: "string" }, to_status: { type: "string" }, note: { type: "string" } }, required: ["order_id", "to_status"] } },
+  { name: "approve_account", description: "PROPOSE verifying (توثيق / تفعيل) a customer account so the customer can sign in and order. Needs confirmation. Get the user_id from pending_accounts.", input_schema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
+  { name: "reject_account", description: "PROPOSE rejecting a pending customer account, with an optional reason. Needs confirmation.", input_schema: { type: "object", properties: { user_id: { type: "string" }, reason: { type: "string" } }, required: ["user_id"] } },
   { name: "remember", description: "Save a lasting fact or preference about the owner / his shop so you remember it in every later chat (e.g. 'my supplier is X', 'I prefer short answers'). Call it when he says remember / احفظ / خليك فاكر.", input_schema: { type: "object", properties: { content: { type: "string" } }, required: ["content"] } },
   { name: "forget", description: "Delete one saved fact by its id (shown in the memory list).", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "confirm_pending", description: "Run the changes that were proposed in an EARLIER message. Call ONLY when the owner's latest message clearly says yes / go ahead.", input_schema: { type: "object", properties: {} } },
   { name: "cancel_pending", description: "Drop every proposed change (the owner said no / cancel).", input_schema: { type: "object", properties: {} } },
 ];
-const WRITE_TOOLS = new Set(["set_role_permission", "set_user_permission", "set_product_price", "adjust_stock", "update_product", "set_order_status"]);
+const WRITE_TOOLS = new Set(["set_role_permission", "set_user_permission", "set_product_price", "adjust_stock", "update_product", "set_order_status", "approve_account", "reject_account"]);
 
 const SYSTEM = (now: string, mem: string, voice: boolean) => `You are the private SECRETARY and assistant of the OWNER of "My Hatō", a mobile-phone and accessories shop in Egypt. You control the shop's system through tools.
 Reply in short Egyptian Arabic (the owner may write in English: then reply in English). Be brief, no long lists unless asked.
@@ -50,6 +53,7 @@ Rules for changes:
 - To change anything, call the matching "propose" tool. It does NOT change anything yet. Then tell the owner in ONE short line exactly what will change and ask "أنفّذ؟".
 - Only when the owner's NEXT message clearly agrees (أيوه، نفذ، تمام، yes) call confirm_pending. If he says no / cancel call cancel_pending. If he changes his mind or asks something else, ignore the old proposal.
 - For "net profit of order X" call order_profit, then answer in one or two lines: revenue (subtotal), product cost, net profit and margin %. The delivery fee is not profit. If missing_cost_lines > 0, say the cost of those items is not set so the profit cannot be known.
+- Account verification (توثيق الحسابات): pending_accounts lists who is waiting. To verify someone call approve_account, to refuse call reject_account (both only propose; the owner confirms in his next message). Match the person by name or phone; if several match, ask which one. When asked to verify everyone pending, propose each one and list their names in one line.
 - Look things up first (find_products, staff_list...) to get the real ids and exact names. If several items match, ask which one.
 - Never propose giving 'permissions.manage', and never touch the owner's own account.
 - If a tool returns an error, explain it simply (e.g. FORBIDDEN = not allowed) and do not retry blindly.
@@ -87,6 +91,12 @@ async function summarize(user: SupabaseClient, name: string, a: A): Promise<stri
       const ch = ["name_ar", "name_en", "status", "is_featured"].filter((k) => a[k] !== undefined).map((k) => `${k}=${a[k]}`).join("، ");
       return `تعديل المنتج "${p?.name_ar ?? a.product_id}": ${ch}`;
     }
+    case "approve_account":
+    case "reject_account": {
+      const { data } = await user.from("customers").select("full_name, username, phone, customer_code").eq("user_id", a.user_id).maybeSingle();
+      const who = data ? [data.full_name || data.username, data.phone, data.customer_code].filter(Boolean).join(" - ") : a.user_id;
+      return name === "approve_account" ? `توثيق حساب ${who}` : `رفض حساب ${who}${a.reason ? ` (${a.reason})` : ""}`;
+    }
     case "set_order_status": {
       const { data } = await user.from("orders").select("reference").eq("id", a.order_id).maybeSingle();
       return `تغيير حالة الأوردر ${data?.reference ?? a.order_id} إلى ${a.to_status}`;
@@ -102,11 +112,12 @@ async function validate(name: string, a: A): Promise<string | null> {
   if (name === "set_product_price" && (!uuid.test(String(a.product_id)) || !(a.price_egp >= 0) || a.price_egp > 10000000)) return "INVALID_INPUT";
   if (name === "adjust_stock" && (!uuid.test(String(a.product_id)) || !Number.isInteger(a.delta) || a.delta === 0 || Math.abs(a.delta) > 100000)) return "INVALID_INPUT";
   if (name === "update_product" && !uuid.test(String(a.product_id))) return "INVALID_INPUT";
+  if ((name === "approve_account" || name === "reject_account") && !uuid.test(String(a.user_id))) return "INVALID_INPUT";
   if (name === "set_order_status" && (!uuid.test(String(a.order_id)) || typeof a.to_status !== "string")) return "INVALID_INPUT";
   return null;
 }
 
-async function runWrite(user: SupabaseClient, tool: string, a: A): Promise<unknown> {
+async function runWrite(user: SupabaseClient, tool: string, a: A, auth: string): Promise<unknown> {
   let r: { data?: unknown; error: { message: string } | null };
   switch (tool) {
     case "set_role_permission":
@@ -130,6 +141,19 @@ async function runWrite(user: SupabaseClient, tool: string, a: A): Promise<unkno
       if (!u.error && (!u.data || u.data.length === 0)) return { error: "FORBIDDEN_OR_NOT_FOUND" };
       break;
     }
+    case "approve_account": {
+      // the same Edge Function the team app uses: it confirms the Auth account and marks it approved as the owner (audit + welcome message)
+      const f = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/admin-customer`, {
+        method: "POST",
+        headers: { Authorization: auth, apikey: Deno.env.get("SUPABASE_ANON_KEY")!, "content-type": "application/json" },
+        body: JSON.stringify({ action: "activate", user_id: a.user_id }),
+      });
+      const j = await f.json().catch(() => ({}));
+      return f.ok ? { ok: true, result: j } : { error: j.error ?? `HTTP ${f.status}` };
+    }
+    case "reject_account":
+      r = await user.rpc("staff_reject_account", { p_user_id: a.user_id, p_reason: a.reason ?? null });
+      break;
     case "set_order_status":
       r = await user.rpc("staff_set_order_status", { p_order_id: a.order_id, p_to: a.to_status, p_note: a.note ?? "owner assistant", p_message: null });
       break;
@@ -140,7 +164,7 @@ async function runWrite(user: SupabaseClient, tool: string, a: A): Promise<unkno
   return { ok: true, result: r.data ?? null };
 }
 
-async function runTool(name: string, a: A, ctx: { user: SupabaseClient; svc: SupabaseClient; uid: string; turn: string }): Promise<unknown> {
+async function runTool(name: string, a: A, ctx: { user: SupabaseClient; svc: SupabaseClient; uid: string; turn: string; auth: string }): Promise<unknown> {
   const { user, svc, uid, turn } = ctx;
   const out = (r: { data: unknown; error: { message: string } | null }) => (r.error ? { error: r.error.message } : r.data);
   switch (name) {
@@ -176,6 +200,11 @@ async function runTool(name: string, a: A, ctx: { user: SupabaseClient; svc: Sup
     }
     case "customers":
       return out(await user.rpc("staff_customers", { p_search: a.q ? String(a.q).slice(0, 60) : null, p_limit: 15, p_offset: 0 }));
+    case "pending_accounts": {
+      const r = await user.rpc("staff_accounts", { p_status: a.status ?? "pending" });
+      if (r.error) return { error: r.error.message };
+      return (r.data as A[]).slice(0, 20).map((x) => ({ user_id: x.user_id, name: x.full_name || x.username, phone: x.phone, email: x.email, code: x.customer_code, created_at: x.created_at }));
+    }
     case "wallet_transfers":
       return out(await user.rpc("wallet_inbox_list", { p_limit: 10 }));
     case "remember": {
@@ -202,7 +231,7 @@ async function runTool(name: string, a: A, ctx: { user: SupabaseClient; svc: Sup
       const results: A[] = [];
       for (const p of rows) {
         await svc.from("assistant_pending").delete().eq("id", p.id);
-        const r = await runWrite(user, p.tool, p.args);
+        const r = await runWrite(user, p.tool, p.args, ctx.auth);
         await user.rpc("assistant_audit", { p_tool: p.tool, p_summary: p.summary });
         results.push({ summary: p.summary, result: r });
       }
@@ -248,7 +277,7 @@ Deno.serve(async (req) => {
   if (!history.length || history[history.length - 1].role !== "user") return reply(400, { error: "empty" });
 
   const turn = crypto.randomUUID();
-  const ctx = { user, svc, uid, turn };
+  const ctx = { user, svc, uid, turn, auth };
   const voice = body.voice === true;
   // memory: lasting facts + his recent requests; then log this request
   let mem = "";
