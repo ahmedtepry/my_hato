@@ -207,6 +207,12 @@ class ProfileScreen extends ConsumerWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/loyalty'),
                 ),
+                ListTile(
+                  leading: _iconTile(Icons.verified_user_rounded, const Color(0xFF14A671)),
+                  title: Text(context.isAr ? 'ضماناتي' : 'My warranties'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/account/warranties'),
+                ),
                 _tile(context, Icons.favorite_rounded, 'favorites', '/account/favorites', const Color(0xFFE0338A)),
                 _tile(context, Icons.credit_card_rounded, 'saved_cards', '/account/cards', const Color(0xFF1B8FC4)),
                 _tile(context, Icons.receipt_rounded, 'payments_history', '/payments', const Color(0xFF14A671)),

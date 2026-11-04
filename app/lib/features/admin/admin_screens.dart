@@ -30,6 +30,7 @@ import '../orders/orders_screens.dart' show fmtDate;
 import '../repairs/repairs_repository.dart';
 import '../repairs/repairs_screens.dart' show repairLabel, repairStatusColor;
 import 'accounts_tab.dart';
+import 'barcode_labels.dart';
 import '../../core/team_theme.dart';
 import 'desktop_console.dart';
 import 'direct_chat.dart';
@@ -1819,13 +1820,16 @@ class _ProductsTab extends ConsumerWidget {
             PopupMenuButton<String>(
               tooltip: 'Excel',
               onSelected: (v) {
-                if (v == 'export') {
+                if (v == 'labels') {
+                  printBarcodeLabels(context, ref);
+                } else if (v == 'export') {
                   exportProductsExcel(context, ref);
                 } else {
                   importProductsExcel(context, ref, onDone: () => ref.invalidate(_productsProvider));
                 }
               },
               itemBuilder: (_) => [
+                PopupMenuItem(value: 'labels', child: ListTile(leading: const Icon(Icons.qr_code_2_rounded), title: Text(_t(context, 'طباعة ملصقات باركود', 'Print barcode labels')), contentPadding: EdgeInsets.zero)),
                 PopupMenuItem(value: 'export', child: ListTile(leading: const Icon(Icons.download_rounded), title: Text(_t(context, 'تصدير Excel', 'Export to Excel')), contentPadding: EdgeInsets.zero)),
                 PopupMenuItem(value: 'import', child: ListTile(leading: const Icon(Icons.upload_file_rounded), title: Text(_t(context, 'استيراد أسعار وكميات من Excel', 'Import prices & stock')), contentPadding: EdgeInsets.zero)),
               ],

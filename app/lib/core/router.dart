@@ -29,6 +29,7 @@ import '../features/orders/orders_screens.dart';
 import '../features/payments/payment_flow.dart';
 import '../features/payments/payments_screens.dart';
 import '../features/profile/profile_screens.dart';
+import '../features/profile/warranties_screen.dart';
 import '../features/repairs/repairs_screens.dart';
 import '../shared/phone_notifications.dart';
 import 'config.dart';
@@ -142,6 +143,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/account/addresses/edit', builder: (_, s) => AddressFormScreen(existing: s.extra as Map<String, dynamic>?)),
       GoRoute(path: '/account/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(path: '/loyalty', builder: (_, __) => const LoyaltyScreen()),
+      GoRoute(path: '/account/warranties', builder: (_, __) => const WarrantiesScreen()),
       GoRoute(path: '/wheel', builder: (_, __) => const WheelScreen()),
       GoRoute(path: '/account/favorites', builder: (_, __) => const FavoritesScreen()),
       GoRoute(path: '/account/help', builder: (_, __) => const HelpScreen()),
