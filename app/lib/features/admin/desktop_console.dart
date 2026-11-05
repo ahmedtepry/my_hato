@@ -170,7 +170,7 @@ class DesktopSidebar extends ConsumerWidget {
     if (!glass) return Container(width: 236, color: BrandColors.navyDeep, child: inner);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
-      child: SizedBox(width: 236, child: GlassBox(padding: EdgeInsets.zero, radius: 26, blur: 22, child: inner)),
+      child: SizedBox(width: 236, child: GlassBox(padding: EdgeInsets.zero, radius: 26, child: inner)),
     );
   }
 }

@@ -115,9 +115,10 @@ class GlassBackdrop extends ConsumerWidget {
   }
 }
 
-/// A frosted card: blur + a faint white gradient + a bright hairline. [blur] 0 skips the blur (cheaper) for dense screens.
+/// A glass card: a faint white gradient + a bright hairline over the glowing backdrop. [blur] > 0 adds a real backdrop blur, which is heavy on
+/// ordinary laptops, so it is off by default (the backdrop is a smooth gradient, the look is almost the same).
 class GlassBox extends StatelessWidget {
-  const GlassBox({super.key, required this.child, this.padding = const EdgeInsets.all(20), this.radius = 22, this.blur = 18, this.margin, this.tint});
+  const GlassBox({super.key, required this.child, this.padding = const EdgeInsets.all(20), this.radius = 22, this.blur = 0, this.margin, this.tint});
   final Widget child;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
@@ -133,7 +134,6 @@ class GlassBox extends StatelessWidget {
         borderRadius: r,
         gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [(tint ?? Colors.white).withValues(alpha: 0.12), (tint ?? Colors.white).withValues(alpha: 0.04)]),
         border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 14))],
       ),
       child: child,
     );
