@@ -820,7 +820,7 @@ class AdminHomeScreen extends ConsumerWidget {
                 backgroundColor: glass ? const Color(0xFF061833) : const Color(0xFFF4F6FA),
                 body: _lookWrap(glass, CallbackShortcuts(
                   bindings: {
-                    const SingleActivator(LogicalKeyboardKey.keyK, control: true): () => _openSearch(ctx, ref),
+                    const SingleActivator(LogicalKeyboardKey.keyK, control: true): () => _openSearch(ctx, ref, sections: available, onOpen: open),
                     const SingleActivator(LogicalKeyboardKey.f5): () {
                       refreshDesktopHome(ref);
                       ref.invalidate(_statsProvider);
@@ -849,7 +849,7 @@ class AdminHomeScreen extends ConsumerWidget {
                             ],
                             selected: current,
                                   onSelect: open,
-                                  onSearch: () => _openSearch(ctx, ref),
+                                  onSearch: () => _openSearch(ctx, ref, sections: available, onOpen: open),
                                   onSignOut: signOut,
                                   onToggleLayout: () => toggleConsoleNavStyle(ref),
                                 )
@@ -869,7 +869,7 @@ class AdminHomeScreen extends ConsumerWidget {
                             ],
                             selected: current,
                                   onSelect: open,
-                                  onSearch: () => _openSearch(ctx, ref),
+                                  onSearch: () => _openSearch(ctx, ref, sections: available, onOpen: open),
                                   onSignOut: signOut,
                                   onToggleLayout: () => toggleConsoleNavStyle(ref),
                                 ),
@@ -1231,7 +1231,13 @@ class _Overview extends ConsumerWidget {
         attention: attention,
         available: tabs,
         pendingAccounts: ref.watch(pendingAccountsCountProvider).valueOrNull ?? 0,
-        onSearch: () => _openSearch(context, ref),
+        onSearch: () => _openSearch(context, ref, sections: tabs, onOpen: (k) {
+          final i = tabs.indexOf(k);
+          if (i >= 0) {
+            StaffPresence.area = k;
+            DefaultTabController.of(context).animateTo(i);
+          }
+        }),
         onOpen: (k) {
           final i = tabs.indexOf(k);
           if (i >= 0) {
@@ -2775,23 +2781,31 @@ class _CancelRequestCardState extends ConsumerState<_CancelRequestCard> {
 // =====================================================================================
 // Search by order / repair number
 // =====================================================================================
-Future<void> _openSearch(BuildContext context, WidgetRef ref) async {
+Future<void> _openSearch(BuildContext context, WidgetRef ref, {List<String> sections = const [], void Function(String key)? onOpen}) async {
   final picked = await showModalBottomSheet<(String, Map<String, dynamic>)>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => const _SearchSheet(),
+    builder: (_) => _SearchSheet(sections: sections),
   );
   if (picked == null || !context.mounted) return;
-  if (picked.$1 == 'order') {
-    await _orderSheet(context, ref, picked.$2);
-  } else {
-    await _repairSheet(context, ref, picked.$2);
+  switch (picked.$1) {
+    case 'order':
+      await _orderSheet(context, ref, picked.$2);
+    case 'repair':
+      await _repairSheet(context, ref, picked.$2);
+    case 'section':
+      onOpen?.call(picked.$2['key'] as String);
+    case 'product':
+      onOpen?.call('products');
+    case 'customer':
+      onOpen?.call('accounts');
   }
 }
 
 class _SearchSheet extends ConsumerStatefulWidget {
-  const _SearchSheet();
+  const _SearchSheet({this.sections = const []});
+  final List<String> sections;
   @override
   ConsumerState<_SearchSheet> createState() => _SearchSheetState();
 }
@@ -2802,6 +2816,8 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
   bool _loading = false;
   String? _error;
   ({List<Map<String, dynamic>> orders, List<Map<String, dynamic>> repairs})? _res;
+  List<Map<String, dynamic>> _products = const [], _customers = const [];
+  String _term = '';
   int _seq = 0;
 
   @override
@@ -2818,9 +2834,13 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
 
   Future<void> _run(String v) async {
     final seq = ++_seq;
-    if (v.trim().length < 3) {
+    final t = v.trim();
+    _term = t;
+    if (t.length < 2) {
       setState(() {
         _res = null;
+        _products = const [];
+        _customers = const [];
         _loading = false;
         _error = null;
       });
@@ -2830,9 +2850,31 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
       _loading = true;
       _error = null;
     });
+    final repo = ref.read(adminRepoProvider);
+    final perms = ref.read(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    Future<T> safe<T>(Future<T> f, T fallback) async {
+      try {
+        return await f;
+      } catch (_) {
+        return fallback;
+      }
+    }
+
     try {
-      final r = await ref.read(adminRepoProvider).searchByReference(v);
-      if (mounted && seq == _seq) setState(() => _res = r);
+      final out = await Future.wait<Object?>([
+        t.length >= 3 && (perms.contains('orders.view') || perms.contains('repairs.view'))
+            ? safe(repo.searchByReference(t), (orders: <Map<String, dynamic>>[], repairs: <Map<String, dynamic>>[]))
+            : Future.value((orders: <Map<String, dynamic>>[], repairs: <Map<String, dynamic>>[])),
+        widget.sections.contains('products') ? safe(repo.products(search: t), <Map<String, dynamic>>[]) : Future.value(<Map<String, dynamic>>[]),
+        widget.sections.contains('accounts') ? safe(repo.customers(t, limit: 8), <Map<String, dynamic>>[]) : Future.value(<Map<String, dynamic>>[]),
+      ]);
+      if (mounted && seq == _seq) {
+        setState(() {
+          _res = out[0] as ({List<Map<String, dynamic>> orders, List<Map<String, dynamic>> repairs});
+          _products = (out[1] as List<Map<String, dynamic>>).take(8).toList();
+          _customers = out[2] as List<Map<String, dynamic>>;
+        });
+      }
     } catch (e) {
       if (mounted && seq == _seq) setState(() => _error = friendlyError(context, e));
     } finally {
@@ -2840,11 +2882,21 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
     }
   }
 
+  List<String> _matchedSections() {
+    final q = _term.toLowerCase();
+    if (q.length < 2) return const [];
+    return [
+      for (final k in widget.sections)
+        if (k != 'overview' && _sectionInfo[k] != null && ('${_sectionInfo[k]!.ar} ${_sectionInfo[k]!.en}'.toLowerCase().contains(q))) k,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final labels = ref.watch(repairLabelsProvider).valueOrNull;
     final r = _res;
-    final empty = r != null && r.orders.isEmpty && r.repairs.isEmpty;
+    final secs = _matchedSections();
+    final empty = r != null && r.orders.isEmpty && r.repairs.isEmpty && _products.isEmpty && _customers.isEmpty && secs.isEmpty;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SizedBox(
@@ -2855,13 +2907,11 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
             child: TextField(
               controller: _q,
               autofocus: true,
-              textDirection: TextDirection.ltr,
-              textCapitalization: TextCapitalization.characters,
               onChanged: _changed,
               onSubmitted: _run,
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search_rounded),
-                hintText: _t(context, 'رقم الطلب أو الصيانة — مثلاً 1003 أو MY-HATO75', 'Order or repair number — e.g. 1003 or MY-HATO75'),
+                hintText: _t(context, 'ابحث عن أي حاجة: طلب، صيانة، منتج، عميل أو صفحة', 'Search anything: order, repair, product, customer or page'),
                 suffixIcon: _loading
                     ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2)))
                     : (_q.text.isEmpty
@@ -2882,13 +2932,52 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.all(24),
-                          child: Text(_t(context, 'اكتب 3 حروف أو أرقام على الأقل من رقم الطلب', 'Type at least 3 characters of the number'),
+                          child: Text(_t(context, 'اكتب حرفين على الأقل (اسم منتج، اسم عميل، رقم طلب أو اسم صفحة)', 'Type at least 2 characters (product, customer, order number or page name)'),
                               textAlign: TextAlign.center, style: const TextStyle(color: BrandColors.gray)),
                         ),
                       )
                     : empty
-                        ? Center(child: Text(_t(context, 'مفيش طلب بالرقم ده', 'No order or repair with this number'), style: const TextStyle(color: BrandColors.gray)))
+                        ? Center(child: Text(_t(context, 'مفيش نتيجة', 'No results'), style: const TextStyle(color: BrandColors.gray)))
                         : ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
+                            if (secs.isNotEmpty) ...[
+                              _header(_t(context, 'صفحات', 'Pages'), Icons.dashboard_outlined, secs.length),
+                              for (final k in secs)
+                                Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    leading: Icon(_sectionInfo[k]!.icon, color: _sectionInfo[k]!.color),
+                                    title: Text(_t(context, _sectionInfo[k]!.ar, _sectionInfo[k]!.en), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    onTap: () => Navigator.pop(context, ('section', {'key': k})),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                            ],
+                            if (_products.isNotEmpty) ...[
+                              _header(_t(context, 'منتجات', 'Products'), Icons.inventory_2_outlined, _products.length),
+                              for (final x in _products)
+                                Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    title: Text('${x['name_ar'] ?? x['name_en']}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    subtitle: Text('${x['sku'] ?? ''} • ${formatEgp(((x['price_minor'] as num?) ?? 0).toInt(), context.lang)} • ${_t(context, 'المخزون', 'Stock')}: ${x['stock_quantity'] ?? 0}'),
+                                    onTap: () => Navigator.pop(context, ('product', Map<String, dynamic>.from(x))),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                            ],
+                            if (_customers.isNotEmpty) ...[
+                              _header(_t(context, 'عملاء', 'Customers'), Icons.people_alt_outlined, _customers.length),
+                              for (final x in _customers)
+                                Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    title: Text('${x['full_name'] ?? x['username'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    subtitle: Text('${x['phone'] ?? ''}  ${x['customer_code'] ?? ''}'),
+                                    onTap: () => Navigator.pop(context, ('customer', Map<String, dynamic>.from(x))),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                            ],
                             if (r.orders.isNotEmpty) ...[
                               _header(_t(context, 'طلبات المبيعات', 'Sales orders'), Icons.receipt_long_rounded, r.orders.length),
                               for (final o in r.orders)
