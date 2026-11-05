@@ -7,6 +7,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/glass.dart';
 import '../../shared/motion.dart';
 import '../../shared/states.dart';
 import '../../shared/avatars.dart';
@@ -66,10 +67,9 @@ class DesktopSidebar extends ConsumerWidget {
     final sp = brand.indexOf(' ');
     final first = sp > 0 ? brand.substring(0, sp) : brand;
     final rest = sp > 0 ? brand.substring(sp + 1) : '';
-    return Container(
-      width: 236,
-      color: BrandColors.navyDeep,
-      child: SafeArea(
+    final glass = ref.watch(glassLookProvider);
+    final accent = ref.watch(glassPaletteProvider).accent;
+    final inner = SafeArea(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 26, 22, 14),
@@ -161,12 +161,16 @@ class DesktopSidebar extends ConsumerWidget {
                     padding: EdgeInsets.fromLTRB(8, i == 0 ? 2 : 14, 8, 6),
                     child: Text(items[i].group, style: TextStyle(color: Colors.white.withValues(alpha: 0.42), fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
                   ),
-                _NavTile(item: items[i], selected: items[i].keyName == selected, onTap: () => onSelect(items[i].keyName)),
+                _NavTile(item: items[i], selected: items[i].keyName == selected, onTap: () => onSelect(items[i].keyName), glass: glass, accent: accent),
               ],
             ]),
           ),
         ]),
-      ),
+      );
+    if (!glass) return Container(width: 236, color: BrandColors.navyDeep, child: inner);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+      child: SizedBox(width: 236, child: GlassBox(padding: EdgeInsets.zero, radius: 26, blur: 22, child: inner)),
     );
   }
 }
@@ -284,9 +288,10 @@ class DesktopTopBar extends ConsumerWidget {
 }
 
 class _NavTile extends StatelessWidget {
-  const _NavTile({required this.item, required this.selected, required this.onTap});
+  const _NavTile({required this.item, required this.selected, required this.onTap, this.glass = false, this.accent = BrandColors.electric});
   final DesktopNavItem item;
-  final bool selected;
+  final bool selected, glass;
+  final Color accent;
   final VoidCallback onTap;
 
   @override
@@ -298,12 +303,20 @@ class _NavTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             hoverColor: Colors.white.withValues(alpha: 0.06),
             onTap: onTap,
-            child: Ink(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
               height: 46,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: selected ? LinearGradient(colors: [BrandColors.electric, BrandColors.electric.withValues(alpha: 0.78)]) : null,
+                borderRadius: BorderRadius.circular(glass ? 15 : 12),
+                gradient: selected
+                    ? (glass
+                        ? LinearGradient(colors: [accent.withValues(alpha: 0.42), accent.withValues(alpha: 0.10)])
+                        : LinearGradient(colors: [BrandColors.electric, BrandColors.electric.withValues(alpha: 0.78)]))
+                    : null,
+                border: glass && selected ? Border.all(color: accent.withValues(alpha: 0.5)) : null,
+                boxShadow: glass && selected ? [BoxShadow(color: accent.withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 6))] : null,
               ),
               child: Row(children: [
                 Icon(item.icon, size: 21, color: selected ? Colors.white : Colors.white70),
@@ -325,22 +338,26 @@ class _NavTile extends StatelessWidget {
       );
 }
 
-class DesktopStatusBar extends StatelessWidget {
+class DesktopStatusBar extends ConsumerWidget {
   const DesktopStatusBar({super.key, required this.shortcuts});
   final String shortcuts;
   @override
-  Widget build(BuildContext context) => Container(
-        height: 30,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: BrandColors.border))),
-        child: Row(children: [
-          const Icon(Icons.circle, size: 9, color: BrandColors.success),
-          const SizedBox(width: 6),
-          Text(_t(context, 'متصل', 'Connected'), style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
-          const Spacer(),
-          Text(shortcuts, style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
-        ]),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final glass = ref.watch(glassLookProvider);
+    final mute = glass ? glassMuted : BrandColors.gray;
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(color: glass ? Colors.black.withValues(alpha: 0.25) : Colors.white, border: Border(top: BorderSide(color: glass ? glassLine : BrandColors.border))),
+      child: Row(children: [
+        const Icon(Icons.circle, size: 9, color: BrandColors.success),
+        const SizedBox(width: 6),
+        Text(_t(context, 'متصل', 'Connected'), style: TextStyle(fontSize: 12, color: mute)),
+        const Spacer(),
+        Text(shortcuts, style: TextStyle(fontSize: 12, color: mute)),
+      ]),
+    );
+  }
 }
 
 String _primaryRole(Set<String> roles) {
@@ -415,6 +432,8 @@ class DesktopHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final glass = ref.watch(glassLookProvider);
+    final ink = glass ? glassText : BrandColors.navy;
     final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
     final name = _displayName(ref.watch(currentUserProvider));
     final stats = ref.watch(_dStatsProvider).valueOrNull ?? const <String, dynamic>{};
@@ -465,7 +484,7 @@ class DesktopHome extends ConsumerWidget {
       onRefresh: () async => refreshDesktopHome(ref),
       child: ListView(padding: const EdgeInsets.fromLTRB(28, 22, 28, 28), children: [
         Row(children: [
-          Text('$hello${name.isEmpty ? '' : _t(context, ' يا $name', ', $name')} 👋', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+          Text('$hello${name.isEmpty ? '' : _t(context, ' يا $name', ', $name')} 👋', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: ink)),
           const SizedBox(width: 20),
           Expanded(
             child: InkWell(
@@ -474,13 +493,13 @@ class DesktopHome extends ConsumerWidget {
               child: Container(
                 height: 44,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: BrandColors.border)),
+                decoration: BoxDecoration(color: glass ? Colors.white.withValues(alpha: 0.09) : Colors.white, borderRadius: BorderRadius.circular(glass ? 14 : 12), border: Border.all(color: glass ? Colors.white.withValues(alpha: 0.16) : BrandColors.border)),
                 child: Row(children: [
-                  Expanded(child: Text(_t(context, 'ابحث برقم الطلب أو الصيانة…', 'Search by order or repair number…'), style: const TextStyle(color: BrandColors.gray, fontSize: 13.5))),
+                  Expanded(child: Text(_t(context, 'ابحث برقم الطلب أو الصيانة…', 'Search by order or repair number…'), style: TextStyle(color: glass ? glassMuted : BrandColors.gray, fontSize: 13.5))),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: const Color(0xFFF2F4F7), borderRadius: BorderRadius.circular(6)),
-                    child: const Text('Ctrl K', style: TextStyle(fontSize: 11, color: BrandColors.gray)),
+                    decoration: BoxDecoration(color: glass ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFF2F4F7), borderRadius: BorderRadius.circular(6)),
+                    child: Text('Ctrl K', style: TextStyle(fontSize: 11, color: glass ? glassMuted : BrandColors.gray)),
                   ),
                 ]),
               ),
@@ -498,11 +517,11 @@ class DesktopHome extends ConsumerWidget {
         ]),
         const SizedBox(height: 22),
         if (attention.isNotEmpty) ...[
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
+          _Panel(
+            minHeight: 0,
+            title: null,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_t(context, 'محتاج تصرف دلوقتي', 'Needs action now'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: BrandColors.navy)),
+              Text(_t(context, 'محتاج تصرف دلوقتي', 'Needs action now'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
               const SizedBox(height: 12),
               Row(children: [
                 for (var i = 0; i < attention.length; i++) ...[
@@ -513,10 +532,10 @@ class DesktopHome extends ConsumerWidget {
                       onTap: () => onOpen(attention[i].tab),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(color: attention[i].bg, borderRadius: BorderRadius.circular(14)),
+                        decoration: BoxDecoration(color: glass ? attention[i].color.withValues(alpha: 0.22) : attention[i].bg, borderRadius: BorderRadius.circular(14), border: glass ? Border.all(color: attention[i].color.withValues(alpha: 0.4)) : null),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('${attention[i].count}', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: attention[i].color)),
-                          Text(attention[i].label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: attention[i].color)),
+                          Text('${attention[i].count}', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: glass ? Colors.white : attention[i].color)),
+                          Text(attention[i].label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: glass ? glassText : attention[i].color)),
                         ]),
                       ),
                     ),
@@ -543,45 +562,58 @@ class DesktopHome extends ConsumerWidget {
   }
 }
 
-class _Panel extends StatelessWidget {
-  const _Panel({required this.title, required this.child, this.minHeight = 340});
-  final String title;
+class _Panel extends ConsumerWidget {
+  const _Panel({this.title, required this.child, this.minHeight = 340});
+  final String? title;
   final Widget child;
   final double minHeight;
   @override
-  Widget build(BuildContext context) => Container(
-        constraints: BoxConstraints(minHeight: minHeight),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: BrandColors.navy)),
-          const SizedBox(height: 14),
-          child,
-        ]),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final glass = ref.watch(glassLookProvider);
+    final body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (title != null) ...[
+        Text(title!, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: glass ? glassText : BrandColors.navy)),
+        const SizedBox(height: 14),
+      ],
+      child,
+    ]);
+    if (glass) return ConstrainedBox(constraints: BoxConstraints(minHeight: minHeight), child: GlassBox(child: body));
+    return Container(
+      constraints: BoxConstraints(minHeight: minHeight),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
+      child: body,
+    );
+  }
 }
 
-class _Kpi extends StatelessWidget {
+class _Kpi extends ConsumerWidget {
   const _Kpi({required this.label, required this.value, this.sub, this.subColor, required this.onTap});
   final String label, value;
   final String? sub;
   final Color? subColor;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Container(
-          height: 128,
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(label, style: const TextStyle(color: BrandColors.gray, fontSize: 13.5)),
-            FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountUpText(value, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: BrandColors.navy))),
-            Text(sub ?? ' ', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: subColor ?? BrandColors.gray, fontWeight: FontWeight.w600)),
-          ]),
-        ),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final glass = ref.watch(glassLookProvider);
+    final col = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: TextStyle(color: glass ? glassMuted : BrandColors.gray, fontSize: 13.5)),
+      FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountUpText(value, style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: glass ? glassText : BrandColors.navy))),
+      Text(sub ?? ' ', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: glass ? (subColor ?? glassMuted).withValues(alpha: 1) : (subColor ?? BrandColors.gray), fontWeight: FontWeight.w600)),
+    ]);
+    return InkWell(
+      borderRadius: BorderRadius.circular(glass ? 22 : 18),
+      onTap: onTap,
+      child: glass
+          ? SizedBox(height: 128, child: GlassBox(padding: const EdgeInsets.fromLTRB(20, 16, 20, 14), child: col))
+          : Container(
+              height: 128,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
+              child: col,
+            ),
+    );
+  }
 }
 
 class _WeekChart extends ConsumerWidget {
@@ -589,13 +621,16 @@ class _WeekChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final week = ref.watch(_dWeekProvider);
+    final glass = ref.watch(glassLookProvider);
+    final accent = glass ? ref.watch(glassPaletteProvider).accent : BrandColors.electric;
+    final mute = glass ? glassMuted : BrandColors.gray;
     return _Panel(
       title: _t(context, 'مبيعات آخر ٧ أيام', 'Sales, last 7 days'),
       child: week.when(
         loading: () => const SizedBox(height: 240, child: Center(child: CircularProgressIndicator())),
-        error: (_, __) => SizedBox(height: 240, child: Center(child: Text(_t(context, 'مقدرتش أحمّل المبيعات', 'Could not load sales'), style: const TextStyle(color: BrandColors.gray)))),
+        error: (_, __) => SizedBox(height: 240, child: Center(child: Text(_t(context, 'مقدرتش أحمّل المبيعات', 'Could not load sales'), style: TextStyle(color: mute)))),
         data: (rows) {
-          if (rows.isEmpty) return SizedBox(height: 240, child: Center(child: Text(_t(context, 'مفيش مبيعات لسه', 'No sales yet'), style: const TextStyle(color: BrandColors.gray))));
+          if (rows.isEmpty) return SizedBox(height: 240, child: Center(child: Text(_t(context, 'مفيش مبيعات لسه', 'No sales yet'), style: TextStyle(color: mute))));
           final maxV = rows.fold<int>(1, (m, r) => (r['total_minor'] as num).toInt() > m ? (r['total_minor'] as num).toInt() : m);
           return SizedBox(
             height: 250,
@@ -614,13 +649,14 @@ class _WeekChart extends ConsumerWidget {
                             child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [BrandColors.electric, BrandColors.electric.withValues(alpha: 0.7)]),
+                                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [accent, accent.withValues(alpha: glass ? 0.15 : 0.7)]),
+                                boxShadow: glass ? [BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 18)] : null,
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text(_dayLabel(context, '${r['label']}'), style: const TextStyle(fontSize: 11, color: BrandColors.gray)),
+                        Text(_dayLabel(context, '${r['label']}'), style: TextStyle(fontSize: 11, color: mute)),
                       ]),
                     ),
                   ),
@@ -652,14 +688,17 @@ class _LatestOrders extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(_dOrdersProvider);
-    const head = TextStyle(color: BrandColors.gray, fontSize: 12.5);
+    final glass = ref.watch(glassLookProvider);
+    final mute = glass ? glassMuted : BrandColors.gray;
+    final ink = glass ? glassText : BrandColors.navy;
+    final head = TextStyle(color: mute, fontSize: 12.5);
     return _Panel(
       title: _t(context, 'آخر الطلبات', 'Latest orders'),
       child: orders.when(
         loading: () => const SizedBox(height: 240, child: Center(child: CircularProgressIndicator())),
-        error: (_, __) => SizedBox(height: 240, child: Center(child: Text(_t(context, 'مقدرتش أحمّل الطلبات', 'Could not load orders'), style: const TextStyle(color: BrandColors.gray)))),
+        error: (_, __) => SizedBox(height: 240, child: Center(child: Text(_t(context, 'مقدرتش أحمّل الطلبات', 'Could not load orders'), style: TextStyle(color: mute)))),
         data: (list) => list.isEmpty
-            ? SizedBox(height: 240, child: Center(child: Text(_t(context, 'مفيش طلبات مفتوحة 🎉', 'No open orders 🎉'), style: const TextStyle(color: BrandColors.gray))))
+            ? SizedBox(height: 240, child: Center(child: Text(_t(context, 'مفيش طلبات مفتوحة 🎉', 'No open orders 🎉'), style: TextStyle(color: mute))))
             : Column(children: [
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -675,11 +714,11 @@ class _LatestOrders extends ConsumerWidget {
                     onTap: onOpen,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 11),
-                      decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFEFF1F5)))),
+                      decoration: BoxDecoration(border: Border(top: BorderSide(color: glass ? glassLine : const Color(0xFFEFF1F5)))),
                       child: Row(children: [
-                        Expanded(flex: 2, child: Text('${o['reference']}', textDirection: TextDirection.ltr, textAlign: TextAlign.start, style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy))),
-                        Expanded(flex: 3, child: Text('${o['customer_name'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        Expanded(flex: 2, child: Text(formatEgp((o['total_minor'] as num).toInt(), context.lang), style: const TextStyle(fontWeight: FontWeight.w700))),
+                        Expanded(flex: 2, child: Text('${o['reference']}', textDirection: TextDirection.ltr, textAlign: TextAlign.start, style: TextStyle(fontWeight: FontWeight.w800, color: ink))),
+                        Expanded(flex: 3, child: Text('${o['customer_name'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: ink))),
+                        Expanded(flex: 2, child: Text(formatEgp((o['total_minor'] as num).toInt(), context.lang), style: TextStyle(fontWeight: FontWeight.w700, color: ink))),
                         Expanded(
                           flex: 3,
                           child: Align(

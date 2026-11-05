@@ -2,6 +2,7 @@ import '../../core/app_update.dart';
 import '../../core/appearance.dart';
 import 'dart:async';
 import 'dart:typed_data';
+import '../../shared/glass.dart';
 import '../../shared/motion.dart';
 
 import 'package:flutter/material.dart';
@@ -528,6 +529,8 @@ List<Widget> _chatTiles(BuildContext ctx, WidgetRef ref) {
 }
 
 /// A small tile in the left control column: icon, tiny label, optional badge.
+Widget _lookWrap(bool glass, Widget w) => glass ? GlassBackdrop(child: w) : w;
+
 class _RailTile extends StatelessWidget {
   const _RailTile({required this.child, required this.label, required this.tooltip, required this.onTap, this.badge});
   final Widget child;
@@ -769,7 +772,10 @@ class AdminHomeScreen extends ConsumerWidget {
                   _ConsolePage(layout: layout, onOpen: open),
                 ]);
             // a running contest for this member shows above whatever page is open
-            final pages = Column(children: [const ContestBanner(margin: EdgeInsets.fromLTRB(12, 8, 12, 0)), Expanded(child: pagesRaw)]);
+            final glass = ref.watch(glassLookProvider);
+            final pagesPlain = Column(children: [const ContestBanner(margin: EdgeInsets.fromLTRB(12, 8, 12, 0)), Expanded(child: pagesRaw)]);
+            // glass look: the home page is dark glass itself; every other page sits on one frosted light sheet so it stays readable
+            final pages = glass && current != 'overview' ? GlassSheet(child: pagesPlain) : pagesPlain;
 
             void back() {
               while (_navBack.isNotEmpty) {
@@ -808,8 +814,8 @@ class AdminHomeScreen extends ConsumerWidget {
               final strip = robotShown ? robotStripWidth(robotStep) : chatPanelSpace;
               final shift = chatDocked || robotShown ? strip : 0.0;
               return Scaffold(
-                backgroundColor: const Color(0xFFF4F6FA),
-                body: CallbackShortcuts(
+                backgroundColor: glass ? const Color(0xFF061833) : const Color(0xFFF4F6FA),
+                body: _lookWrap(glass, CallbackShortcuts(
                   bindings: {
                     const SingleActivator(LogicalKeyboardKey.keyK, control: true): () => _openSearch(ctx, ref),
                     const SingleActivator(LogicalKeyboardKey.f5): () {
@@ -906,6 +912,13 @@ class AdminHomeScreen extends ConsumerWidget {
                                       label: dark ? _t(ctx, 'فاتح', 'Light') : _t(ctx, 'داكن', 'Dark'),
                                     );
                                   }),
+                                  ConsoleLookTile(
+                                    canSetForAll: ref.watch(staffContextProvider).valueOrNull?.permissions.contains('appearance.look') ?? false,
+                                    builder: (c2, onTap, icon, label, tip) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: _RailTile(tooltip: tip, onTap: onTap, child: Icon(icon, size: 32, color: BrandColors.electric), label: label),
+                                    ),
+                                  ),
                                   ..._chatTiles(ctx, ref),
                                 ])),
                               ),
@@ -944,7 +957,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       DesktopStatusBar(shortcuts: _t(ctx, 'اختصارات: Ctrl+K بحث${tabs.contains('pos') ? ' · F2 كاشير' : ''} · F5 تحديث', 'Shortcuts: Ctrl+K search${tabs.contains('pos') ? ' · F2 cashier' : ''} · F5 refresh')),
                     ]),
                   ),
-                ),
+                )),
               );
             }
 
