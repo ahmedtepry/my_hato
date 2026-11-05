@@ -504,7 +504,7 @@ final isStaffProvider = Provider<AsyncValue<bool>>((ref) => ref.watch(staffConte
 
 /// What a team member works in after signing in. Decided by his role, never by what he types or picks:
 /// a cashier lands on the cashier screen only, an accountant on the books, and so on. Owner and manager keep the full console.
-enum Workspace { full, cashier, accountant, sales, repairs, support }
+enum Workspace { full, cashier, accountant, sales, repairs, support, marketing }
 
 Workspace workspaceOf(Set<String> roles) {
   if (roles.contains('owner') || roles.contains('manager')) return Workspace.full;
@@ -513,6 +513,7 @@ Workspace workspaceOf(Set<String> roles) {
   if (roles.contains('sales')) return Workspace.sales;
   if (roles.contains('technician')) return Workspace.repairs;
   if (roles.contains('support')) return Workspace.support;
+  if (roles.contains('marketing')) return Workspace.marketing;
   return Workspace.full;
 }
 
@@ -528,6 +529,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('pos.approve') || p.contains('shifts.review')) 'shifts',
     if (p.contains('shifts.review') || p.contains('sales.view') || p.contains('shifts.reports')) 'books',
     if (p.contains('orders.view')) 'orders',
+    if (p.contains('marketing.view')) 'marketing',
     if (p.contains('sales.view') || p.contains('profit.view')) 'sales',
     if (p.contains('ops.live')) 'ops',
     if (p.contains('targets.view') && !p.contains('commission.view')) 'targets', // with the KPI page, targets live inside it
@@ -567,6 +569,8 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
       first = const ['repairs', 'orders'];
     case Workspace.support:
       first = const ['orders', 'repairs', 'accounts'];
+    case Workspace.marketing:
+      first = const ['marketing', 'contests', 'occasions', 'reviews'];
   }
   // a focused job lands on its own pages first; anything else the owner switches on for this person is added after them
   // (the database still decides every action)

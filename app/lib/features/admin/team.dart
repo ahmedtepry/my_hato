@@ -51,6 +51,9 @@ const teamRoles = <TeamRole>[
       ['Everything above (sales + repairs)', 'Approve accounts and moderate reviews', 'Except managing the team']),
   TeamRole('support', 'خدمة عملاء', 'Support', Icons.support_agent_rounded, BrandColors.success,
       ['متابعة الطلبات والصيانة (عرض بس)', 'تفعيل حسابات العملاء'], ['View orders and repairs', 'Approve customer accounts']),
+  TeamRole('marketing', 'فريق التسويق', 'Marketing team', Icons.campaign_rounded, Color(0xFFE5484D),
+      ['لوحة التسويق: أرقام العملاء والشرائح ونتايج الحملات', 'يبعت حملات مستهدفة لشريحة عملاء', 'أكواد الخصم والمسابقات والمناسبات والبانرات والتقييمات'],
+      ['Marketing dashboard: customer numbers, segments and campaign results', 'Sends targeted campaigns to a customer segment', 'Discount codes, contests, occasions, banners and reviews']),
   TeamRole('owner', 'مالك', 'Owner', Icons.workspace_premium_rounded, Color(0xFF7A5AF8),
       ['كل الصلاحيات بما فيها الفريق'], ['Every permission, including the team']),
 ];
