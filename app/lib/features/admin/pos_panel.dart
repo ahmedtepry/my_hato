@@ -824,7 +824,7 @@ class _RegisterState extends ConsumerState<_Register> {
                 ),
               Expanded(
                 child: wide
-                    ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                         Expanded(child: _productsPane()),
                         const SizedBox(width: 14),
                         SizedBox(width: cartW, child: _cartPane()),
