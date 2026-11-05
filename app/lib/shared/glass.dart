@@ -99,8 +99,7 @@ class GlassBackdrop extends ConsumerWidget {
     return Stack(children: [
       Positioned.fill(
         child: RepaintBoundary(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 500),
+          child: DecoratedBox(
             decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: pal.bg)),
             child: Stack(children: [
               _glow(pal.glows[0], 900, top: -380, right: 120),
@@ -137,7 +136,7 @@ class GlassBox extends StatelessWidget {
       ),
       child: child,
     );
-    final framed = blur <= 0 ? ClipRRect(borderRadius: r, child: body) : ClipRRect(borderRadius: r, child: BackdropFilter(filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur), child: body));
+    final framed = blur <= 0 ? ClipRRect(borderRadius: r, clipBehavior: Clip.hardEdge, child: body) : ClipRRect(borderRadius: r, clipBehavior: Clip.hardEdge, child: BackdropFilter(filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur), child: body));
     return margin == null ? framed : Padding(padding: margin!, child: framed);
   }
 }
@@ -151,7 +150,8 @@ class GlassSheet extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: ColoredBox(color: const Color(0xF2F4F7FB), child: child),
+          clipBehavior: Clip.hardEdge,
+          child: ColoredBox(color: const Color(0xFFF4F7FB), child: child),
         ),
       );
 }

@@ -316,7 +316,6 @@ class _NavTile extends StatelessWidget {
                         : LinearGradient(colors: [BrandColors.electric, BrandColors.electric.withValues(alpha: 0.78)]))
                     : null,
                 border: glass && selected ? Border.all(color: accent.withValues(alpha: 0.5)) : null,
-                boxShadow: glass && selected ? [BoxShadow(color: accent.withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 6))] : null,
               ),
               child: Row(children: [
                 Icon(item.icon, size: 21, color: selected ? Colors.white : Colors.white70),
@@ -650,7 +649,6 @@ class _WeekChart extends ConsumerWidget {
                               decoration: BoxDecoration(
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                                 gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [accent, accent.withValues(alpha: glass ? 0.15 : 0.7)]),
-                                boxShadow: glass ? [BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 18)] : null,
                               ),
                             ),
                           ),
