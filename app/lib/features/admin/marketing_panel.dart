@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -8,6 +12,7 @@ import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/motion.dart';
+import '../../shared/product_card.dart' show NetImage;
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 
@@ -21,6 +26,9 @@ final _mkSegmentsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>
 final _mkCampaignsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => [for (final e in (await _rpc(ref, 'marketing_campaigns_list')) as List) Map<String, dynamic>.from(e as Map)]);
 final _mkCouponsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => [for (final e in (await _rpc(ref, 'marketing_coupon_performance')) as List) Map<String, dynamic>.from(e as Map)]);
 final _mkSampleProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, seg) async => [for (final e in (await _rpc(ref, 'marketing_segment_sample', {'p_segment': seg, 'p_limit': 6})) as List) Map<String, dynamic>.from(e as Map)]);
+
+final _mkRequestsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => [for (final e in (await _rpc(ref, 'marketing_requests_list')) as List) Map<String, dynamic>.from(e as Map)]);
+final _mkProductsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => List<Map<String, dynamic>>.from(await ref.read(supabaseProvider).from('products').select('id, name_ar, name_en').order('name_ar').limit(300)));
 
 num _n(Map m, String k) => (m[k] as num?) ?? 0;
 
@@ -86,12 +94,36 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
     ref.invalidate(_mkSegmentsProvider);
     ref.invalidate(_mkCampaignsProvider);
     ref.invalidate(_mkCouponsProvider);
+    ref.invalidate(_mkRequestsProvider);
   }
 
   Future<void> _send(int reachable) async {
     final seg = _segs.firstWhere((e) => e.key == _seg);
     if (_name.text.trim().isEmpty || _title.text.trim().isEmpty || _body.text.trim().isEmpty) {
       showSnack(context, _t(context, 'اكتب اسم الحملة والعنوان والنص', 'Write the campaign name, title and text'), error: true);
+      return;
+    }
+    final canSend = ref.read(staffContextProvider).valueOrNull?.permissions.contains('marketing.campaigns') ?? false;
+    if (!canSend) {
+      setState(() => _busy = true);
+      try {
+        await ref.read(supabaseProvider).rpc('marketing_request_create', params: {
+          'p_kind': 'campaign',
+          'p_title': _name.text.trim(),
+          'p_details': {'name': _name.text.trim(), 'segment': _seg, 'title': _title.text.trim(), 'body': _body.text.trim(), 'coupon_code': _coupon},
+        });
+        if (!mounted) return;
+        showSnack(context, _t(context, 'اتبعتت للمالك للموافقة. مش هتتبعت للعملاء غير بعد موافقته ✅', 'Sent to the owner for approval. It reaches customers only after he approves ✅'));
+        _name.clear();
+        _title.clear();
+        _body.clear();
+        setState(() => _coupon = null);
+        _refresh();
+      } catch (e) {
+        if (mounted) showSnack(context, friendlyError(context, e), error: true);
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
       return;
     }
     final ok = await showSmoothDialog<bool>(
@@ -133,6 +165,8 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
   Widget build(BuildContext context) {
     final perms = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
     final canSend = perms.contains('marketing.campaigns');
+    final canRequest = perms.contains('marketing.request');
+    final canApprove = perms.contains('marketing.approve');
     final canAnalytics = perms.contains('marketing.analytics');
     final canNames = perms.contains('marketing.segments');
     final ov = ref.watch(_mkOverviewProvider);
@@ -155,6 +189,19 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
               Text(_t(context, 'مين عملاؤنا، مين محتاج رسالة، وإيه اللي نفع. آخر 30 يوم.', 'Who our customers are, who needs a message, and what worked. Last 30 days.'), style: const TextStyle(color: BrandColors.gray)),
             ]),
           ),
+          if (canRequest)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 10),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 44), padding: const EdgeInsets.symmetric(horizontal: 18)),
+                onPressed: () async {
+                  final done = await showSmoothDialog<bool>(context: context, builder: (_) => const _IdeaDialog());
+                  if (done == true) _refresh();
+                },
+                icon: const Icon(Icons.lightbulb_outline_rounded),
+                label: Text(_t(context, 'فكرة جديدة', 'New idea')),
+              ),
+            ),
           if (widget.onOffers != null)
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44), padding: const EdgeInsets.symmetric(horizontal: 18)),
@@ -165,6 +212,10 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
           IconButton(tooltip: _t(context, 'تحديث', 'Refresh'), onPressed: _refresh, icon: const Icon(Icons.refresh_rounded)),
         ]),
         const SizedBox(height: 18),
+        if (canRequest || canApprove) ...[
+          _RequestsSection(canApprove: canApprove, onChanged: _refresh),
+          const SizedBox(height: 18),
+        ],
         ov.when(
           loading: () => const SizedBox(height: 160, child: Center(child: CircularProgressIndicator())),
           error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(_mkOverviewProvider)),
@@ -189,7 +240,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
         ]),
         if (canNames) _Sample(seg: _seg),
         const SizedBox(height: 22),
-        if (canSend) _composer(context, coupons, countOf(_seg, 'reachable'), countOf(_seg, 'count')),
+        if (canSend || canRequest) _composer(context, coupons, countOf(_seg, 'reachable'), countOf(_seg, 'count'), canSend),
         if (canAnalytics) ...[
           const SizedBox(height: 22),
           _heading(context, _t(context, 'نتايج الحملات', 'Campaign results'), _t(context, 'القراءة والاستخدام والإيراد لكل حملة', 'Reads, uses and revenue per campaign')),
@@ -288,14 +339,14 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
   }
 
   // -------------------------------------------------------------------------------- composer
-  Widget _composer(BuildContext c, List<Map<String, dynamic>> coupons, int reachable, int total) {
+  Widget _composer(BuildContext c, List<Map<String, dynamic>> coupons, int reachable, int total, bool canSend) {
     final seg = _segs.firstWhere((e) => e.key == _seg);
     final active = [for (final e in coupons) if (e['is_active'] == true && (e['ends_at'] == null || DateTime.parse('${e['ends_at']}').isAfter(DateTime.now()))) e];
     return _card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         Icon(seg.icon, color: seg.color),
         const SizedBox(width: 8),
-        Expanded(child: Text(_t(c, 'حملة جديدة لشريحة «${seg.ar}»', 'New campaign to "${seg.en}"'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: BrandColors.navy))),
+        Expanded(child: Text(canSend ? _t(c, 'حملة جديدة لشريحة «${seg.ar}»', 'New campaign to "${seg.en}"') : _t(c, 'اقتراح حملة لشريحة «${seg.ar}» (بعد موافقة المالك)', 'Propose a campaign to "${seg.en}" (after owner approval)'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: BrandColors.navy))),
         TextButton.icon(onPressed: () => setState(() => _template(seg)), icon: const Icon(Icons.auto_fix_high_rounded, size: 18), label: Text(_t(c, 'اقتراح نص', 'Suggest text'))),
       ]),
       const SizedBox(height: 10),
@@ -328,7 +379,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
           style: FilledButton.styleFrom(minimumSize: const Size(0, 48), padding: const EdgeInsets.symmetric(horizontal: 26)),
           onPressed: _busy || reachable == 0 ? null : () => _send(reachable),
           icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
-          label: Text(_t(c, 'ابعت الحملة', 'Send campaign')),
+          label: Text(canSend ? _t(c, 'ابعت الحملة', 'Send campaign') : _t(c, 'ابعتها للمالك للموافقة', 'Send to the owner for approval')),
         ),
       ]),
     ]));
@@ -468,6 +519,381 @@ class _Sample extends ConsumerWidget {
           ]),
         ]),
       ),
+    );
+  }
+}
+
+// ============================================================================================ requests (nothing goes live without the owner)
+String _kindAr(String k) => switch (k) { 'banner' => 'بانر', 'coupon' => 'كود خصم', 'campaign' => 'حملة', _ => 'فكرة' };
+String _kindEn(String k) => switch (k) { 'banner' => 'Banner', 'coupon' => 'Discount code', 'campaign' => 'Campaign', _ => 'Idea' };
+IconData _kindIcon(String k) => switch (k) { 'banner' => Icons.image_outlined, 'coupon' => Icons.local_offer_outlined, 'campaign' => Icons.campaign_outlined, _ => Icons.lightbulb_outline_rounded };
+
+class _RequestsSection extends ConsumerWidget {
+  const _RequestsSection({required this.canApprove, required this.onChanged});
+  final bool canApprove;
+  final VoidCallback onChanged;
+
+  Future<void> _decide(BuildContext context, WidgetRef ref, Map<String, dynamic> r, bool approve) async {
+    final note = TextEditingController();
+    final ok = await showSmoothDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(approve ? _t(ctx, 'توافق وتفعّل؟', 'Approve and activate?') : _t(ctx, 'ترفض الطلب؟', 'Reject this request?')),
+        content: SizedBox(
+          width: 420,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${_t(ctx, _kindAr('${r['kind']}'), _kindEn('${r['kind']}'))}: ${r['title']}', style: const TextStyle(fontWeight: FontWeight.w800)),
+            if (approve && r['kind'] != 'idea') Padding(padding: const EdgeInsets.only(top: 8), child: Text(_t(ctx, 'هيتفعّل فورًا ويظهر للعملاء.', 'It goes live immediately.'), style: const TextStyle(color: BrandColors.warning, fontWeight: FontWeight.w700))),
+            const SizedBox(height: 10),
+            TextField(controller: note, decoration: InputDecoration(labelText: _t(ctx, 'ملاحظة لصاحب الطلب (اختياري)', 'Note to the requester (optional)'))),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_t(ctx, 'رجوع', 'Back'))),
+          FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(110, 44), backgroundColor: approve ? BrandColors.success : BrandColors.error), onPressed: () => Navigator.pop(ctx, true), child: Text(approve ? _t(ctx, 'وافق', 'Approve') : _t(ctx, 'ارفض', 'Reject'))),
+        ],
+      ),
+    );
+    final text = note.text;
+    note.dispose();
+    if (ok != true || !context.mounted) return;
+    try {
+      await ref.read(supabaseProvider).rpc('marketing_request_decide', params: {'p_id': r['id'], 'p_approve': approve, 'p_note': text});
+      if (context.mounted) showSnack(context, approve ? _t(context, 'اتفعّل ✅', 'Activated ✅') : _t(context, 'اترفض', 'Rejected'));
+      onChanged();
+    } catch (e) {
+      if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
+    }
+  }
+
+  List<Widget> _details(BuildContext c, Map<String, dynamic> r) {
+    final d = Map<String, dynamic>.from(r['details'] as Map? ?? const {});
+    Widget line(String a, String? b) => (b == null || b.isEmpty) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 3), child: Text('$a: $b', style: const TextStyle(fontSize: 13, color: BrandColors.gray)));
+    switch ('${r['kind']}') {
+      case 'banner':
+        return [
+          if (d['image_path'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(height: 120, width: 320, child: NetImage(path: '${d['image_path']}', bucket: 'banners')))),
+          line(_t(c, 'العنوان', 'Title'), '${d['title_ar'] ?? ''}'),
+          line(_t(c, 'يفتح', 'Opens'), d['link_type'] == null || '${d['link_type']}'.isEmpty ? null : '${d['link_type']}'),
+          line(_t(c, 'من', 'From'), d['starts_at'] == null ? null : '${d['starts_at']}'.split('T').first),
+          line(_t(c, 'إلى', 'To'), d['ends_at'] == null ? null : '${d['ends_at']}'.split('T').first),
+          line(_t(c, 'ملاحظة', 'Note'), '${d['note'] ?? ''}'),
+        ];
+      case 'coupon':
+        return [
+          line(_t(c, 'الكود', 'Code'), '${d['code'] ?? ''}'),
+          line(_t(c, 'الخصم', 'Discount'), d['percent_off'] != null ? '${d['percent_off']}%' : formatEgp(((d['amount_off_minor'] as num?) ?? 0).toInt(), c.lang)),
+          line(_t(c, 'أقل طلب', 'Min order'), d['min_order_minor'] == null ? null : formatEgp(((d['min_order_minor'] as num?) ?? 0).toInt(), c.lang)),
+          line(_t(c, 'أقصى استخدام', 'Max uses'), d['max_uses'] == null ? null : '${d['max_uses']}'),
+          line(_t(c, 'ينتهي', 'Ends'), d['ends_at'] == null ? null : '${d['ends_at']}'.split('T').first),
+        ];
+      case 'campaign':
+        final sg = _segs.firstWhere((s) => s.key == d['segment'], orElse: () => _segs.first);
+        return [line(_t(c, 'الشريحة', 'Segment'), sg.label(c)), line(_t(c, 'العنوان', 'Title'), '${d['title'] ?? ''}'), line(_t(c, 'النص', 'Message'), '${d['body'] ?? ''}'), line(_t(c, 'الكود', 'Code'), '${d['coupon_code'] ?? ''}')];
+      default:
+        return [Padding(padding: const EdgeInsets.only(top: 6), child: Text('${d['text'] ?? ''}', style: const TextStyle(height: 1.5)))];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rows = ref.watch(_mkRequestsProvider).valueOrNull ?? const <Map<String, dynamic>>[];
+    if (rows.isEmpty) return const SizedBox.shrink();
+    final pending = [for (final r in rows) if (r['status'] == 'pending') r];
+    final done = [for (final r in rows) if (r['status'] != 'pending') r].take(6).toList();
+    Color col(String s) => switch (s) { 'approved' => BrandColors.success, 'rejected' => BrandColors.error, 'cancelled' => BrandColors.gray, _ => BrandColors.warning };
+    String lab(String s) => switch (s) { 'approved' => _t(context, 'اتفعّل', 'Approved'), 'rejected' => _t(context, 'اترفض', 'Rejected'), 'cancelled' => _t(context, 'اتلغى', 'Cancelled'), _ => _t(context, 'مستني الموافقة', 'Waiting for approval') };
+    Widget tile(Map<String, dynamic> r) {
+      final isPending = r['status'] == 'pending';
+      return Container(
+        margin: const EdgeInsets.only(top: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: isPending ? const Color(0xFFFFFAF0) : const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(14), border: Border.all(color: isPending ? const Color(0xFFFFD99A) : BrandColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(_kindIcon('${r['kind']}'), size: 20, color: BrandColors.navy),
+            const SizedBox(width: 8),
+            Expanded(child: Text('${_t(context, _kindAr('${r['kind']}'), _kindEn('${r['kind']}'))} · ${r['title']}', style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy))),
+            StatusChip(label: lab('${r['status']}'), color: col('${r['status']}')),
+          ]),
+          Text('${r['requester']} · ${DateFormat('d/M HH:mm').format(DateTime.parse('${r['requested_at']}').toLocal())}', style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+          ..._details(context, r),
+          if ((r['note'] as String?)?.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 6), child: Text('${_t(context, 'ملاحظة المالك', 'Owner note')}: ${r['note']}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+          if (isPending && canApprove)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(children: [
+                FilledButton.icon(style: FilledButton.styleFrom(minimumSize: const Size(0, 42), backgroundColor: BrandColors.success), onPressed: () => _decide(context, ref, r, true), icon: const Icon(Icons.check_rounded), label: Text(_t(context, 'وافق وفعّل', 'Approve'))),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 42), foregroundColor: BrandColors.error), onPressed: () => _decide(context, ref, r, false), icon: const Icon(Icons.close_rounded), label: Text(_t(context, 'ارفض', 'Reject'))),
+              ]),
+            ),
+          if (isPending && !canApprove && r['mine'] == true)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton(
+                onPressed: () async {
+                  try {
+                    await ref.read(supabaseProvider).rpc('marketing_request_cancel', params: {'p_id': r['id']});
+                    onChanged();
+                  } catch (e) {
+                    if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
+                  }
+                },
+                child: Text(_t(context, 'إلغاء الطلب', 'Cancel request')),
+              ),
+            ),
+        ]),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: pending.isNotEmpty && canApprove ? const Color(0xFFFFB84D) : BrandColors.border, width: pending.isNotEmpty && canApprove ? 1.6 : 1)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(canApprove ? Icons.fact_check_outlined : Icons.pending_actions_rounded, color: BrandColors.electric),
+          const SizedBox(width: 8),
+          Text(canApprove ? _t(context, 'طلبات التسويق (محتاجة موافقتك)', 'Marketing requests (need your approval)') : _t(context, 'طلباتي للمالك', 'My requests to the owner'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: BrandColors.navy)),
+          const SizedBox(width: 8),
+          if (pending.isNotEmpty) StatusChip(label: '${pending.length}', color: BrandColors.warning),
+        ]),
+        for (final r in pending) tile(r),
+        if (done.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Text(_t(context, 'آخر القرارات', 'Recent decisions'), style: const TextStyle(color: BrandColors.gray, fontWeight: FontWeight.w700, fontSize: 13)),
+          for (final r in done) tile(r),
+        ],
+      ]),
+    );
+  }
+}
+
+// ============================================================================================ the "new idea" form
+class _IdeaDialog extends ConsumerStatefulWidget {
+  const _IdeaDialog();
+  @override
+  ConsumerState<_IdeaDialog> createState() => _IdeaDialogState();
+}
+
+class _IdeaDialogState extends ConsumerState<_IdeaDialog> {
+  String _kind = 'banner';
+  bool _busy = false;
+  Uint8List? _img;
+  final _title = TextEditingController();
+  final _titleEn = TextEditingController();
+  final _text = TextEditingController();
+  final _code = TextEditingController();
+  final _value = TextEditingController();
+  final _min = TextEditingController();
+  final _maxUses = TextEditingController();
+  final _cTitle = TextEditingController();
+  final _cBody = TextEditingController();
+  final _cCode = TextEditingController();
+  String _link = '';
+  String? _product;
+  bool _percent = true;
+  String _segment = 'all';
+  DateTime? _from, _to;
+
+  @override
+  void dispose() {
+    for (final c in [_title, _titleEn, _text, _code, _value, _min, _maxUses, _cTitle, _cBody, _cCode]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 82, maxWidth: 1600);
+      if (x == null) return;
+      final b = await x.readAsBytes();
+      if (mounted) setState(() => _img = b);
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    }
+  }
+
+  Future<DateTime?> _date(DateTime? cur) => showDatePicker(context: context, initialDate: cur ?? DateTime.now().add(const Duration(days: 7)), firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 730)));
+
+  Future<void> _submit() async {
+    final sb = ref.read(supabaseProvider);
+    String title;
+    Map<String, dynamic> d;
+    switch (_kind) {
+      case 'banner':
+        if (_img == null || _title.text.trim().isEmpty) {
+          showSnack(context, _t(context, 'اختار الصورة واكتب عنوان البانر', 'Pick the picture and write the banner title'), error: true);
+          return;
+        }
+        if (_link == 'product' && _product == null) {
+          showSnack(context, _t(context, 'اختار المنتج اللي البانر يفتحه', 'Pick the product the banner opens'), error: true);
+          return;
+        }
+        title = _title.text.trim();
+        d = {'title_ar': title, 'title_en': _titleEn.text.trim(), 'link_type': _link, 'link_value': _link == 'product' ? _product : null, 'starts_at': _from?.toUtc().toIso8601String(), 'ends_at': _to == null ? null : DateTime(_to!.year, _to!.month, _to!.day, 23, 59).toUtc().toIso8601String(), 'note': _text.text.trim()};
+      case 'coupon':
+        final v = int.tryParse(_value.text.trim());
+        if (v == null || v <= 0 || !RegExp(r'^[A-Za-z0-9_-]{3,24}$').hasMatch(_code.text.trim())) {
+          showSnack(context, _t(context, 'اكتب كود (حروف وأرقام 3 لـ 24) وقيمة خصم صحيحة', 'Write a code (3 to 24 letters or digits) and a valid discount'), error: true);
+          return;
+        }
+        if (_percent && v > 90) {
+          showSnack(context, _t(context, 'أقصى خصم 90%', 'Max discount is 90%'), error: true);
+          return;
+        }
+        title = '${_t(context, 'كود', 'Code')} ${_code.text.trim().toUpperCase()}';
+        d = {'code': _code.text.trim().toUpperCase(), 'title_ar': _cTitle.text.trim(), if (_percent) 'percent_off': v else 'amount_off_minor': v * 100, if (int.tryParse(_min.text.trim()) != null) 'min_order_minor': int.parse(_min.text.trim()) * 100, if (int.tryParse(_maxUses.text.trim()) != null) 'max_uses': int.parse(_maxUses.text.trim()), 'ends_at': _to == null ? null : DateTime(_to!.year, _to!.month, _to!.day, 23, 59).toUtc().toIso8601String()};
+      case 'campaign':
+        if (_title.text.trim().isEmpty || _cTitle.text.trim().isEmpty || _cBody.text.trim().isEmpty) {
+          showSnack(context, _t(context, 'اكتب اسم الحملة وعنوان الإشعار والنص', 'Write the campaign name, notification title and text'), error: true);
+          return;
+        }
+        title = _title.text.trim();
+        d = {'name': title, 'segment': _segment, 'title': _cTitle.text.trim(), 'body': _cBody.text.trim(), 'coupon_code': _cCode.text.trim().isEmpty ? null : _cCode.text.trim().toUpperCase()};
+      default:
+        if (_title.text.trim().isEmpty || _text.text.trim().isEmpty) {
+          showSnack(context, _t(context, 'اكتب اسم الفكرة وشرحها', 'Write the idea name and explain it'), error: true);
+          return;
+        }
+        title = _title.text.trim();
+        d = {'text': _text.text.trim()};
+    }
+    setState(() => _busy = true);
+    try {
+      if (_kind == 'banner') {
+        final path = 'proposals/${DateTime.now().microsecondsSinceEpoch}.jpg';
+        await sb.storage.from('banners').uploadBinary(path, _img!, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+        d['image_path'] = path;
+      }
+      await sb.rpc('marketing_request_create', params: {'p_kind': _kind, 'p_title': title, 'p_details': d});
+      if (!mounted) return;
+      showSnack(context, _t(context, 'اتبعت للمالك. مش هيتفعّل غير بعد موافقته ✅', 'Sent to the owner. It stays off until he approves ✅'));
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final products = ref.watch(_mkProductsProvider).valueOrNull ?? const <Map<String, dynamic>>[];
+    Widget dateRow(String label, DateTime? v, void Function(DateTime?) set) => Row(children: [
+          Expanded(child: Text(v == null ? label : '$label: ${DateFormat('d/M/yyyy').format(v)}')),
+          TextButton(onPressed: () async {
+            final x = await _date(v);
+            if (x != null) set(x);
+          }, child: Text(_t(context, 'اختار', 'Pick'))),
+          if (v != null) IconButton(onPressed: () => set(null), icon: const Icon(Icons.close_rounded, size: 18)),
+        ]);
+    final body = switch (_kind) {
+      'banner' => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: _busy ? null : _pickImage,
+            child: Container(
+              height: 150,
+              decoration: BoxDecoration(color: const Color(0xFFF2F4F7), borderRadius: BorderRadius.circular(14), border: Border.all(color: BrandColors.border)),
+              child: _img == null
+                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.add_photo_alternate_outlined, size: 36, color: BrandColors.electric), Text(_t(context, 'اختار صورة البانر (هتظهر في الرئيسية بعد الموافقة)', 'Pick the banner picture (shown on the home screen after approval)'))]))
+                  : ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.memory(_img!, fit: BoxFit.cover, width: double.infinity)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(controller: _title, decoration: InputDecoration(labelText: _t(context, 'عنوان البانر', 'Banner title'))),
+          const SizedBox(height: 8),
+          TextField(controller: _titleEn, decoration: InputDecoration(labelText: _t(context, 'العنوان بالإنجليزي (اختياري)', 'English title (optional)'))),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _link,
+            decoration: InputDecoration(labelText: _t(context, 'البانر يفتح إيه؟', 'What does it open?')),
+            items: [
+              DropdownMenuItem(value: '', child: Text(_t(context, 'مش بيفتح حاجة', 'Nothing'))),
+              DropdownMenuItem(value: 'product', child: Text(_t(context, 'منتج معين', 'A product'))),
+              DropdownMenuItem(value: 'repair', child: Text(_t(context, 'طلب صيانة', 'Repair request'))),
+            ],
+            onChanged: (v) => setState(() => _link = v ?? ''),
+          ),
+          if (_link == 'product') ...[
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _product,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: _t(context, 'المنتج', 'Product')),
+              items: [for (final p in products) DropdownMenuItem(value: '${p['id']}', child: Text('${p['name_ar'] ?? p['name_en']}', overflow: TextOverflow.ellipsis))],
+              onChanged: (v) => setState(() => _product = v),
+            ),
+          ],
+          const SizedBox(height: 6),
+          dateRow(_t(context, 'يبدأ', 'Starts'), _from, (v) => setState(() => _from = v)),
+          dateRow(_t(context, 'ينتهي', 'Ends'), _to, (v) => setState(() => _to = v)),
+          TextField(controller: _text, minLines: 1, maxLines: 3, decoration: InputDecoration(labelText: _t(context, 'ملاحظة للمالك: المناسبة أو المنتج أو الهدف', 'Note to the owner: occasion, product or goal'))),
+        ]),
+      'coupon' => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(controller: _code, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: _t(context, 'الكود (مثلًا EID25)', 'Code (e.g. EID25)'))),
+          const SizedBox(height: 8),
+          TextField(controller: _cTitle, decoration: InputDecoration(labelText: _t(context, 'وصف قصير', 'Short title'))),
+          const SizedBox(height: 8),
+          SegmentedButton<bool>(segments: [ButtonSegment(value: true, label: Text(_t(context, 'نسبة %', 'Percent'))), ButtonSegment(value: false, label: Text(_t(context, 'مبلغ ثابت', 'Fixed amount')))], selected: {_percent}, onSelectionChanged: (s) => setState(() => _percent = s.first)),
+          const SizedBox(height: 8),
+          TextField(controller: _value, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: _percent ? _t(context, 'نسبة الخصم (1 - 90)', 'Discount percent (1-90)') : _t(context, 'قيمة الخصم بالجنيه', 'Discount in EGP'))),
+          const SizedBox(height: 8),
+          TextField(controller: _min, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: _t(context, 'أقل قيمة للطلب بالجنيه (اختياري)', 'Minimum order in EGP (optional)'))),
+          const SizedBox(height: 8),
+          TextField(controller: _maxUses, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: _t(context, 'أقصى عدد استخدامات (اختياري)', 'Max uses (optional)'))),
+          dateRow(_t(context, 'ينتهي', 'Ends'), _to, (v) => setState(() => _to = v)),
+        ]),
+      'campaign' => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(controller: _title, decoration: InputDecoration(labelText: _t(context, 'اسم الحملة', 'Campaign name'))),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _segment,
+            decoration: InputDecoration(labelText: _t(context, 'الشريحة', 'Segment')),
+            items: [for (final s in _segs) DropdownMenuItem(value: s.key, child: Text(s.label(context)))],
+            onChanged: (v) => setState(() => _segment = v ?? 'all'),
+          ),
+          const SizedBox(height: 8),
+          TextField(controller: _cTitle, decoration: InputDecoration(labelText: _t(context, 'عنوان الإشعار', 'Notification title'))),
+          const SizedBox(height: 8),
+          TextField(controller: _cBody, minLines: 2, maxLines: 4, decoration: InputDecoration(labelText: _t(context, 'النص', 'Message'))),
+          const SizedBox(height: 8),
+          TextField(controller: _cCode, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: _t(context, 'كود خصم موجود (اختياري)', 'Existing discount code (optional)'))),
+        ]),
+      _ => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(controller: _title, decoration: InputDecoration(labelText: _t(context, 'اسم الفكرة', 'Idea name'))),
+          const SizedBox(height: 8),
+          TextField(controller: _text, minLines: 5, maxLines: 9, decoration: InputDecoration(labelText: _t(context, 'اشرح الفكرة: إيه المطلوب، لمين، وإمتى؟ حتى لو مش موجودة في البرنامج', 'Explain: what, for whom, when? Even if the app cannot do it yet'), alignLabelWithHint: true)),
+          Padding(padding: const EdgeInsets.only(top: 8), child: Text(_t(context, 'لو المالك وافق، الفكرة بتتبني وتتفعّل عنده.', 'If the owner approves, it gets built and switched on.'), style: const TextStyle(color: BrandColors.gray, fontSize: 12.5))),
+        ]),
+    };
+    return AlertDialog(
+      title: Text(_t(context, 'فكرة جديدة للمالك', 'New idea for the owner')),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Wrap(spacing: 8, children: [
+              for (final k in const ['banner', 'coupon', 'campaign', 'idea'])
+                ChoiceChip(avatar: Icon(_kindIcon(k), size: 18), label: Text(_t(context, _kindAr(k), _kindEn(k))), selected: _kind == k, onSelected: (_) => setState(() => _kind = k)),
+            ]),
+            const SizedBox(height: 14),
+            body,
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: const Color(0xFFFFF7E6), borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [const Icon(Icons.verified_user_outlined, size: 18, color: BrandColors.warning), const SizedBox(width: 8), Expanded(child: Text(_t(context, 'مفيش حاجة هتتفعّل غير لما المالك يوافق، وهيجيله إشعار.', 'Nothing goes live until the owner approves. He gets a notification.'), style: const TextStyle(fontSize: 12.5)))]),
+            ),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: _busy ? null : () => Navigator.of(context).pop(false), child: Text(_t(context, 'إلغاء', 'Cancel'))),
+        FilledButton.icon(style: FilledButton.styleFrom(minimumSize: const Size(0, 46)), onPressed: _busy ? null : _submit, icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded), label: Text(_t(context, 'ابعت للمالك', 'Send to the owner'))),
+      ],
     );
   }
 }

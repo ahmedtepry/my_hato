@@ -93,6 +93,8 @@ const _perms = <String, _PermInfo>{
   'marketing.segments': _PermInfo('marketing', 'يشوف شرائح العملاء بأسمائهم', 'See customer segments by name', sensitive: true, descAr: 'مين الـ VIP ومين اتأخر ومين جديد', descEn: 'Who is VIP, dormant or new'),
   'marketing.campaigns': _PermInfo('marketing', 'يبعت حملات لشريحة عملاء', 'Send campaigns to a segment', sensitive: true, descAr: 'إشعار مستهدف لشريحة (بحد 5 حملات في اليوم)', descEn: 'A targeted notification to one segment (max 5 a day)'),
   'marketing.analytics': _PermInfo('marketing', 'يشوف نتايج الحملات والأكواد', 'See campaign and coupon results', descAr: 'القراءة والاستخدام والإيراد لكل حملة وكود', descEn: 'Reads, uses and revenue per campaign and code'),
+  'marketing.request': _PermInfo('marketing', 'يقترح أفكار للمالك (بانر / كود / حملة / فكرة)', 'Propose ideas to the owner (banner / code / campaign / idea)', descAr: 'مفيش حاجة بتتفعّل غير بعد موافقة المالك', descEn: 'Nothing goes live without the owner\'s approval'),
+  'marketing.approve': _PermInfo('marketing', 'يوافق على أفكار التسويق ويفعّلها', 'Approve and activate marketing ideas', sensitive: true, descAr: 'المالك بس', descEn: 'Owner only'),
   'chat.use': _PermInfo('system', 'شات مباشر مع الإدارة', 'Direct chat with the office'),
   'chat.manage': _PermInfo('system', 'الرسايل المباشرة مع الموظفين', 'Direct messages with members', sensitive: true),
   'chat.logs': _PermInfo('system', 'سجل الرسايل المباشرة', 'Direct message logs', sensitive: true),
