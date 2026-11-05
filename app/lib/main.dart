@@ -12,8 +12,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/app_update.dart';
 import 'core/config.dart';
 import 'core/dark_mode.dart';
-import 'features/admin/direct_chat.dart' show chatFloatProvider, chatOpenProvider, chatPanelSpace;
-import 'features/admin/robot_dock.dart' show robotPanelOpenProvider, robotPanelStepProvider, robotStripWidth;
+
+
 import 'core/l10n.dart';
 import 'core/router.dart';
 import 'core/appearance.dart';
@@ -163,7 +163,6 @@ class MyHatoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
     final dark = ref.watch(darkModeProvider);
-    final chatOpen = AppConfig.teamOnly && ((ref.watch(chatOpenProvider) && !ref.watch(chatFloatProvider)) || ref.watch(robotPanelOpenProvider));
     ref.watch(appearanceProvider); // rebuilds the theme when the owner changes the colours
     if (AppConfig.teamOnly) ref.watch(teamThemeProvider); // the team app's own colour theme
     return MaterialApp.router(
@@ -183,8 +182,8 @@ class MyHatoApp extends ConsumerWidget {
         Widget app = ConnectionGate(child: child ?? const SizedBox.shrink());
         if (!AppConfig.customerOnly) app = StaffPresenceScope(child: app);
         if (AppConfig.teamOnly) {
-          // wide desktop window: keep the console in a comfortable centred column
-          app = ColoredBox(color: BrandColors.offWhite, child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chatOpen ? 1100 + math.max(chatPanelSpace, ref.watch(robotPanelOpenProvider) ? robotStripWidth(ref.watch(robotPanelStepProvider)) : chatPanelSpace).toDouble() : 1100), child: app)));
+          // fill the whole window (the console draws its own full-bleed backdrop)
+          app = ColoredBox(color: BrandColors.offWhite, child: SizedBox.expand(child: app));
         }
         if (!AppConfig.teamOnly) app = Stack(children: [Positioned.fill(child: app), const Positioned.fill(child: AppUpdateBanner())]);
         return applyDarkMode(dark, app);
