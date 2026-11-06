@@ -27,7 +27,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // In a release build a screen that throws while drawing turns into a blank grey box. Show a readable message instead,
   // and keep errors from other code from taking the app down.
-  ErrorWidget.builder = (details) => const _BrokenScreen();
+  ErrorWidget.builder = (details) => _BrokenScreen(error: details.exceptionAsString());
   FlutterError.onError = (d) => FlutterError.presentError(d);
   ui.PlatformDispatcher.instance.onError = (error, stack) {
     debugPrint('Uncaught: $error');
@@ -212,7 +212,8 @@ class _MisconfiguredApp extends StatelessWidget {
 
 /// Replaces the grey box Flutter paints in release when a screen fails to build.
 class _BrokenScreen extends StatelessWidget {
-  const _BrokenScreen();
+  const _BrokenScreen({this.error = ''});
+  final String error;
   @override
   Widget build(BuildContext context) => Directionality(
         textDirection: TextDirection.rtl,
@@ -221,14 +222,23 @@ class _BrokenScreen extends StatelessWidget {
           child: Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Column(mainAxisSize: MainAxisSize.min, children: const [
-                Icon(Icons.sentiment_dissatisfied_rounded, size: 48, color: Color(0xFF6B7488)),
-                SizedBox(height: 12),
-                Text('حصلت مشكلة في الشاشة دي',
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.sentiment_dissatisfied_rounded, size: 48, color: Color(0xFF6B7488)),
+                const SizedBox(height: 12),
+                const Text('حصلت مشكلة في الشاشة دي',
                     textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF14213D))),
-                SizedBox(height: 6),
-                Text('ارجع للشاشة اللي قبلها وافتحها تاني.',
+                const SizedBox(height: 6),
+                const Text('ارجع للشاشة اللي قبلها وافتحها تاني.',
                     textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Color(0xFF6B7488))),
+                if (error.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  // technical detail so a screenshot tells us exactly what failed
+                  Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Text(error.length > 320 ? error.substring(0, 320) : error,
+                        textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, color: Color(0xFF98A1B3), decoration: TextDecoration.none)),
+                  ),
+                ],
               ]),
             ),
           ),
