@@ -530,6 +530,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('shifts.review') || p.contains('sales.view') || p.contains('shifts.reports')) 'books',
     if (p.contains('orders.view')) 'orders',
     if (p.contains('marketing.view')) 'marketing',
+    if (p.contains('accounts.unblock')) 'blocked',
     if (p.contains('sales.view') || p.contains('profit.view')) 'sales',
     if (p.contains('ops.live')) 'ops',
     if (p.contains('targets.view') && !p.contains('commission.view')) 'targets', // with the KPI page, targets live inside it

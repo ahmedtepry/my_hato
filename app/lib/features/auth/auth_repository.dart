@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config.dart';
-import '../../core/errors.dart' show isEmailNotConfirmed;
+import '../../core/errors.dart' show LoginBlocked, isEmailNotConfirmed, parseLoginBlock;
 import '../../core/supabase_providers.dart';
 
 /// Why a 6-digit email code was sent. Each purpose maps to the Supabase Auth OTP type that
@@ -76,11 +76,17 @@ class AuthRepository {
   /// (login_email_for); the session itself always comes from Supabase Auth. Returns the email used.
   Future<String> signInWithIdentifier(String identifier, String password) async {
     final id = identifier.trim();
-    if (id.contains('@')) {
-      await signInWithEmail(id, password);
-      return normalizeEmail(id);
+    // EVERY sign-in (email too) goes through the database first: it counts wrong passwords per account, locks it for 15 min / 1 hour after
+    // 5 / 6+ wrong ones and blocks it after 10 (the owner unblocks it). It answers with a marker or an error we turn into LoginBlocked.
+    String? email;
+    try {
+      email = await _db.rpc('login_email_for', params: {'p_identifier': id, 'p_password': password}) as String?;
+    } on PostgrestException catch (e) {
+      final b = parseLoginBlock(e);
+      if (b != null) throw b;
+      rethrow;
     }
-    final email = await _db.rpc('login_email_for', params: {'p_identifier': id, 'p_password': password}) as String?;
+    if (email != null && email.startsWith('!')) throw parseLoginBlock(email) ?? const LoginBlocked('blocked');
     if (email == null) throw const AuthException('Invalid login credentials', code: 'invalid_credentials');
     await signInWithEmail(email, password);
     return normalizeEmail(email);

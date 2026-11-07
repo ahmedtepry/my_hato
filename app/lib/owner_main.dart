@@ -19,6 +19,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:record/record.dart';
+import 'core/errors.dart' show loginBlockedText, parseLoginBlock;
 import 'core/config.dart';
 
 // "Ghost" look: near-black, terminal green-cyan, secret-ops mood (still the My Hatō robot).
@@ -201,12 +202,15 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
       var email = id.toLowerCase();
-      if (!id.contains('@')) {
-        // a username or mobile number: the database checks the password and gives back the account email (same as the team app)
-        final e = await db.rpc('login_email_for', params: {'p_identifier': id, 'p_password': _pass.text}) as String?;
-        if (e == null) throw const AuthException('Invalid login credentials', code: 'invalid_credentials');
-        email = e.trim().toLowerCase();
+      // the database checks the password (counts wrong ones, locks / blocks the account) and gives back the account email
+      final e = await db.rpc('login_email_for', params: {'p_identifier': id, 'p_password': _pass.text}) as String?;
+      final lb = parseLoginBlock(e);
+      if (lb != null) {
+        setState(() => _err = loginBlockedText(lb));
+        return;
       }
+      if (e == null) throw const AuthException('Invalid login credentials', code: 'invalid_credentials');
+      email = e.trim().toLowerCase();
       await db.auth.signInWithPassword(email: email, password: _pass.text);
       // only the owner holds this permission
       final ok = await db.rpc('has_permission', params: {'p_permission': 'permissions.manage'});
@@ -218,6 +222,9 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on AuthException {
       setState(() => _err = 'اسم المستخدم أو كلمة السر غلط.');
+    } on PostgrestException catch (e) {
+      final lb = parseLoginBlock(e);
+      setState(() => _err = lb != null ? loginBlockedText(lb) : 'مفيش اتصال، جرب تاني.');
     } catch (_) {
       setState(() => _err = 'مفيش اتصال، جرب تاني.');
     } finally {

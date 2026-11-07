@@ -40,6 +40,7 @@ import 'kpi_panel.dart';
 import 'profit_panel.dart';
 import 'loyalty_gifts.dart';
 import 'marketing_panel.dart';
+import 'blocked_accounts_panel.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
 import 'welcome_logo_panel.dart';
@@ -412,6 +413,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'stock': _SectionInfo(Icons.warehouse_rounded, Color(0xFF0E9384), 'مخزن', 'Stock', 'أرصدة مخازن الفروع، توزيع المنتجات، وتحويلها بين الفروع بتأكيد الاستلام', 'Branch store balances, allocation and transfers between branches with receipt confirmation'),
   'wheel': _SectionInfo(Icons.casino_rounded, Color(0xFFE11D48), 'عجلة الحظ', 'Lucky wheel', 'اتحكم في خانات العجلة وصعوبتها وسلّم الهدايا', 'Edit the wheel slices and difficulty and hand over gifts'),
   'features': _SectionInfo(Icons.toggle_on_rounded, Color(0xFF12B76A), 'مفاتيح التشغيل', 'Feature switches', 'شغّل أو اقفل النقاط وعجلة الحظ للعملا', 'Turn points and the lucky wheel on or off for customers'),
+  'blocked': _SectionInfo(Icons.lock_person_rounded, Color(0xFFD92D20), 'الحسابات المحظورة', 'Blocked accounts', 'حسابات اتقفلت بسبب تخمين الباسورد: فك الحظر أو غيّر الرقم السري أو أوقف الحساب', 'Accounts locked for wrong passwords: unblock, reset the password, or stop the account'),
   'marketing': _SectionInfo(Icons.campaign_rounded, Color(0xFFE5484D), 'لوحة التسويق', 'Marketing', 'شرايح العملاء وحملات مستهدفة ونتايجها وأداء الأكواد', 'Customer segments, targeted campaigns, their results and code performance'),
   'contests': _SectionInfo(Icons.emoji_events_rounded, Color(0xFFE8A317), 'المسابقات', 'Contests', 'أسئلة بجوايز للفريق أو العملاء: مدة، إشعار، نتايج وفايزين', 'Prize questions for the team or customers: timing, notification, results and winners'),
   'occasions': _SectionInfo(Icons.auto_awesome_rounded, Color(0xFFE8A317), 'إضافة مؤثر مناسبة على اللوجو', 'Add an occasion effect to the logo', 'رمضان والأعياد و٦ أكتوبر: ختم على الشعار وتهنئة بكود أو كوينات', 'Ramadan, Eids and 6 October: a logo stamp and a greeting with a code or coins'),
@@ -579,7 +581,7 @@ const _sidebarGroups = <(String, String, List<String>)>[
   ('البيع والطلبات', 'Sales & orders', ['pos', 'orders', 'repairs', 'shifts', 'sales', 'ops', 'products', 'stock', 'shortcuts']),
   ('الفلوس والمحاسبة', 'Money & accounting', ['books', 'wallets', 'wallet_inbox']),
   ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'online_review', 'assistant', 'accounts']),
-  ('العملاء والتسويق', 'Customers & marketing', ['marketing', 'reviews', 'offers', 'gifts', 'wheel', 'contests']),
+  ('العملاء والتسويق', 'Customers & marketing', ['marketing', 'blocked', 'reviews', 'offers', 'gifts', 'wheel', 'contests']),
   ('النظام والمظهر', 'System & look', ['appearance', 'occasions', 'storefront', 'features']),
 ];
 
@@ -747,6 +749,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'books' => const AccountantPanel(),
                       'ops' => const OpsPanel(),
                       'orders' => const _OrdersHost(),
+                      'blocked' => const BlockedAccountsPanel(),
                       'marketing' => MarketingPanel(onOffers: () => openPromotions(ctx)),
                       'sales' => const _SalesHost(),
                       'accounts' => const _AccountsHost(),

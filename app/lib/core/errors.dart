@@ -4,11 +4,14 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config.dart';
 import 'l10n.dart';
 
 /// Maps backend error codes (raised by our PL/pgSQL functions) and transport
 /// errors to friendly, non-leaking messages. Never shows raw DB internals.
 String friendlyError(BuildContext context, Object error) {
+  final lb = error is LoginBlocked ? error : parseLoginBlock(error);
+  if (lb != null) return loginBlockedText(lb, ar: context.isAr);
   if (error is SocketException || error is TimeoutException) return context.tr('offline');
   if (error is AuthException) return context.tr(authErrorKey(error));
   final msg = error is PostgrestException ? error.message : error.toString();
@@ -94,3 +97,35 @@ String authErrorKey(AuthException e) {
 
 bool isEmailNotConfirmed(AuthException e) =>
     (e.code ?? '') == 'email_not_confirmed' || e.message.toLowerCase().contains('email not confirmed');
+
+
+/// The account is locked for a while ([seconds] > 0), blocked until the owner unblocks it, or stopped by the owner.
+class LoginBlocked implements Exception {
+  const LoginBlocked(this.kind, [this.seconds = 0]);
+  final String kind; // locked | blocked | suspended
+  final int seconds;
+  @override
+  String toString() => 'LoginBlocked($kind, $seconds)';
+}
+
+/// Reads what login_email_for() says: a returned marker ('!locked:900', '!blocked') or the error it raises (ACCOUNT_LOCKED:900, ACCOUNT_BLOCKED, ACCOUNT_SUSPENDED).
+LoginBlocked? parseLoginBlock(Object? e) {
+  final m = e is PostgrestException ? e.message : (e is String ? e : '$e');
+  final lock = RegExp(r'(?:!locked:|ACCOUNT_LOCKED:)(\d+)').firstMatch(m);
+  if (lock != null) return LoginBlocked('locked', int.parse(lock.group(1)!));
+  if (m.contains('!blocked') || m.contains('ACCOUNT_BLOCKED')) return const LoginBlocked('blocked');
+  if (m.contains('ACCOUNT_SUSPENDED')) return const LoginBlocked('suspended');
+  return null;
+}
+
+String loginBlockedText(LoginBlocked b, {bool ar = true}) {
+  final phone = '0${AppConfig.supportWhatsapp.replaceFirst(RegExp(r'^20'), '')}';
+  if (b.kind == 'locked') {
+    final mins = (b.seconds / 60).ceil().clamp(1, 600);
+    final when = mins >= 60 ? (ar ? 'ساعة' : '1 hour') : (ar ? '$mins دقيقة' : '$mins min');
+    return ar
+        ? 'الحساب اتقفل مؤقتًا عشان محاولات الدخول الغلط. جرّب تاني بعد $when، أو كلمنا نساعدك: $phone'
+        : 'This account is locked for now because of wrong passwords. Try again in $when, or contact us: $phone';
+  }
+  return ar ? 'تم حظر الحساب. كلمنا نساعدك: $phone' : 'This account has been blocked. Contact us and we will help: $phone';
+}

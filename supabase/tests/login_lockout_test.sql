@@ -1,0 +1,3 @@
+-- Login lockout test (run in a rolled-back transaction). Expected: 5th wrong => '!locked:900'; locked + correct password => ACCOUNT_LOCKED;
+-- 6th wrong => '!locked:3600'; 10th wrong => '!blocked' (auth banned_until = infinity); owner sees it, unblocks, login works again; suspend/restore.
+-- See the DO block run in the 0151/0152 session: create a throwaway auth user, call public.login_email_for() with wrong passwords, move locked_until into the past to simulate waiting.
