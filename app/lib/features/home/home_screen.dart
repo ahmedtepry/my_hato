@@ -10,11 +10,11 @@ import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/account_review.dart';
+import '../../shared/app_banner.dart';
 import '../../shared/avatars.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/loyalty_shortcut.dart';
 import '../../shared/product_card.dart';
-import '../../shared/smooth_pages.dart';
 import '../../shared/motion.dart';
 import '../../shared/press_scale.dart';
 import '../../shared/states.dart';
@@ -393,25 +393,69 @@ class _NotificationsBell extends ConsumerWidget {
   }
 }
 
-class _BannerCarousel extends ConsumerStatefulWidget {
+class _BannerCarousel extends ConsumerWidget {
   const _BannerCarousel();
+
+  void _open(BuildContext context, Map<String, dynamic> b) {
+    final v = b['link_value'] as String?;
+    switch (b['link_type']) {
+      case 'product':
+        if (v != null) context.push('/product/$v');
+      case 'repair':
+        context.push('/repairs/new');
+      case 'wheel':
+        context.push('/wheel');
+      case 'category':
+        if (v != null) context.push('/catalog/all', extra: CatalogQuery(categoryId: v));
+    }
+  }
+
   @override
-  ConsumerState<_BannerCarousel> createState() => _BannerCarouselState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(bannersProvider).maybeWhen(
+      data: (list) {
+        if (list.isEmpty) return const SizedBox.shrink();
+        String st(Map<String, dynamic> b) => (b['style'] ?? 'image').toString();
+        final images = [for (final b in list) if (st(b) == 'image') b];
+        final cards = [for (final b in list) if (st(b) == 'gradient' || st(b) == 'product') b];
+        final pills = [for (final b in list) if (st(b) == 'pill') b];
+        Widget item(Map<String, dynamic> b) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: PressScale(scale: 0.98, child: AppBannerCard(banner: b, onTap: () => _open(context, b))),
+            );
+        return Column(children: [
+          if (pills.isNotEmpty)
+            Padding(padding: const EdgeInsets.fromLTRB(12, 6, 12, 2), child: Column(children: [for (final b in pills) Padding(padding: const EdgeInsets.only(bottom: 6, top: 2), child: item(b))])),
+          if (cards.isNotEmpty) _AutoPager(height: 108, fraction: 0.94, children: [for (final b in cards) item(b)]),
+          if (images.isNotEmpty) _AutoPager(height: 168, fraction: 0.92, children: [for (final b in images) item(b)]),
+        ]);
+      },
+      orElse: () => const Padding(padding: EdgeInsets.all(16), child: Skeleton(height: 96)),
+    );
+  }
 }
 
-class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
-  final _pc = PageController(viewportFraction: 0.92);
+/// Swipeable row that moves to the next page by itself every few seconds (a single page just sits there).
+class _AutoPager extends StatefulWidget {
+  const _AutoPager({required this.height, required this.fraction, required this.children});
+  final double height, fraction;
+  final List<Widget> children;
+  @override
+  State<_AutoPager> createState() => _AutoPagerState();
+}
+
+class _AutoPagerState extends State<_AutoPager> {
+  late final PageController _pc = PageController(viewportFraction: widget.children.length > 1 ? widget.fraction : 1);
   Timer? _auto;
+  int _i = 0;
 
   @override
   void initState() {
     super.initState();
-    // gentle auto-play; any swipe by the user simply continues from where they are
-    _auto = Timer.periodic(const Duration(seconds: 5), (_) {
-      final n = ref.read(bannersProvider).valueOrNull?.length ?? 0;
+    _auto = Timer.periodic(const Duration(seconds: 4), (_) {
+      final n = widget.children.length;
       if (n < 2 || !_pc.hasClients || !_pc.position.haveDimensions) return;
-      final next = ((_pc.page ?? 0).round() + 1) % n;
-      _pc.animateToPage(next, duration: const Duration(milliseconds: 700), curve: Curves.easeInOutCubic);
+      _pc.animateToPage(((_pc.page ?? 0).round() + 1) % n, duration: const Duration(milliseconds: 600), curve: Curves.easeInOutCubic);
     });
   }
 
@@ -424,53 +468,27 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final banners = ref.watch(bannersProvider);
-    return banners.maybeWhen(
-      data: (list) => list.isEmpty
-          ? const SizedBox.shrink()
-          : SizedBox(
-              height: 160,
-              child: PageView.builder(
-                controller: _pc,
-                itemCount: list.length,
-                itemBuilder: (_, i) {
-                  final b = list[i];
-                  return SmoothPage(controller: _pc, index: i, maxScaleDrop: 0.06, maxFade: 0.3, parallax: 0.3, child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                    child: PressScale(scale: 0.98, child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () {
-                        final v = b['link_value'] as String?;
-                        switch (b['link_type']) {
-                          case 'product':
-                            if (v != null) context.push('/product/$v');
-                          case 'repair':
-                            context.push('/repairs/new');
-                          case 'category':
-                            if (v != null) context.push('/catalog/all', extra: CatalogQuery(categoryId: v));
-                        }
-                      },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: Stack(fit: StackFit.expand, children: [
-                          NetImage(path: b['image_path'] as String?, bucket: 'banners'),
-                          Container(
-                            alignment: AlignmentDirectional.bottomStart,
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Color(0xCC0B2D5B)])),
-                            child: Text(context.pick(b, 'title'),
-                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                          ),
-                        ]),
-                      ),
-                    )),
-                  ));
-                },
+    final n = widget.children.length;
+    return Column(children: [
+      SizedBox(
+        height: widget.height,
+        child: PageView.builder(controller: _pc, itemCount: n, onPageChanged: (v) => setState(() => _i = v), itemBuilder: (_, i) => widget.children[i]),
+      ),
+      if (n > 1)
+        Padding(
+          padding: const EdgeInsets.only(top: 2, bottom: 6),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            for (var k = 0; k < n; k++)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                width: k == _i ? 18 : 6,
+                height: 6,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(3), color: k == _i ? BrandColors.electric : const Color(0xFFD0D5DD)),
               ),
-            ),
-      orElse: () => const Padding(padding: EdgeInsets.all(16), child: Skeleton(height: 144)),
-    );
+          ]),
+        ),
+    ]);
   }
 }
 

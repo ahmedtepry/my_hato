@@ -43,6 +43,7 @@ import 'marketing_panel.dart';
 import 'blocked_accounts_panel.dart';
 import 'promotions.dart';
 import 'appearance_panel.dart';
+import 'app_banners_panel.dart';
 import 'welcome_logo_panel.dart';
 import 'team_login_panel.dart';
 import '../../shared/welcome_robot.dart';
@@ -409,6 +410,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'wallet_inbox': _SectionInfo(Icons.mark_email_unread_outlined, Color(0xFFE60000), 'استقبال المحافظ', 'Wallet inbox', 'الفلوس اللي بتوصل المحافظ لحظة بلحظة، وربطها بالأوردرات، والمرتجعات للمحاسب', 'Money arriving in the wallets live, linking it to orders, and refunds for the accountant'),
   'storefront': _SectionInfo(Icons.view_quilt_rounded, Color(0xFF2F6BFF), 'طريقة عرض الواجهة', 'Storefront layout', 'اختار شكل عرض المنتجات في تطبيق العملا، ويتطبق على الكل', 'Pick how products are shown in the customer app; it applies to everyone'),
   'assistant': _SectionInfo(Icons.smart_toy_rounded, Color(0xFF0E9384), 'المساعد الآلي', 'Assistant', 'المحاسب الآلي وروبوت خدمة العملاء: شغّلهم وشوف شغلهم', 'The automatic accountant and the customer-service robot: switch them on and see their work'),
+  'app_banners': _SectionInfo(Icons.view_carousel_rounded, Color(0xFF00A3FF), 'بانرات التطبيق', 'App banners', 'تتحكم في البانرات اللي بتظهر للعملا في الصفحة الرئيسية', 'Control the banners shown on the customer home screen'),
   'shortcuts': _SectionInfo(Icons.bolt_rounded, Color(0xFFDC6803), 'اختصارات', 'Shortcuts', 'استلام بضاعة، جرد، تعديل أسعار، وتصدير بيانات', 'Receive goods, stocktake, edit prices and export data'),
   'stock': _SectionInfo(Icons.warehouse_rounded, Color(0xFF0E9384), 'مخزن', 'Stock', 'أرصدة مخازن الفروع، توزيع المنتجات، وتحويلها بين الفروع بتأكيد الاستلام', 'Branch store balances, allocation and transfers between branches with receipt confirmation'),
   'wheel': _SectionInfo(Icons.casino_rounded, Color(0xFFE11D48), 'عجلة الحظ', 'Lucky wheel', 'اتحكم في خانات العجلة وصعوبتها وسلّم الهدايا', 'Edit the wheel slices and difficulty and hand over gifts'),
@@ -582,7 +584,7 @@ const _sidebarGroups = <(String, String, List<String>)>[
   ('الفلوس والمحاسبة', 'Money & accounting', ['books', 'wallets', 'wallet_inbox']),
   ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'online_review', 'assistant', 'accounts']),
   ('العملاء والتسويق', 'Customers & marketing', ['marketing', 'blocked', 'reviews', 'offers', 'gifts', 'wheel', 'contests']),
-  ('النظام والمظهر', 'System & look', ['appearance', 'occasions', 'storefront', 'features']),
+  ('النظام والمظهر', 'System & look', ['appearance', 'occasions', 'storefront', 'app_banners', 'features']),
 ];
 
 (String, int) _sidebarGroupOf(BuildContext c, String k) {
@@ -767,6 +769,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'wallet_inbox' => const WalletInboxPanel(),
                       'wheel' => const WheelAdminPanel(),
                       'stock' => const StockPanel(),
+                      'app_banners' => const AppBannersPanel(),
                       'shortcuts' => const ShortcutsPanel(),
                       'assistant' => const AssistantPanel(),
                       'repairs' => const _RepairsTab(),

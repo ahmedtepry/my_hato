@@ -15,6 +15,7 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
+import 'app_banners_panel.dart';
 
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -69,6 +70,9 @@ class ShortcutsPanel extends ConsumerWidget {
       if (has('shortcut.export'))
         card(Icons.download_rounded, const Color(0xFF1570EF), 'تصدير البيانات', 'Export data', 'نزّل المنتجات والمبيعات والطلبات والعملاء كملف إكسل',
             'Download products, sales, orders and customers as an Excel file', () => open(const _ExportSheet())),
+      if (has('banners.manage'))
+        card(Icons.view_carousel_rounded, const Color(0xFF00A3FF), 'بانرات التطبيق', 'App banners', 'أضف وعدّل البانرات اللي بتظهر للعملا', 'Add and edit the banners customers see',
+            () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => Scaffold(appBar: AppBar(title: Text(_t(context, 'بانرات التطبيق', 'App banners'))), body: const AppBannersPanel())))),
       const SizedBox(height: 8),
       if (has('shortcut.goods_receipt')) const _Log(title: ('آخر الاستلامات', 'Recent receipts'), kind: _LogKind.receipts),
       if (has('shortcut.stocktake')) const _Log(title: ('آخر الجرد', 'Recent stocktakes'), kind: _LogKind.stocktakes),
