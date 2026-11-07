@@ -37,6 +37,8 @@ class AppBannerCard extends StatelessWidget {
     final g = bannerGradient(_s('color'));
     final emoji = _s('emoji');
     final ar = context.isAr;
+    final pr = ar || _s('price_text_en').isEmpty ? 'price_text' : 'price_text_en';
+    final opr = ar || _s('old_price_text_en').isEmpty ? 'old_price_text' : 'old_price_text_en';
 
     Widget pill(String t) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -95,7 +97,7 @@ class AppBannerCard extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: Colors.white.withValues(alpha: .12)),
                 child: _s('image_path').isNotEmpty
-                    ? SizedBox.expand(child: NetImage(path: _s('image_path'), bucket: 'banners', thumb: true))
+                    ? SizedBox.expand(child: NetImage(path: _s('image_path'), bucket: _s('image_bucket').isEmpty ? 'banners' : _s('image_bucket'), thumb: true))
                     : Text(emoji.isEmpty ? '🎁' : emoji, style: const TextStyle(fontSize: 36)),
               ),
               const SizedBox(width: 12),
@@ -103,12 +105,12 @@ class AppBannerCard extends StatelessWidget {
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
                   if (sub.isNotEmpty) Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF9AD7FF), fontSize: 11)),
-                  if (_s('price_text').isNotEmpty)
+                  if (_s(pr).isNotEmpty)
                     Row(children: [
-                      Text(_s('price_text'), style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
-                      if (_s('old_price_text').isNotEmpty) ...[
+                      Text(_s(pr), style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                      if (_s(opr).isNotEmpty) ...[
                         const SizedBox(width: 6),
-                        Text(_s('old_price_text'), style: const TextStyle(color: Color(0xFF98A2B3), fontSize: 11, decoration: TextDecoration.lineThrough)),
+                        Text(_s(opr), style: const TextStyle(color: Color(0xFF98A2B3), fontSize: 11, decoration: TextDecoration.lineThrough)),
                       ],
                     ]),
                 ]),

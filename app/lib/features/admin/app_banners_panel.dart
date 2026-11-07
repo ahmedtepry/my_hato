@@ -174,6 +174,7 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
   late String _link = (widget.row?['link_type'] ?? '').toString();
   late String? _linkValue = widget.row?['link_value'] as String?;
   late bool _active = widget.row?['is_active'] != false;
+  late List<String> _pids = [for (final e in (widget.row?['product_ids'] as List? ?? const [])) '$e'];
   DateTime? _from, _to;
   Uint8List? _img;
   bool _busy = false;
@@ -209,6 +210,31 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
     if (x == null) return;
     final b = await x.readAsBytes();
     if (mounted) setState(() => _img = b);
+  }
+
+  Future<void> _addProduct(List<Map<String, dynamic>> products) async {
+    final q = TextEditingController();
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, set) {
+        final t = q.text.trim().toLowerCase();
+        final list = [for (final p in products) if (!_pids.contains(p['id']) && (t.isEmpty || '${p['name_ar']} ${p['name_en']}'.toLowerCase().contains(t))) p].take(60).toList();
+        return AlertDialog(
+          title: Text(_t(ctx, 'اختار منتج', 'Pick a product')),
+          content: SizedBox(
+            width: 420,
+            height: 420,
+            child: Column(children: [
+              TextField(controller: q, autofocus: true, onChanged: (_) => set(() {}), decoration: InputDecoration(prefixIcon: const Icon(Icons.search_rounded), hintText: _t(ctx, 'ابحث بالاسم', 'Search by name'))),
+              const SizedBox(height: 8),
+              Expanded(child: ListView(children: [for (final p in list) ListTile(dense: true, title: Text(ctx.pick(p, 'name'), maxLines: 2, overflow: TextOverflow.ellipsis), onTap: () => Navigator.pop(ctx, p['id'] as String))])),
+            ]),
+          ),
+        );
+      }),
+    );
+    q.dispose();
+    if (picked != null && _pids.length < 10) setState(() => _pids.add(picked));
   }
 
   Future<void> _date(bool from) async {
@@ -260,6 +286,7 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
         'price_text': n('price_text'),
         'old_price_text': n('old_price_text'),
         'image_path': (_style == 'image' || _style == 'product') ? path : null,
+        'product_ids': _style == 'product' ? _pids : <String>[],
         'link_type': _link.isEmpty ? null : _link,
         'link_value': (_link == 'product' || _link == 'category') ? _linkValue : null,
         'is_active': _active,
@@ -339,6 +366,21 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
           _f('emoji', 'إيموجي (🔥 🎁 📱)', 'Emoji (🔥 🎁 📱)', max: 8),
         ],
         if (_style == 'product') ...[
+          Text(_t(context, 'المنتجات (كل منتج سلايد، والضغط عليه يفتح المنتج فورًا)', 'Products (one slide each; tapping opens the product)'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, runSpacing: 6, children: [
+            for (final id in _pids)
+              InputChip(
+                label: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 200), child: Text(context.pick(products.firstWhere((e) => e['id'] == id, orElse: () => {'name_ar': '؟'}), 'name'), overflow: TextOverflow.ellipsis)),
+                onDeleted: () => setState(() => _pids.remove(id)),
+              ),
+            if (_pids.length < 10) ActionChip(avatar: const Icon(Icons.add_rounded, size: 18), label: Text(_t(context, 'أضف منتج', 'Add product')), onPressed: () => _addProduct(products)),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 10),
+            child: Text(_t(context, 'الاسم والسعر والخصم والصورة بتتسحب من المنتج نفسه وتتحدث لوحدها. لو سيبتها فاضية هيظهر البانر اللي بتكتبه تحت.', 'Name, price, discount and photo come from the product and stay up to date. If empty, the banner you type below is shown.'),
+                style: const TextStyle(fontSize: 12, color: BrandColors.gray, height: 1.5)),
+          ),
           _f('badge', 'الشارة (مثلًا -25%)', 'Badge (e.g. -25%)', max: 12),
           Row(children: [
             Expanded(child: _f('price_text', 'السعر بعد الخصم', 'Price now', max: 20)),
@@ -375,6 +417,7 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
             ]),
           ),
         ],
+        if (_style != 'product' || _pids.isEmpty) ...[
         Text(_t(context, 'لما العميل يدوس عليه يفتح', 'When tapped it opens'), style: const TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         Wrap(spacing: 8, children: [
@@ -395,6 +438,7 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
               onChanged: (v) => setState(() => _linkValue = v),
             ),
           ),
+        ],
         const SizedBox(height: 12),
         Row(children: [
           Expanded(child: OutlinedButton(onPressed: () => _date(true), child: Text('${_t(context, 'يبدأ', 'Starts')}: ${fmt(_from)}'))),

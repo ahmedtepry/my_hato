@@ -1,3 +1,4 @@
+import '../../core/money.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -136,8 +137,51 @@ class CatalogRepository {
       .eq('status', 'published')
       .maybeSingle();
 
-  Future<List<Map<String, dynamic>>> banners() async =>
-      List<Map<String, dynamic>>.from(await _db.from('banners').select().order('sort_order'));
+  /// Active banners. A "product" banner that lists products is expanded into one slide per product
+  /// (live name, price, old price, discount badge and photo), and each slide opens its own product.
+  Future<List<Map<String, dynamic>>> banners() async {
+    final rows = List<Map<String, dynamic>>.from(await _db.from('banners').select().order('sort_order'));
+    final ids = <String>{
+      for (final b in rows)
+        if (b['style'] == 'product') ...((b['product_ids'] as List? ?? const []).map((e) => '$e')),
+    };
+    final byId = <String, Map<String, dynamic>>{};
+    if (ids.isNotEmpty) {
+      for (final p in List<Map<String, dynamic>>.from(await _db.from('catalog_products').select().inFilter('id', ids.toList()))) {
+        byId['${p['id']}'] = p;
+      }
+    }
+    final out = <Map<String, dynamic>>[];
+    for (final b in rows) {
+      final pids = (b['product_ids'] as List? ?? const []).map((e) => '$e').toList();
+      if (b['style'] != 'product' || pids.isEmpty) {
+        out.add(b);
+        continue;
+      }
+      for (final id in pids) {
+        final p = byId[id];
+        if (p == null) continue; // hidden or deleted product: skip its slide
+        final price = (p['price_minor'] as num?)?.toInt();
+        final compare = (p['compare_at_price_minor'] as num?)?.toInt();
+        final disc = (p['discount_percent'] as num?)?.toInt() ?? 0;
+        out.add({
+          ...b,
+          'title_ar': p['name_ar'],
+          'title_en': p['name_en'] ?? p['name_ar'],
+          'price_text': price == null ? null : formatEgp(price, 'ar'),
+          'price_text_en': price == null ? null : formatEgp(price, 'en'),
+          'old_price_text': (compare != null && price != null && compare > price) ? formatEgp(compare, 'ar') : null,
+          'old_price_text_en': (compare != null && price != null && compare > price) ? formatEgp(compare, 'en') : null,
+          'badge': b['badge'] ?? (disc > 0 ? '-$disc%' : null),
+          'image_path': p['thumb_path'],
+          'image_bucket': 'product-images',
+          'link_type': 'product',
+          'link_value': id,
+        });
+      }
+    }
+    return out;
+  }
 
   Future<Map<String, dynamic>> publicSettings() async {
     final rows = await _db.from('application_settings').select('key, value');
