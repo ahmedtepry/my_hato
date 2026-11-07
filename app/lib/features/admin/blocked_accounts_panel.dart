@@ -41,7 +41,7 @@ class BlockedAccountsPanel extends ConsumerWidget {
           child: Text(
               _t(context, '5 أرقام سرية غلط = قفل 15 دقيقة، وبعدها ساعة، و10 غلط = حظر لحد ما تفكه إنت. من هنا تفك الحظر أو تغيّر الرقم السري أو توقف الحساب وترجّعه.',
                   '5 wrong passwords = 15 min lock, then 1 hour, 10 wrong = blocked until you unblock. Unblock, reset the password, or stop / restore an account here.'),
-              style: const TextStyle(color: BrandColors.textMuted, fontSize: 13)),
+              style: const TextStyle(color: Color(0xFF667085), fontSize: 13)),
         ),
         data.when(
           loading: () => const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())),
@@ -102,7 +102,7 @@ class _AccountCard extends ConsumerWidget {
             if ('${a['phone'] ?? ''}'.isNotEmpty) '${a['phone']}',
             if ('${a['email'] ?? ''}'.isNotEmpty) '${a['email']}',
             if ('${a['code'] ?? ''}'.isNotEmpty) '${a['code']}',
-          ].join('  •  '), style: const TextStyle(color: BrandColors.textMuted, fontSize: 12.5)),
+          ].join('  •  '), style: const TextStyle(color: Color(0xFF667085), fontSize: 12.5)),
           const SizedBox(height: 6),
           Text([
             if (status != 'suspended') '${_t(context, 'محاولات غلط', 'Wrong attempts')}: ${a['failed_count'] ?? 0}',
