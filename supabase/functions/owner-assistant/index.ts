@@ -25,6 +25,7 @@ const TOOLS: A[] = [
   { name: "permissions", description: "Which permissions each role has, plus per-person overrides. Pass role to see one role.", input_schema: { type: "object", properties: { role: { type: "string" } } } },
   { name: "customers", description: "Search customers by name/phone/email.", input_schema: { type: "object", properties: { q: { type: "string" } } } },
   { name: "wallet_transfers", description: "Latest incoming wallet transfers and whether they were matched to an order.", input_schema: { type: "object", properties: {} } },
+  { name: "wallet_orders", description: "For wallet-paid online orders: the wallet number the customer SAID he will transfer from (transfer_from_phone), which wallet, whether it is his own number, proof image, and any received transfers from that number. Pass ref (full or partial order reference) for one order, or nothing for the latest wallet orders.", input_schema: { type: "object", properties: { ref: { type: "string" } } } },
   { name: "pending_accounts", description: "Customer accounts by verification status (default: pending = waiting for verification/توثيق): id, name, phone, email, code.", input_schema: { type: "object", properties: { status: { type: "string", enum: ["pending", "approved", "rejected"] } } } },
   { name: "set_role_permission", description: "PROPOSE granting or revoking a permission for a whole role. Needs the owner's confirmation.", input_schema: { type: "object", properties: { role: { type: "string", enum: ["manager", "sales", "technician", "support", "cashier", "accountant"] }, permission: { type: "string" }, grant: { type: "boolean" } }, required: ["role", "permission", "grant"] } },
   { name: "set_user_permission", description: "PROPOSE granting, denying or clearing a permission for ONE team member. Needs confirmation.", input_schema: { type: "object", properties: { user_id: { type: "string" }, permission: { type: "string" }, effect: { type: "string", enum: ["grant", "deny", "clear"] } }, required: ["user_id", "permission", "effect"] } },
@@ -54,6 +55,7 @@ Rules for changes:
 - Only when the owner's NEXT message clearly agrees (أيوه، نفذ، تمام، yes) call confirm_pending. If he says no / cancel call cancel_pending. If he changes his mind or asks something else, ignore the old proposal.
 - For "net profit of order X" call order_profit, then answer in one or two lines: revenue (subtotal), product cost, net profit and margin %. The delivery fee is not profit. If missing_cost_lines > 0, say the cost of those items is not set so the profit cannot be known.
 - Account verification (توثيق الحسابات): pending_accounts lists who is waiting. To verify someone call approve_account, to refuse call reject_account (both only propose; the owner confirms in his next message). Match the person by name or phone; if several match, ask which one. When asked to verify everyone pending, propose each one and list their names in one line.
+- Wallet payments (محفظة): when he asks which wallet number a customer said he will transfer from, or about a wallet order, call wallet_orders (pass the order reference if he gave one). transfer_from_phone is that number, same_as_customer_phone says if it is the customer's own number. wallet_transfers only lists money that has ALREADY arrived, so an empty list there does not mean the order has no declared number.
 - Look things up first (find_products, staff_list...) to get the real ids and exact names. If several items match, ask which one.
 - Never propose giving 'permissions.manage', and never touch the owner's own account.
 - If a tool returns an error, explain it simply (e.g. FORBIDDEN = not allowed) and do not retry blindly.
@@ -205,6 +207,8 @@ async function runTool(name: string, a: A, ctx: { user: SupabaseClient; svc: Sup
       if (r.error) return { error: r.error.message };
       return (r.data as A[]).slice(0, 20).map((x) => ({ user_id: x.user_id, name: x.full_name || x.username, phone: x.phone, email: x.email, code: x.customer_code, created_at: x.created_at }));
     }
+    case "wallet_orders":
+      return out(await user.rpc("wallet_orders_declared", { p_ref: a.ref ? String(a.ref).slice(0, 40) : null }));
     case "wallet_transfers":
       return out(await user.rpc("wallet_inbox_list", { p_limit: 10 }));
     case "remember": {
