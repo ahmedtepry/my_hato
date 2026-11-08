@@ -16,6 +16,7 @@ import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
 import 'app_banners_panel.dart';
+import 'blocked_accounts_panel.dart';
 
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -70,6 +71,9 @@ class ShortcutsPanel extends ConsumerWidget {
       if (has('shortcut.export'))
         card(Icons.download_rounded, const Color(0xFF1570EF), 'تصدير البيانات', 'Export data', 'نزّل المنتجات والمبيعات والطلبات والعملاء كملف إكسل',
             'Download products, sales, orders and customers as an Excel file', () => open(const _ExportSheet())),
+      if (has('accounts.unblock'))
+        card(Icons.lock_open_rounded, const Color(0xFFD92D20), 'فك حظر حساب', 'Unblock an account', 'شوف الحسابات المقفولة وفكها أو غيّر رقمها السري', 'See locked accounts, unlock them or reset the password',
+            () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => Scaffold(appBar: AppBar(title: Text(_t(context, 'الحسابات المحظورة', 'Blocked accounts'))), body: const BlockedAccountsPanel())))),
       if (has('banners.manage'))
         card(Icons.view_carousel_rounded, const Color(0xFF00A3FF), 'بانرات التطبيق', 'App banners', 'أضف وعدّل البانرات اللي بتظهر للعملا', 'Add and edit the banners customers see',
             () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => Scaffold(appBar: AppBar(title: Text(_t(context, 'بانرات التطبيق', 'App banners'))), body: const AppBannersPanel())))),
