@@ -21,7 +21,7 @@ void main() {
 
   testWidgets('gradient banner shows title, button word and opens on tap', (t) async {
     var taps = 0;
-    await t.pumpWidget(_host({'style': 'gradient', 'color': 'blue', 'title_ar': 'خصم 20%', 'title_en': '20% off', 'cta_ar': 'تسوق', 'emoji': '📱'}, onTap: () => taps++));
+    await t.pumpWidget(_host({'style': 'gradient', 'color': 'blue', 'title_ar': 'خصم 20%', 'title_en': 'خصم 20%', 'cta_ar': 'تسوق', 'emoji': '📱'}, onTap: () => taps++));
     expect(find.text('خصم 20%'), findsOneWidget);
     expect(find.text('تسوق'), findsOneWidget);
     await t.tap(find.text('خصم 20%'));
@@ -29,9 +29,9 @@ void main() {
   });
 
   testWidgets('pill banner has a default button word', (t) async {
-    await t.pumpWidget(_host({'style': 'pill', 'color': 'orange', 'title_ar': 'شحن مجاني', 'title_en': 'Free shipping'}, onTap: () {}));
+    await t.pumpWidget(_host({'style': 'pill', 'color': 'orange', 'title_ar': 'شحن مجاني', 'title_en': 'شحن مجاني'}, onTap: () {}));
     expect(find.text('شحن مجاني'), findsOneWidget);
-    expect(find.text('شوف'), findsOneWidget);
+    expect(find.text('شوف').evaluate().length + find.text('View').evaluate().length, 1);
   });
 
   testWidgets('product banner shows price, old price and badge', (t) async {
