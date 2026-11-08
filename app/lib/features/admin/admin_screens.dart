@@ -60,6 +60,7 @@ import 'cashier_assistant.dart' show assistantFlagsProvider;
 import 'stock_panel.dart';
 import 'assistant_panel.dart';
 import 'shortcuts_panel.dart';
+import 'purchases_panel.dart';
 import '../wheel/wheel_admin.dart';
 import 'occasions_panel.dart';
 import 'pos_panel.dart';
@@ -412,6 +413,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'assistant': _SectionInfo(Icons.smart_toy_rounded, Color(0xFF0E9384), 'المساعد الآلي', 'Assistant', 'المحاسب الآلي وروبوت خدمة العملاء: شغّلهم وشوف شغلهم', 'The automatic accountant and the customer-service robot: switch them on and see their work'),
   'app_banners': _SectionInfo(Icons.view_carousel_rounded, Color(0xFF00A3FF), 'بانرات التطبيق', 'App banners', 'تتحكم في البانرات اللي بتظهر للعملا في الصفحة الرئيسية', 'Control the banners shown on the customer home screen'),
   'shortcuts': _SectionInfo(Icons.bolt_rounded, Color(0xFFDC6803), 'اختصارات', 'Shortcuts', 'استلام بضاعة، جرد، تعديل أسعار، وتصدير بيانات', 'Receive goods, stocktake, edit prices and export data'),
+  'purchases': _SectionInfo(Icons.shopping_cart_checkout_rounded, Color(0xFF0E9384), 'المشتريات والموردين', 'Purchases & suppliers', 'أوامر شراء، استلام يزوّد المخزن، ودفعات للموردين', 'Purchase orders, receiving into stock and supplier payments'),
   'stock': _SectionInfo(Icons.warehouse_rounded, Color(0xFF0E9384), 'مخزن', 'Stock', 'أرصدة مخازن الفروع، توزيع المنتجات، وتحويلها بين الفروع بتأكيد الاستلام', 'Branch store balances, allocation and transfers between branches with receipt confirmation'),
   'wheel': _SectionInfo(Icons.casino_rounded, Color(0xFFE11D48), 'عجلة الحظ', 'Lucky wheel', 'اتحكم في خانات العجلة وصعوبتها وسلّم الهدايا', 'Edit the wheel slices and difficulty and hand over gifts'),
   'features': _SectionInfo(Icons.toggle_on_rounded, Color(0xFF12B76A), 'مفاتيح التشغيل', 'Feature switches', 'شغّل أو اقفل النقاط وعجلة الحظ للعملا', 'Turn points and the lucky wheel on or off for customers'),
@@ -580,7 +582,7 @@ final List<String> _navBack = [];
 /// The sidebar sections, grouped by what they are for so related pages sit together under one heading.
 const _sidebarGroups = <(String, String, List<String>)>[
   ('', '', ['overview']),
-  ('البيع والطلبات', 'Sales & orders', ['pos', 'orders', 'repairs', 'shifts', 'sales', 'ops', 'products', 'stock', 'shortcuts']),
+  ('البيع والطلبات', 'Sales & orders', ['pos', 'orders', 'repairs', 'shifts', 'sales', 'ops', 'products', 'stock', 'purchases', 'shortcuts']),
   ('الفلوس والمحاسبة', 'Money & accounting', ['books', 'wallets', 'wallet_inbox']),
   ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'online_review', 'assistant', 'accounts']),
   ('العملاء والتسويق', 'Customers & marketing', ['marketing', 'blocked', 'reviews', 'offers', 'gifts', 'wheel', 'contests']),
@@ -770,6 +772,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'wheel' => const WheelAdminPanel(),
                       'stock' => const StockPanel(),
                       'app_banners' => const AppBannersPanel(),
+                      'purchases' => const PurchasesPanel(),
                       'shortcuts' => const ShortcutsPanel(),
                       'assistant' => const AssistantPanel(),
                       'repairs' => const _RepairsTab(),

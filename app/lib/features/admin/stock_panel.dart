@@ -9,6 +9,7 @@ import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/odoo_search.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
 
@@ -32,7 +33,7 @@ final _viewBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynami
 final _myBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('staff_my_branches')));
 final _whereProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) async =>
     Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('stock_product_where', params: {'p_product': id}) as Map));
-final _transfersProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('stock_transfers_list')));
+final _transfersProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async => _maps(await ref.watch(supabaseProvider).rpc('stock_transfers_list', params: {'p_limit': 200})));
 
 class StockPanel extends ConsumerStatefulWidget {
   const StockPanel({super.key});
@@ -277,31 +278,81 @@ class _AllocateDialogState extends ConsumerState<_AllocateDialog> {
 }
 
 // ------------------------------------------------------------------ transfers list
-class _TransfersTab extends ConsumerWidget {
+class _TransfersTab extends ConsumerStatefulWidget {
   const _TransfersTab();
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TransfersTab> createState() => _TransfersTabState();
+}
+
+class _TransfersTabState extends ConsumerState<_TransfersTab> {
+  final _search = OdooSearchState();
+
+  static final _filters = <OdooFilter>[
+    OdooFilter('pending', 'مستنية استلام', 'Waiting', (t) => t['status'] == 'pending', exclusiveWith: 'st'),
+    OdooFilter('received', 'اتستلمت', 'Received', (t) => t['status'] == 'received' || t['status'] == 'partial', exclusiveWith: 'st'),
+    OdooFilter('rejected', 'مرفوضة', 'Rejected', (t) => t['status'] == 'rejected', exclusiveWith: 'st'),
+    OdooFilter('cancelled', 'ملغية', 'Cancelled', (t) => t['status'] == 'cancelled', exclusiveWith: 'st'),
+    OdooFilter('incoming', 'مستنياني أستلمها', 'For me to receive', (t) => t['can_receive'] == true),
+    OdooFilter('week', 'آخر 7 أيام', 'Last 7 days', (t) {
+      final d = DateTime.tryParse('${t['created_at']}');
+      return d != null && d.isAfter(DateTime.now().subtract(const Duration(days: 7)));
+    }),
+  ];
+  static final _groups = <OdooGroup>[
+    OdooGroup('status', 'الحالة', 'Status', (t) => switch ('${t['status']}') { 'pending' => 'مستنية استلام', 'received' => 'اتستلمت', 'partial' => 'استلام جزئي', 'rejected' => 'مرفوضة', _ => 'ملغية' }),
+    OdooGroup('from', 'من فرع', 'From branch', (t) => '${t['from_name']}'),
+    OdooGroup('to', 'إلى فرع', 'To branch', (t) => '${t['to_name']}'),
+    OdooGroup('day', 'اليوم', 'Day', (t) => '${t['created_at']}'.substring(0, 10)),
+    OdooGroup('by', 'اللي عمل التحويل', 'Created by', (t) => '${t['created_by_name']}'),
+  ];
+
+  String _text(Map<String, dynamic> t) =>
+      '${t['number']} ${t['from_name']} ${t['to_name']} ${t['created_by_name'] ?? ''} ${t['note'] ?? ''} ${(t['items'] as List? ?? const []).map((i) => '${(i as Map)['name_ar']} ${i['sku'] ?? ''}').join(' ')}';
+
+  @override
+  Widget build(BuildContext context) {
     final st = ref.watch(_transfersProvider);
-    return st.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(_transfersProvider)),
-      data: (list) {
-        if (list.isEmpty) return Center(child: Text(_t(context, 'مفيش تحويلات لسه.', 'No transfers yet.')));
-        final incoming = list.where((t) => t['can_receive'] == true).toList();
-        final rest = list.where((t) => t['can_receive'] != true).toList();
-        return RefreshIndicator(
-          onRefresh: () async => ref.refresh(_transfersProvider.future),
-          child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
-            if (incoming.isNotEmpty) ...[
-              Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(_t(context, '📦 مستنية استلامك (${incoming.length})', '📦 Waiting for you (${incoming.length})'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
-              for (final t in incoming) _TransferCard(t: t),
-              const Divider(height: 28),
-            ],
-            for (final t in rest) _TransferCard(t: t),
-          ]),
-        );
-      },
-    );
+    return Column(children: [
+      OdooSearchBar(
+        state: _search,
+        filters: _filters,
+        groups: _groups,
+        storeKey: 'transfers',
+        hintAr: 'ابحث برقم التحويل أو الفرع أو الصنف...',
+        hintEn: 'Search by number, branch or item...',
+        onChanged: () => setState(() {}),
+      ),
+      Expanded(
+        child: st.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(_transfersProvider)),
+          data: (all) {
+            if (all.isEmpty) return Center(child: Text(_t(context, 'مفيش تحويلات لسه.', 'No transfers yet.')));
+            final list = _search.apply(all, defs: _filters, textOf: _text);
+            if (list.isEmpty) return Center(child: Text(_t(context, 'مفيش نتايج للبحث ده.', 'No results for this search.')));
+            final grouped = _search.groupBy != null;
+            final incoming = grouped ? <Map<String, dynamic>>[] : list.where((t) => t['can_receive'] == true).toList();
+            final rest = grouped ? list : list.where((t) => t['can_receive'] != true).toList();
+            final groups = _search.group(rest, _groups);
+            return RefreshIndicator(
+              onRefresh: () async => ref.refresh(_transfersProvider.future),
+              child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
+                Padding(padding: const EdgeInsets.only(bottom: 6), child: Text('${list.length} ${_t(context, 'تحويل', 'transfers')}', style: const TextStyle(color: BrandColors.gray, fontSize: 12.5))),
+                if (incoming.isNotEmpty) ...[
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(_t(context, '📦 مستنية استلامك (${incoming.length})', '📦 Waiting for you (${incoming.length})'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+                  for (final t in incoming) _TransferCard(t: t),
+                  const Divider(height: 28),
+                ],
+                for (final g in groups) ...[
+                  if (g.$1.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(2, 10, 2, 6), child: Text('${g.$1} (${g.$2.length})', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: BrandColors.navy))),
+                  for (final t in g.$2) _TransferCard(t: t),
+                ],
+              ]),
+            );
+          },
+        ),
+      ),
+    ]);
   }
 }
 
