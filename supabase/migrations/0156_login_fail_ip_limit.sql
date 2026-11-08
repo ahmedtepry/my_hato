@@ -1,4 +1,4 @@
--- login_email_for: 6 wrong passwords from one device in 15 minutes and that device is refused (only failures count).
+-- login_email_for: 12 wrong passwords from one device in 15 minutes and that device is refused (only failures count).
 create or replace function public.login_email_for(p_identifier text, p_password text)
  returns text language plpgsql security definer set search_path to 'public', 'extensions' as $function$
 declare
@@ -24,7 +24,7 @@ begin
   v_iph := encode(digest('ip:' || v_ip, 'sha256'), 'hex');
   select ceil(extract(epoch from (rl.window_start + interval '900 seconds' - now())))::int into v_left
     from public.rate_limits rl
-   where rl.bucket = 'login_fail_ip' and rl.key_hash = v_iph and rl.count >= 6 and rl.window_start + interval '900 seconds' > now();
+   where rl.bucket = 'login_fail_ip' and rl.key_hash = v_iph and rl.count >= 12 and rl.window_start + interval '900 seconds' > now();
   if v_left is not null then
     return '!locked:' || greatest(v_left, 1);
   end if;
@@ -69,7 +69,7 @@ begin
   if v_hash is null or v_hash = '' then
     perform extensions.crypt(p_password, extensions.gen_salt('bf', 10));
   end if;
-  perform public.hit_rate_limit('login_fail_ip', v_iph, 900, 6);
+  perform public.hit_rate_limit('login_fail_ip', v_iph, 900, 12);
   insert into public.auth_login_attempts(key, ok) values (v_key, false);
 
   n := coalesce(st.failed_count, 0) + 1;
