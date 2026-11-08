@@ -97,3 +97,14 @@ export function renderRepairResponse(r: any): Rendered {
     ].join("")}</table>${adminLink(`/#/repairs/${r.id}`)}`;
   return { subject: title, html: shell(title, body), text: `${title}\n${egp(r.quote?.amount_minor)}` };
 }
+
+/** Marketing campaign email: title + body (+ coupon code), with how to stop receiving offers. */
+export function renderCampaign(c: { subject?: string; body?: string; coupon?: string | null }): Rendered {
+  const subject = String(c.subject ?? "").slice(0, 150) || "عرض من My Hatō";
+  const body = String(c.body ?? "").slice(0, 1500);
+  const coupon = c.coupon ? `<p style="margin:16px 0;padding:12px;background:#F2F6FF;border-radius:10px;text-align:center;font-size:18px"><b>${e(String(c.coupon))}</b><br><span style="font-size:12px;color:#667085">كود الخصم</span></p>` : "";
+  const html = shell(subject, `<p style="line-height:1.9;white-space:pre-wrap">${e(body)}</p>${coupon}
+<p style="margin-top:24px;font-size:12px;color:#667085">وصلتك الرسالة دي لأنك مشترك في عروض My Hatō. لإيقافها: افتح التطبيق ثم حسابي ثم الإشعارات وأوقف "العروض".</p>`);
+  const text = `${subject}\n\n${body}${c.coupon ? `\n\nكود الخصم: ${c.coupon}` : ""}\n\nلإيقاف رسائل العروض: التطبيق > حسابي > الإشعارات > العروض.`;
+  return { subject, html, text };
+}

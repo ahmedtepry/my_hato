@@ -64,6 +64,7 @@ class MarketingPanel extends ConsumerStatefulWidget {
 class _MarketingPanelState extends ConsumerState<MarketingPanel> {
   String _seg = 'never';
   String? _coupon;
+  bool _viaApp = true, _viaEmail = false;
   bool _busy = false;
   final _name = TextEditingController();
   final _title = TextEditingController();
@@ -103,6 +104,10 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
       showSnack(context, _t(context, 'اكتب اسم الحملة والعنوان والنص', 'Write the campaign name, title and text'), error: true);
       return;
     }
+    if (!_viaApp && !_viaEmail) {
+      showSnack(context, _t(context, 'اختار طريقة الإرسال: إشعار أو إيميل', 'Pick how to send: notification or email'), error: true);
+      return;
+    }
     final canSend = ref.read(staffContextProvider).valueOrNull?.permissions.contains('marketing.campaigns') ?? false;
     if (!canSend) {
       setState(() => _busy = true);
@@ -140,15 +145,18 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
     if (ok != true || !mounted) return;
     setState(() => _busy = true);
     try {
-      final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('marketing_send_campaign', params: {
-        'p_name': _name.text.trim(),
-        'p_segment': _seg,
-        'p_title': _title.text.trim(),
-        'p_body': _body.text.trim(),
-        'p_coupon_code': _coupon,
-      }) as Map);
+      final params = {'p_name': _name.text.trim(), 'p_segment': _seg, 'p_title': _title.text.trim(), 'p_body': _body.text.trim(), 'p_coupon_code': _coupon};
+      Map<String, dynamic>? r;
+      Map<String, dynamic>? em;
+      if (_viaApp) r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('marketing_send_campaign', params: params) as Map);
+      if (_viaEmail) em = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('marketing_send_campaign_email', params: params) as Map);
       if (!mounted) return;
-      showSnack(context, _t(context, 'اتبعتت لـ ${r['sent']} عميل ✅', 'Sent to ${r['sent']} customers ✅'));
+      showSnack(
+          context,
+          [
+            if (r != null) _t(context, 'إشعار اتبعت لـ ${r['sent']} عميل', 'Notification sent to ${r['sent']} customers'),
+            if (em != null) _t(context, 'إيميل اتحط في الطابور لـ ${em['queued']} عميل', 'Email queued for ${em['queued']} customers'),
+          ].join(' · ') + ' ✅');
       _name.clear();
       _title.clear();
       _body.clear();
@@ -354,6 +362,19 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
       const SizedBox(height: 10),
       TextField(controller: _title, maxLength: 120, decoration: InputDecoration(labelText: _t(c, 'عنوان الإشعار', 'Notification title'))),
       TextField(controller: _body, maxLength: 500, minLines: 2, maxLines: 4, decoration: InputDecoration(labelText: _t(c, 'النص', 'Message'))),
+      const SizedBox(height: 6),
+      Text(_t(c, 'تتبعت عن طريق', 'Send through'), style: const TextStyle(fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      Wrap(spacing: 8, children: [
+        FilterChip(avatar: const Icon(Icons.notifications_active_outlined, size: 18), label: Text(_t(c, 'إشعار في التطبيق', 'App notification')), selected: _viaApp, onSelected: (v) => setState(() => _viaApp = v)),
+        FilterChip(avatar: const Icon(Icons.email_outlined, size: 18), label: Text(_t(c, 'إيميل', 'Email')), selected: _viaEmail, onSelected: (v) => setState(() => _viaEmail = v)),
+      ]),
+      if (_viaEmail)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(_t(c, 'الإيميل بيروح بس للعملاء اللي وافقوا على العروض وإيميلهم متأكد (بحد أقصى 500 عميل، وحملتين إيميل في اليوم). بيتبعت أول ما يتفعّل مفتاح الإرسال.', 'Email only goes to customers who accepted offers and have a verified email (max 500, two email campaigns a day). It is sent once the sending key is active.'),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF667085), height: 1.5)),
+        ),
       const SizedBox(height: 6),
       DropdownButtonFormField<String?>(
         value: _coupon != null && active.any((e) => e['code'] == _coupon) ? _coupon : null,

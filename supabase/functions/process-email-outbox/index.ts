@@ -3,7 +3,7 @@
 // Provider: Resend HTTP API (RESEND_API_KEY, EMAIL_FROM). Without a key, nothing is
 // marked as sent — rows stay queued/failed with a clear error.
 import { isCronAuthorized, json, serviceClient } from "../_shared/util.ts";
-import { renderOrderNew, renderRepairNew, renderRepairResponse, type Rendered } from "../_shared/email_templates.ts";
+import { renderCampaign, renderOrderNew, renderRepairNew, renderRepairResponse, type Rendered } from "../_shared/email_templates.ts";
 
 async function sendViaResend(to: string, r: Rendered): Promise<{ ok: boolean; id?: string; error?: string }> {
   const key = Deno.env.get("RESEND_API_KEY");
@@ -34,6 +34,7 @@ Deno.serve(async (req) => {
       const rendered = row.kind === "order_new" ? renderOrderNew(data)
         : row.kind === "repair_new" ? renderRepairNew(data)
         : row.kind === "repair_customer_response" ? renderRepairResponse(data)
+        : row.kind === "generic" ? renderCampaign(data)
         : null;
       if (!rendered) throw new Error(`unknown kind ${row.kind}`);
       const sent = await sendViaResend(row.to_email, rendered);
