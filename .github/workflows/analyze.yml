@@ -36,3 +36,12 @@ jobs:
           echo "::warning::HX $(grep -v '^$' /tmp/t.txt | grep -A40 -m1 'EXCEPTION CAUGHT' | tr '\n' '~' | cut -c1-3500)"
           echo "::warning::HY $(grep -v '^$' /tmp/t.txt | grep -E 'ON SCREEN|Error|error|Exception' | head -12 | tr '\n' '~' | cut -c1-3500)"
           exit $RC
+      - name: Unit tests (money, login block, banners, catalog, cancel)
+        working-directory: app
+        run: |
+          set +e
+          flutter test test/money_test.dart test/login_block_test.dart test/app_banner_test.dart test/catalog_query_test.dart test/cancel_request_test.dart test/no_hero_test.dart > /tmp/u.txt 2>&1
+          RC=$?
+          echo "::warning::UT rc=$RC $(tr '\r' '\n' < /tmp/u.txt | grep -v '^$' | tail -3 | tr '\n' '~' | cut -c1-500)"
+          echo "::warning::UF $(grep -v '^$' /tmp/u.txt | grep -E '\[E\]|Expected|Actual|EXCEPTION|Error' | head -14 | tr '\n' '~' | cut -c1-3500)"
+          exit $RC
