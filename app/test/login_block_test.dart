@@ -25,5 +25,7 @@ void main() {
     expect(loginBlockedText(const LoginBlocked('locked', 3600)), contains('ساعة'));
     expect(loginBlockedText(const LoginBlocked('blocked')), contains('تم حظر الحساب'));
     expect(loginBlockedText(const LoginBlocked('blocked'), ar: false), contains('blocked'));
+    expect(loginBlockedText(const LoginBlocked('suspended')), contains('إيقاف'));
+    expect(loginBlockedText(const LoginBlocked('suspended')), isNot(contains('تم حظر الحساب. كلمنا')));
   });
 }

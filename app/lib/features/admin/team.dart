@@ -623,8 +623,8 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
               context: context,
               builder: (d) => AlertDialog(
                 icon: const Icon(Icons.pause_circle_rounded, color: BrandColors.error, size: 36),
-                title: Text(_t(context, 'إيقاف الحساب؟', 'Suspend account?')),
-                content: Text(_t(context, 'هيتمنع فورًا من كل الصلاحيات ومن تسجيل الدخول، لحد ما ترجّعه.', 'They lose every permission and cannot sign in until you resume them.')),
+                title: Text(_t(context, 'إيقاف وحظر الحساب؟', 'Stop and block this account?')),
+                content: Text(_t(context, 'هيتحظر حسابه فورًا: يتقفل عليه كل شيء ويتفصل من أي جهاز مفتوح عليه، وحتى لو معاه نسخة من البرنامج مش هيقدر يدخل ولا يشوف أي بيانات. تقدر ترجّعه أي وقت. استخدمها لو الموظف اتوقف أو مشي.', 'The account is blocked at once: every access is cut and every open device is signed out. Even with a copy of the program they cannot sign in or see any data. You can restore them anytime. Use it when an employee is stopped or has left.')),
                 actions: [
                   TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(context, 'رجوع', 'Back'))),
                   FilledButton(
@@ -640,7 +640,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
     await _run(() async {
       await ref.read(teamRepoProvider).setSuspended(_id, to);
       _suspended = to;
-    }, to ? _t(context, 'اتوقف الحساب ⏸️', 'Suspended ⏸️') : _t(context, 'رجع الحساب يشتغل ▶️', 'Resumed ▶️'));
+    }, to ? _t(context, 'تم حظر حسابه واتفصل من كل الأجهزة ⏸️', 'Account blocked and signed out everywhere ⏸️') : _t(context, 'رجع الحساب يشتغل ▶️', 'Resumed ▶️'));
   }
 
   Future<void> _remove() async {

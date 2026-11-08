@@ -127,5 +127,10 @@ String loginBlockedText(LoginBlocked b, {bool ar = true}) {
         ? 'الحساب اتقفل مؤقتًا عشان محاولات الدخول الغلط. جرّب تاني بعد $when، أو كلمنا نساعدك: $phone'
         : 'This account is locked for now because of wrong passwords. Try again in $when, or contact us: $phone';
   }
+  if (b.kind == 'suspended') {
+    return ar
+        ? 'تم إيقاف الحساب ده عن العمل وحظر دخوله. لو ده بالغلط تواصل مع الإدارة: $phone'
+        : 'This account has been stopped and its access blocked. If this is a mistake, contact management: $phone';
+  }
   return ar ? 'تم حظر الحساب. كلمنا نساعدك: $phone' : 'This account has been blocked. Contact us and we will help: $phone';
 }
