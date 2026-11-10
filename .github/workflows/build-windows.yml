@@ -86,7 +86,7 @@ jobs:
       - name: Publish the in-app update
         continue-on-error: true
         env:
-          PUSH_SECRET: ${{ secrets.UPDATE_PUSH_SECRET || '7e313cbe41776ed16d2b05d25af020378a45b98535a651fca1038664626e4cf1' }}
+          PUSH_SECRET: ${{ secrets.UPDATE_PUSH_SECRET }}
         run: |
           FN=https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/app-update
           FILE=dist/MyHatoTeam-Setup.exe
