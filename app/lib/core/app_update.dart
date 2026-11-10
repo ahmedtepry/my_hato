@@ -30,7 +30,9 @@ class AppUpdateInfo {
 const int kBuildNumber = int.fromEnvironment('BUILD_NUMBER', defaultValue: 0);
 
 bool get _isAndroidApp => !kIsWeb && Platform.isAndroid && !AppConfig.teamOnly;
-bool get appUpdateSupported => kBuildNumber > 0 && (_isAndroidApp || (AppConfig.teamOnly && Platform.isWindows));
+/// Google Play build (STORE_BUILD=true): Play updates the app itself, so the in-app updater is switched off.
+const bool kStoreBuild = bool.fromEnvironment('STORE_BUILD');
+bool get appUpdateSupported => !kStoreBuild && kBuildNumber > 0 && (_isAndroidApp || (AppConfig.teamOnly && Platform.isWindows));
 String get _updatePlatform => _isAndroidApp ? 'android' : 'windows';
 const _updateChannel = MethodChannel('myhato/update');
 
@@ -357,7 +359,7 @@ class _AppUpdateBannerState extends ConsumerState<AppUpdateBanner> with WidgetsB
 
   @override
   Widget build(BuildContext context) {
-    if (!_isAndroidApp) return const SizedBox.shrink();
+    if (!_isAndroidApp || kStoreBuild) return const SizedBox.shrink();
     final info = ref.watch(appUpdateProvider).available;
     if (info == null) return const SizedBox.shrink();
     final ar = context.isAr;

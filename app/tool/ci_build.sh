@@ -12,6 +12,17 @@ flutter create --platforms=android --org com.myhato --project-name myhato . || e
 rm -f test/widget_test.dart   # template test from flutter create (we ship our own tests)
 cp tool/android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 cp -r tool/android_overrides/res/. android/app/src/main/res/
+# Google Play build (STORE_BUILD=1): no self-installing of APKs (Play policy) -> drop that permission and the update FileProvider
+if [ "${STORE_BUILD:-}" = 1 ]; then
+  sed -i '/REQUEST_INSTALL_PACKAGES/d' android/app/src/main/AndroidManifest.xml
+  python3 - <<'PY'
+import re
+p='android/app/src/main/AndroidManifest.xml'
+s=open(p).read()
+s=re.sub(r'\s*<provider android:name="androidx.core.content.FileProvider".*?</provider>','',s,flags=re.S)
+open(p,'w').write(s)
+PY
+fi
 # the fingerprint prompt (local_auth) needs an AppCompat theme
 for f in android/app/src/main/res/values/styles.xml android/app/src/main/res/values-night/styles.xml; do
   [ -f "$f" ] && sed -i -E 's#parent="@android:style/Theme\.(Light|Black)\.NoTitleBar"#parent="Theme.AppCompat.DayNight.NoActionBar"#g' "$f"
@@ -69,7 +80,9 @@ step "flutter test"; flutter test; echo "test exit=$?"
 step "release guards"; flutter test test/no_hero_test.dart || { echo "FAILURE: release guard (Hero widgets) failed"; exit 1; }
 step "flutter build apk --release"
 build_apk() {
-  flutter build apk --release --target-platform android-arm64 --build-number="${GITHUB_RUN_NUMBER:-1}" --obfuscate --split-debug-info=build/symbols \
+  local KIND=apk TP="--target-platform android-arm64" SB=""
+  if [ "${STORE_BUILD:-}" = 1 ]; then KIND=appbundle; TP=""; SB="--dart-define=STORE_BUILD=true"; fi
+  flutter build $KIND --release $TP $SB --build-number="${GITHUB_RUN_NUMBER:-1}" --obfuscate --split-debug-info=build/symbols \
     --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
     --dart-define=BUILD_NUMBER="${GITHUB_RUN_NUMBER:-0}" \
     --dart-define=APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" \
@@ -85,9 +98,10 @@ if ! build_apk; then
   sleep 20
   build_apk || exit 1
 fi
-mkdir -p ../dist && cp build/app/outputs/flutter-apk/app-release.apk ../dist/myhato-release.apk
+mkdir -p ../dist
+if [ "${STORE_BUILD:-}" = 1 ]; then cp build/app/outputs/bundle/release/app-release.aab ../dist/myhato-release.aab; else cp build/app/outputs/flutter-apk/app-release.apk ../dist/myhato-release.apk; fi
 # only a build signed with a permanent key may be offered as an in-app update (a temporary key can't install over the old app)
 if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -f tool/release.keystore.b64 ]; then echo ok > ../dist/stable-key.flag; fi
-keytool -printcert -jarfile ../dist/myhato-release.apk 2>/dev/null | head -8 || true
+if [ "${STORE_BUILD:-}" = 1 ]; then keytool -printcert -jarfile ../dist/myhato-release.aab 2>/dev/null | head -8 || true; else keytool -printcert -jarfile ../dist/myhato-release.apk 2>/dev/null | head -8 || true; fi
 ls -la ../dist
 step "BUILD OK"
