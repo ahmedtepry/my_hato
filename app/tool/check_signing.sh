@@ -3,7 +3,7 @@
 set -u
 K=$(mktemp -d)/k.jks
 [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] || { echo "FAIL ANDROID_KEYSTORE_BASE64 is empty/missing"; exit 1; }
-echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$K" 2>/dev/null || echo "FAIL ANDROID_KEYSTORE_BASE64 is not valid base64"
+printf %s "$ANDROID_KEYSTORE_BASE64${ANDROID_KEYSTORE_BASE64_2:-}" | base64 -d > "$K" 2>/dev/null || echo "FAIL ANDROID_KEYSTORE_BASE64 is not valid base64"
 echo "keystore file bytes: $(wc -c < "$K")"
 SP="${ANDROID_KEYSTORE_PASSWORD:-}"; AL="${ANDROID_KEY_ALIAS:-}"; KP="${ANDROID_KEY_PASSWORD:-}"
 for n in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD UPDATE_PUSH_SECRET; do [ -n "${!n:-}" ] && echo "present $n" || echo "FAIL $n missing"; done

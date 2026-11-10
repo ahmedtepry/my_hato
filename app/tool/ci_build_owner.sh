@@ -23,7 +23,7 @@ sed -i -E 's/minSdk ?=? ?flutter\.minSdkVersion/minSdk = 26/' "$G"
 step "release signing"
 KS="$PWD/android/app/myhato-release.jks"
 if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
-  echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
+  printf %s "$ANDROID_KEYSTORE_BASE64${ANDROID_KEYSTORE_BASE64_2:-}" | base64 -d > "$KS"
   ALIAS="${ANDROID_KEY_ALIAS:-myhato}"; SP="$ANDROID_KEYSTORE_PASSWORD"; KP="${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
 elif [ -f tool/release.keystore.b64 ] && [ -f tool/release.key.env ]; then
   base64 -d tool/release.keystore.b64 > "$KS"
