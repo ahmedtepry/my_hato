@@ -19,3 +19,10 @@ node_modules/
 supabase/tests/node_modules/
 supabase/tests/package*.json
 dist/
+
+# signing keys live only in GitHub secrets
+*.jks
+*.keystore
+*.keystore.b64
+release.key.env
+key.properties

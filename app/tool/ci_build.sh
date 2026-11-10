@@ -42,13 +42,7 @@ if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
   printf %s "$ANDROID_KEYSTORE_BASE64${ANDROID_KEYSTORE_BASE64_2:-}" | base64 -d > "$KS"
   ALIAS="${ANDROID_KEY_ALIAS:-myhato}"; SP="$ANDROID_KEYSTORE_PASSWORD"; KP="${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
   echo "using release key from GitHub secrets"
-elif [ -f tool/release.keystore.b64 ] && [ -f tool/release.key.env ]; then
-  # the shop's permanent key (kept in this private repo): every build is signed the same, so phones accept in-app updates
-  base64 -d tool/release.keystore.b64 > "$KS"
-  # shellcheck disable=SC1091
-  . tool/release.key.env
-  SP="$PASS"; KP="$PASS"
-  echo "using the permanent release key from the repo"
+
 else
   ALIAS=myhato; SP="$(head -c 24 /dev/urandom | base64 | tr -dc A-Za-z0-9)"; KP="$SP"
   keytool -genkeypair -v -keystore "$KS" -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
@@ -101,7 +95,7 @@ fi
 mkdir -p ../dist
 if [ "${STORE_BUILD:-}" = 1 ]; then cp build/app/outputs/bundle/release/app-release.aab ../dist/myhato-release.aab; else cp build/app/outputs/flutter-apk/app-release.apk ../dist/myhato-release.apk; fi
 # only a build signed with a permanent key may be offered as an in-app update (a temporary key can't install over the old app)
-if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -f tool/release.keystore.b64 ]; then echo ok > ../dist/stable-key.flag; fi
+if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then echo ok > ../dist/stable-key.flag; fi
 if [ "${STORE_BUILD:-}" = 1 ]; then keytool -printcert -jarfile ../dist/myhato-release.aab 2>/dev/null | head -8 || true; else keytool -printcert -jarfile ../dist/myhato-release.apk 2>/dev/null | head -8 || true; fi
 ls -la ../dist
 step "BUILD OK"
