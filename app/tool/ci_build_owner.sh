@@ -22,7 +22,10 @@ sed -i -E 's/minSdk ?=? ?flutter\.minSdkVersion/minSdk = 26/' "$G"
 
 step "release signing"
 KS="$PWD/android/app/myhato-release.jks"
-if [ -f tool/release.keystore.b64 ] && [ -f tool/release.key.env ]; then
+if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+  echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
+  ALIAS="${ANDROID_KEY_ALIAS:-myhato}"; SP="$ANDROID_KEYSTORE_PASSWORD"; KP="${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
+elif [ -f tool/release.keystore.b64 ] && [ -f tool/release.key.env ]; then
   base64 -d tool/release.keystore.b64 > "$KS"
   # shellcheck disable=SC1091
   . tool/release.key.env
@@ -51,6 +54,6 @@ flutter build apk --release --target-platform android-arm64 -t lib/owner_main.da
   --dart-define=BUILD_NUMBER="${GITHUB_RUN_NUMBER:-0}" \
   --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg || exit 1
 mkdir -p ../dist && cp build/app/outputs/flutter-apk/app-release.apk ../dist/MyHatoOwner.apk
-if [ -f tool/release.keystore.b64 ]; then echo ok > ../dist/stable-key.flag; fi
+if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -f tool/release.keystore.b64 ]; then echo ok > ../dist/stable-key.flag; fi
 ls -la ../dist
 step "BUILD OK"
