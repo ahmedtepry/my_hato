@@ -11,6 +11,6 @@ for n in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD UPDATE
 for n in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD UPDATE_PUSH_SECRET; do v="${!n:-}"; [ "$v" = "$(printf %s "$v" | tr -d ' \r\n\t')" ] || echo "FAIL $n has spaces or line breaks in it"; done
 keytool -list -keystore "$K" -storepass "$SP" >/dev/null 2>&1 && echo "PASS keystore opens with ANDROID_KEYSTORE_PASSWORD" || echo "FAIL keystore password wrong (or keystore text damaged)"
 keytool -list -keystore "$K" -storepass "$SP" -alias "$AL" >/dev/null 2>&1 && echo "PASS alias found" || echo "FAIL ANDROID_KEY_ALIAS not found in the keystore"
-cp "$K" "$K.2"; keytool -keypasswd -keystore "$K.2" -storepass "$SP" -alias "$AL" -keypass "$KP" -new "$KP" >/dev/null 2>&1 && echo "PASS ANDROID_KEY_PASSWORD correct" || echo "FAIL ANDROID_KEY_PASSWORD wrong"
+keytool -importkeystore -srckeystore "$K" -srcstorepass "$SP" -srckeypass "$KP" -srcalias "$AL" -destkeystore "$K.p12" -deststorepass "$KP" -destkeypass "$KP" -noprompt >/dev/null 2>&1 && echo "PASS ANDROID_KEY_PASSWORD correct (key can be read)" || echo "FAIL ANDROID_KEY_PASSWORD wrong"
 echo "certificate SHA-256 (public):"; keytool -list -v -keystore "$K" -storepass "$SP" -alias "$AL" 2>/dev/null | grep -E "SHA256:|Owner:"
 echo "update secret sha256 prefix: $(printf %s "${UPDATE_PUSH_SECRET:-}" | sha256sum | cut -c1-12)"
