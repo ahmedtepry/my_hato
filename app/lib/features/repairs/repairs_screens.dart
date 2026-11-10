@@ -47,10 +47,11 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
   final _problem = TextEditingController();
   final _name = TextEditingController();
   final _phone = TextEditingController();
+  String _ownPhone = '';
+  bool _otherPhone = false; // register the request under another number
   final _photos = <XFile>[];
   bool _pickup = true;
   String? _addressId;
-  String? _branchId;
   DateTime? _when;
   bool _callback = false;
   bool _busy = false;
@@ -62,7 +63,9 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
     super.initState();
     final p = ref.read(profileProvider).valueOrNull;
     _name.text = (p?['full_name'] as String?) ?? '';
-    _phone.text = (p?['phone'] as String?) ?? '';
+    _ownPhone = ((p?['phone'] as String?) ?? '').replaceAll(' ', '');
+    _phone.text = _ownPhone;
+    _otherPhone = _ownPhone.isEmpty;
   }
 
   @override
@@ -94,10 +97,6 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
       showSnack(context, context.tr('err_invalid_address'), error: true);
       return;
     }
-    if (!_pickup && _branchId == null) {
-      showSnack(context, context.tr('err_invalid_branch'), error: true);
-      return;
-    }
     setState(() => _busy = true);
     try {
       final repo = ref.read(repairsRepoProvider);
@@ -110,9 +109,9 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
         contactName: _name.text,
         contactPhone: _phone.text.replaceAll(' ', ''),
         pickupAddressId: _pickup ? _addressId : null,
-        branchId: _pickup ? null : _branchId,
-        preferredPickupAt: _callback ? null : _when,
-        callback: _callback,
+        branchId: null, // dropping at a branch: the team calls the customer to arrange it
+        preferredPickupAt: (_pickup && !_callback) ? _when : null,
+        callback: _pickup ? _callback : true,
       );
       final id = res['repair_id'] as String;
       for (var i = 0; i < _photos.length; i++) {
@@ -138,7 +137,6 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
   @override
   Widget build(BuildContext context) {
     final addresses = ref.watch(addressesProvider).valueOrNull ?? const [];
-    final branches = ref.watch(branchesProvider).valueOrNull ?? const [];
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('repair_request')), actions: [
         TextButton(onPressed: () => context.push('/repairs/lookup'), child: Text(context.tr('track_repair'))),
@@ -172,7 +170,7 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
             maxLines: 4,
             maxLength: 2000,
             decoration: InputDecoration(labelText: context.tr('problem'), alignLabelWithHint: true),
-            validator: (v) => (v == null || v.trim().length < 5) ? context.tr('required') : null,
+            validator: (v) => (v == null || v.trim().runes.length < 5) ? (context.isAr ? 'اكتب وصف العطل (5 حروف على الأقل)' : 'Describe the problem (at least 5 characters)') : null,
           ),
           Text(context.tr('photos'), style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
@@ -226,16 +224,15 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
                 onTap: _pickTime,
               ),
           ] else
-            for (final b in branches)
-              Card(
-                child: RadioListTile<String>(
-                  value: b['id'] as String,
-                  groupValue: _branchId,
-                  onChanged: (v) => setState(() => _branchId = v),
-                  title: Text(context.pick(b, 'name')),
-                  subtitle: Text(context.pick(b, 'address')),
-                ),
-              ),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: .08), borderRadius: BorderRadius.circular(14), border: Border.all(color: BrandColors.electric.withValues(alpha: .35))),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.phone_in_talk_outlined, color: BrandColors.electric),
+                const SizedBox(width: 10),
+                Expanded(child: Text(context.isAr ? 'هنكلمك نحدد معاك ميعاد وطريقة التسليم، وبعدها الصيانة بتتم في الفرع.' : 'We will call you to arrange the drop-off; the repair is then done at our branch.', style: const TextStyle(fontWeight: FontWeight.w600, height: 1.6))),
+              ]),
+            ),
           const SizedBox(height: 20),
           Text(context.tr('contact_info'), style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
@@ -245,13 +242,32 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
             validator: (v) => (v == null || v.trim().length < 2) ? context.tr('required') : null,
           ),
           const SizedBox(height: 12),
-          TextFormField(
-            controller: _phone,
-            keyboardType: TextInputType.phone,
-            textDirection: TextDirection.ltr,
-            decoration: InputDecoration(labelText: context.tr('phone'), hintText: '+2010xxxxxxxx'),
-            validator: (v) => RegExp(r'^\+?[0-9]{8,15}$').hasMatch((v ?? '').replaceAll(' ', '')) ? null : context.tr('invalid'),
-          ),
+          Text(context.isAr ? 'تسجيل الطلب برقم مين؟' : 'Register this request under which number?', style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          if (_ownPhone.isNotEmpty)
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(value: false, icon: const Icon(Icons.person_outline), label: Text(context.isAr ? 'رقمي' : 'My number')),
+                ButtonSegment(value: true, icon: const Icon(Icons.dialpad_rounded), label: Text(context.isAr ? 'رقم آخر' : 'Another number')),
+              ],
+              selected: {_otherPhone},
+              onSelectionChanged: (v) => setState(() {
+                _otherPhone = v.first;
+                _phone.text = _otherPhone ? '' : _ownPhone;
+              }),
+            ),
+          if (_ownPhone.isNotEmpty && !_otherPhone)
+            Padding(padding: const EdgeInsets.only(top: 8), child: Text(_ownPhone, textDirection: TextDirection.ltr, style: const TextStyle(color: BrandColors.gray, fontWeight: FontWeight.w700)))
+          else ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(labelText: context.tr('phone'), hintText: '+2010xxxxxxxx'),
+              validator: (v) => RegExp(r'^\+?[0-9]{8,15}$').hasMatch((v ?? '').replaceAll(' ', '')) ? null : context.tr('invalid'),
+            ),
+          ],
           const SizedBox(height: 24),
           FilledButton(onPressed: _busy ? null : _submit, child: _busy ? const CircularProgressIndicator(color: Colors.white) : Text(context.tr('submit_repair'))),
         ]),
