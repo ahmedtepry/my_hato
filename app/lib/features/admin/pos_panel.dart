@@ -772,6 +772,7 @@ class _RegisterState extends ConsumerState<_Register> {
   @override
   Widget build(BuildContext context) {
     final s = widget.shift;
+    int n(String k) => ((s[k] as num?) ?? 0).toInt();
     final bar = Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -781,9 +782,12 @@ class _RegisterState extends ConsumerState<_Register> {
           Text(_t(context, 'وردية مفتوحة', 'Shift open'), style: const TextStyle(fontWeight: FontWeight.w800)),
           Text('· ${s['branch_name_ar'] ?? ''}', style: const TextStyle(color: BrandColors.gray)),
           _SellerChip(shiftId: _shiftId, enabled: !_unknown && _cart.isEmpty),
-          Text('· ${_t(context, 'مبيعات', 'Sales')} ${_money(context, (s['sales_minor'] as num?) ?? 0)} (${s['sales_count'] ?? 0})', style: const TextStyle(color: BrandColors.gray)),
-          if ((((s['card_sales_minor'] as num?) ?? 0) + ((s['wallet_sales_minor'] as num?) ?? 0)) > 0)
-            Text('· ${_t(context, 'كاش', 'Cash')} ${_money(context, (s['cash_sales_minor'] as num?) ?? 0)} · ${_t(context, 'فيزا', 'Visa')} ${_money(context, (s['card_sales_minor'] as num?) ?? 0)} · ${_t(context, 'محافظ', 'Wallets')} ${_money(context, (s['wallet_sales_minor'] as num?) ?? 0)}', style: const TextStyle(color: BrandColors.gray)),
+          // net of refunds: what was sold minus what went back, per payment method
+          Text('· ${_t(context, 'صافي المبيعات', 'Net sales')} ${_money(context, n('sales_minor') - n('refunds_minor'))} (${s['sales_count'] ?? 0})', style: const TextStyle(color: BrandColors.gray)),
+          if (n('refunds_minor') > 0)
+            Text('· ${_t(context, 'مرتجع', 'Refunds')} ${_money(context, n('refunds_minor'))}', style: const TextStyle(color: BrandColors.error)),
+          if (n('card_sales_minor') + n('wallet_sales_minor') + n('card_refunds_minor') + n('wallet_refunds_minor') > 0)
+            Text('· ${_t(context, 'كاش', 'Cash')} ${_money(context, n('cash_sales_minor') - n('cash_refunds_minor'))} · ${_t(context, 'فيزا', 'Visa')} ${_money(context, n('card_sales_minor') - n('card_refunds_minor'))} · ${_t(context, 'محافظ', 'Wallets')} ${_money(context, n('wallet_sales_minor') - n('wallet_refunds_minor'))}', style: const TextStyle(color: BrandColors.gray)),
           Text('· ${_t(context, 'المفروض في الدرج', 'Expected in drawer')} ${_money(context, (s['expected_minor'] as num?) ?? 0)}', style: const TextStyle(color: BrandColors.gray)),
           OutlinedButton.icon(
             icon: const Icon(Icons.receipt_long_outlined, size: 18),
