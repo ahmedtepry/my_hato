@@ -1204,24 +1204,46 @@ class _ChallengeDialog extends ConsumerWidget {
                 'Monthly target ${_money(context, n('monthly_target_minor'))} ÷ ${n('days_in_month')} days. Month so far ${_money(context, n('month_net_minor'))}.'),
             style: const TextStyle(color: BrandColors.gray, fontSize: 12, height: 1.5),
           ),
-          if (n('daily_bonus_minor') > 0) ...[
+          if (n('daily_bonus_minor') + n('bonus_120_minor') + n('bonus_150_minor') > 0) ...[
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: BrandColors.success.withValues(alpha: .1), borderRadius: BorderRadius.circular(12)),
-              child: Row(children: [
-                const Icon(Icons.card_giftcard_rounded, color: BrandColors.success, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    done
-                        ? _t(context, 'مكافأة التارجت اليومي اتحسبتلك: +${_money(context, n('bonus_today_minor') > 0 ? n('bonus_today_minor') : n('daily_bonus_minor'))}', 'Daily target bonus earned: +${_money(context, n('bonus_today_minor') > 0 ? n('bonus_today_minor') : n('daily_bonus_minor'))}')
-                        : _t(context, 'لو خلّصت تارجت النهارده هتاخد مكافأة ${_money(context, n('daily_bonus_minor'))}', 'Reach today\'s target to earn ${_money(context, n('daily_bonus_minor'))}'),
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.success),
-                  ),
-                ),
-              ]),
-            ),
+            // the tier ladder: 100% / 120% / 150% of today's target, the highest reached pays; the next one is the new goal
+            Builder(builder: (_) {
+              final tiers = [
+                for (final (p, k) in const [(100, 'daily_bonus_minor'), (120, 'bonus_120_minor'), (150, 'bonus_150_minor')])
+                  if (n(k) > 0) (p, n(k), (daily * p / 100).ceil()),
+              ];
+              final ahead = tiers.where((t) => sold < t.$3).toList();
+              final next = ahead.isEmpty ? null : ahead.first;
+              return Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: BrandColors.success.withValues(alpha: .1), borderRadius: BorderRadius.circular(12)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  for (final t in tiers)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(children: [
+                        Icon(sold >= t.$3 ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 18, color: sold >= t.$3 ? BrandColors.success : BrandColors.gray),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('${t.$1}%  (${_money(context, t.$3)})', style: TextStyle(fontWeight: sold >= t.$3 ? FontWeight.w800 : FontWeight.w500))),
+                        Text('+${_money(context, t.$2)}', style: TextStyle(fontWeight: FontWeight.w800, color: sold >= t.$3 ? BrandColors.success : null)),
+                      ]),
+                    ),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    const Icon(Icons.card_giftcard_rounded, color: BrandColors.success, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        next == null
+                            ? _t(context, 'وصلت لأعلى مرحلة! مكافأة النهارده: +${_money(context, n('bonus_today_minor'))}', 'Top tier reached! Today\'s bonus: +${_money(context, n('bonus_today_minor'))}')
+                            : _t(context, 'فاضل ${_money(context, next.$3 - sold)} وتوصل ${next.$1}% وتاخد ${_money(context, next.$2)}', '${_money(context, next.$3 - sold)} more to reach ${next.$1}% and earn ${_money(context, next.$2)}'),
+                        style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.success),
+                      ),
+                    ),
+                  ]),
+                ]),
+              );
+            }),
           ],
         ] else
           Container(

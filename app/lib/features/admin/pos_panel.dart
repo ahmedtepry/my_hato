@@ -25,6 +25,8 @@ import 'shift_flow.dart';
 import 'shift_reports.dart';
 import 'shift_robot.dart';
 import 'pos_repository.dart';
+import 'pos_offline.dart';
+import '../../shared/connection_gate.dart' show offlineSellingActive, appOffline;
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
@@ -362,8 +364,15 @@ class _RegisterState extends ConsumerState<_Register> {
   bool _busy = false;
   bool _showCart = false; // narrow screens: products or cart
   bool _tipInDrawer = false; // what the cashier said about the tip: left in the drawer, or taken out
-  String _pm = 'cash'; // cash | card (visa) | wallet (e-wallet): the last two take no cash and give no change
+  String _pm = 'cash'; // cash | card (visa) | wallet (e-wallet) | split (part of each): card and wallet take no cash and give no change
   bool get _card => _pm != 'cash';
+  bool get _split => _pm == 'split';
+  final _splitCard = TextEditingController();
+  final _splitWallet = TextEditingController();
+  int get _splitCardMinor => parseEgpToMinor(_splitCard.text.trim().isEmpty ? '0' : _splitCard.text) ?? -1;
+  int get _splitWalletMinor => parseEgpToMinor(_splitWallet.text.trim().isEmpty ? '0' : _splitWallet.text) ?? -1;
+  /// The cash part of a split invoice = what is left after Visa and wallet.
+  int get _splitCashMinor => _total - _splitCardMinor - _splitWalletMinor;
   bool _tip = false; // the customer left the change as a tip (recorded on the sale right after it is saved)
   String? _key; // idempotency key of the sale being sent (kept while the result is unknown)
   bool _unknown = false; // the last send may have reached the server: the cart is locked until it is re-sent
@@ -376,8 +385,10 @@ class _RegisterState extends ConsumerState<_Register> {
   @override
   void initState() {
     super.initState();
+    offlineSellingActive.value = true; // no internet: a thin bar, the till keeps selling
     _loadProducts('');
     _loadDrafts();
+    _refreshCatalog();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final f = await ref.read(assistantFlagsProvider.future);
@@ -388,13 +399,24 @@ class _RegisterState extends ConsumerState<_Register> {
     });
   }
 
+  /// Keeps the whole price list on this computer, for searching and scanning without internet.
+  Future<void> _refreshCatalog() async {
+    try {
+      final c = await ref.read(posRepoProvider).catalogSnapshot();
+      if (c.isNotEmpty) posSaveCatalog(ref.read(sharedPrefsProvider), c);
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    offlineSellingActive.value = false;
     _debounce?.cancel();
     _search.dispose();
     _searchFocus.dispose();
     _discount.dispose();
     _cash.dispose();
+    _splitCard.dispose();
+    _splitWallet.dispose();
     _custPhone.dispose();
     super.dispose();
   }
@@ -413,6 +435,19 @@ class _RegisterState extends ConsumerState<_Register> {
       });
       return r;
     } catch (e) {
+      // no internet: search the price list kept on this computer
+      if (posIsNetworkError(e)) {
+        final kept = posCachedCatalog(ref.read(sharedPrefsProvider));
+        if (kept.isNotEmpty) {
+          final r = posSearchOffline(kept, q);
+          if (!mounted || _search.text.trim() != q.trim()) return null;
+          setState(() {
+            _products = r;
+            _loadingProducts = false;
+          });
+          return r;
+        }
+      }
       if (mounted) {
         setState(() {
           _loadingProducts = false;
@@ -498,6 +533,8 @@ class _RegisterState extends ConsumerState<_Register> {
     _cart.clear();
     _discount.clear();
     _cash.clear();
+    _splitCard.clear();
+    _splitWallet.clear();
     _pm = 'cash';
     _customer = null;
     _custPhone.clear();
@@ -652,7 +689,29 @@ class _RegisterState extends ConsumerState<_Register> {
   Future<void> _complete() async {
     if (_busy || _cart.isEmpty) return;
     final discount = _discountMinor;
-    final cash = _card ? _total : parseEgpToMinor(_cash.text);
+    int? cash = _card ? _total : parseEgpToMinor(_cash.text);
+    if (_split) {
+      final k = _splitCardMinor, w = _splitWalletMinor, c = _splitCashMinor;
+      if (k < 0 || w < 0) {
+        showSnack(context, _t(context, 'مبلغ الفيزا أو المحفظة مش مظبوط', 'Invalid Visa or wallet amount'), error: true);
+        return;
+      }
+      if (c < 0) {
+        showSnack(context, _t(context, 'الفيزا والمحفظة مع بعض أكبر من الإجمالي', 'Visa + wallet is more than the total'), error: true);
+        return;
+      }
+      if ((k > 0 ? 1 : 0) + (w > 0 ? 1 : 0) + (c > 0 ? 1 : 0) < 2) {
+        showSnack(context, _t(context, 'الدفع المقسّم لازم يبقى بوسيلتين على الأقل. اكتب مبلغ الفيزا أو المحفظة.', 'A split needs at least two methods. Enter the Visa or wallet amount.'), error: true);
+        return;
+      }
+      // cash received for the cash part (empty = exactly the cash part); the server keeps the change on the invoice
+      final got = _cash.text.trim().isEmpty ? c : parseEgpToMinor(_cash.text);
+      if (got == null || got < c) {
+        showSnack(context, _t(context, 'لسه ناقص ${_money(context, c - (got ?? 0))} كاش', 'Still ${_money(context, c - (got ?? 0))} cash short'), error: true);
+        return;
+      }
+      cash = _total + (got - c);
+    }
     if (discount < 0 || discount > _subtotal) {
       showSnack(context, _t(context, 'الخصم مش مظبوط', 'Invalid discount'), error: true);
       return;
@@ -663,7 +722,7 @@ class _RegisterState extends ConsumerState<_Register> {
       return;
     }
     // more than the total: the cashier must hand the change back, and confirms he did, before the sale is completed
-    if (!_card && cash > _total && _key == null) {
+    if ((!_card || _split) && cash > _total && _key == null) {
       final r = await showSmoothDialog<String>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
       if (r == null || r == 'back' || !mounted) return;
       _tip = r == 'tip';
@@ -673,6 +732,11 @@ class _RegisterState extends ConsumerState<_Register> {
         if (where == null) return;
         _tipInDrawer = where == 'drawer';
       }
+    }
+    if (appOffline.value) {
+      _key ??= _newKey();
+      await _saveOffline(discount, cash);
+      return;
     }
     setState(() => _busy = true);
     try {
@@ -704,7 +768,13 @@ class _RegisterState extends ConsumerState<_Register> {
       }
       if (sale == null || !mounted) return;
       var done = sale;
-      if (_card) {
+      if (_split) {
+        try {
+          done = await ref.read(posRepoProvider).setSaleSplit('${sale['id']}', cash: _splitCashMinor, card: _splitCardMinor, wallet: _splitWalletMinor);
+        } catch (_) {
+          if (mounted) showSnack(context, _t(context, 'البيعة اتسجلت لكن تقسيم الدفع ماتسجلش. عدّله من «الفواتير».', 'The sale was saved but the split was not recorded. Fix it from Invoices.'), error: true);
+        }
+      } else if (_card) {
         try {
           done = await ref.read(posRepoProvider).setSalePayment('${sale['id']}', _pm);
         } catch (_) {
@@ -744,6 +814,10 @@ class _RegisterState extends ConsumerState<_Register> {
         _key = null; // the server refused: nothing was saved, a new attempt gets a new key
         if ('$e'.contains('OUT_OF_STOCK')) _loadProducts(_search.text);
         showSnack(context, _err(context, e), error: true);
+      } else if (posIsNetworkError(e)) {
+        // the server cannot be reached: keep the invoice on this computer (same key: never recorded twice) and go on selling
+        if (mounted) setState(() => _busy = false);
+        await _saveOffline(discount, cash);
       } else {
         // no answer: the sale may or may not be saved. Lock the cart; re-sending with the same key can never double-sell.
         setState(() => _unknown = true);
@@ -754,7 +828,97 @@ class _RegisterState extends ConsumerState<_Register> {
     }
   }
 
+  /// Selling without internet: the invoice is kept on this computer with its real time, seller and a ready number,
+  /// the receipt is printed as usual, and the queue sends it as soon as the connection is back.
+  Future<void> _saveOffline(int discount, int cash) async {
+    final limits = ref.read(posLimitsProvider).valueOrNull;
+    final sub = _subtotal;
+    final pct = sub > 0 ? discount * 100 / sub : 0;
+    final approved = _approvalId != null && _approvalAmount >= discount;
+    final needsApproval = discount > 0 &&
+        !approved &&
+        (limits == null ||
+            (limits['is_owner'] != true &&
+                (limits['can_discount'] != true ||
+                    (pct > ((limits['discount_approval_pct'] as num?) ?? 10) && discount > ((limits['discount_free_minor'] as num?) ?? 1000)))));
+    if (needsApproval) {
+      showSnack(context, _t(context, 'مفيش إنترنت، والخصم ده محتاج موافقة مسؤول. شيل الخصم أو استنى النت يرجع.', 'No internet, and this discount needs a manager approval. Remove it or wait for the connection.'), error: true);
+      return;
+    }
+    final now = DateTime.now();
+    final number = posOfflineNumber();
+    final seller = ref.read(activeSellerProvider);
+    final me = ref.read(currentUserProvider);
+    final lines = [
+      for (final e in _cart.entries)
+        {
+          'product_id': e.key,
+          'quantity': e.value.q,
+          'sku': e.value.p['sku'],
+          'name_ar': e.value.p['name_ar'],
+          'name_en': e.value.p['name_en'],
+          'unit_price_minor': e.value.price,
+          'line_total_minor': e.value.price * e.value.q,
+        },
+    ];
+    final entry = <String, dynamic>{
+      'key': _key,
+      'shift_id': _shiftId,
+      'items': lines,
+      'discount_minor': discount,
+      'cash_minor': cash,
+      'total_minor': _total,
+      'approval_id': approved ? _approvalId : null,
+      'customer_id': _customer?['id'],
+      'pm': _pm,
+      if (_split) 'split': {'cash': _splitCashMinor, 'card': _splitCardMinor, 'wallet': _splitWalletMinor},
+      'tip': _tip,
+      'tip_in_drawer': _tipInDrawer,
+      'sold_at': now.toUtc().toIso8601String(),
+      'seller_id': seller?['id'] ?? me?.id,
+      'number': number,
+    };
+    ref.read(posOfflineQueueProvider.notifier).add(entry);
+    posCatalogSold(ref.read(sharedPrefsProvider), {for (final e in _cart.entries) e.key: e.value.q});
+    // the receipt, built here the way the server would return it
+    final change = cash - _total;
+    final receipt = <String, dynamic>{
+      'number': number,
+      'items': lines,
+      'subtotal_minor': sub,
+      'discount_minor': discount,
+      'total_minor': _total,
+      'cash_received_minor': cash,
+      'change_minor': change,
+      'tip_minor': _tip ? change : 0,
+      'refunded_minor': 0,
+      'payment_method': _pm,
+      'created_at': now.toIso8601String(),
+      'branch_name_ar': widget.shift['branch_name_ar'],
+      'cashier_name': seller?['name'] ?? shiftUserName(me),
+      'offline': true,
+    };
+    setState(_reset);
+    _loadProducts(_search.text);
+    if (await receiptAutoPrintOn() && mounted) unawaited(printReceipt(context, receipt));
+    if (!mounted) return;
+    showSnack(context, _t(context, 'مفيش إنترنت: الفاتورة $number اتحفظت على الجهاز وهتترفع لوحدها لما النت يرجع ✅', 'No internet: invoice $number is kept on this computer and will be sent when the connection is back ✅'));
+    await showSmoothDialog<void>(context: context, builder: (_) => _ReceiptDialog(sale: receipt));
+    if (mounted) _searchFocus.requestFocus();
+  }
+
   Future<void> _closeShift() async {
+    final q = ref.read(posOfflineQueueProvider.notifier);
+    if (q.pendingFor(_shiftId) > 0) {
+      await q.sync();
+      if (!mounted) return;
+      final left = q.pendingFor(_shiftId);
+      if (left > 0) {
+        showSnack(context, _t(context, 'لسه فيه $left فواتير متحفظة على الجهاز ماترفعتش. لما النت يرجع هتترفع لوحدها وبعدها تقدر تقفل الوردية.',
+            '$left invoices kept on this computer are not sent yet. They go up by themselves when the connection is back; then close the shift.'), error: true);
+        return;
+      }
+    }
     final guard = (await ref.read(assistantFlagsProvider.future))['robot_close'] == true;
     if (!mounted) return;
     if (guard) {
@@ -826,6 +990,7 @@ class _RegisterState extends ConsumerState<_Register> {
           final compact = c.maxWidth < 760;
           return Row(children: [
             _SellerChip(shiftId: _shiftId, enabled: !_unknown && _cart.isEmpty, sales: n('sales_count')),
+            const _OfflineChip(),
             const SizedBox(width: 6),
             Expanded(child: search),
             const SizedBox(width: 6),
@@ -1069,11 +1234,53 @@ class _RegisterState extends ConsumerState<_Register> {
               ButtonSegment(value: 'cash', icon: const Icon(Icons.payments_outlined, size: 18), label: Text(_t(context, 'كاش', 'Cash'))),
               ButtonSegment(value: 'card', icon: const Icon(Icons.credit_card_rounded, size: 18), label: Text(_t(context, 'فيزا', 'Visa'))),
               ButtonSegment(value: 'wallet', icon: const Icon(Icons.account_balance_wallet_outlined, size: 18), label: Text(_t(context, 'محفظة', 'Wallet'))),
+              ButtonSegment(value: 'split', icon: const Icon(Icons.call_split_rounded, size: 18), label: Text(_t(context, 'مقسّم', 'Split'))),
             ],
             selected: {_pm},
             onSelectionChanged: _unknown ? null : (v) => setState(() => _pm = v.first),
           ),
           const SizedBox(height: 8),
+          if (_split) ...[
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _splitCard,
+                  enabled: !_unknown,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(isDense: true, prefixIcon: const Icon(Icons.credit_card_rounded, size: 18), labelText: _t(context, 'فيزا (ج.م)', 'Visa (EGP)')),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _splitWallet,
+                  enabled: !_unknown,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(isDense: true, prefixIcon: const Icon(Icons.account_balance_wallet_outlined, size: 18), labelText: _t(context, 'محفظة (ج.م)', 'Wallet (EGP)')),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            _row(_t(context, 'الباقي كاش', 'Cash part'), _splitCardMinor < 0 || _splitWalletMinor < 0 ? '—' : _money(context, _splitCashMinor),
+                color: _splitCashMinor < 0 ? BrandColors.error : null),
+            const SizedBox(height: 6),
+            if (_splitCashMinor > 0)
+              TextField(
+                controller: _cash,
+                enabled: !_unknown,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => _complete(),
+                decoration: InputDecoration(isDense: true, labelText: _t(context, 'المستلم كاش (سيبه فاضي لو بالظبط)', 'Cash received (empty = exact)')),
+              ),
+            if (_splitCashMinor > 0 && cash != null && cash > _splitCashMinor)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _row(_t(context, 'الباقي للعميل', 'Change'), _money(context, cash - _splitCashMinor), color: BrandColors.success, big: true),
+              ),
+          ],
           if (!_card)
           TextField(
             controller: _cash,
@@ -2173,6 +2380,103 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
       actions: [
         if (t != null) TextButton(onPressed: _busy ? null : () => setState(() { _target = null; _pin.clear(); _msg = null; }), child: Text(_t(context, 'رجوع', 'Back'))),
         TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إلغاء', 'Cancel'))),
+      ],
+    );
+  }
+}
+
+
+/// "N invoices waiting for the internet": shown in the till bar while invoices kept on this computer are not sent yet.
+class _OfflineChip extends ConsumerWidget {
+  const _OfflineChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final q = ref.watch(posOfflineQueueProvider);
+    if (q.isEmpty) return const SizedBox.shrink();
+    final failed = q.where((e) => e['error'] != null).length;
+    final color = failed > 0 ? BrandColors.error : BrandColors.warning;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 6),
+      child: Tooltip(
+        message: _t(context, 'فواتير متحفظة على الجهاز ومستنية النت', 'Invoices kept on this computer, waiting for the internet'),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => showSmoothDialog<void>(context: context, builder: (_) => const _OfflineQueueDialog()),
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), border: Border.all(color: color.withValues(alpha: 0.6)), borderRadius: BorderRadius.circular(12)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(failed > 0 ? Icons.error_outline_rounded : Icons.cloud_upload_outlined, size: 18, color: color),
+              const SizedBox(width: 6),
+              Text('${q.length}', style: TextStyle(fontWeight: FontWeight.w900, color: color)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OfflineQueueDialog extends ConsumerStatefulWidget {
+  const _OfflineQueueDialog();
+  @override
+  ConsumerState<_OfflineQueueDialog> createState() => _OfflineQueueDialogState();
+}
+
+class _OfflineQueueDialogState extends ConsumerState<_OfflineQueueDialog> {
+  bool _busy = false;
+
+  Future<void> _send() async {
+    setState(() => _busy = true);
+    final n = await ref.read(posOfflineQueueProvider.notifier).sync();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    final left = ref.read(posOfflineQueueProvider).length;
+    showSnack(context, n > 0 ? _t(context, 'اترفع $n ✅', '$n sent ✅') : _t(context, 'لسه مفيش اتصال بالسيرفر', 'Still no connection to the server'), error: n == 0 && left > 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = ref.watch(posOfflineQueueProvider);
+    return AlertDialog(
+      title: Text(_t(context, 'فواتير مستنية النت', 'Invoices waiting for the internet')),
+      content: SizedBox(
+        width: 420,
+        child: q.isEmpty
+            ? Text(_t(context, 'كل الفواتير اترفعت ✅', 'Everything is sent ✅'))
+            : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(_t(context, 'دي فواتير اتباعت وانت من غير نت. بتترفع لوحدها كل شوية، ومستحيل تتسجل مرتين.', 'Sold while offline. They are sent automatically and can never be recorded twice.'),
+                    style: const TextStyle(color: BrandColors.gray, fontSize: 12.5, height: 1.5)),
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: ListView(shrinkWrap: true, children: [
+                    for (final e in q)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(e['error'] != null ? Icons.error_outline_rounded : Icons.schedule_rounded, color: e['error'] != null ? BrandColors.error : BrandColors.warning),
+                        title: Text('${e['number']}  ·  ${_money(context, e['total_minor'] as num)}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text(
+                          e['error'] != null
+                              ? '${_t(context, 'السيرفر رفضها', 'Refused by the server')}: ${posErrorText(e['error'] as String, context.isAr, (x) => '$x')}'
+                              : '${DateTime.tryParse('${e['sold_at']}')?.toLocal().toString().substring(0, 16) ?? ''}',
+                        ),
+                      ),
+                  ]),
+                ),
+              ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إغلاق', 'Close'))),
+        if (q.isNotEmpty)
+          FilledButton.icon(
+            onPressed: _busy ? null : _send,
+            icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.cloud_upload_outlined),
+            label: Text(_t(context, 'ارفعهم دلوقتي', 'Send now')),
+          ),
       ],
     );
   }

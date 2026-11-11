@@ -31,7 +31,9 @@ class TargetsRepository {
       _m(await _db.rpc('targets_overview', params: {'p_month': month == null ? null : DateFormat('yyyy-MM-01').format(month)}));
   Future<Map<String, dynamic>> mine() async => _m(await _db.rpc('my_target_status'));
   Future<void> setBranch(String id, int minor) => _db.rpc('targets_set_branch', params: {'p_branch': id, 'p_monthly_minor': minor});
-  Future<void> setDailyBonus(String id, int minor) => _db.rpc('targets_set_daily_bonus', params: {'p_user': id, 'p_bonus_minor': minor});
+  /// Daily target bonus in tiers: [minor] at 100% of the daily target, [b120] at 120%, [b150] at 150% (0 = tier not used).
+  Future<void> setDailyBonus(String id, int minor, {int? b120, int? b150}) =>
+      _db.rpc('targets_set_daily_bonus', params: {'p_user': id, 'p_bonus_minor': minor, 'p_bonus_120': b120, 'p_bonus_150': b150});
   Future<void> setUser(String id, int minor) => _db.rpc('targets_set_user', params: {'p_user': id, 'p_monthly_minor': minor});
   Future<List<Map<String, dynamic>>> commissions(String? q) async => _l(await _db.rpc('commission_list', params: {'p_search': q, 'p_limit': 100}));
   Future<void> setCommission(String productId, int minor) => _db.rpc('commission_set', params: {'p_product': productId, 'p_amount_minor': minor});
@@ -237,9 +239,13 @@ class _TargetsPanelState extends ConsumerState<TargetsPanel> {
                                 showSnack(context, _t(context, 'حدد التارجت الشهري للموظف الأول (علامة الفلاج)', 'Set his monthly target first (flag icon)'), error: true);
                                 return;
                               }
-                              final v = await _askMoney(context, _t(context, 'مكافأة ${e['name']} لما يحقق تارجت اليوم', 'Bonus when he reaches the daily target'),
-                                  _t(context, 'مبلغ المكافأة في اليوم (فاضي = من غير)', 'Bonus per day (empty = none)'), current: (e['daily_bonus_minor'] as num?)?.toInt());
-                              if (v != null) _run(() => ref.read(targetsRepoProvider).setDailyBonus(e['user_id'] as String, v));
+                              final v = await showSmoothDialog<List<int>>(
+                                  context: context,
+                                  builder: (_) => _TierBonusDialog(
+                                        name: '${e['name']}',
+                                        current: [for (final k in const ['daily_bonus_minor', 'bonus_120_minor', 'bonus_150_minor']) ((e[k] as num?) ?? 0).toInt()],
+                                      ));
+                              if (v != null) _run(() => ref.read(targetsRepoProvider).setDailyBonus(e['user_id'] as String, v[0], b120: v[1], b150: v[2]));
                             },
                           ),
                       ]),
@@ -254,8 +260,8 @@ class _TargetsPanelState extends ConsumerState<TargetsPanel> {
                       Wrap(spacing: 16, runSpacing: 4, children: [
                         Text('${_t(context, 'مبيعات', 'Sales')}: ${_money(context, e['net_minor'] as num)}', style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
                         if (e['target_minor'] != null) Text('${_t(context, 'التارجت', 'Target')}: ${_money(context, e['target_minor'] as num)}', style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
-                        if (((e['daily_bonus_minor'] as num?) ?? 0) > 0)
-                          Text('${_t(context, 'مكافأة اليوم', 'Daily bonus')}: ${_money(context, e['daily_bonus_minor'] as num)}', style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
+                        if (_tiersText(context, e) != null)
+                          Text('${_t(context, 'مكافأة اليوم', 'Daily bonus')}: ${_tiersText(context, e)}', style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
                         if (e['commission_minor'] != null)
                           Text('${_t(context, 'العمولة', 'Commission')}: ${_money(context, e['commission_minor'] as num)}',
                               style: const TextStyle(color: BrandColors.success, fontSize: 13, fontWeight: FontWeight.w800)),
@@ -490,13 +496,13 @@ class _MyTargetPanelState extends ConsumerState<MyTargetPanel> {
         const SizedBox(width: 10),
         Expanded(child: _CommissionTile(label: _t(context, 'عمولتك الشهر ده', 'Your commission this month'), minor: d['commission_month_minor'] as num, icon: Icons.savings_outlined)),
       ]),
-      if (((d['daily_bonus_minor'] as num?) ?? 0) > 0) ...[
+      if (_tiersText(context, d) != null) ...[
         const SizedBox(height: 10),
         Card(
           child: ListTile(
             leading: const Icon(Icons.card_giftcard_rounded, color: BrandColors.success),
             title: Text(_t(context, 'مكافأة التارجت اليومي', 'Daily target bonus'), style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(_t(context, '${_money(context, d['daily_bonus_minor'] as num)} عن كل يوم بتحقق فيه تارجت اليوم (متضافة للعمولة)', '${_money(context, d['daily_bonus_minor'] as num)} for every day you reach the daily target (included in commission)')),
+            subtitle: Text(_t(context, '${_tiersText(context, d)} في اليوم. كل ما تبيع أكتر من التارجت تاخد مرحلة أعلى (متضافة للعمولة).', '${_tiersText(context, d)} per day. Sell past the target to reach a higher tier (included in commission).')),
             trailing: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
               Text('${_t(context, 'النهارده', 'Today')} ${_money(context, (d['bonus_today_minor'] as num?) ?? 0)}', style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.success)),
               Text('${_t(context, 'الشهر', 'Month')} ${_money(context, (d['bonus_month_minor'] as num?) ?? 0)} · ${(d['bonus_days'] as num?) ?? 0} ${_t(context, 'يوم', 'days')}', style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
@@ -572,4 +578,88 @@ class _CommissionTile extends StatelessWidget {
           ]),
         ),
       );
+}
+
+
+/// "100%: 10 · 120%: 25 · 150%: 50" for the tiers that are set, or null when none is.
+String? _tiersText(BuildContext context, Map d) {
+  final parts = <String>[
+    for (final (k, p) in const [('daily_bonus_minor', 100), ('bonus_120_minor', 120), ('bonus_150_minor', 150)])
+      if (((d[k] as num?) ?? 0) > 0) '$p%: ${_money(context, d[k] as num)}',
+  ];
+  return parts.isEmpty ? null : parts.join('  ·  ');
+}
+
+/// The owner sets the daily bonus tiers of one employee: at 100%, 120% and 150% of his daily target.
+class _TierBonusDialog extends StatefulWidget {
+  const _TierBonusDialog({required this.name, required this.current});
+  final String name;
+  final List<int> current;
+  @override
+  State<_TierBonusDialog> createState() => _TierBonusDialogState();
+}
+
+class _TierBonusDialogState extends State<_TierBonusDialog> {
+  late final _c = [
+    for (final v in widget.current) TextEditingController(text: v == 0 ? '' : (v / 100).toStringAsFixed(v % 100 == 0 ? 0 : 2)),
+  ];
+  String? _err;
+
+  @override
+  void dispose() {
+    for (final c in _c) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  int? _v(TextEditingController c) => c.text.trim().isEmpty ? 0 : parseEgpToMinor(c.text);
+
+  void _save() {
+    final v = [for (final c in _c) _v(c)];
+    if (v.any((x) => x == null || x < 0)) {
+      setState(() => _err = _t(context, 'مبلغ مش مظبوط', 'Invalid amount'));
+      return;
+    }
+    final a = v[0]!, b = v[1]!, c = v[2]!;
+    if ((b > 0 && b < a) || (c > 0 && c < (b > a ? b : a))) {
+      setState(() => _err = _t(context, 'المرحلة الأعلى لازم مكافأتها أكبر من اللي قبلها', 'A higher tier must pay more than the one before'));
+      return;
+    }
+    Navigator.pop(context, [a, b, c]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget field(int i, String label, String hint) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: TextField(
+            controller: _c[i],
+            autofocus: i == 0,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() => _err = null),
+            decoration: InputDecoration(labelText: label, helperText: hint, suffixText: _t(context, 'ج.م', 'EGP')),
+          ),
+        );
+    return AlertDialog(
+      title: Text(_t(context, 'مكافأة ${widget.name} على مراحل', 'Bonus tiers for ${widget.name}')),
+      content: SizedBox(
+        width: 380,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(_t(context, 'في اليوم بيتحسب أعلى مرحلة وصلها بس (مش مجموعهم). سيب الخانة فاضية لو مش عايز المرحلة دي.',
+                  'Each day pays only the highest tier reached (not the sum). Leave a box empty to skip that tier.'),
+              style: const TextStyle(color: BrandColors.gray, fontSize: 12.5, height: 1.5)),
+          const SizedBox(height: 12),
+          field(0, _t(context, 'لما يحقق 100% من تارجت اليوم', 'At 100% of the daily target'), _t(context, 'المكافأة الأساسية', 'The base bonus')),
+          field(1, _t(context, 'لما يوصل 120%', 'At 120%'), _t(context, 'أكبر من الأساسية', 'More than the base')),
+          field(2, _t(context, 'لما يوصل 150%', 'At 150%'), _t(context, 'أكبر مكافأة', 'The top bonus')),
+          if (_err != null) Text(_err!, style: const TextStyle(color: BrandColors.error, fontWeight: FontWeight.w700)),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إلغاء', 'Cancel'))),
+        FilledButton(onPressed: _save, child: Text(_t(context, 'حفظ', 'Save'))),
+      ],
+    );
+  }
 }

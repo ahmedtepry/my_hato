@@ -25,7 +25,7 @@ import 'pos_repository.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
-String _payLabel(BuildContext c, String m) => switch (m) { 'card' => _t(c, 'فيزا', 'Card'), 'wallet' => _t(c, 'محفظة', 'Wallet'), _ => _t(c, 'كاش', 'Cash') };
+String _payLabel(BuildContext c, String m) => switch (m) { 'card' => _t(c, 'فيزا', 'Card'), 'wallet' => _t(c, 'محفظة', 'Wallet'), 'split' => _t(c, 'مقسّم', 'Split'), _ => _t(c, 'كاش', 'Cash') };
 String _when(Object? iso) => iso == null ? '—' : DateFormat('d/M/yyyy  HH:mm').format(DateTime.parse('$iso').toLocal());
 
 /// "All invoices" for the cashier: paid, cancelled and held, for his own branch only. The database decides who may open it
@@ -313,6 +313,14 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
     final cur = '${s['payment_method']}';
     var pick = cur;
     final reason = TextEditingController();
+    final total = (s['total_minor'] as num).toInt();
+    String egp(Object? v) {
+      final n = ((v as num?) ?? 0).toInt();
+      return n == 0 ? '' : (n / 100).toStringAsFixed(n % 100 == 0 ? 0 : 2);
+    }
+    final kCtl = TextEditingController(text: cur == 'split' ? egp(s['paid_card_minor']) : '');
+    final wCtl = TextEditingController(text: cur == 'split' ? egp(s['paid_wallet_minor']) : '');
+    int part(TextEditingController c) => parseEgpToMinor(c.text.trim().isEmpty ? '0' : c.text) ?? -1;
     final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -326,10 +334,26 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
                 ButtonSegment(value: 'cash', icon: const Icon(Icons.payments_outlined), label: Text(_t(ctx, 'كاش', 'Cash'))),
                 ButtonSegment(value: 'card', icon: const Icon(Icons.credit_card), label: Text(_t(ctx, 'فيزا', 'Card'))),
                 ButtonSegment(value: 'wallet', icon: const Icon(Icons.account_balance_wallet_outlined), label: Text(_t(ctx, 'محفظة', 'Wallet'))),
+                ButtonSegment(value: 'split', icon: const Icon(Icons.call_split_rounded), label: Text(_t(ctx, 'مقسّم', 'Split'))),
               ],
               selected: {pick},
               onSelectionChanged: (v) => set(() => pick = v.first),
             ),
+            if (pick == 'split') ...[
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(child: TextField(controller: kCtl, keyboardType: const TextInputType.numberWithOptions(decimal: true), onChanged: (_) => set(() {}), decoration: InputDecoration(isDense: true, labelText: _t(ctx, 'فيزا (ج.م)', 'Visa (EGP)')))),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: wCtl, keyboardType: const TextInputType.numberWithOptions(decimal: true), onChanged: (_) => set(() {}), decoration: InputDecoration(isDense: true, labelText: _t(ctx, 'محفظة (ج.م)', 'Wallet (EGP)')))),
+              ]),
+              const SizedBox(height: 6),
+              Builder(builder: (_) {
+                final k = part(kCtl), w = part(wCtl), c = total - k - w;
+                final bad = k < 0 || w < 0 || c < 0;
+                return Text(bad ? _t(ctx, 'الفيزا والمحفظة أكبر من الإجمالي', 'Visa + wallet is more than the total') : '${_t(ctx, 'الباقي كاش', 'Cash part')}: ${_money(ctx, c)}',
+                    style: TextStyle(fontWeight: FontWeight.w800, color: bad ? BrandColors.error : null));
+              }),
+            ],
             const SizedBox(height: 10),
             TextField(controller: reason, maxLength: 200, decoration: InputDecoration(labelText: _t(ctx, 'السبب (اختياري)', 'Reason (optional)'))),
             Text(_t(ctx, 'الدرج وحسابات الفرع بيتظبطوا لوحدهم. التعديل مسموح لحد قفل الوردية بس، وكل تعديل بيتسجّل.', 'The drawer and branch accounts follow automatically. Allowed until the shift is closed; every change is logged.'),
@@ -337,16 +361,27 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_t(ctx, 'رجوع', 'Back'))),
-            FilledButton(onPressed: pick == cur ? null : () => Navigator.pop(ctx, true), child: Text(_t(ctx, 'حفظ', 'Save'))),
+            FilledButton(
+                onPressed: (pick == cur && pick != 'split') || (pick == 'split' && (part(kCtl) < 0 || part(wCtl) < 0 || total - part(kCtl) - part(wCtl) < 0))
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                child: Text(_t(ctx, 'حفظ', 'Save'))),
           ],
         ),
       ),
     );
     final why = reason.text.trim();
+    final k = part(kCtl), w = part(wCtl);
     reason.dispose();
+    kCtl.dispose();
+    wCtl.dispose();
     if (ok != true || !mounted) return;
     try {
-      await ref.read(posRepoProvider).setSalePayment('${s['id']}', pick, reason: why.isEmpty ? null : why);
+      if (pick == 'split') {
+        await ref.read(posRepoProvider).setSaleSplit('${s['id']}', cash: total - k - w, card: k, wallet: w, reason: why.isEmpty ? null : why);
+      } else {
+        await ref.read(posRepoProvider).setSalePayment('${s['id']}', pick, reason: why.isEmpty ? null : why);
+      }
       if (!mounted) return;
       setState(() => _f = _load());
       showSnack(context, _t(context, 'اتغيّرت وسيلة الدفع ✅', 'Payment method changed ✅'));
@@ -383,6 +418,11 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
                 row(_t(context, 'الفرع', 'Branch'), '${s['branch_name_ar'] ?? '—'}'),
                 row(_t(context, 'وقت البيع', 'Sold at'), _when(s['created_at'])),
                 row(_t(context, 'وسيلة الدفع', 'Paid by'), _payLabel(context, '${s['payment_method']}')),
+                if (s['payment_method'] == 'split') ...[
+                  if (((s['paid_cash_minor'] as num?) ?? 0) > 0) row('   ${_t(context, 'كاش', 'Cash')}', _money(context, s['paid_cash_minor'] as num)),
+                  if (((s['paid_card_minor'] as num?) ?? 0) > 0) row('   ${_t(context, 'فيزا', 'Visa')}', _money(context, s['paid_card_minor'] as num)),
+                  if (((s['paid_wallet_minor'] as num?) ?? 0) > 0) row('   ${_t(context, 'محفظة', 'Wallet')}', _money(context, s['paid_wallet_minor'] as num)),
+                ],
                 if (s['can_edit_payment'] == true)
                   Align(
                     alignment: AlignmentDirectional.centerStart,

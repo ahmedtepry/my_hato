@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
+import '../../core/l10n.dart' show sharedPrefsProvider;
+import 'pos_offline.dart';
 
 /// Cashier, shifts and approvals. Every call runs as the signed-in staff member: prices, stock, limits,
 /// branch access and double approval are all decided by the database (see migration 0061), never by the app.
@@ -42,6 +44,10 @@ class PosRepository {
   /// `{ok:true,id,name}` or `{ok:false,error:'BAD_PIN'|'PIN_LOCKED',left,seconds}`; a missing PIN raises NO_PIN.
   Future<Map<String, dynamic>> switchSeller(String shiftId, String userId, String pin) async =>
       _m(await _db.rpc('pos_switch_seller', params: {'p_shift': shiftId, 'p_user': userId, 'p_pin': pin}));
+
+  /// Split one invoice over cash / Visa / wallet (minor units, must add up to the total).
+  Future<Map<String, dynamic>> setSaleSplit(String saleId, {required int cash, required int card, required int wallet, String? reason}) async =>
+      _m(await _db.rpc('pos_set_sale_split', params: {'p_sale': saleId, 'p_cash': cash, 'p_card': card, 'p_wallet': wallet, 'p_reason': reason}));
 
   Future<Map<String, dynamic>> shiftSummary(String shiftId) async => _m(await _db.rpc('pos_shift_summary', params: {'p_shift': shiftId}));
 
@@ -87,6 +93,9 @@ class PosRepository {
     required int cashMinor,
     String? approvalId,
     String? customerId,
+    DateTime? soldAt, // offline sale: when it was really sold
+    String? sellerId, // offline sale: the seller on the screen at that moment
+    String? number, // offline sale: the invoice number already printed on the receipt
   }) async =>
       _m(await _db.rpc('pos_create_sale', params: {
         'p_idempotency_key': idempotencyKey,
@@ -96,7 +105,14 @@ class PosRepository {
         'p_cash_received_minor': cashMinor,
         'p_approval': approvalId,
         'p_customer': customerId,
+        // only sent for offline sales, so a normal sale keeps the exact call it always had
+        if (soldAt != null) 'p_sold_at': soldAt.toUtc().toIso8601String(),
+        if (soldAt != null) 'p_seller': sellerId,
+        if (soldAt != null) 'p_number': number,
       }));
+
+  /// Every published product (id, codes, names, price, stock), kept on the computer for searching without internet.
+  Future<List<Map<String, dynamic>>> catalogSnapshot() async => _l(await _db.rpc('pos_catalog_snapshot'));
 
   /// A customer by his exact phone number (null when there is none), so a till sale can be tied to him.
   Future<Map<String, dynamic>?> findCustomer(String phone) async {
@@ -211,7 +227,20 @@ final commissionTodayProvider = FutureProvider.autoDispose<List<Map<String, dyna
 });
 
 /// The signed-in member's open shift with live totals (null = no open shift).
-final posShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) => ref.watch(posRepoProvider).currentShift());
+/// The open shift. Kept on this computer, so the till still opens and sells while the server cannot be reached.
+final posShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+  try {
+    final s = await ref.watch(posRepoProvider).currentShift();
+    posSaveShift(ref.read(sharedPrefsProvider), s);
+    return s;
+  } catch (e) {
+    if (posIsNetworkError(e)) {
+      final c = posCachedShift(ref.read(sharedPrefsProvider));
+      if (c != null) return {...c, '_offline': true};
+    }
+    rethrow;
+  }
+});
 final posLimitsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) => ref.watch(posRepoProvider).limits());
 /// The branches this cashier may work in. While there are none, ask again every few seconds, so a branch the owner assigns appears on its own.
 final posBranchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
@@ -257,6 +286,7 @@ String posErrorText(Object e, bool ar, String Function(Object) fallback) {
   if (m.contains('SHIFT_NOT_CLOSED')) return pick('الوردية لسه مفتوحة', 'The shift is still open');
   if (m.contains('RATE_LIMITED')) return pick('محاولات غلط كتير، استنى شوية وجرّب تاني', 'Too many wrong attempts, wait a bit');
   if (m.contains('REFUND_WINDOW_PASSED')) return pick('عدّت مهلة الاسترجاع (14 يوم). المرتجع بعدها محتاج المالك.', 'The return window (14 days) has passed. Only the owner can refund now.');
+  if (m.contains('SPLIT_NOT_TOTAL')) return pick('مجموع الكاش والفيزا والمحفظة لازم يساوي إجمالي الفاتورة', 'Cash + Visa + wallet must equal the invoice total');
   if (m.contains('NO_PIN')) return pick('الموظف ده ملوش PIN. المالك يحدده من صفحة الفريق.', 'This member has no PIN. The owner sets it in Team.');
   if (m.contains('NOT_FOUND')) return pick('مفيش فاتورة بالرقم ده في فرعك', 'No invoice with this number in your branch');
   if (m.contains('FORBIDDEN')) return pick('مش مسموحلك بالعملية دي', 'Not allowed');

@@ -7,6 +7,12 @@ import '../core/config.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 
+/// Set by the cashier till while it can sell without internet: the gate then shows a thin bar instead of covering the screen.
+final offlineSellingActive = ValueNotifier<bool>(false);
+
+/// The gate's latest verdict (true = the server cannot be reached), for screens that adapt to it.
+final appOffline = ValueNotifier<bool>(false);
+
 /// Covers the app with a clear "no internet" page while the phone cannot reach the store's server,
 /// and lifts it by itself as soon as the connection is back.
 class ConnectionGate extends StatefulWidget {
@@ -63,6 +69,7 @@ class _ConnectionGateState extends State<ConnectionGate> with WidgetsBindingObse
       _checking = false;
       _offline = off;
     });
+    appOffline.value = off;
     if (changed) _schedule();
     if (!ok && !off) Future.delayed(const Duration(seconds: 2), _check);
   }
@@ -80,6 +87,36 @@ class _ConnectionGateState extends State<ConnectionGate> with WidgetsBindingObse
       Positioned.fill(child: widget.child),
       if (_offline)
         Positioned.fill(
+          child: ValueListenableBuilder<bool>(
+          valueListenable: offlineSellingActive,
+          builder: (context, selling, cover) => selling
+              // selling without internet: only a thin bar on top, the till stays usable (taps pass around the bar)
+              ? Align(
+                  alignment: Alignment.topCenter,
+                  child: Material(
+                    color: BrandColors.warning,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          const Icon(Icons.wifi_off_rounded, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              context.isAr
+                                  ? 'مفيش إنترنت. البيع شغّال عادي، والفواتير بتتحفظ على الجهاز وهتترفع لوحدها لما النت يرجع.'
+                                  : 'No internet. Selling goes on; invoices are kept on this computer and sent when the connection is back.',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ),
+                )
+              : cover!,
+          child: SizedBox.expand(
           child: Material(
             color: Theme.of(context).scaffoldBackgroundColor,
             child: SafeArea(
@@ -121,6 +158,8 @@ class _ConnectionGateState extends State<ConnectionGate> with WidgetsBindingObse
               ),
             ),
           ),
+        ),
+        ),
         ),
     ]);
   }
