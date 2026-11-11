@@ -647,8 +647,9 @@ class _ReelDialog extends StatefulWidget {
 }
 
 class _ReelDialogState extends State<_ReelDialog> with SingleTickerProviderStateMixin {
-  static const int _n = 5;
-  late final AnimationController _bar = AnimationController(vsync: this, duration: const Duration(seconds: 6))
+  // the opening story is now just "today's shift" (branch, expected in the drawer, shift sales); the other slides were removed
+  static const int _n = 1, _only = 2;
+  late final AnimationController _bar = AnimationController(vsync: this, duration: const Duration(seconds: 8))
     ..addStatusListener((s) {
       if (s == AnimationStatus.completed) _go(_i + 1);
     });
@@ -688,16 +689,15 @@ class _ReelDialogState extends State<_ReelDialog> with SingleTickerProviderState
         child: ClipRRect(
           borderRadius: BorderRadius.circular(26),
           child: Stack(children: [
-            Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: _bg(_i)))),
-            Positioned.fill(child: KeyedSubtree(key: ValueKey(_i), child: _slide(context, _i))),
+            Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: _bg(_only)))),
+            Positioned.fill(child: KeyedSubtree(key: ValueKey(_i), child: _slide(context, _only))),
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onLongPressStart: (_) => _bar.stop(),
                 onLongPressEnd: (_) => _bar.forward(),
                 onTapUp: (d) {
-                  final left = d.localPosition.dx < 170;
-                  _go(left ? _i + 1 : _i - 1);
+                  _go(_n); // a tap closes the single story
                 },
               ),
             ),
