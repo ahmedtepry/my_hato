@@ -66,6 +66,7 @@ import 'purchases_panel.dart';
 import '../wheel/wheel_admin.dart';
 import 'occasions_panel.dart';
 import 'pos_panel.dart';
+import 'invoices_panel.dart';
 import 'sales_panel.dart';
 import 'shifts_panel.dart';
 import 'targets.dart';
@@ -399,6 +400,7 @@ class _SectionInfo {
 const _sectionInfo = <String, _SectionInfo>{
   'overview': _SectionInfo(Icons.dashboard_outlined, Color(0xFF00A3FF), 'نظرة عامة', 'Overview', 'أرقام اليوم والتنبيهات', 'Today\'s numbers and alerts'),
   'pos': _SectionInfo(Icons.point_of_sale_rounded, Color(0xFF00A3FF), 'الكاشير', 'Cashier', 'بيع سريع بالباركود وسلة وفاتورة نقدية', 'Fast barcode sales with a cart and a cash invoice'),
+  'invoices': _SectionInfo(Icons.receipt_long_rounded, Color(0xFF00A3FF), 'الفواتير', 'Invoices', 'كل فواتير الفرع: المدفوعة والملغية والمعلّقة وتفاصيلها وطباعتها', 'All branch invoices: paid, cancelled and held, with details and printing'),
   'shifts': _SectionInfo(Icons.fact_check_outlined, Color(0xFF7A5AF8), 'الورديات والموافقات', 'Shifts & approvals', 'موافقات الخصم والمرتجع وفروق الدرج ومقارنة الفروع', 'Discount and refund approvals, drawer differences, branch comparison'),
   'books': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFF12B76A), 'المحاسبة', 'Accounting', 'صافي المبيعات والمرتجعات وفروق الدرج ومقارنة الفروع', 'Net sales, refunds, drawer differences and branch comparison'),
   'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
@@ -563,7 +565,7 @@ final List<String> _navBack = [];
 /// The sidebar sections, grouped by what they are for so related pages sit together under one heading.
 const _sidebarGroups = <(String, String, List<String>)>[
   ('', '', ['overview']),
-  ('البيع والطلبات', 'Sales & orders', ['pos', 'orders', 'repairs', 'shifts', 'sales', 'ops', 'products', 'stock', 'purchases', 'shortcuts']),
+  ('البيع والطلبات', 'Sales & orders', ['pos', 'invoices', 'orders', 'repairs', 'shifts', 'sales', 'ops', 'products', 'stock', 'purchases', 'shortcuts']),
   ('الفلوس والمحاسبة', 'Money & accounting', ['books', 'wallets', 'wallet_inbox']),
   ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'online_review', 'assistant', 'accounts']),
   ('العملاء والتسويق', 'Customers & marketing', ['marketing', 'blocked', 'reviews', 'offers', 'gifts', 'wheel', 'contests']),
@@ -730,6 +732,7 @@ class AdminHomeScreen extends ConsumerWidget {
                   for (final t in tabs)
                     switch (t) {
                       'pos' => const PosPanel(),
+                      'invoices' => const InvoicesPanel(),
                       'shifts' => const ShiftsPanel(),
                       'books' => const AccountantPanel(),
                       'ops' => const OpsPanel(),

@@ -526,6 +526,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
   final all = [
     'overview',
     if (p.contains('pos.sell')) 'pos',
+    if (p.contains('invoices.view')) 'invoices',
     if (p.contains('pos.approve') || p.contains('shifts.review')) 'shifts',
     if (p.contains('shifts.review') || p.contains('sales.view') || p.contains('shifts.reports')) 'books',
     if (p.contains('orders.view')) 'orders',
@@ -563,11 +564,11 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     case Workspace.full:
       return all.where((k) => k != 'books').toList(); // owner / manager: the full console, unchanged
     case Workspace.cashier:
-      first = const ['pos'];
+      first = const ['pos', 'invoices'];
     case Workspace.accountant:
-      first = const ['books', 'kpi', 'sales', 'orders'];
+      first = const ['books', 'invoices', 'kpi', 'sales', 'orders'];
     case Workspace.sales:
-      first = const ['orders', 'pos', 'products', 'sales'];
+      first = const ['orders', 'pos', 'invoices', 'products', 'sales'];
     case Workspace.repairs:
       first = const ['repairs', 'orders'];
     case Workspace.support:

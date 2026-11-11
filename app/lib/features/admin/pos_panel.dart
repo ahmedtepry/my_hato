@@ -593,8 +593,14 @@ class _RegisterState extends ConsumerState<_Register> {
     }
   }
 
+  static const _maxHeld = 4;
+
   void _hold({bool newInvoice = false}) {
     if (_cart.isEmpty || _unknown || _busy) return;
+    if (_held.length >= _maxHeld) {
+      showSnack(context, _t(context, 'أقصى حاجة $_maxHeld فواتير معلّقة. كمّل واحدة منهم أو الغي واحدة الأول.', 'Up to $_maxHeld held invoices. Resume or discard one first.'), error: true);
+      return;
+    }
     setState(() {
       _held.add(_Held([for (final l in _cart.values) _Line(l.p, l.q)], _discount.text, _pm, DateTime.now(), _customer));
       _reset();
@@ -931,23 +937,19 @@ class _RegisterState extends ConsumerState<_Register> {
           if (_held.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: SizedBox(
-                height: 44,
-                child: ListView(scrollDirection: Axis.horizontal, children: [
-                  for (var i = 0; i < _held.length; i++)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 8),
-                      child: InputChip(
-                        avatar: const Icon(Icons.edit_note_rounded, size: 18),
-                        label: Text('${_t(context, 'معلّقة', 'Held')} ${i + 1} · ${_money(context, _held[i].lines.fold<int>(0, (a, l) => a + l.price * l.q))}'),
-                        onPressed: () => _resume(i),
-                        onDeleted: () => _discard(i),
-                        deleteIconColor: BrandColors.error,
-                        deleteButtonTooltipMessage: _t(context, 'إلغاء الفاتورة المعلّقة', 'Discard held invoice'),
-                      ),
-                    ),
-                ]),
-              ),
+              // all held invoices wrap onto rows, so none of them is hidden off-screen (at most 4 at a time)
+              child: Wrap(spacing: 6, runSpacing: 4, children: [
+                for (var i = 0; i < _held.length; i++)
+                  InputChip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.edit_note_rounded, size: 18),
+                    label: Text('${_t(context, 'معلّقة', 'Held')} ${i + 1} · ${_money(context, _held[i].lines.fold<int>(0, (a, l) => a + l.price * l.q))}'),
+                    onPressed: () => _resume(i),
+                    onDeleted: () => _discard(i),
+                    deleteIconColor: BrandColors.error,
+                    deleteButtonTooltipMessage: _t(context, 'إلغاء الفاتورة المعلّقة', 'Discard held invoice'),
+                  ),
+              ]),
             ),
           if (_unknown)
             Container(
@@ -1467,7 +1469,7 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
                 controller: _number,
                 autofocus: true,
                 textCapitalization: TextCapitalization.characters,
-                decoration: InputDecoration(labelText: _t(context, 'رقم الفاتورة (POS-…)', 'Invoice number (POS-…)'), suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: () => _find())),
+                decoration: InputDecoration(labelText: _t(context, 'رقم الفاتورة', 'Invoice number'), suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: () => _find())),
                 onSubmitted: (_) => _find(),
               ),
               const SizedBox(height: 10),
