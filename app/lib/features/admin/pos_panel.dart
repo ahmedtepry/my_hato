@@ -792,7 +792,19 @@ class _RegisterState extends ConsumerState<_Register> {
           OutlinedButton.icon(
             icon: const Icon(Icons.assignment_return_outlined, size: 18),
             label: Text(_t(context, 'مرتجع', 'Refund')),
-            onPressed: _unknown ? null : () => showSmoothDialog<void>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((_) => ref.invalidate(posShiftProvider)),
+            onPressed: _unknown
+                ? null
+                : () => showSmoothDialog<List<Map<String, dynamic>>>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((replacement) {
+                      ref.invalidate(posShiftProvider);
+                      // an exchange: the replacement products go straight into the cart, ready to be sold
+                      if (replacement != null && mounted) {
+                        for (final r in replacement) {
+                          for (var i = 0; i < (r['q'] as int); i++) {
+                            _add(Map<String, dynamic>.from(r['p'] as Map));
+                          }
+                        }
+                      }
+                    }),
           ),
           const AssistantModeSwitch(),
           AssistantButton(shiftId: _shiftId),
@@ -1379,12 +1391,16 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
   bool _restock = true;
   bool _busy = false;
   String _method = 'cash'; // how the money goes back: cash (from the drawer) / card / wallet
+  final _repl = <String, _Line>{}; // replacement products for an exchange
+  final _replSearch = TextEditingController();
+  Future<List<Map<String, dynamic>>>? _replFound;
   late final Future<List<Map<String, dynamic>>> _recent = ref.read(posRepoProvider).recentSales(widget.shiftId);
 
   @override
   void dispose() {
     _number.dispose();
     _reason.dispose();
+    _replSearch.dispose();
     super.dispose();
   }
 
@@ -1397,6 +1413,8 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
     final ra = (it['refunded_amount_minor'] as num).toInt();
     return q == qty - done ? net - ra : (net * q / qty).round();
   }
+
+  int get _replTotal => _repl.values.fold(0, (a, l) => a + l.price * l.q);
 
   int get _total => _items.fold(0, (s, it) => s + _amountFor(it, _qty[it['id']] ?? 0) * ((_qty[it['id']] ?? 0) > 0 ? 1 : 0));
 
@@ -1454,8 +1472,8 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
         'wallet' => _t(context, 'حوّلهم للعميل على المحفظة', 'Send it to the customer\'s wallet'),
         _ => _t(context, 'رجّعهم للعميل كاش من الدرج', 'Pay it back in cash from the drawer'),
       };
-      showSnack(context, '${res['cancelled'] == true ? _t(context, 'الفاتورة اتلغت ✅ ', 'Invoice cancelled ✅ ') : _t(context, 'تم المرتجع ', 'Refunded ')}$amt — $how');
-      Navigator.pop(context);
+      showSnack(context, '${res['cancelled'] == true ? _t(context, 'الفاتورة اتلغت ✅ ', 'Invoice cancelled ✅ ') : _t(context, 'تم المرتجع ', 'Refunded ')}$amt — $how${_repl.isEmpty ? '' : _t(context, '. البديل اتضاف للسلة، كمّل البيع.', '. The replacement is in the cart; finish the sale.')}');
+      Navigator.pop(context, [for (final l in _repl.values) {'p': l.p, 'q': l.q}]);
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
     } finally {
@@ -1526,24 +1544,103 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
               const SizedBox(height: 6),
               ReceiptButtons(sale: _sale!, text: receiptText(context, _sale!)),
               const SizedBox(height: 6),
+              const SizedBox(height: 6),
+              Text(_t(context, 'منتجات الفاتورة — اختار اللي هيرجع', 'Invoice products — choose what comes back'), style: const TextStyle(fontWeight: FontWeight.w800)),
               for (final it in _items)
                 Builder(builder: (_) {
                   final left = (it['quantity'] as num).toInt() - (it['refunded_qty'] as num).toInt();
                   final q = _qty[it['id']] ?? 0;
-                  return ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('${it['name_ar']}'),
-                    subtitle: Text(left == 0 ? _t(context, 'اترجّع بالكامل', 'Fully refunded') : _t(context, 'المتاح للإرجاع: $left', 'Refundable: $left')),
-                    trailing: left == 0
-                        ? null
-                        : Row(mainAxisSize: MainAxisSize.min, children: [
-                            IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: q > 0 ? () => setState(() => _qty['${it['id']}'] = q - 1) : null),
-                            Text('$q', style: const TextStyle(fontWeight: FontWeight.w800)),
-                            IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: q < left ? () => setState(() => _qty['${it['id']}'] = q + 1) : null),
-                          ]),
+                  final id = '${it['id']}';
+                  return Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    decoration: BoxDecoration(color: q > 0 ? BrandColors.electric.withValues(alpha: .08) : null, borderRadius: BorderRadius.circular(12), border: Border.all(color: q > 0 ? BrandColors.electric : BrandColors.border)),
+                    child: ListTile(
+                      dense: true,
+                      enabled: left > 0,
+                      onTap: left == 0 ? null : () => setState(() => _qty[id] = q > 0 ? 0 : left),
+                      leading: Checkbox(value: q > 0, onChanged: left == 0 ? null : (v) => setState(() => _qty[id] = v == true ? left : 0)),
+                      title: Text('${it['name_ar']}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text(left == 0
+                          ? _t(context, 'اترجّع بالكامل', 'Fully refunded')
+                          : '${_t(context, 'اتباع', 'Sold')} ${it['quantity']} × ${_money(context, it['unit_price_minor'] as num)} · ${_t(context, 'متاح للإرجاع', 'Refundable')} $left'),
+                      trailing: left == 0
+                          ? null
+                          : Row(mainAxisSize: MainAxisSize.min, children: [
+                              IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.remove_circle_outline), onPressed: q > 0 ? () => setState(() => _qty[id] = q - 1) : null),
+                              SizedBox(
+                                width: 64,
+                                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                  Text('$q', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                  if (q > 0) Text(_money(context, _amountFor(it, q)), style: const TextStyle(fontSize: 11, color: BrandColors.gray)),
+                                ]),
+                              ),
+                              IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.add_circle_outline), onPressed: q < left ? () => setState(() => _qty[id] = q + 1) : null),
+                            ]),
+                    ),
                   );
                 }),
+              const SizedBox(height: 12),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                initiallyExpanded: _repl.isNotEmpty,
+                title: Text(_t(context, 'استبدال بمنتج آخر (اختياري)', 'Exchange for another product (optional)'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                children: [
+                  TextField(
+                    controller: _replSearch,
+                    onChanged: (v) => setState(() => _replFound = v.trim().length < 2 ? null : ref.read(posRepoProvider).searchProducts(v)),
+                    decoration: InputDecoration(isDense: true, hintText: _t(context, 'ابحث باسم المنتج أو الباركود', 'Search by name or barcode'), prefixIcon: const Icon(Icons.search)),
+                  ),
+                  if (_replFound != null)
+                    FutureBuilder<List<Map<String, dynamic>>>(
+                      future: _replFound,
+                      builder: (_, snap) {
+                        final found = (snap.data ?? const []).take(6).toList();
+                        if (snap.connectionState != ConnectionState.done) return const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator());
+                        return Column(children: [
+                          for (final pr in found)
+                            ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text('${pr['name_ar']}'),
+                              subtitle: Text('${_t(context, 'متاح', 'In stock')} ${pr['stock_quantity']}'),
+                              trailing: Text(_money(context, pr['price_minor'] as num), style: const TextStyle(fontWeight: FontWeight.w800)),
+                              onTap: () => setState(() {
+                                final pid = '${pr['id']}';
+                                final cur = _repl[pid];
+                                if (cur == null) {
+                                  _repl[pid] = _Line(pr, 1);
+                                } else {
+                                  cur.q++;
+                                }
+                                _replSearch.clear();
+                                _replFound = null;
+                              }),
+                            ),
+                        ]);
+                      },
+                    ),
+                  for (final l in _repl.values.toList())
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.swap_horiz_rounded),
+                      title: Text('${l.p['name_ar']}'),
+                      subtitle: Text(_money(context, l.price * l.q)),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.remove_circle_outline), onPressed: () => setState(() { if (l.q > 1) { l.q--; } else { _repl.remove('${l.p['id']}'); } })),
+                        Text('${l.q}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                        IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.add_circle_outline), onPressed: () => setState(() => l.q++)),
+                      ]),
+                    ),
+                  if (_repl.isNotEmpty)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                          '${_t(context, 'قيمة البديل', 'Replacement value')}: ${_money(context, _replTotal)} · ${_replTotal - _total >= 0 ? _t(context, 'العميل يدفع الفرق', 'Customer pays the difference') : _t(context, 'ليه فرق', 'Difference owed to him')} ${_money(context, (_replTotal - _total).abs())}',
+                          style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w700, fontSize: 13)),
+                    ),
+                ],
+              ),
               TextField(controller: _reason, maxLength: 200, decoration: InputDecoration(labelText: _t(context, 'سبب الإلغاء / المرتجع (مطلوب)', 'Cancel / refund reason (required)'))),
               const SizedBox(height: 4),
               Text(_t(context, 'رجّعت الفلوس للعميل إزاي؟', 'How is the customer paid back?'), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -1557,7 +1654,8 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
                 selected: {_method},
                 onSelectionChanged: (v) => setState(() => _method = v.first),
               ),
-              SwitchListTile(contentPadding: EdgeInsets.zero, value: _restock, onChanged: (v) => setState(() => _restock = v), title: Text(_t(context, 'رجّع القطعة للمخزون', 'Put the item back in stock'))),
+              SwitchListTile(contentPadding: EdgeInsets.zero, value: _restock, onChanged: (v) => setState(() => _restock = v), title: Text(_t(context, 'المنتج سليم؟ رجّعه للمخزون', 'Item is fine? Put it back in stock')),
+                  subtitle: Text(_t(context, 'اقفلها لو المنتج تالف', 'Turn off if the item is damaged'), style: const TextStyle(fontSize: 12))),
               Text('${_t(context, 'هتدفع للعميل', 'Pay the customer')}: ${_money(context, _total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
             ],
           ]),
@@ -1565,7 +1663,7 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إغلاق', 'Close'))),
-        if (_sale != null) FilledButton(onPressed: (_busy || _total <= 0) ? null : _submit, child: Text(_t(context, 'تنفيذ المرتجع', 'Refund'))),
+        if (_sale != null) FilledButton(onPressed: (_busy || _total <= 0) ? null : _submit, child: Text(_repl.isEmpty ? _t(context, 'تنفيذ المرتجع', 'Refund') : _t(context, 'نفّذ المرتجع والاستبدال', 'Refund and exchange'))),
       ],
     );
   }

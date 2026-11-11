@@ -177,7 +177,7 @@ class _ShiftReportDialogState extends ConsumerState<ShiftReportDialog> {
                             row(_t(context, '   الفعلي', '   Counted'), _t(context, 'ماتسجّلش', 'not entered'))
                           else ...[
                             row(_t(context, '   الفعلي', '   Counted'), _money(context, m['counted_minor'] as num)),
-                            row(cv == 0 ? _t(context, '   مظبوط ✅', '   Matches ✅') : (cv! < 0 ? _t(context, '   عجز', '   Short') : _t(context, '   زيادة', '   Over')), cv == 0 ? '' : _money(context, cv.abs()),
+                            row(cv == 0 ? _t(context, '   مظبوط ✅', '   Matches ✅') : (cv! < 0 ? _t(context, '   عجز', '   Short') : _t(context, '   زيادة', '   Over')), cv == 0 ? '' : _money(context, cv!.abs()),
                                 c: cv == 0 ? BrandColors.success : BrandColors.error, b: true),
                           ],
                         ]),
