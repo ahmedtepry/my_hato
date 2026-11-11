@@ -82,7 +82,7 @@ class ReviewsSection extends ConsumerWidget {
           child: Row(children: [
             Column(children: [
               Text(ratingCount == 0 ? '—' : ratingAvg.toStringAsFixed(1),
-                  style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: BrandColors.navy, height: 1)),
+                  style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: inkColor(context), height: 1)),
               const SizedBox(height: 6),
               StarRating(value: ratingAvg, size: 18),
               const SizedBox(height: 4),

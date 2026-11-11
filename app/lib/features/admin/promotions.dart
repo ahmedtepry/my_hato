@@ -584,7 +584,7 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: BrandColors.navy.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.local_offer_rounded, color: BrandColors.navy, size: 20),
+              child: Icon(Icons.local_offer_rounded, color: inkColor(context), size: 20),
             ),
             const SizedBox(width: 10),
             Expanded(

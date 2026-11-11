@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,15 +27,52 @@ class AppPalette {
   static bool apply(Map<String, dynamic>? json) {
     int pick(String k) => _parse(json?[k]) ?? _parse(defaults[k])!;
     final primary = pick('primary');
-    final hsl = HSLColor.fromColor(Color(primary));
-    final deep = hsl.withLightness((hsl.lightness * 0.5).clamp(0.0, 1.0)).toColor().toARGB32();
-    final next = [primary, deep, pick('accent'), pick('background'), pick('success'), pick('danger')];
+    // Contrast guard: whatever colours are picked, text stays readable and buttons stay visible.
+    // background: always a light surface; primary (text, icons): dark enough to read on it (4.5:1);
+    // accent / success / danger (filled buttons with white text, badges): at least 2.5:1 against white.
+    final bg = _lift(pick('background'), 0.90);
+    final ink = _darkenUntil(primary, (c) => _contrast(c, bg) >= 4.5);
+    final hslInk = HSLColor.fromColor(Color(ink));
+    final deepInk = hslInk.withLightness((hslInk.lightness * 0.5).clamp(0.0, 1.0)).toColor().toARGB32();
+    int onWhite(int c) => _darkenUntil(c, (x) => _contrast(x, 0xFFFFFFFF) >= 2.5);
+    final next = [ink, deepInk, onWhite(pick('accent')), bg, onWhite(pick('success')), onWhite(pick('danger'))];
     var changed = false;
     for (var i = 0; i < next.length; i++) {
       if (argb[i] != next[i]) changed = true;
     }
     argb = next;
     return changed;
+  }
+
+  static double _lum(int c) {
+    double ch(int v) {
+      final x = v / 255.0;
+      return x <= 0.03928 ? x / 12.92 : math.pow((x + 0.055) / 1.055, 2.4).toDouble();
+    }
+
+    return 0.2126 * ch((c >> 16) & 0xFF) + 0.7152 * ch((c >> 8) & 0xFF) + 0.0722 * ch(c & 0xFF);
+  }
+
+  static double _contrast(int a, int b) {
+    final x = _lum(a), y = _lum(b);
+    return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+  }
+
+  /// Darkens [c] step by step (same hue) until [ok] holds.
+  static int _darkenUntil(int c, bool Function(int) ok) {
+    var h = HSLColor.fromColor(Color(c));
+    var v = c;
+    for (var i = 0; i < 40 && !ok(v); i++) {
+      h = h.withLightness((h.lightness - 0.025).clamp(0.0, 1.0));
+      v = h.toColor().toARGB32();
+    }
+    return v;
+  }
+
+  /// Raises the lightness of [c] to at least [min] (same hue): the page background is always light.
+  static int _lift(int c, double min) {
+    final h = HSLColor.fromColor(Color(c));
+    return h.lightness >= min ? c : h.withLightness(min).toColor().toARGB32();
   }
 }
 
@@ -162,3 +200,6 @@ Color panelColor(BuildContext context, [Color light = Colors.white]) =>
 
 /// The thin border that goes with [panelColor].
 Color panelLine(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? Colors.white12 : BrandColors.border;
+
+/// Text / icon colour that reads on the current page: the brand's dark ink on light pages, white on the dark (glass) pages.
+Color inkColor(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? Colors.white : BrandColors.navy;

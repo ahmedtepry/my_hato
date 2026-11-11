@@ -14,7 +14,6 @@ import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config.dart';
-import '../../core/dark_mode.dart';
 import '../../shared/rail_tile.dart';
 import '../../core/reduce_motion.dart';
 import '../../core/errors.dart';
@@ -901,10 +900,17 @@ class AdminHomeScreen extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 4),
                                   Builder(builder: (_) {
-                                    final dark = ref.watch(darkModeProvider);
+                                    // dark = the glass look, light = the classic look. (No colour-inverting filter: inverting an
+                                    // already dark glass page is what made cards turn grey, boxes black and icons disappear.)
+                                    final dark = ref.watch(glassLookProvider);
+                                    final locked = ref.watch(consoleLookServerProvider).valueOrNull?.locked == true;
                                     return _RailTile(
-                                      tooltip: dark ? _t(ctx, 'الوضع الفاتح', 'Light mode') : _t(ctx, 'الوضع الداكن', 'Dark mode'),
-                                      onTap: () => ref.read(darkModeProvider.notifier).toggle(),
+                                      tooltip: locked
+                                          ? _t(ctx, 'المالك ثبّت شكل البرنامج للكل', 'The owner locked the look for everyone')
+                                          : dark
+                                              ? _t(ctx, 'الوضع الفاتح', 'Light mode')
+                                              : _t(ctx, 'الوضع الداكن', 'Dark mode'),
+                                      onTap: locked ? null : () => toggleConsoleDark(ref),
                                       child: Icon(dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 32, color: BrandColors.electric),
                                       label: dark ? _t(ctx, 'فاتح', 'Light') : _t(ctx, 'داكن', 'Dark'),
                                     );
@@ -3015,7 +3021,7 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
   Widget _header(String text, IconData icon, int n) => Padding(
         padding: const EdgeInsets.only(bottom: 6, top: 4),
         child: Row(children: [
-          Icon(icon, size: 18, color: BrandColors.navy),
+          Icon(icon, size: 18, color: inkColor(context)),
           const SizedBox(width: 6),
           Text('$text ($n)', style: const TextStyle(fontWeight: FontWeight.w800)),
         ]),
@@ -3116,7 +3122,7 @@ class _CloseOperationButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(foregroundColor: BrandColors.navy, side: const BorderSide(color: BrandColors.navy)),
+        style: OutlinedButton.styleFrom(foregroundColor: inkColor(context), side: BorderSide(color: inkColor(context))),
         icon: const Icon(Icons.lock_outline_rounded),
         label: Text(_t(context, 'إغلاق العملية', 'Close operation')),
         onPressed: () async {

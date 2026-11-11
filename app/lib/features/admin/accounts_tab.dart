@@ -232,7 +232,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
               CircleAvatar(
                 radius: 22,
                 backgroundColor: BrandColors.navy.withValues(alpha: 0.08),
-                child: Text(initial, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: BrandColors.navy)),
+                child: Text(initial, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: inkColor(context))),
               ),
               const SizedBox(width: 12),
               Expanded(

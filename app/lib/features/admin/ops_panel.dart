@@ -157,7 +157,7 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
           Row(children: [
             Expanded(
               child: Text(_t(context, 'غرفة العمليات المباشرة', 'Live operations room'),
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: inkColor(context))),
             ),
             Container(width: 9, height: 9, decoration: const BoxDecoration(color: BrandColors.success, shape: BoxShape.circle)),
             const SizedBox(width: 6),
@@ -199,7 +199,7 @@ class _OpsPanelState extends ConsumerState<OpsPanel> {
                   ]),
                   const SizedBox(height: 8),
                   Text(_money(context, (b['net_minor'] as num?) ?? 0),
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: inkColor(context))),
                   if (pf != null && byBranch['${b['id']}'] != null)
                     Text('${_t(context, 'الربح', 'Profit')}: ${_money(context, byBranch['${b['id']}'] as num)}',
                         style: TextStyle(fontWeight: FontWeight.w800, color: (byBranch['${b['id']}'] as num) >= 0 ? BrandColors.success : BrandColors.error)),
@@ -287,7 +287,7 @@ class _Title extends StatelessWidget {
         child: Row(children: [
           Icon(icon, size: 20, color: BrandColors.electric),
           const SizedBox(width: 8),
-          Text(text, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: BrandColors.navy)),
+          Text(text, style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: inkColor(context))),
         ]),
       );
 }
@@ -326,7 +326,7 @@ class _Stat extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+              Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: inkColor(context))),
               Text(label, style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
             ]),
           ),
@@ -372,7 +372,7 @@ class _Row extends StatelessWidget {
             subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5)),
             trailing: trailing.isEmpty
                 ? const Icon(Icons.chevron_left_rounded, color: BrandColors.gray)
-                : Text(trailing, style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy)),
+                : Text(trailing, style: TextStyle(fontWeight: FontWeight.w800, color: inkColor(context))),
           ),
         ),
       );
@@ -449,7 +449,7 @@ class _SalesDialog extends ConsumerWidget {
             final total = rows.fold<int>(0, (a, r) => a + ((r['total_minor'] as num).toInt() - (r['refunded_minor'] as num).toInt()));
             return ListView(shrinkWrap: true, padding: const EdgeInsets.all(14), children: [
               Text('${rows.length} ${_t(ctx, 'فاتورة', 'invoices')} · ${_t(ctx, 'الصافي', 'net')} ${_money(ctx, total)}',
-                  style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy)),
+                  style: TextStyle(fontWeight: FontWeight.w800, color: inkColor(context))),
               const SizedBox(height: 8),
               for (final r in rows) _SaleTile(r: r),
             ]);

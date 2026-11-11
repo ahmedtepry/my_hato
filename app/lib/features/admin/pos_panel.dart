@@ -1171,7 +1171,7 @@ class _ProductCard extends StatelessWidget {
                   ),
               ]),
             ),
-            Text(_money(context, p['price_minor'] as num), style: const TextStyle(color: BrandColors.navy, fontWeight: FontWeight.w800, fontSize: 14)),
+            Text(_money(context, p['price_minor'] as num), style: TextStyle(color: inkColor(context), fontWeight: FontWeight.w800, fontSize: 14)),
             Text(
               stock <= 0 ? _t(context, 'خلصان', 'Out of stock') : _t(context, 'متاح $stock', '$stock in stock'),
               style: TextStyle(fontSize: 10.5, color: stock <= 0 ? BrandColors.error : (low ? BrandColors.warning : BrandColors.gray)),
@@ -1210,7 +1210,7 @@ class _ChangeDialog extends StatelessWidget {
         icon: const Icon(Icons.payments_rounded, color: BrandColors.warning, size: 44),
         title: Text(_t(context, 'الباقي للعميل', 'Change due'), textAlign: TextAlign.center),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(_money(context, change), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+          Text(_money(context, change), style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: inkColor(context))),
           const SizedBox(height: 10),
           Text(_t(context, 'رجعت الباقي للعميل؟ ولا سابه بقشيش؟', 'Did you hand the change back, or did the customer leave it as a tip?'),
               textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),

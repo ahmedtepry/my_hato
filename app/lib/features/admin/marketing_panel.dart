@@ -193,7 +193,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
         Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_t(context, 'لوحة التسويق', 'Marketing'), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+              Text(_t(context, 'لوحة التسويق', 'Marketing'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: inkColor(context))),
               Text(_t(context, 'مين عملاؤنا، مين محتاج رسالة، وإيه اللي نفع. آخر 30 يوم.', 'Who our customers are, who needs a message, and what worked. Last 30 days.'), style: const TextStyle(color: BrandColors.gray)),
             ]),
           ),
@@ -264,7 +264,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
   }
 
   Widget _heading(BuildContext c, String t, String s) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(t, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: BrandColors.navy)),
+        Text(t, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: inkColor(context))),
         Text(s, style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
       ]);
 
@@ -296,7 +296,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
           child: _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(t.$1, style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
             const SizedBox(height: 4),
-            FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountUpText(t.$2, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: BrandColors.navy))),
+            FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountUpText(t.$2, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: inkColor(context)))),
             const SizedBox(height: 4),
             Text((t.$3 ?? ' ').isEmpty ? ' ' : (t.$3 ?? ' '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: t.$4 ? BrandColors.success : BrandColors.error)),
           ])),
@@ -331,7 +331,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
       Row(children: [
         const Icon(Icons.tips_and_updates_outlined, color: BrandColors.electric),
         const SizedBox(width: 8),
-        Text(_t(c, 'توصيات من الأرقام', 'Recommendations from the numbers'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: BrandColors.navy)),
+        Text(_t(c, 'توصيات من الأرقام', 'Recommendations from the numbers'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: inkColor(context))),
       ]),
       const SizedBox(height: 8),
       for (final t in tips)
@@ -354,7 +354,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
       Row(children: [
         Icon(seg.icon, color: seg.color),
         const SizedBox(width: 8),
-        Expanded(child: Text(canSend ? _t(c, 'حملة جديدة لشريحة «${seg.ar}»', 'New campaign to "${seg.en}"') : _t(c, 'اقتراح حملة لشريحة «${seg.ar}» (بعد موافقة المالك)', 'Propose a campaign to "${seg.en}" (after owner approval)'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: BrandColors.navy))),
+        Expanded(child: Text(canSend ? _t(c, 'حملة جديدة لشريحة «${seg.ar}»', 'New campaign to "${seg.en}"') : _t(c, 'اقتراح حملة لشريحة «${seg.ar}» (بعد موافقة المالك)', 'Propose a campaign to "${seg.en}" (after owner approval)'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: inkColor(context)))),
         TextButton.icon(onPressed: () => setState(() => _template(seg)), icon: const Icon(Icons.auto_fix_high_rounded, size: 18), label: Text(_t(c, 'اقتراح نص', 'Suggest text'))),
       ]),
       const SizedBox(height: 10),
@@ -432,7 +432,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
                   Expanded(
                     flex: 4,
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('${r['name']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy)),
+                      Text('${r['name']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, color: inkColor(context))),
                       Text('${_segs.firstWhere((s) => s.key == r['segment'], orElse: () => _segs.first).label(c)} · ${DateFormat('d/M HH:mm').format(DateTime.parse('${r['created_at']}').toLocal())}', style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
                     ]),
                   ),
@@ -459,7 +459,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
             Expanded(
               flex: 3,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${rows[i]['code']}', textDirection: TextDirection.ltr, textAlign: TextAlign.start, style: const TextStyle(fontWeight: FontWeight.w900, color: BrandColors.navy)),
+                Text('${rows[i]['code']}', textDirection: TextDirection.ltr, textAlign: TextAlign.start, style: TextStyle(fontWeight: FontWeight.w900, color: inkColor(context))),
                 Text('${rows[i]['title'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
               ]),
             ),
@@ -504,10 +504,10 @@ class _SegCard extends StatelessWidget {
             Row(children: [
               Container(width: 34, height: 34, decoration: BoxDecoration(color: seg.color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)), child: Icon(seg.icon, size: 19, color: seg.color)),
               const SizedBox(width: 10),
-              Expanded(child: Text(seg.label(context), style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy))),
+              Expanded(child: Text(seg.label(context), style: TextStyle(fontWeight: FontWeight.w800, color: inkColor(context)))),
             ]),
             const SizedBox(height: 10),
-            CountUpText('$count', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: BrandColors.navy)),
+            CountUpText('$count', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: inkColor(context))),
             Text(_t(context, seg.hintAr, seg.hintEn), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
             const SizedBox(height: 4),
             Text(_t(context, 'يوصل لـ $reachable', 'Reaches $reachable'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: reachable == 0 ? BrandColors.error : BrandColors.success)),
@@ -529,7 +529,7 @@ class _Sample extends ConsumerWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: panelLine(context))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_t(context, 'عينة من الشريحة (الأكتر إنفاقًا الأول)', 'Sample of this segment (top spenders first)'), style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy)),
+          Text(_t(context, 'عينة من الشريحة (الأكتر إنفاقًا الأول)', 'Sample of this segment (top spenders first)'), style: TextStyle(fontWeight: FontWeight.w800, color: inkColor(context))),
           const SizedBox(height: 6),
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final r in rows)
@@ -632,9 +632,9 @@ class _RequestsSection extends ConsumerWidget {
         decoration: BoxDecoration(color: isPending ? const Color(0xFFFFFAF0) : const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(14), border: Border.all(color: isPending ? const Color(0xFFFFD99A) : BrandColors.border)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(_kindIcon('${r['kind']}'), size: 20, color: BrandColors.navy),
+            Icon(_kindIcon('${r['kind']}'), size: 20, color: inkColor(context)),
             const SizedBox(width: 8),
-            Expanded(child: Text('${_t(context, _kindAr('${r['kind']}'), _kindEn('${r['kind']}'))} · ${r['title']}', style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy))),
+            Expanded(child: Text('${_t(context, _kindAr('${r['kind']}'), _kindEn('${r['kind']}'))} · ${r['title']}', style: TextStyle(fontWeight: FontWeight.w800, color: inkColor(context)))),
             StatusChip(label: lab('${r['status']}'), color: col('${r['status']}')),
           ]),
           Text('${r['requester']} · ${DateFormat('d/M HH:mm').format(DateTime.parse('${r['requested_at']}').toLocal())}', style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
@@ -675,7 +675,7 @@ class _RequestsSection extends ConsumerWidget {
         Row(children: [
           Icon(canApprove ? Icons.fact_check_outlined : Icons.pending_actions_rounded, color: BrandColors.electric),
           const SizedBox(width: 8),
-          Text(canApprove ? _t(context, 'طلبات التسويق (محتاجة موافقتك)', 'Marketing requests (need your approval)') : _t(context, 'طلباتي للمالك', 'My requests to the owner'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: BrandColors.navy)),
+          Text(canApprove ? _t(context, 'طلبات التسويق (محتاجة موافقتك)', 'Marketing requests (need your approval)') : _t(context, 'طلباتي للمالك', 'My requests to the owner'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: inkColor(context))),
           const SizedBox(width: 8),
           if (pending.isNotEmpty) StatusChip(label: '${pending.length}', color: BrandColors.warning),
         ]),

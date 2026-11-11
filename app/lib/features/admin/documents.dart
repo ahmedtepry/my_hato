@@ -262,7 +262,7 @@ class _DocumentButtonsState extends State<DocumentButtons> {
       child: Row(children: [
         Expanded(
           child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42), foregroundColor: BrandColors.navy),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42), foregroundColor: inkColor(context)),
             icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.picture_as_pdf_rounded, size: 18),
             label: Text(ar ? 'مشاركة PDF' : 'Share PDF'),
             onPressed: _busy ? null : () => _run(false),
@@ -271,7 +271,7 @@ class _DocumentButtonsState extends State<DocumentButtons> {
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42), foregroundColor: BrandColors.navy),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42), foregroundColor: inkColor(context)),
             icon: const Icon(Icons.print_rounded, size: 18),
             label: Text(ar ? 'طباعة' : 'Print'),
             onPressed: _busy ? null : () => _run(true),

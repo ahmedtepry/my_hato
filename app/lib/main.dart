@@ -196,7 +196,8 @@ class MyHatoApp extends ConsumerWidget {
         }
         if (!AppConfig.teamOnly) app = Stack(children: [Positioned.fill(child: app), const Positioned.fill(child: AppUpdateBanner())]);
         if (fast) app = MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: app);
-        return applyDarkMode(dark, app);
+        // the team app has its own dark look (glass); inverting colours on top of it broke every page, so it is customer-app only
+        return applyDarkMode(dark && !AppConfig.teamOnly, app);
       },
     );
   }

@@ -344,7 +344,7 @@ class _TransfersTabState extends ConsumerState<_TransfersTab> {
                   const Divider(height: 28),
                 ],
                 for (final g in groups) ...[
-                  if (g.$1.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(2, 10, 2, 6), child: Text('${g.$1} (${g.$2.length})', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: BrandColors.navy))),
+                  if (g.$1.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(2, 10, 2, 6), child: Text('${g.$1} (${g.$2.length})', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: inkColor(context)))),
                   for (final t in g.$2) _TransferCard(t: t),
                 ],
               ]),

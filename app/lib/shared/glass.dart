@@ -66,6 +66,24 @@ final glassPaletteProvider = Provider<GlassPalette>((ref) {
   return glassPalettes.firstWhere((p) => p.id == id, orElse: () => glassPalettes.first);
 });
 
+/// The console's dark / light switch: dark = a glass look (the last one used, midnight by default), light = classic.
+void toggleConsoleDark(WidgetRef ref) {
+  final cur = ref.read(consoleLookProvider);
+  final p = ref.read(sharedPrefsProvider);
+  if (cur != 'classic') {
+    try {
+      p.setString('console_look_dark', cur);
+    } catch (_) {}
+    setDeviceLook(ref, 'classic');
+  } else {
+    String back = 'midnight';
+    try {
+      back = _normLook(p.getString('console_look_dark')).isEmpty ? 'midnight' : _normLook(p.getString('console_look_dark'));
+    } catch (_) {}
+    setDeviceLook(ref, back == 'classic' ? 'midnight' : back);
+  }
+}
+
 void setDeviceLook(WidgetRef ref, String look) {
   ref.read(consoleDeviceLookProvider.notifier).state = look;
   try {

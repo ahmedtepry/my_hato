@@ -148,7 +148,7 @@ class _PurchasesPanelState extends ConsumerState<PurchasesPanel> {
             ),
             for (final g in groups) ...[
               if (g.$1.isNotEmpty)
-                Padding(padding: const EdgeInsets.fromLTRB(2, 10, 2, 6), child: Text('${g.$1} (${g.$2.length})', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: BrandColors.navy))),
+                Padding(padding: const EdgeInsets.fromLTRB(2, 10, 2, 6), child: Text('${g.$1} (${g.$2.length})', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: inkColor(context)))),
               for (final r in g.$2) _PoTile(row: r, onChanged: () {
                 ref.invalidate(_posProvider);
                 ref.invalidate(_suppliersProvider);

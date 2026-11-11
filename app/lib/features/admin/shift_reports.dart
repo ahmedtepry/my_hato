@@ -45,7 +45,7 @@ class ShiftReportsList extends ConsumerWidget {
                       final corr = (r['corrections_minor'] as num).toInt();
                       return Card(
                         child: ListTile(
-                          leading: const Icon(Icons.description_outlined, color: BrandColors.navy),
+                          leading: Icon(Icons.description_outlined, color: inkColor(context)),
                           title: Text('${r['report_no']} · ${r['branch_name_ar']}', style: const TextStyle(fontWeight: FontWeight.w700)),
                           subtitle: Text(
                             '${_t(context, 'الكاشير', 'Cashier')}: ${r['cashier_name']} · ${_t(context, 'قفلها', 'Closed by')}: ${r['closed_by_name']}\n'
@@ -140,7 +140,7 @@ class _ShiftReportDialogState extends ConsumerState<ShiftReportDialog> {
                   ]),
                 );
             return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Center(child: Text('${r['report_no']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: BrandColors.navy))),
+              Center(child: Text('${r['report_no']}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: inkColor(context)))),
               const SizedBox(height: 6),
               row(_t(context, 'الفرع', 'Branch'), '${r['branch_name_ar']}'),
               row(_t(context, 'الكاشير', 'Cashier'), '${r['cashier_name']}'),
