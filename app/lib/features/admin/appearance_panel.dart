@@ -200,7 +200,7 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: BrandColors.border)),
+            decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(14), border: Border.all(color: panelLine(context))),
             child: Row(children: [
               Icon(Icons.headphones_rounded, size: 34, color: p['primary']),
               const SizedBox(width: 10),

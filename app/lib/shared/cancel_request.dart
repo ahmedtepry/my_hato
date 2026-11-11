@@ -166,8 +166,8 @@ class _CancelReasonSheetState extends State<CancelReasonSheet> {
               style: const TextStyle(color: BrandColors.gray, height: 1.5)),
           const SizedBox(height: 14),
           Material(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+            color: panelColor(context),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: panelLine(context))),
             clipBehavior: Clip.antiAlias,
             child: Column(children: [
               for (var i = 0; i < options.length; i++) ...[

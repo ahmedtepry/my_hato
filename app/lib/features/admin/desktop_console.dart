@@ -580,7 +580,7 @@ class _Panel extends ConsumerWidget {
     return Container(
       constraints: BoxConstraints(minHeight: minHeight),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
+      decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(18), border: Border.all(color: panelLine(context))),
       child: body,
     );
   }
@@ -608,7 +608,7 @@ class _Kpi extends ConsumerWidget {
           : Container(
               height: 128,
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
+              decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(18), border: Border.all(color: panelLine(context))),
               child: col,
             ),
     );

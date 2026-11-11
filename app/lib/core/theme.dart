@@ -155,3 +155,10 @@ class _NoTransitionsBuilder extends PageTransitionsBuilder {
   @override
   Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) => child;
 }
+
+/// A card / panel surface: white on the light pages, translucent glass on the dark (glass) pages, so no white sheet shows there.
+Color panelColor(BuildContext context, [Color light = Colors.white]) =>
+    Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.07) : light;
+
+/// The thin border that goes with [panelColor].
+Color panelLine(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? Colors.white12 : BrandColors.border;

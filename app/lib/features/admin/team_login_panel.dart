@@ -48,7 +48,7 @@ class _TeamLoginPanelState extends ConsumerState<TeamLoginPanel> {
   Widget _mini(String id) {
     final robot = Container(width: 26, height: 26, decoration: const BoxDecoration(color: Color(0xFFEAF3FF), shape: BoxShape.circle));
     final form = Container(width: 70, padding: const EdgeInsets.all(6), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      for (var i = 0; i < 2; i++) Container(height: 12, margin: const EdgeInsets.only(bottom: 5), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFFC9D4E8)))),
+      for (var i = 0; i < 2; i++) Container(height: 12, margin: const EdgeInsets.only(bottom: 5), decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFFC9D4E8)))),
       Container(height: 12, decoration: BoxDecoration(color: const Color(0xFF1F5FD6), borderRadius: BorderRadius.circular(4))),
     ]));
     return Container(

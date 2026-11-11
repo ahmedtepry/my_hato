@@ -171,8 +171,8 @@ class DirectChatPanel extends ConsumerWidget {
     }
     return Material(
       elevation: 10,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: BrandColors.border)),
+      color: panelColor(context),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: panelLine(context))),
       clipBehavior: Clip.antiAlias,
       child: body,
     );

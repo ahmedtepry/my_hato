@@ -222,7 +222,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
       duration: const Duration(milliseconds: 300),
       opacity: _done != null ? 0.55 : 1,
       child: Material(
-        color: Colors.white,
+        color: panelColor(context),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
         child: Padding(
@@ -567,7 +567,7 @@ class _CustomerTile extends ConsumerWidget {
     final orders = (c['orders_count'] as num?)?.toInt() ?? 0;
     final spent = (c['delivered_total_minor'] as num?)?.toInt() ?? 0;
     return Material(
-      color: Colors.white,
+      color: panelColor(context),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
       child: Theme(
@@ -671,7 +671,7 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: BrandColors.offWhite, borderRadius: BorderRadius.circular(12), border: Border.all(color: BrandColors.border)),
+            decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(12), border: Border.all(color: panelLine(context))),
             child: SelectableText(_done!, textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1)),
           ),
         ]),

@@ -194,6 +194,11 @@ class GlassPage extends StatelessWidget {
       textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: Colors.white)),
       chipTheme: b.chipTheme.copyWith(backgroundColor: Colors.white.withValues(alpha: .08), selectedColor: BrandColors.electric.withValues(alpha: .55), labelStyle: const TextStyle(color: Colors.white), side: BorderSide.none, checkmarkColor: Colors.white),
       popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF14233D)),
+      appBarTheme: const AppBarTheme(backgroundColor: Colors.transparent, foregroundColor: Colors.white, surfaceTintColor: Colors.transparent, elevation: 0, scrolledUnderElevation: 0,
+          titleTextStyle: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800), iconTheme: IconThemeData(color: Colors.white), actionsIconTheme: IconThemeData(color: Colors.white)),
+      tabBarTheme: TabBarThemeData(labelColor: Colors.white, unselectedLabelColor: Colors.white60, indicatorColor: BrandColors.electric, dividerColor: Colors.white12),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: BrandColors.electric, foregroundColor: Colors.white),
+      switchTheme: b.switchTheme,
       dataTableTheme: const DataTableThemeData(headingTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w800), dataTextStyle: TextStyle(color: Colors.white)),
     );
   }

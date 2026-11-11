@@ -128,7 +128,7 @@ class _CouponTile extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
+        color: panelColor(context),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
         child: InkWell(
@@ -576,7 +576,7 @@ class _OfferComposerState extends ConsumerState<_OfferComposer> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: BrandColors.offWhite,
+            color: panelColor(context),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: BrandColors.border),
           ),

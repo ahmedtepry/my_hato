@@ -320,7 +320,7 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: 250,
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
+        decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: panelLine(context))),
         child: Row(children: [
           CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: Icon(icon, color: color)),
           const SizedBox(width: 12),
@@ -343,8 +343,8 @@ class _Card extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
         width: width,
         child: Material(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+          color: panelColor(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: panelLine(context))),
           clipBehavior: Clip.antiAlias,
           child: InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.all(14), child: child)),
         ),
@@ -362,8 +362,8 @@ class _Row extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Material(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: BrandColors.border)),
+          color: panelColor(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: panelLine(context))),
           clipBehavior: Clip.antiAlias,
           child: ListTile(
             onTap: onTap,

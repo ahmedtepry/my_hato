@@ -540,13 +540,13 @@ class ReceiptPaper extends ConsumerWidget {
     } else if (style == 'cards') {
       Widget chip(String v, {bool isLtr = false}) => Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: BrandColors.border)),
+            decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(20), border: Border.all(color: panelLine(context))),
             child: isLtr ? ltr(v, t(11.5)) : Text(v, style: t(11.5)),
           );
       Widget card(List<Widget> c) => Container(
             margin: const EdgeInsets.symmetric(vertical: 5),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: BrandColors.border)),
+            decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(12), border: Border.all(color: panelLine(context))),
             child: Column(children: c),
           );
       body = [

@@ -253,7 +253,7 @@ class _OdooSearchBarState extends State<OdooSearchBar> {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: _node.hasFocus ? BrandColors.electric : BrandColors.border)),
+      decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(14), border: Border.all(color: _node.hasFocus ? BrandColors.electric : BrandColors.border)),
       child: Row(children: [
         const Icon(Icons.search_rounded, color: BrandColors.gray, size: 20),
         const SizedBox(width: 6),

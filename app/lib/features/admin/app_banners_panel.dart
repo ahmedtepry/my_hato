@@ -333,7 +333,7 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
         // live preview
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: BrandColors.offWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
+          decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: panelLine(context))),
           child: Column(children: [
             Text(_t(context, 'معاينة (زي ما هتظهر للعميل)', 'Preview (as customers see it)'), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
             const SizedBox(height: 8),

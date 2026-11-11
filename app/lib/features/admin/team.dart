@@ -440,7 +440,7 @@ class _MemberCard extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
+        color: panelColor(context),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
@@ -483,7 +483,7 @@ class _MemberCard extends ConsumerWidget {
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(color: BrandColors.offWhite, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(12)),
                 child: Row(children: [
                   Expanded(
                     child: _MiniStat(
@@ -757,7 +757,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(color: BrandColors.offWhite, borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(16)),
           child: Column(children: [
             if (login != null) fact(Icons.alternate_email_rounded, _t(context, 'اسم الدخول', 'Login name'), login),
             if (phone != null) fact(Icons.phone_iphone_rounded, _t(context, 'الموبايل', 'Mobile'), phone),
@@ -1012,7 +1012,7 @@ Future<void> _addMember(BuildContext context, WidgetRef ref) async {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: BrandColors.offWhite, borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(14)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_t(context, 'اسم الدخول', 'Login name'), style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
             SelectableText(creds.login, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),

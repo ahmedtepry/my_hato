@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'theme.dart';
 import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -148,7 +149,7 @@ class TeamThemeButton extends ConsumerWidget {
       return RailTile(tooltip: context.isAr ? 'ألوان البرنامج' : 'App colours', onTap: open, icon: const Icon(Icons.palette_outlined, size: 32, color: BrandColors.electric), label: context.isAr ? 'الألوان' : 'Colours');
     }
     return Material(
-      color: Colors.white,
+      color: panelColor(context),
       elevation: 2,
       shape: const CircleBorder(),
       child: IconButton(

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import 'glass.dart';
 
 /// One button of the console's left control column: a 22px icon over a short 10px label, the same size for every button.
 /// A small dot (e.g. "assistant is on") or a count bubble (e.g. unread messages) sits on its corner instead of extra text.
-class RailTile extends StatelessWidget {
+class RailTile extends ConsumerWidget {
   const RailTile({super.key, required this.icon, required this.label, required this.tooltip, required this.onTap, this.dot, this.count, this.bg = Colors.white, this.fg = BrandColors.navy, this.glow = false, this.glass = false});
   final Widget icon;
   final String label, tooltip;
@@ -17,7 +19,18 @@ class RailTile extends StatelessWidget {
   static const double width = 62, height = 54;
 
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context, WidgetRef ref) {
+    // On the glass look every plain tile turns into clear glass with a white icon and label (dark-on-dark could not be seen).
+    // Tiles given their own colour (e.g. the bright "update the app") keep it.
+    final plain = bg == Colors.white;
+    final g = glass || (plain && ref.watch(glassLookProvider));
+    final bg = g && (plain || glass) ? const Color(0x1AFFFFFF) : this.bg;
+    final fg = g && (plain || glass) ? Colors.white : this.fg;
+    final icon = g && (plain || glass) ? ColorFiltered(colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn), child: this.icon) : this.icon;
+    return _build(context, bg, fg, icon, g);
+  }
+
+  Widget _build(BuildContext context, Color bg, Color fg, Widget icon, bool glass) => Center(
         child: Tooltip(
           message: tooltip,
           child: SizedBox(

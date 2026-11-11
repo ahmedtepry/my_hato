@@ -78,7 +78,7 @@ class ReviewsSection extends ConsumerWidget {
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
+          decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(18), border: Border.all(color: panelLine(context))),
           child: Row(children: [
             Column(children: [
               Text(ratingCount == 0 ? '—' : ratingAvg.toStringAsFixed(1),

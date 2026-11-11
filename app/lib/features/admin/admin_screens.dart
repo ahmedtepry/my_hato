@@ -594,9 +594,9 @@ class _HostTabs extends StatelessWidget {
       length: tabs.length,
       child: Column(children: [
         Material(
-          color: Colors.white,
+          color: panelColor(context),
           child: Padding(
-            padding: const EdgeInsets.only(top: 44),
+            padding: EdgeInsets.only(top: Theme.of(context).brightness == Brightness.dark ? 4 : 44),
             child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
               for (final t in tabs) Tab(icon: Icon(t.$3, size: 20), text: _t(context, t.$1, t.$2)),
             ]),
@@ -2490,8 +2490,8 @@ class _StatusUpdateState extends State<_StatusUpdate> {
       Text(_t(context, 'الحالة', 'Status'), style: const TextStyle(fontWeight: FontWeight.w800)),
       const SizedBox(height: 8),
       Material(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+            color: panelColor(context),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: panelLine(context))),
             clipBehavior: Clip.antiAlias,
             child: Column(children: [
           ListTile(
@@ -2568,8 +2568,8 @@ class _StatusUpdateState extends State<_StatusUpdate> {
         Text(_t(context, 'رسالة للعميل (اختياري)', 'Message to the customer (optional)'), style: const TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
         Material(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+            color: panelColor(context),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: panelLine(context))),
             clipBehavior: Clip.antiAlias,
             child: Column(children: [
             for (var i = 0; i < widget.presets.length; i++) ...[
@@ -3165,8 +3165,8 @@ class _CloseReasonSheetState extends State<_CloseReasonSheet> {
           ),
           const SizedBox(height: 14),
           Material(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
+            color: panelColor(context),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: panelLine(context))),
             clipBehavior: Clip.antiAlias,
             child: Column(children: [
               for (var i = 0; i < reasons.length; i++) ...[
@@ -3423,7 +3423,7 @@ class _StatTileState extends State<_StatTile> {
         scale: _down ? 0.96 : 1,
         duration: const Duration(milliseconds: 120),
         child: Material(
-          color: Colors.white,
+          color: panelColor(context),
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),

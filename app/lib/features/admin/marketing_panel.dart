@@ -270,7 +270,7 @@ class _MarketingPanelState extends ConsumerState<MarketingPanel> {
 
   Widget _card(Widget child, {EdgeInsets padding = const EdgeInsets.all(18)}) => Container(
         padding: padding,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: BrandColors.border)),
+        decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(18), border: Border.all(color: panelLine(context))),
         child: child,
       );
 
@@ -527,7 +527,7 @@ class _Sample extends ConsumerWidget {
       padding: const EdgeInsets.only(top: 12),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: BrandColors.border)),
+        decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: panelLine(context))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_t(context, 'عينة من الشريحة (الأكتر إنفاقًا الأول)', 'Sample of this segment (top spenders first)'), style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.navy)),
           const SizedBox(height: 6),
@@ -670,7 +670,7 @@ class _RequestsSection extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: pending.isNotEmpty && canApprove ? const Color(0xFFFFB84D) : BrandColors.border, width: pending.isNotEmpty && canApprove ? 1.6 : 1)),
+      decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(18), border: Border.all(color: pending.isNotEmpty && canApprove ? const Color(0xFFFFB84D) : BrandColors.border, width: pending.isNotEmpty && canApprove ? 1.6 : 1)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(canApprove ? Icons.fact_check_outlined : Icons.pending_actions_rounded, color: BrandColors.electric),

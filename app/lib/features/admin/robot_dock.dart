@@ -728,8 +728,8 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
     final acct = perms != null && (perms.contains('sales.view') || perms.contains('shifts.review') || perms.contains('assistant.accountant'));
     return Material(
       elevation: 10,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: BrandColors.border)),
+      color: panelColor(context),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: panelLine(context))),
       clipBehavior: Clip.antiAlias,
       child: Column(children: [
         Container(
