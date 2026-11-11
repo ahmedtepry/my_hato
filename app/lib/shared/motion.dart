@@ -4,6 +4,8 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import '../core/reduce_motion.dart';
+
 /// Entrance motion: fades in and rises a few pixels, once. Uses FadeTransition / SlideTransition
 /// (handled by the compositor, no rebuilds per frame). Items with an [id] animate only the first
 /// time they appear in this app session — scrolling back never replays them.
@@ -25,7 +27,7 @@ class FadeSlideIn extends StatefulWidget {
 }
 
 class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStateMixin {
-  late final bool _skip = widget.id != null && FadeSlideIn._seen.contains(widget.id);
+  late final bool _skip = ReduceMotion.on || (widget.id != null && FadeSlideIn._seen.contains(widget.id));
   late final _c = AnimationController(vsync: this, duration: widget.duration, value: _skip ? 1 : 0);
   late final _fade = CurvedAnimation(parent: _c, curve: Curves.easeOut);
   late final _slide = Tween(begin: Offset(0, widget.offset / 200), end: Offset.zero).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
@@ -139,7 +141,9 @@ class SoftPageSwitch extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => AnimatedSwitcher(
+  Widget build(BuildContext context) => ReduceMotion.on
+      ? KeyedSubtree(key: ValueKey(index), child: children[index])
+      : AnimatedSwitcher(
         duration: const Duration(milliseconds: 280),
         reverseDuration: const Duration(milliseconds: 110),
         switchInCurve: Curves.easeOutCubic,
@@ -165,7 +169,7 @@ class CountUpText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = _num.firstMatch(text);
-    if (m == null) return Text(text, style: style);
+    if (m == null || ReduceMotion.on) return Text(text, style: style);
     final raw = m.group(0)!;
     final target = double.tryParse(raw.replaceAll(',', ''));
     if (target == null) return Text(text, style: style);
@@ -198,6 +202,10 @@ Future<T?> showSmoothDialog<T>({
   Color? barrierColor,
   bool useRootNavigator = true,
 }) {
+  if (ReduceMotion.on) {
+    // fast mode: a plain dialog, no blur and no zoom
+    return showDialog<T>(context: context, barrierDismissible: barrierDismissible, barrierColor: barrierColor, useRootNavigator: useRootNavigator, builder: builder);
+  }
   final theme = Theme.of(context);
   return showGeneralDialog<T>(
     context: context,

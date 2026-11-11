@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/errors.dart';
 import '../core/l10n.dart';
+import '../core/reduce_motion.dart';
 import '../core/theme.dart';
 
 class Skeleton extends StatefulWidget {
@@ -18,7 +19,13 @@ class Skeleton extends StatefulWidget {
 }
 
 class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100), value: 1);
+  @override
+  void initState() {
+    super.initState();
+    if (!ReduceMotion.on) _c.repeat(reverse: true); // fast mode: a still placeholder
+  }
+
   @override
   void dispose() {
     _c.dispose();

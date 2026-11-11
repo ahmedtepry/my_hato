@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import '../core/reduce_motion.dart';
 import 'brand_logo.dart';
 import 'launch_art.dart';
 import 'welcome_robot.dart';
@@ -16,6 +17,12 @@ class LaunchAnimation extends StatefulWidget {
 
 class _LaunchAnimationState extends State<LaunchAnimation> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300))..forward();
+
+  @override
+  void initState() {
+    super.initState();
+    if (ReduceMotion.on) _c.value = 1; // fast mode: show the finished logo at once
+  }
 
   @override
   void dispose() {

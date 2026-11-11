@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'reduce_motion.dart';
+
 /// The colours the owner can change from the console (primary, accent, background, success, danger).
 /// [LiveColor] reads these at paint time, so a change shows everywhere without touching the 400+ places that use [BrandColors].
 class AppPalette {
@@ -72,10 +74,13 @@ class AppTheme {
       useMaterial3: true,
       // Fixed slide transition on every platform. Android's default (predictive-back / fade-forward)
       // can leave a page frozen half-faded when a back swipe is cancelled.
-      pageTransitionsTheme: const PageTransitionsTheme(builders: {
-        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-      }),
+      pageTransitionsTheme: ReduceMotion.on
+          ? PageTransitionsTheme(builders: {for (final p in TargetPlatform.values) p: const _NoTransitionsBuilder()})
+          : const PageTransitionsTheme(builders: {
+              TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+              TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            }),
+      splashFactory: ReduceMotion.on ? NoSplash.splashFactory : null,
       colorScheme: ColorScheme.fromSeed(
         seedColor: BrandColors.navy,
         primary: BrandColors.navy,
@@ -143,4 +148,11 @@ class AppTheme {
       ),
     );
   }
+}
+
+/// Fast mode: a page appears at once, with no transition.
+class _NoTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoTransitionsBuilder();
+  @override
+  Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) => child;
 }

@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config.dart';
 import '../../core/dark_mode.dart';
+import '../../core/reduce_motion.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/money.dart';
@@ -922,6 +923,15 @@ class AdminHomeScreen extends ConsumerWidget {
                                       onTap: () => ref.read(darkModeProvider.notifier).toggle(),
                                       child: Icon(dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 32, color: BrandColors.electric),
                                       label: dark ? _t(ctx, 'فاتح', 'Light') : _t(ctx, 'داكن', 'Dark'),
+                                    );
+                                  }),
+                                  Builder(builder: (_) {
+                                    final fast = ref.watch(reduceMotionProvider);
+                                    return _RailTile(
+                                      tooltip: fast ? _t(ctx, 'تشغيل الأنيميشن', 'Turn animations on') : _t(ctx, 'الوضع السريع: قفل كل الأنيميشن (للأجهزة القديمة)', 'Fast mode: turn off all animations (old computers)'),
+                                      onTap: () => ref.read(reduceMotionProvider.notifier).toggle(),
+                                      child: Icon(fast ? Icons.animation_rounded : Icons.speed_rounded, size: 32, color: fast ? BrandColors.success : BrandColors.electric),
+                                      label: fast ? _t(ctx, 'سريع ✓', 'Fast ✓') : _t(ctx, 'سريع', 'Fast'),
                                     );
                                   }),
                                   ConsoleLookTile(

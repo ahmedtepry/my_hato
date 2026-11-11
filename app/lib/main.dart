@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/app_update.dart';
 import 'core/config.dart';
 import 'core/dark_mode.dart';
+import 'core/reduce_motion.dart';
 
 
 import 'core/l10n.dart';
@@ -170,6 +171,7 @@ class MyHatoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
     final dark = ref.watch(darkModeProvider);
+    final fast = ref.watch(reduceMotionProvider); // fast mode: no animations (old computers)
     ref.watch(appearanceProvider); // rebuilds the theme when the owner changes the colours
     if (AppConfig.teamOnly) ref.watch(teamThemeProvider); // the team app's own colour theme
     return MaterialApp.router(
@@ -193,6 +195,7 @@ class MyHatoApp extends ConsumerWidget {
           app = ColoredBox(color: BrandColors.offWhite, child: SizedBox.expand(child: app));
         }
         if (!AppConfig.teamOnly) app = Stack(children: [Positioned.fill(child: app), const Positioned.fill(child: AppUpdateBanner())]);
+        if (fast) app = MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: app);
         return applyDarkMode(dark, app);
       },
     );

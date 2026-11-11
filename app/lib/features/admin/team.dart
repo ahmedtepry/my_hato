@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
+import '../../core/reduce_motion.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
@@ -255,7 +256,7 @@ class _PresenceDotState extends State<_PresenceDot> with SingleTickerProviderSta
 
   void _sync() {
     if (widget.presence == 'online') {
-      if (!_c.isAnimating) _c.repeat();
+      if (!_c.isAnimating && !ReduceMotion.on) _c.repeat();
     } else {
       _c.stop();
     }
