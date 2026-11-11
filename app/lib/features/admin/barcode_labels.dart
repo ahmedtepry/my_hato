@@ -30,7 +30,7 @@ String _price(num minor) => '${(minor / 100).toStringAsFixed(minor % 100 == 0 ? 
 
 /// One label: product name, price and a Code 128 barcode of the SKU (the same code the scanner reads).
 pw.Widget _label(Map<String, dynamic> p, pw.Font reg, pw.Font bold, {required double w, required double h}) {
-  final sku = '${p['sku']}';
+  final sku = '${p['barcode'] ?? p['sku']}';
   return pw.Container(
     width: w,
     height: h,
@@ -140,7 +140,7 @@ class _LabelsDialogState extends State<_LabelsDialog> {
                   ListTile(
                     dense: true,
                     title: Text('${p['name_ar']}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text('${p['sku']}', textDirection: TextDirection.ltr),
+                    subtitle: Text('${p['barcode'] ?? p['sku']}', textDirection: TextDirection.ltr),
                     trailing: const Icon(Icons.add_circle_outline),
                     onTap: () => setState(() => _picked['${p['id']}'] = (p, (_picked['${p['id']}']?.$2 ?? 0) + 1)),
                   ),

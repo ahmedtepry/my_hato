@@ -319,10 +319,10 @@ class AdminRepository {
   // ---------------- products
   Future<List<Map<String, dynamic>>> products({String? search, bool lowStockOnly = false}) async {
     var q = _db.from('products').select(
-        'id, sku, name_ar, name_en, model, warranty_ar, warranty_en, brand_id, price_minor, compare_at_price_minor, stock_quantity, status, is_featured, category_id, brands(name_ar, name_en), product_images(storage_path, sort_order)');
+        'id, sku, barcode, name_ar, name_en, model, warranty_ar, warranty_en, brand_id, price_minor, compare_at_price_minor, stock_quantity, status, is_featured, category_id, brands(name_ar, name_en), product_images(storage_path, sort_order)');
     if (search != null && search.trim().isNotEmpty) {
       final s = search.trim().replaceAll(RegExp(r'[,()%*]'), ' ');
-      q = q.or('name_ar.ilike.*$s*,name_en.ilike.*$s*,sku.ilike.*$s*');
+      q = q.or('name_ar.ilike.*$s*,name_en.ilike.*$s*,sku.ilike.*$s*,barcode.ilike.*$s*');
     }
     if (lowStockOnly) q = q.lte('stock_quantity', 5).eq('status', 'published');
     return List<Map<String, dynamic>>.from(await q.neq('status', 'archived').order('created_at', ascending: false).limit(300));
@@ -331,8 +331,8 @@ class AdminRepository {
   /// Exact SKU / barcode lookup (archived products excluded).
   Future<Map<String, dynamic>?> productBySku(String sku) async => await _db
       .from('products')
-      .select('id, sku, name_ar, name_en, price_minor, compare_at_price_minor, stock_quantity, status, product_images(storage_path, sort_order)')
-      .eq('sku', sku.trim())
+      .select('id, sku, barcode, name_ar, name_en, price_minor, compare_at_price_minor, stock_quantity, status, product_images(storage_path, sort_order)')
+      .or('sku.eq.${sku.trim().replaceAll(RegExp(r'[,()]'), '')},barcode.eq.${sku.trim().replaceAll(RegExp(r'[,()]'), '')}')
       .neq('status', 'archived')
       .maybeSingle();
 

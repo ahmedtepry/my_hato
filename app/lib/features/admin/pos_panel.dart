@@ -435,7 +435,7 @@ class _RegisterState extends ConsumerState<_Register> {
     _debounce?.cancel();
     final r = await _loadProducts(q);
     if (r == null || !mounted) return;
-    final exact = r.where((p) => '${p['sku']}'.toLowerCase() == q.toLowerCase()).toList();
+    final exact = r.where((p) => '${p['sku']}'.toLowerCase() == q.toLowerCase() || '${p['barcode']}' == q).toList();
     final pick = exact.length == 1 ? exact.first : (r.length == 1 ? r.first : null);
     if (pick != null) {
       _add(pick);
@@ -1105,7 +1105,7 @@ class _ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final stock = (p['stock_quantity'] as num).toInt();
     final low = stock <= 3;
-    final sku = '${p['sku'] ?? ''}'.trim();
+    final sku = '${p['barcode'] ?? ''}'.trim();
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
@@ -1133,15 +1133,14 @@ class _ProductCard extends StatelessWidget {
             ]),
             const SizedBox(height: 5),
             Expanded(
-              child: Text.rich(
-                TextSpan(children: [
-                  TextSpan(text: _t(context, '${p['name_ar']}', '${p['name_en']}'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                  if (sku.isNotEmpty) TextSpan(text: ' ($sku)', style: const TextStyle(color: BrandColors.gray, fontSize: 10.5)),
-                ]),
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, height: 1.25),
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_t(context, '${p['name_ar']}', '${p['name_en']}'), maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, height: 1.25)),
+                if (sku.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(sku, textDirection: TextDirection.ltr, style: const TextStyle(color: Color(0xFFCFE3FF), fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                  ),
+              ]),
             ),
             Text(_money(context, p['price_minor'] as num), style: const TextStyle(color: BrandColors.navy, fontWeight: FontWeight.w800, fontSize: 14)),
             Text(
