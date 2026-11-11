@@ -111,6 +111,9 @@ class _CloseDialog extends ConsumerStatefulWidget {
 class _CloseDialogState extends ConsumerState<_CloseDialog> {
   final StageController ctl = StageController();
   final _countCtl = TextEditingController();
+  final _cardCtl = TextEditingController();
+  final _walletCtl = TextEditingController();
+  int? _countedCard, _countedWallet;
   final _pwCtl = TextEditingController();
   final _noteCtl = TextEditingController();
   _Phase _phase = _Phase.count;
@@ -152,6 +155,8 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
     _ticker?.cancel();
     ctl.dispose();
     _countCtl.dispose();
+    _cardCtl.dispose();
+    _walletCtl.dispose();
     _pwCtl.dispose();
     _noteCtl.dispose();
     super.dispose();
@@ -163,6 +168,8 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
     if (m == null) return;
     setState(() {
       _counted = m;
+      _countedCard = parseEgpToMinor(_cardCtl.text);
+      _countedWallet = parseEgpToMinor(_walletCtl.text);
       _phase = _Phase.auth;
     });
     ctl.say(_bioOn ? _t(context, 'المس البصمة عشان أتأكد إنه إنت.', 'Touch the fingerprint so I know it is you.') : _t(context, 'اكتب الباسورد بتاعك عشان أتأكد إنه إنت.', 'Type your password so I know it is you.'));
@@ -240,6 +247,11 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
     final voided = (rev['voided'] as List?)?.length ?? 0;
     final c = context;
     final cashWarn = diff != 0;
+    final cardExp = ((sum['card_sales_minor'] as num?) ?? 0).toInt() - ((sum['card_refunds_minor'] as num?) ?? 0).toInt();
+    final walletExp = ((sum['wallet_sales_minor'] as num?) ?? 0).toInt() - ((sum['wallet_refunds_minor'] as num?) ?? 0).toInt();
+    final cardDiff = _countedCard == null ? 0 : _countedCard! - cardExp;
+    final walletDiff = _countedWallet == null ? 0 : _countedWallet! - walletExp;
+    String diffText(int d) => d == 0 ? _t(context, 'مطابق للجنيه', 'exact') : (d < 0 ? _t(context, 'عجز ${_money(context, -d)}', 'short ${_money(context, -d)}') : _t(context, 'زيادة ${_money(context, d)}', 'over ${_money(context, d)}'));
     final refWarn = flagged > 0 || refunds >= 3;
     final steps = <_Step>[
       _Step(3, _t(c, 'بتأكد من هويتك…', 'Checking who you are…'), _t(c, 'الهوية', 'Identity'), 'verify identity --user ${_name.isEmpty ? 'cashier' : _name}', _t(c, 'تمام', 'ok')),
@@ -247,6 +259,10 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
       _Step(6, _t(c, 'بطابق الإيراد مع الدرج…', 'Matching revenue with the drawer…'), _t(c, 'الإيراد مقابل الدرج', 'Revenue vs drawer'), 'match cash.expected cash.counted',
           cashWarn ? (diff < 0 ? _t(c, 'عجز ${_money(c, -diff)}', 'short ${_money(c, -diff)}') : _t(c, 'زيادة ${_money(c, diff)}', 'over ${_money(c, diff)}')) : _t(c, 'مطابق للجنيه', 'exact'),
           warn: cashWarn),
+      if (_countedCard != null)
+        _Step(4, _t(c, 'بطابق الفيزا مع الماكينة…', 'Matching card payments with the machine…'), _t(c, 'الفيزا', 'Card'), 'check card.expected card.counted', diffText(cardDiff), warn: cardDiff != 0),
+      if (_countedWallet != null)
+        _Step(4, _t(c, 'بطابق المحافظ الإلكترونية…', 'Matching e-wallet payments…'), _t(c, 'المحافظ', 'E-wallets'), 'check wallet.expected wallet.counted', diffText(walletDiff), warn: walletDiff != 0),
       _Step(6, _t(c, 'بشوف المرتجعات والخصومات…', 'Looking at refunds and discounts…'), _t(c, 'المرتجعات والخصومات', 'Refunds and discounts'), 'review refunds discounts',
           refWarn ? _t(c, '$refunds مرتجعات، $flagged خصم عالي', '$refunds refunds, $flagged high discounts') : _t(c, 'في الحدود المعتادة', 'within the usual range'), warn: refWarn),
       _Step(5, _t(c, 'ببص على الفواتير الملغية…', 'Checking cancelled invoices…'), _t(c, 'الفواتير الملغية', 'Cancelled invoices'), 'check voided invoices',
@@ -303,7 +319,7 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
   Future<void> _close(String? note) async {
     setState(() => _busy = true);
     try {
-      final r = await _repo.closeShift(widget.shiftId, _counted, (note == null || note.trim().isEmpty) ? null : note.trim(), _password);
+      final r = await _repo.closeShift(widget.shiftId, _counted, (note == null || note.trim().isEmpty) ? null : note.trim(), _password, countedCard: _countedCard, countedWallet: _countedWallet);
       if (!mounted) return;
       if (r['ok'] != true) {
         _password = '';
@@ -383,7 +399,27 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
             decoration: InputDecoration(labelText: _t(context, 'اللي عدّيته فعلياً في الدرج (ج.م)', 'Cash you actually counted (EGP)'), border: const OutlineInputBorder()),
           ),
           const SizedBox(height: 14),
-          FilledButton(onPressed: parseEgpToMinor(_countCtl.text) == null ? null : _toAuth, child: Text(_t(context, 'التالي', 'Next'))),
+          const SizedBox(height: 14),
+          Text(_t(context, 'الفيزا والمحافظ (اختياري)', 'Card and e-wallets (optional)'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _cardCtl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(labelText: _t(context, 'إجمالي ماكينة الفيزا (ج.م)', 'Card machine total (EGP)'), border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.credit_card, size: 18)),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _walletCtl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _toAuth(),
+            decoration: InputDecoration(labelText: _t(context, 'إجمالي المحافظ الإلكترونية (ج.م)', 'E-wallets total (EGP)'), border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.account_balance_wallet_outlined, size: 18)),
+          ),
+          const SizedBox(height: 14),
+          FilledButton(
+              onPressed: parseEgpToMinor(_countCtl.text) == null || (_cardCtl.text.trim().isNotEmpty && parseEgpToMinor(_cardCtl.text) == null) || (_walletCtl.text.trim().isNotEmpty && parseEgpToMinor(_walletCtl.text) == null) ? null : _toAuth,
+              child: Text(_t(context, 'التالي', 'Next'))),
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t(context, 'رجوع', 'Back'))),
         ]);
       case _Phase.auth:

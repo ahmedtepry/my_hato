@@ -38,13 +38,15 @@ class PosRepository {
 
   /// Closes the shift. The database asks for the closer's own password again and answers `{ok:false, error:'WRONG_PASSWORD'}` when it is wrong.
   /// On success `report` is the final, numbered closing report (it can never be changed afterwards).
-  Future<Map<String, dynamic>> closeShift(String shiftId, int countedMinor, String? note, String password) async =>
+  Future<Map<String, dynamic>> closeShift(String shiftId, int countedMinor, String? note, String password, {int? countedCard, int? countedWallet}) async =>
       _m(await _db.rpc('pos_close_shift', params: {
         'p_shift': shiftId,
         'p_counted_minor': countedMinor,
         'p_password': password,
         'p_note': note,
         'p_device': deviceLabel(),
+        'p_counted_card': countedCard,
+        'p_counted_wallet': countedWallet,
       }));
 
   Future<List<Map<String, dynamic>>> shiftReports(int days) async => _l(await _db.rpc('pos_shift_report_list', params: {

@@ -1042,8 +1042,6 @@ class _RegisterState extends ConsumerState<_Register> {
             onSubmitted: (_) => _complete(),
             decoration: InputDecoration(isDense: true, labelText: _t(context, 'المبلغ المستلم (ج.م)', 'Cash received (EGP)')),
           ),
-          if (_card)
-            Text(_pm == 'card' ? _t(context, 'الدفع بماكينة الفيزا: مفيش باقي وماتدخلش الدرج', 'Paid on the card machine: no change, not added to the drawer') : _t(context, 'الدفع بمحفظة إلكترونية: مفيش باقي وماتدخلش الدرج', 'Paid by e-wallet: no change, not added to the drawer'), style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
           if (!_card && quick.isNotEmpty && !_unknown)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -1559,14 +1557,6 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
                 selected: {_method},
                 onSelectionChanged: (v) => setState(() => _method = v.first),
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                    _method == 'cash'
-                        ? _t(context, 'الكاش هيتخصم من درج الوردية.', 'The cash is taken out of the shift drawer.')
-                        : _t(context, 'مش هيتخصم من الدرج (بيرجع على ${_method == 'card' ? 'الفيزا' : 'المحفظة'}).', 'The drawer is not affected.'),
-                    style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
-              ),
               SwitchListTile(contentPadding: EdgeInsets.zero, value: _restock, onChanged: (v) => setState(() => _restock = v), title: Text(_t(context, 'رجّع القطعة للمخزون', 'Put the item back in stock'))),
               Text('${_t(context, 'هتدفع للعميل', 'Pay the customer')}: ${_money(context, _total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
             ],
@@ -1591,6 +1581,8 @@ class _CloseShiftDialog extends ConsumerStatefulWidget {
 
 class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
   final _counted = TextEditingController();
+  final _countedCard = TextEditingController();
+  final _countedWallet = TextEditingController();
   final _note = TextEditingController();
   final _pass = TextEditingController();
   bool _obscure = true;
@@ -1600,6 +1592,8 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
   @override
   void dispose() {
     _counted.dispose();
+    _countedCard.dispose();
+    _countedWallet.dispose();
     _note.dispose();
     _pass.dispose();
     super.dispose();
@@ -1608,7 +1602,8 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
   Future<void> _close(int counted) async {
     setState(() => _busy = true);
     try {
-      final r = await ref.read(posRepoProvider).closeShift(widget.shiftId, counted, _note.text.trim().isEmpty ? null : _note.text.trim(), _pass.text);
+      final r = await ref.read(posRepoProvider).closeShift(widget.shiftId, counted, _note.text.trim().isEmpty ? null : _note.text.trim(), _pass.text,
+          countedCard: parseEgpToMinor(_countedCard.text), countedWallet: parseEgpToMinor(_countedWallet.text));
       if (!mounted) return;
       if (r['ok'] != true) {
         showSnack(context, _t(context, 'الباسورد غلط، الوردية لسه مفتوحة', 'Wrong password, the shift is still open'), error: true);
@@ -1642,6 +1637,12 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
             final expected = (s['expected_minor'] as num).toInt();
             final counted = parseEgpToMinor(_counted.text);
             final diff = counted == null ? null : counted - expected;
+            final cardExp = ((s['card_sales_minor'] as num?) ?? 0).toInt() - ((s['card_refunds_minor'] as num?) ?? 0).toInt();
+            final walletExp = ((s['wallet_sales_minor'] as num?) ?? 0).toInt() - ((s['wallet_refunds_minor'] as num?) ?? 0).toInt();
+            final cardCounted = parseEgpToMinor(_countedCard.text);
+            final walletCounted = parseEgpToMinor(_countedWallet.text);
+            final cardDiff = cardCounted == null ? null : cardCounted - cardExp;
+            final walletDiff = walletCounted == null ? null : walletCounted - walletExp;
             Widget row(String l, String r, {Color? c, bool b = false}) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 3),
                   child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l), Text(r, style: TextStyle(fontWeight: b ? FontWeight.w800 : FontWeight.w600, color: c))]),
@@ -1665,7 +1666,9 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
               if (((s['tips_kept_minor'] as num?) ?? 0) > 0)
                 row(_t(context, 'بقشيش (سايبه في الدرج)', 'Tips (left in the drawer)'), _money(context, s['tips_kept_minor'] as num), c: BrandColors.gray),
               const Divider(),
-              row(_t(context, 'المفروض في الدرج (كاش)', 'Expected in drawer (cash)'), _money(context, expected), b: true),
+              row(_t(context, 'المفروض كاش في الدرج', 'Expected cash in drawer'), _money(context, expected), b: true),
+              row(_t(context, 'المفروض فيزا', 'Expected card'), _money(context, cardExp), c: BrandColors.gray),
+              row(_t(context, 'المفروض محافظ', 'Expected e-wallets'), _money(context, walletExp), c: BrandColors.gray),
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(_t(context, 'وسيلة دفع غلط؟ صلّحها من «الفواتير» قبل ما تقفل.', 'Wrong payment method? Fix it from "Invoices" before closing.'), style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
@@ -1676,14 +1679,37 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
                 autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(labelText: _t(context, 'الكاش اللي عدّيته فعلياً في الدرج (ج.م)', 'Cash you actually counted (EGP)'), helperText: _t(context, 'كاش بس. الفيزا والمحافظ مش بتتعدّ في الدرج.', 'Cash only. Card and e-wallet payments are not in the drawer.'), helperMaxLines: 2),
+                decoration: InputDecoration(labelText: _t(context, 'الكاش اللي عدّيته فعلياً في الدرج (ج.م)', 'Cash you actually counted (EGP)')),
               ),
               if (diff != null) ...[
                 const SizedBox(height: 8),
-                row(diff == 0 ? _t(context, 'مظبوط ✅', 'Matches ✅') : (diff < 0 ? _t(context, 'عجز', 'Short') : _t(context, 'زيادة', 'Over')), diff == 0 ? '' : _money(context, diff.abs()),
+                row(diff == 0 ? _t(context, 'الكاش مظبوط ✅', 'Cash matches ✅') : (diff < 0 ? _t(context, 'عجز في الكاش', 'Cash short') : _t(context, 'زيادة في الكاش', 'Cash over')), diff == 0 ? '' : _money(context, diff.abs()),
                     c: diff == 0 ? BrandColors.success : BrandColors.error, b: true),
-                if (diff != 0) TextField(controller: _note, maxLength: 200, decoration: InputDecoration(labelText: _t(context, 'سبب الفرق (مطلوب)', 'Reason for the difference (required)'))),
               ],
+              const SizedBox(height: 10),
+              Text(_t(context, 'الفيزا والمحافظ (اختياري: اكتب إجمالي ماكينة الفيزا وإجمالي المحافظ)', 'Card and e-wallets (optional: the card machine total and the wallets total)'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _countedCard,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(isDense: true, labelText: _t(context, 'إجمالي الفيزا (ج.م)', 'Card total (EGP)'), prefixIcon: const Icon(Icons.credit_card, size: 18)),
+              ),
+              if (cardDiff != null)
+                row(cardDiff == 0 ? _t(context, 'الفيزا مظبوطة ✅', 'Card matches ✅') : (cardDiff < 0 ? _t(context, 'عجز في الفيزا', 'Card short') : _t(context, 'زيادة في الفيزا', 'Card over')), cardDiff == 0 ? '' : _money(context, cardDiff.abs()),
+                    c: cardDiff == 0 ? BrandColors.success : BrandColors.error, b: true),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _countedWallet,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(isDense: true, labelText: _t(context, 'إجمالي المحافظ الإلكترونية (ج.م)', 'E-wallets total (EGP)'), prefixIcon: const Icon(Icons.account_balance_wallet_outlined, size: 18)),
+              ),
+              if (walletDiff != null)
+                row(walletDiff == 0 ? _t(context, 'المحافظ مظبوطة ✅', 'Wallets match ✅') : (walletDiff < 0 ? _t(context, 'عجز في المحافظ', 'Wallets short') : _t(context, 'زيادة في المحافظ', 'Wallets over')), walletDiff == 0 ? '' : _money(context, walletDiff.abs()),
+                    c: walletDiff == 0 ? BrandColors.success : BrandColors.error, b: true),
+              if ((diff ?? 0) != 0 || (cardDiff ?? 0) != 0 || (walletDiff ?? 0) != 0)
+                TextField(controller: _note, maxLength: 200, decoration: InputDecoration(labelText: _t(context, 'سبب الفرق (مطلوب)', 'Reason for the difference (required)'))),
               const SizedBox(height: 10),
               TextField(
                 controller: _pass,
@@ -1705,7 +1731,7 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t(context, 'رجوع', 'Back'))),
         FilledButton(
-          onPressed: _busy || parseEgpToMinor(_counted.text) == null || _pass.text.isEmpty ? null : () => _close(parseEgpToMinor(_counted.text)!),
+          onPressed: _busy || parseEgpToMinor(_counted.text) == null || _pass.text.isEmpty || (_countedCard.text.trim().isNotEmpty && parseEgpToMinor(_countedCard.text) == null) || (_countedWallet.text.trim().isNotEmpty && parseEgpToMinor(_countedWallet.text) == null) ? null : () => _close(parseEgpToMinor(_counted.text)!),
           child: Text(_t(context, 'قفل الوردية', 'Close shift')),
         ),
       ],

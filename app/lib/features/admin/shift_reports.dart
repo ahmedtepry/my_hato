@@ -158,6 +158,32 @@ class _ShiftReportDialogState extends ConsumerState<ShiftReportDialog> {
               row(_t(context, 'اللي اتعدّ فعلاً', 'Counted'), _money(context, r['counted_minor'] as num), b: true),
               row(v == 0 ? _t(context, 'الدرج مظبوط ✅', 'Drawer matches ✅') : (v < 0 ? _t(context, 'عجز', 'Short') : _t(context, 'زيادة', 'Over')), v == 0 ? '' : _money(context, v.abs()),
                   c: v == 0 ? BrandColors.success : BrandColors.error, b: true),
+              if (r['methods'] is Map) ...[
+                const Divider(),
+                Text(_t(context, 'الدرج مقسّم حسب وسيلة الدفع', 'Drawer by payment method'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                for (final k in const ['cash', 'card', 'wallet'])
+                  if ((r['methods'] as Map)[k] is Map)
+                    Builder(builder: (_) {
+                      final m = Map<String, dynamic>.from((r['methods'] as Map)[k] as Map);
+                      final label = switch (k) { 'card' => _t(context, 'فيزا', 'Card'), 'wallet' => _t(context, 'محافظ إلكترونية', 'E-wallets'), _ => _t(context, 'كاش', 'Cash') };
+                      final cv = (m['variance_minor'] as num?)?.toInt();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          row(label, '${_t(context, 'مبيعات', 'Sales')} ${_money(context, (m['sales_minor'] as num?) ?? 0)}', b: true),
+                          if (((m['refunds_minor'] as num?) ?? 0) > 0) row(_t(context, '   مرتجعات', '   Refunds'), '- ${_money(context, m['refunds_minor'] as num)}'),
+                          row(_t(context, '   المتوقع', '   Expected'), _money(context, (m['expected_minor'] as num?) ?? 0)),
+                          if (m['counted_minor'] == null)
+                            row(_t(context, '   الفعلي', '   Counted'), _t(context, 'ماتسجّلش', 'not entered'))
+                          else ...[
+                            row(_t(context, '   الفعلي', '   Counted'), _money(context, m['counted_minor'] as num)),
+                            row(cv == 0 ? _t(context, '   مظبوط ✅', '   Matches ✅') : (cv! < 0 ? _t(context, '   عجز', '   Short') : _t(context, '   زيادة', '   Over')), cv == 0 ? '' : _money(context, cv.abs()),
+                                c: cv == 0 ? BrandColors.success : BrandColors.error, b: true),
+                          ],
+                        ]),
+                      );
+                    }),
+              ],
               if ('${r['note'] ?? ''}'.isNotEmpty) row(_t(context, 'السبب', 'Reason'), '${r['note']}'),
               if (corrections.isNotEmpty) ...[
                 const Divider(),
