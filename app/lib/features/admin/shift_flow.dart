@@ -1092,8 +1092,8 @@ class _DailyChallengeState extends ConsumerState<DailyChallenge> {
       }
     }
     final label = hasTarget
-        ? _t(context, 'تحدّي اليوم ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}', 'Today ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}')
-        : _t(context, 'تحدّي اليوم ${math.min(widget.sales, widget.goal)}/${widget.goal}', 'Daily challenge ${math.min(widget.sales, widget.goal)}/${widget.goal}');
+        ? _t(context, 'التارجت اليومي ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}', 'Today ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}')
+        : _t(context, 'التارجت اليومي ${math.min(widget.sales, widget.goal)}/${widget.goal}', 'Daily challenge ${math.min(widget.sales, widget.goal)}/${widget.goal}');
     return Tooltip(
       message: _t(context, 'اضغط تشوف تارجتك اليومي والمنتجات اللي عليها حافز', 'Tap to see your daily target and the products with a bonus'),
       child: InkWell(
@@ -1226,7 +1226,7 @@ class _ChallengeDialog extends ConsumerWidget {
       title: Row(children: [
         const Icon(Icons.emoji_events_rounded, color: Color(0xFFD9B25C)),
         const SizedBox(width: 8),
-        Expanded(child: Text(_t(context, 'تحدّي النهارده', 'Today\'s challenge'))),
+        Expanded(child: Text(_t(context, 'التارجت اليومي', 'Daily target'))),
       ]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: body())),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'OK')))],
