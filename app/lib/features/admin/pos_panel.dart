@@ -1380,6 +1380,7 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
   final _qty = <String, int>{};
   bool _restock = true;
   bool _busy = false;
+  String _method = 'cash'; // how the money goes back: cash (from the drawer) / card / wallet
   late final Future<List<Map<String, dynamic>>> _recent = ref.read(posRepoProvider).recentSales(widget.shiftId);
 
   @override
@@ -1411,6 +1412,8 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
         setState(() {
           _sale = s;
           _qty.clear();
+          final pm = '${s['payment_method'] ?? 'cash'}';
+          _method = (pm == 'card' || pm == 'wallet') ? pm : 'cash';
         });
       }
     } catch (e) {
@@ -1434,7 +1437,7 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
       Map<String, dynamic>? res;
       for (var attempt = 0; attempt < 2; attempt++) {
         try {
-          res = await repo.refund(saleId: _sale!['id'] as String, items: items, reason: _reason.text.trim(), restock: _restock, approvalId: approval);
+          res = await repo.refund(saleId: _sale!['id'] as String, items: items, reason: _reason.text.trim(), restock: _restock, approvalId: approval, method: _method);
           break;
         } on PostgrestException catch (e) {
           if (e.message.contains('APPROVAL_REQUIRED') && attempt == 0) {
@@ -1447,7 +1450,13 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
       }
       if (res == null || !mounted) return;
       // the message first: after the dialog is closed its context can no longer be used (that raised a false "error" after a saved refund)
-      showSnack(context, _t(context, 'تم المرتجع ${_money(context, res['amount_minor'] as num)} — رجّعهم للعميل من الدرج', 'Refunded ${_money(context, res['amount_minor'] as num)} — pay it from the drawer'));
+      final amt = _money(context, res['amount_minor'] as num);
+      final how = switch ('${res['method']}') {
+        'card' => _t(context, 'رجّعهم للعميل على الفيزا', 'Return it to the customer\'s card'),
+        'wallet' => _t(context, 'حوّلهم للعميل على المحفظة', 'Send it to the customer\'s wallet'),
+        _ => _t(context, 'رجّعهم للعميل كاش من الدرج', 'Pay it back in cash from the drawer'),
+      };
+      showSnack(context, '${res['cancelled'] == true ? _t(context, 'الفاتورة اتلغت ✅ ', 'Invoice cancelled ✅ ') : _t(context, 'تم المرتجع ', 'Refunded ')}$amt — $how');
       Navigator.pop(context);
     } catch (e) {
       if (mounted) showSnack(context, _err(context, e), error: true);
@@ -1484,6 +1493,9 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         title: Text('${s['number']}'),
+                        subtitle: (s['refunded_minor'] as num) >= (s['total_minor'] as num)
+                            ? Text(_t(context, 'ملغية', 'Cancelled'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w700))
+                            : ((s['refunded_minor'] as num) > 0 ? Text(_t(context, 'مرتجع جزئي', 'Partly refunded')) : null),
                         trailing: Text(_money(context, s['total_minor'] as num)),
                         onTap: () => _find('${s['number']}'),
                       ),
@@ -1492,6 +1504,27 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
               ),
             ] else ...[
               Text('${_sale!['number']} · ${_money(context, _sale!['total_minor'] as num)}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              if (_sale!['cancelled'] == true)
+                Padding(padding: const EdgeInsets.only(top: 4), child: Text(_t(context, 'الفاتورة دي ملغية (اترجّعت بالكامل)', 'This invoice is cancelled (fully refunded)'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800))),
+              for (final r in (_sale!['refunds'] as List? ?? const []))
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('${_t(context, 'مرتجع سابق', 'Earlier refund')}: ${_money(context, (r as Map)['amount_minor'] as num)} · ${switch ('${r['method']}') { 'card' => _t(context, 'فيزا', 'Card'), 'wallet' => _t(context, 'محفظة', 'Wallet'), _ => _t(context, 'كاش', 'Cash') }} · ${r['reason']}',
+                      style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+                ),
+              if (_items.any((it) => (it['quantity'] as num).toInt() - (it['refunded_qty'] as num).toInt() > 0))
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    label: Text(_t(context, 'إلغاء الفاتورة بالكامل', 'Cancel the whole invoice')),
+                    onPressed: () => setState(() {
+                      for (final it in _items) {
+                        _qty['${it['id']}'] = (it['quantity'] as num).toInt() - (it['refunded_qty'] as num).toInt();
+                      }
+                    }),
+                  ),
+                ),
               const SizedBox(height: 6),
               ReceiptButtons(sale: _sale!, text: receiptText(context, _sale!)),
               const SizedBox(height: 6),
@@ -1513,7 +1546,27 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
                           ]),
                   );
                 }),
-              TextField(controller: _reason, maxLength: 200, decoration: InputDecoration(labelText: _t(context, 'سبب المرتجع (مطلوب)', 'Reason (required)'))),
+              TextField(controller: _reason, maxLength: 200, decoration: InputDecoration(labelText: _t(context, 'سبب الإلغاء / المرتجع (مطلوب)', 'Cancel / refund reason (required)'))),
+              const SizedBox(height: 4),
+              Text(_t(context, 'رجّعت الفلوس للعميل إزاي؟', 'How is the customer paid back?'), style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(value: 'cash', icon: const Icon(Icons.payments_outlined), label: Text(_t(context, 'كاش', 'Cash'))),
+                  ButtonSegment(value: 'card', icon: const Icon(Icons.credit_card), label: Text(_t(context, 'فيزا', 'Card'))),
+                  ButtonSegment(value: 'wallet', icon: const Icon(Icons.account_balance_wallet_outlined), label: Text(_t(context, 'محفظة', 'Wallet'))),
+                ],
+                selected: {_method},
+                onSelectionChanged: (v) => setState(() => _method = v.first),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                    _method == 'cash'
+                        ? _t(context, 'الكاش هيتخصم من درج الوردية.', 'The cash is taken out of the shift drawer.')
+                        : _t(context, 'مش هيتخصم من الدرج (بيرجع على ${_method == 'card' ? 'الفيزا' : 'المحفظة'}).', 'The drawer is not affected.'),
+                    style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+              ),
               SwitchListTile(contentPadding: EdgeInsets.zero, value: _restock, onChanged: (v) => setState(() => _restock = v), title: Text(_t(context, 'رجّع القطعة للمخزون', 'Put the item back in stock'))),
               Text('${_t(context, 'هتدفع للعميل', 'Pay the customer')}: ${_money(context, _total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
             ],

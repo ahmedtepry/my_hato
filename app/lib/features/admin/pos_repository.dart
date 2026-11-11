@@ -117,8 +117,9 @@ class PosRepository {
     required String reason,
     required bool restock,
     String? approvalId,
+    String? method,
   }) async =>
-      _m(await _db.rpc('pos_refund', params: {'p_sale': saleId, 'p_items': items, 'p_reason': reason, 'p_restock': restock, 'p_approval': approvalId}));
+      _m(await _db.rpc('pos_refund', params: {'p_sale': saleId, 'p_items': items, 'p_reason': reason, 'p_restock': restock, 'p_approval': approvalId, 'p_method': method}));
 
   Future<String> requestApproval({required String kind, required int amountMinor, required String reason, required String branchId}) async =>
       (await _db.rpc('pos_request_approval', params: {'p_kind': kind, 'p_amount_minor': amountMinor, 'p_reason': reason, 'p_branch': branchId})) as String;
@@ -242,7 +243,8 @@ String posErrorText(Object e, bool ar, String Function(Object) fallback) {
   if (m.contains('WRONG_PASSWORD')) return pick('الباسورد غلط', 'Wrong password');
   if (m.contains('SHIFT_NOT_CLOSED')) return pick('الوردية لسه مفتوحة', 'The shift is still open');
   if (m.contains('RATE_LIMITED')) return pick('محاولات غلط كتير، استنى شوية وجرّب تاني', 'Too many wrong attempts, wait a bit');
-  if (m.contains('NOT_FOUND')) return pick('مش لاقي الفاتورة أو المنتج', 'Not found');
+  if (m.contains('REFUND_WINDOW_PASSED')) return pick('عدّت مهلة الاسترجاع (14 يوم). المرتجع بعدها محتاج المالك.', 'The return window (14 days) has passed. Only the owner can refund now.');
+  if (m.contains('NOT_FOUND')) return pick('مفيش فاتورة بالرقم ده في فرعك', 'No invoice with this number in your branch');
   if (m.contains('FORBIDDEN')) return pick('مش مسموحلك بالعملية دي', 'Not allowed');
   if (m.contains('INVALID_INPUT')) return pick('البيانات مش صحيحة', 'Invalid input');
   return fallback(e);
@@ -252,7 +254,7 @@ String posErrorText(Object e, bool ar, String Function(Object) fallback) {
 bool posDefinitiveError(Object e) {
   if (e is! PostgrestException) return false;
   const codes = [
-    'OUT_OF_STOCK', 'APPROVAL_REQUIRED', 'CASH_SHORT', 'NO_OPEN_SHIFT', 'INVALID_INPUT', 'FORBIDDEN', 'NOT_FOUND', 'REFUND_EXCEEDS_SOLD', 'REASON_REQUIRED',
+    'OUT_OF_STOCK', 'APPROVAL_REQUIRED', 'CASH_SHORT', 'NO_OPEN_SHIFT', 'INVALID_INPUT', 'FORBIDDEN', 'NOT_FOUND', 'REFUND_EXCEEDS_SOLD', 'REASON_REQUIRED', 'REFUND_WINDOW_PASSED',
   ];
   final m = '${e.message}';
   return codes.any(m.contains);

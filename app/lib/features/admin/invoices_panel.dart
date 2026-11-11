@@ -329,6 +329,12 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
                 if ((s['discount_minor'] as num) > 0) row(_t(context, 'الخصم', 'Discount'), '- ${_money(context, s['discount_minor'] as num)}'),
                 row(_t(context, 'الإجمالي', 'Total'), _money(context, s['total_minor'] as num), bold: true),
                 if ((s['refunded_minor'] as num) > 0) row(_t(context, 'المرتجع', 'Refunded'), _money(context, s['refunded_minor'] as num)),
+                for (final r in (s['refunds'] as List? ?? const []))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('${_when((r as Map)['at'])} · ${_money(context, r['amount_minor'] as num)} · ${switch ('${r['method']}') { 'card' => _t(context, 'فيزا', 'Card'), 'wallet' => _t(context, 'محفظة', 'Wallet'), _ => _t(context, 'كاش', 'Cash') }}\n${_t(context, 'السبب', 'Reason')}: ${r['reason']}',
+                        style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+                  ),
                 const SizedBox(height: 10),
                 ReceiptButtons(sale: s, text: receiptText(context, s)),
               ]),
