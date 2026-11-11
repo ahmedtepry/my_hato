@@ -1386,6 +1386,8 @@ class _RefundDialog extends ConsumerStatefulWidget {
 class _RefundDialogState extends ConsumerState<_RefundDialog> {
   final _number = TextEditingController();
   final _reason = TextEditingController();
+  String? _msg; // errors are shown inside the dialog (a snack bar would sit hidden behind it)
+  bool _reasonMissing = false;
   Map<String, dynamic>? _sale;
   final _qty = <String, int>{};
   bool _restock = true;
@@ -1408,9 +1410,9 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
 
   int _amountFor(Map<String, dynamic> it, int q) {
     final qty = (it['quantity'] as num).toInt();
-    final done = (it['refunded_qty'] as num).toInt();
-    final net = (it['net_line_minor'] as num).toInt();
-    final ra = (it['refunded_amount_minor'] as num).toInt();
+    final done = ((it['refunded_qty'] as num?) ?? 0).toInt();
+    final net = ((it['net_line_minor'] as num?) ?? (it['line_total_minor'] as num?) ?? 0).toInt();
+    final ra = ((it['refunded_amount_minor'] as num?) ?? 0).toInt();
     return q == qty - done ? net - ra : (net * q / qty).round();
   }
 
@@ -1433,7 +1435,7 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
         });
       }
     } catch (e) {
-      if (mounted) showSnack(context, _err(context, e), error: true);
+      if (mounted) setState(() => _msg = _err(context, e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1441,12 +1443,21 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
 
   Future<void> _submit() async {
     final items = [for (final it in _items) if ((_qty[it['id']] ?? 0) > 0) {'item_id': it['id'], 'quantity': _qty[it['id']]}];
-    if (items.isEmpty) return;
-    if (_reason.text.trim().length < 3) {
-      showSnack(context, _t(context, 'اكتب سبب المرتجع', 'Write the refund reason'), error: true);
+    if (items.isEmpty) {
+      setState(() => _msg = _t(context, 'اختار المنتج اللي راجع', 'Choose what comes back'));
       return;
     }
-    setState(() => _busy = true);
+    if (_reason.text.trim().length < 3) {
+      setState(() {
+        _reasonMissing = true;
+        _msg = _t(context, 'اكتب سبب المرتجع الأول (3 حروف على الأقل)', 'Write the refund reason first (3+ letters)');
+      });
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _msg = null;
+    });
     try {
       final repo = ref.read(posRepoProvider);
       String? approval;
@@ -1475,7 +1486,7 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
       showSnack(context, '${res['cancelled'] == true ? _t(context, 'الفاتورة اتلغت ✅ ', 'Invoice cancelled ✅ ') : _t(context, 'تم المرتجع ', 'Refunded ')}$amt — $how${_repl.isEmpty ? '' : _t(context, '. البديل اتضاف للسلة، كمّل البيع.', '. The replacement is in the cart; finish the sale.')}');
       Navigator.pop(context, [for (final l in _repl.values) {'p': l.p, 'q': l.q}]);
     } catch (e) {
-      if (mounted) showSnack(context, _err(context, e), error: true);
+      if (mounted) setState(() => _msg = _err(context, e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1641,7 +1652,17 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
                     ),
                 ],
               ),
-              TextField(controller: _reason, maxLength: 200, decoration: InputDecoration(labelText: _t(context, 'سبب الإلغاء / المرتجع (مطلوب)', 'Cancel / refund reason (required)'))),
+              TextField(
+                controller: _reason,
+                maxLength: 200,
+                onChanged: (_) {
+                  if (_reasonMissing || _msg != null) setState(() { _reasonMissing = false; _msg = null; });
+                },
+                decoration: InputDecoration(
+                  labelText: _t(context, 'سبب الإلغاء / المرتجع (مطلوب)', 'Cancel / refund reason (required)'),
+                  errorText: _reasonMissing ? _t(context, 'السبب مطلوب', 'Reason required') : null,
+                ),
+              ),
               const SizedBox(height: 4),
               Text(_t(context, 'رجّعت الفلوس للعميل إزاي؟', 'How is the customer paid back?'), style: const TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
@@ -1658,6 +1679,17 @@ class _RefundDialogState extends ConsumerState<_RefundDialog> {
                   subtitle: Text(_t(context, 'اقفلها لو المنتج تالف', 'Turn off if the item is damaged'), style: const TextStyle(fontSize: 12))),
               Text('${_t(context, 'هتدفع للعميل', 'Pay the customer')}: ${_money(context, _total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
             ],
+            if (_msg != null)
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: BrandColors.error.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: BrandColors.error.withValues(alpha: 0.6))),
+                child: Row(children: [
+                  const Icon(Icons.error_outline, color: BrandColors.error, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_msg!, style: const TextStyle(fontWeight: FontWeight.w700))),
+                ]),
+              ),
           ]),
         ),
       ),
