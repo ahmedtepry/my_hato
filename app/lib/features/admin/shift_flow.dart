@@ -1128,6 +1128,25 @@ class _ChallengeDialog extends ConsumerWidget {
                 'Monthly target ${_money(context, n('monthly_target_minor'))} ÷ ${n('days_in_month')} days. Month so far ${_money(context, n('month_net_minor'))}.'),
             style: const TextStyle(color: BrandColors.gray, fontSize: 12, height: 1.5),
           ),
+          if (n('daily_bonus_minor') > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: BrandColors.success.withValues(alpha: .1), borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                const Icon(Icons.card_giftcard_rounded, color: BrandColors.success, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    done
+                        ? _t(context, 'مكافأة التارجت اليومي اتحسبتلك: +${_money(context, n('bonus_today_minor') > 0 ? n('bonus_today_minor') : n('daily_bonus_minor'))}', 'Daily target bonus earned: +${_money(context, n('bonus_today_minor') > 0 ? n('bonus_today_minor') : n('daily_bonus_minor'))}')
+                        : _t(context, 'لو خلّصت تارجت النهارده هتاخد مكافأة ${_money(context, n('daily_bonus_minor'))}', 'Reach today\'s target to earn ${_money(context, n('daily_bonus_minor'))}'),
+                    style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.success),
+                  ),
+                ),
+              ]),
+            ),
+          ],
         ] else
           Container(
             padding: const EdgeInsets.all(12),
@@ -1164,9 +1183,6 @@ class _ChallengeDialog extends ConsumerWidget {
         const Divider(height: 26),
         stat(_t(context, 'عمولتك النهارده', 'Your commission today'), _money(context, n('commission_today_minor')), color: BrandColors.success),
         stat(_t(context, 'عمولتك الشهر ده', 'Your commission this month'), _money(context, n('commission_month_minor'))),
-        const SizedBox(height: 6),
-        Text(_t(context, 'الأرقام من البيع اللي اتسجّل فعلاً بس، وأي مرتجع بيتخصم. وبتتحدّث لوحدها بعد كل بيعة وبتظهر في «تارجتي وعمولتي».', 'Only sales really recorded count; refunds are deducted. Updated after every sale and shown in "My target".'),
-            style: const TextStyle(color: BrandColors.gray, fontSize: 12, height: 1.5)),
       ]);
     }
 

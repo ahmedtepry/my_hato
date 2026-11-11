@@ -31,6 +31,7 @@ class TargetsRepository {
       _m(await _db.rpc('targets_overview', params: {'p_month': month == null ? null : DateFormat('yyyy-MM-01').format(month)}));
   Future<Map<String, dynamic>> mine() async => _m(await _db.rpc('my_target_status'));
   Future<void> setBranch(String id, int minor) => _db.rpc('targets_set_branch', params: {'p_branch': id, 'p_monthly_minor': minor});
+  Future<void> setDailyBonus(String id, int minor) => _db.rpc('targets_set_daily_bonus', params: {'p_user': id, 'p_bonus_minor': minor});
   Future<void> setUser(String id, int minor) => _db.rpc('targets_set_user', params: {'p_user': id, 'p_monthly_minor': minor});
   Future<List<Map<String, dynamic>>> commissions(String? q) async => _l(await _db.rpc('commission_list', params: {'p_search': q, 'p_limit': 100}));
   Future<void> setCommission(String productId, int minor) => _db.rpc('commission_set', params: {'p_product': productId, 'p_amount_minor': minor});
@@ -227,6 +228,20 @@ class _TargetsPanelState extends ConsumerState<TargetsPanel> {
                               if (v != null) _run(() => ref.read(targetsRepoProvider).setUser(e['user_id'] as String, v));
                             },
                           ),
+                        if (canManage)
+                          IconButton(
+                            tooltip: _t(context, 'مكافأة التارجت اليومي', 'Daily target bonus'),
+                            icon: const Icon(Icons.card_giftcard_rounded, size: 20),
+                            onPressed: () async {
+                              if (e['target_minor'] == null) {
+                                showSnack(context, _t(context, 'حدد التارجت الشهري للموظف الأول (علامة الفلاج)', 'Set his monthly target first (flag icon)'), error: true);
+                                return;
+                              }
+                              final v = await _askMoney(context, _t(context, 'مكافأة ${e['name']} لما يحقق تارجت اليوم', 'Bonus when he reaches the daily target'),
+                                  _t(context, 'مبلغ المكافأة في اليوم (فاضي = من غير)', 'Bonus per day (empty = none)'), current: (e['daily_bonus_minor'] as num?)?.toInt());
+                              if (v != null) _run(() => ref.read(targetsRepoProvider).setDailyBonus(e['user_id'] as String, v));
+                            },
+                          ),
                       ]),
                       if (e['pct'] != null) ...[
                         const SizedBox(height: 4),
@@ -239,6 +254,8 @@ class _TargetsPanelState extends ConsumerState<TargetsPanel> {
                       Wrap(spacing: 16, runSpacing: 4, children: [
                         Text('${_t(context, 'مبيعات', 'Sales')}: ${_money(context, e['net_minor'] as num)}', style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
                         if (e['target_minor'] != null) Text('${_t(context, 'التارجت', 'Target')}: ${_money(context, e['target_minor'] as num)}', style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
+                        if (((e['daily_bonus_minor'] as num?) ?? 0) > 0)
+                          Text('${_t(context, 'مكافأة اليوم', 'Daily bonus')}: ${_money(context, e['daily_bonus_minor'] as num)}', style: const TextStyle(color: BrandColors.gray, fontSize: 13)),
                         if (e['commission_minor'] != null)
                           Text('${_t(context, 'العمولة', 'Commission')}: ${_money(context, e['commission_minor'] as num)}',
                               style: const TextStyle(color: BrandColors.success, fontSize: 13, fontWeight: FontWeight.w800)),
@@ -473,6 +490,20 @@ class _MyTargetPanelState extends ConsumerState<MyTargetPanel> {
         const SizedBox(width: 10),
         Expanded(child: _CommissionTile(label: _t(context, 'عمولتك الشهر ده', 'Your commission this month'), minor: d['commission_month_minor'] as num, icon: Icons.savings_outlined)),
       ]),
+      if (((d['daily_bonus_minor'] as num?) ?? 0) > 0) ...[
+        const SizedBox(height: 10),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.card_giftcard_rounded, color: BrandColors.success),
+            title: Text(_t(context, 'مكافأة التارجت اليومي', 'Daily target bonus'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text(_t(context, '${_money(context, d['daily_bonus_minor'] as num)} عن كل يوم بتحقق فيه تارجت اليوم (متضافة للعمولة)', '${_money(context, d['daily_bonus_minor'] as num)} for every day you reach the daily target (included in commission)')),
+            trailing: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text('${_t(context, 'النهارده', 'Today')} ${_money(context, (d['bonus_today_minor'] as num?) ?? 0)}', style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.success)),
+              Text('${_t(context, 'الشهر', 'Month')} ${_money(context, (d['bonus_month_minor'] as num?) ?? 0)} · ${(d['bonus_days'] as num?) ?? 0} ${_t(context, 'يوم', 'days')}', style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+            ]),
+          ),
+        ),
+      ],
       if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('commission.today') ?? false) ...[
         const SizedBox(height: 10),
         const _TodayCommissionProducts(),
