@@ -722,8 +722,9 @@ class _RegisterState extends ConsumerState<_Register> {
       return;
     }
     // more than the total: the cashier must hand the change back, and confirms he did, before the sale is completed
-    if ((!_card || _split) && cash > _total && _key == null) {
-      final r = await showSmoothDialog<String>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: cash - _total));
+    final changeDue = cash - _total;
+    if ((!_card || _split) && changeDue > 0 && _key == null) {
+      final r = await showSmoothDialog<String>(context: context, barrierDismissible: false, builder: (_) => _ChangeDialog(change: changeDue));
       if (r == null || r == 'back' || !mounted) return;
       _tip = r == 'tip';
       _tipInDrawer = false;
