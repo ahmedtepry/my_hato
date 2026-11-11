@@ -92,7 +92,10 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validate()) {
+      showSnack(context, context.isAr ? 'راجع الخانات الحمرا وكمّل البيانات' : 'Please check the highlighted fields', error: true);
+      return;
+    }
     if (_pickup && _addressId == null) {
       showSnack(context, context.tr('err_invalid_address'), error: true);
       return;
@@ -143,7 +146,8 @@ class _RepairRequestScreenState extends ConsumerState<RepairRequestScreen> {
       ]),
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
+        // cacheExtent: build every field so Form.validate() also checks the ones scrolled out of view
+        child: ListView(cacheExtent: 20000, padding: const EdgeInsets.all(16), children: [
           TextFormField(
             controller: _brand,
             decoration: InputDecoration(labelText: context.tr('device_brand'), prefixIcon: const Icon(Icons.phone_android)),

@@ -580,7 +580,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       appBar: AppBar(title: Text(context.tr('add_address'))),
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
+        child: ListView(cacheExtent: 20000, padding: const EdgeInsets.all(16), children: [
           TextFormField(controller: _c['label'], decoration: InputDecoration(labelText: context.isAr ? 'اسم العنوان (البيت، الشغل…)' : 'Label (Home, Work…)')),
           const SizedBox(height: 12),
           TextFormField(controller: _c['recipient_name'], decoration: InputDecoration(labelText: context.tr('recipient_name')), validator: req),

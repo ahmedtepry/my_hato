@@ -313,7 +313,7 @@ class _NewPasswordScreenState extends ConsumerState<NewPasswordScreen> {
         appBar: AppBar(title: Text(context.tr('new_password_title'))),
         body: Form(
           key: _form,
-          child: ListView(padding: const EdgeInsets.all(24), children: [
+          child: ListView(cacheExtent: 20000, padding: const EdgeInsets.all(24), children: [
             Text(context.tr('new_password_body'), style: const TextStyle(color: BrandColors.gray, height: 1.6)),
             const SizedBox(height: 20),
             TextFormField(

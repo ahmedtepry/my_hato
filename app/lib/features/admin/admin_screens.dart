@@ -2178,7 +2178,7 @@ class _ProductEditorState extends ConsumerState<_ProductEditor> {
         absorbing: _busy,
         child: Form(
           key: _form,
-          child: ListView(padding: const EdgeInsets.all(16), children: [
+          child: ListView(cacheExtent: 20000, padding: const EdgeInsets.all(16), children: [
             TextFormField(controller: _nameAr, decoration: InputDecoration(labelText: _t(context, 'الاسم بالعربي', 'Arabic name')), validator: need),
             const SizedBox(height: 12),
             TextFormField(controller: _nameEn, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: _t(context, 'الاسم بالإنجليزي (اختياري)', 'English name (optional)'))),
