@@ -1049,8 +1049,11 @@ final myChallengeProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((r
 });
 
 class DailyChallenge extends ConsumerStatefulWidget {
-  const DailyChallenge({super.key, required this.sales, this.goal = 10});
+  const DailyChallenge({super.key, required this.sales, this.goal = 10, this.avatar, this.size = 44});
   final int sales, goal;
+  /// When set, the target is drawn as a progress ring around this avatar (the seller) instead of a chip.
+  final Widget? avatar;
+  final double size;
   @override
   ConsumerState<DailyChallenge> createState() => _DailyChallengeState();
 }
@@ -1080,7 +1083,7 @@ class _DailyChallengeState extends ConsumerState<DailyChallenge> {
   @override
   Widget build(BuildContext context) {
     final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
-    if (f['challenge'] != true) return const SizedBox.shrink();
+    if (f['challenge'] != true) return widget.avatar == null ? const SizedBox.shrink() : SizedBox(width: widget.size, height: widget.size, child: Center(child: widget.avatar));
     final ch = ref.watch(myChallengeProvider).valueOrNull;
     final daily = ch == null ? 0 : _n(ch, 'daily_target_minor');
     final hasTarget = daily > 0;
@@ -1094,6 +1097,39 @@ class _DailyChallengeState extends ConsumerState<DailyChallenge> {
       } else if (v >= 1) {
         _celebrate();
       }
+    }
+    if (widget.avatar != null) {
+      final done = v >= 1;
+      return Tooltip(
+        message: hasTarget
+            ? _t(context, 'التارجت اليومي ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}', 'Today ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}')
+            : _t(context, 'التارجت اليومي', 'Daily target'),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => showSmoothDialog<void>(context: context, builder: (_) => const _ChallengeDialog()),
+          child: SizedBox(
+            width: widget.size,
+            height: widget.size,
+            child: Stack(alignment: Alignment.center, children: [
+              Positioned.fill(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: v),
+                  duration: const Duration(milliseconds: 700),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, x, __) => CircularProgressIndicator(
+                    value: x,
+                    strokeWidth: 3.5,
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: Colors.white.withValues(alpha: 0.14),
+                    color: done ? const Color(0xFFF6A23C) : const Color(0xFFF6C66B),
+                  ),
+                ),
+              ),
+              widget.avatar!,
+            ]),
+          ),
+        ),
+      );
     }
     final label = hasTarget
         ? _t(context, 'التارجت اليومي ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}', 'Today ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}')

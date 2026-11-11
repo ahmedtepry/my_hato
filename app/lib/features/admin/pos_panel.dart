@@ -769,57 +769,95 @@ class _RegisterState extends ConsumerState<_Register> {
     }
   }
 
+  void _openRefund() {
+    showSmoothDialog<List<Map<String, dynamic>>>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((replacement) {
+      ref.invalidate(posShiftProvider);
+      // an exchange: the replacement products go straight into the cart, ready to be sold
+      if (replacement != null && mounted) {
+        for (final r in replacement) {
+          for (var i = 0; i < (r['q'] as int); i++) {
+            _add(Map<String, dynamic>.from(r['p'] as Map));
+          }
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.shift;
     int n(String k) => ((s[k] as num?) ?? 0).toInt();
+    final search = TextField(
+      controller: _search,
+      focusNode: _searchFocus,
+      autofocus: true,
+      onChanged: _onSearchChanged,
+      onSubmitted: (_) => _submitSearch(),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
+        hintText: _t(context, 'امسح الباركود أو اكتب اسم المنتج  (F2)', 'Scan the barcode or type the product name  (F2)'),
+        prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
+        suffixIcon: IconButton(icon: const Icon(Icons.camera_alt_outlined), tooltip: _t(context, 'مسح بالكاميرا', 'Scan with camera'), onPressed: _scan),
+      ),
+    );
+    final canClose = !_unknown && _cart.isEmpty;
+    Widget tool(IconData icon, String tip, VoidCallback? onTap, {Color? color}) => Padding(
+          padding: const EdgeInsetsDirectional.only(start: 6),
+          child: IconButton(
+            tooltip: tip,
+            onPressed: onTap,
+            icon: Icon(icon, size: 21, color: onTap == null ? null : color),
+            style: IconButton.styleFrom(
+              fixedSize: const Size(44, 44),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              side: BorderSide(color: (color ?? Colors.white).withValues(alpha: 0.18)),
+            ),
+          ),
+        );
+    // one row: the seller (target ring around his avatar) | search | drawer | tools. On a narrow pane (robot panel open)
+    // the tools fold into one "more" menu so the search keeps its room.
     final bar = Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 6, children: [
-          const Icon(Icons.circle, size: 10, color: BrandColors.success),
-          Text(_t(context, 'وردية مفتوحة', 'Shift open'), style: const TextStyle(fontWeight: FontWeight.w800)),
-          Text('· ${s['branch_name_ar'] ?? ''}', style: const TextStyle(color: BrandColors.gray)),
-          _SellerChip(shiftId: _shiftId, enabled: !_unknown && _cart.isEmpty),
-          // net of refunds: what was sold minus what went back, per payment method
-          Text('· ${_t(context, 'صافي المبيعات', 'Net sales')} ${_money(context, n('sales_minor') - n('refunds_minor'))} (${s['sales_count'] ?? 0})', style: const TextStyle(color: BrandColors.gray)),
-          if (n('refunds_minor') > 0)
-            Text('· ${_t(context, 'مرتجع', 'Refunds')} ${_money(context, n('refunds_minor'))}', style: const TextStyle(color: BrandColors.error)),
-          if (n('card_sales_minor') + n('wallet_sales_minor') + n('card_refunds_minor') + n('wallet_refunds_minor') > 0)
-            Text('· ${_t(context, 'كاش', 'Cash')} ${_money(context, n('cash_sales_minor') - n('cash_refunds_minor'))} · ${_t(context, 'فيزا', 'Visa')} ${_money(context, n('card_sales_minor') - n('card_refunds_minor'))} · ${_t(context, 'محافظ', 'Wallets')} ${_money(context, n('wallet_sales_minor') - n('wallet_refunds_minor'))}', style: const TextStyle(color: BrandColors.gray)),
-          Text('· ${_t(context, 'المفروض في الدرج', 'Expected in drawer')} ${_money(context, (s['expected_minor'] as num?) ?? 0)}', style: const TextStyle(color: BrandColors.gray)),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.receipt_long_outlined, size: 18),
-            label: Text(_t(context, 'مصروف', 'Expense')),
-            onPressed: _unknown ? null : _addExpense,
-          ),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.assignment_return_outlined, size: 18),
-            label: Text(_t(context, 'مرتجع', 'Refund')),
-            onPressed: _unknown
-                ? null
-                : () => showSmoothDialog<List<Map<String, dynamic>>>(context: context, builder: (_) => _RefundDialog(shiftId: _shiftId, branchId: _branchId)).then((replacement) {
-                      ref.invalidate(posShiftProvider);
-                      // an exchange: the replacement products go straight into the cart, ready to be sold
-                      if (replacement != null && mounted) {
-                        for (final r in replacement) {
-                          for (var i = 0; i < (r['q'] as int); i++) {
-                            _add(Map<String, dynamic>.from(r['p'] as Map));
-                          }
-                        }
-                      }
-                    }),
-          ),
-          const AssistantModeSwitch(),
-          AssistantButton(shiftId: _shiftId),
-          DailyChallenge(sales: ((s['sales_count'] as num?) ?? 0).toInt()),
-          FilledButton.tonalIcon(
-            icon: const Icon(Icons.lock_clock_outlined, size: 18),
-            label: Text(_t(context, 'إقفال الوردية', 'Close shift')),
-            onPressed: _unknown || _cart.isNotEmpty ? null : _closeShift,
-          ),
-        ]),
+        padding: const EdgeInsets.all(6),
+        child: LayoutBuilder(builder: (context, c) {
+          final compact = c.maxWidth < 760;
+          return Row(children: [
+            _SellerChip(shiftId: _shiftId, enabled: !_unknown && _cart.isEmpty, sales: n('sales_count')),
+            const SizedBox(width: 6),
+            Expanded(child: search),
+            const SizedBox(width: 6),
+            _DrawerChip(shift: s, compact: compact),
+            if (!compact) ...[
+              tool(Icons.receipt_long_outlined, _t(context, 'مصروف', 'Expense'), _unknown ? null : _addExpense),
+              tool(Icons.assignment_return_outlined, _t(context, 'مرتجع', 'Refund'), _unknown ? null : _openRefund),
+              Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: AssistantMenuButton(shiftId: _shiftId)),
+              tool(Icons.lock_clock_outlined, canClose ? _t(context, 'إقفال الوردية', 'Close shift') : _t(context, 'فرّغ السلة الأول', 'Empty the cart first'),
+                  canClose ? _closeShift : null,
+                  color: const Color(0xFFF6A23C)),
+            ] else
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 6),
+                child: PopupMenuButton<String>(
+                  tooltip: _t(context, 'المزيد', 'More'),
+                  icon: const Icon(Icons.more_horiz_rounded),
+                  onSelected: (v) {
+                    if (v == 'exp') _addExpense();
+                    if (v == 'ref') _openRefund();
+                    if (v == 'close') _closeShift();
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'exp', enabled: !_unknown, child: ListTile(leading: const Icon(Icons.receipt_long_outlined), title: Text(_t(context, 'مصروف', 'Expense')))),
+                    PopupMenuItem(value: 'ref', enabled: !_unknown, child: ListTile(leading: const Icon(Icons.assignment_return_outlined), title: Text(_t(context, 'مرتجع', 'Refund')))),
+                    PopupMenuItem(value: 'close', enabled: canClose, child: ListTile(leading: const Icon(Icons.lock_clock_outlined, color: Color(0xFFF6A23C)), title: Text(_t(context, 'إقفال الوردية', 'Close shift')))),
+                  ],
+                ),
+              ),
+            if (compact) Padding(padding: const EdgeInsetsDirectional.only(start: 2), child: AssistantMenuButton(shiftId: _shiftId)),
+          ]);
+        }),
       ),
     );
 
@@ -877,20 +915,6 @@ class _RegisterState extends ConsumerState<_Register> {
   // ---- products
   Widget _productsPane() {
     return Column(children: [
-      TextField(
-        controller: _search,
-        focusNode: _searchFocus,
-        autofocus: true,
-        onChanged: _onSearchChanged,
-        onSubmitted: (_) => _submitSearch(),
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: _t(context, 'امسح الباركود أو اكتب اسم المنتج…  (F2)', 'Scan the barcode or type the product name…  (F2)'),
-          prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
-          suffixIcon: IconButton(icon: const Icon(Icons.camera_alt_outlined), tooltip: _t(context, 'مسح بالكاميرا', 'Scan with camera'), onPressed: _scan),
-        ),
-      ),
-      const SizedBox(height: 12),
       Expanded(
         child: _productsError != null
             ? Center(child: Text(_productsError!))
@@ -1898,9 +1922,10 @@ class _TipWhereDialog extends StatelessWidget {
 // The shift and the drawer stay with the account that opened them; every sale records who actually sold.
 // =====================================================================================================
 class _SellerChip extends ConsumerStatefulWidget {
-  const _SellerChip({required this.shiftId, required this.enabled});
+  const _SellerChip({required this.shiftId, required this.enabled, required this.sales});
   final String shiftId;
   final bool enabled;
+  final int sales;
   @override
   ConsumerState<_SellerChip> createState() => _SellerChipState();
 }
@@ -1936,12 +1961,95 @@ class _SellerChipState extends ConsumerState<_SellerChip> {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.enabled ? _t(context, 'تبديل البائع', 'Switch seller') : _t(context, 'فرّغ السلة الأول', 'Empty the cart first'),
-      child: ActionChip(
-        avatar: const Icon(Icons.badge_outlined, size: 18),
-        label: Text('${_t(context, 'البائع', 'Seller')}: ${_name ?? '…'}  ▾', style: const TextStyle(fontWeight: FontWeight.w800)),
-        onPressed: widget.enabled ? _open : null,
+    final name = _name ?? '…';
+    final letter = name.trim().isEmpty || name == '…' ? '?' : name.trim().characters.first.toUpperCase();
+    final avatar = Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF2C5BD8), Color(0xFF1A3A8F)])),
+      child: Text(letter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+    );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      DailyChallenge(sales: widget.sales, avatar: avatar, size: 44),
+      Tooltip(
+        message: widget.enabled ? _t(context, 'تبديل البائع', 'Switch seller') : _t(context, 'فرّغ السلة الأول علشان تبدّل البائع', 'Empty the cart first to switch seller'),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: widget.enabled ? _open : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 110),
+                child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              ),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: widget.enabled ? null : BrandColors.gray),
+            ]),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+/// The drawer at a glance; tap it for the full picture (net sales, each payment method, refunds, what should be in the drawer).
+class _DrawerChip extends StatelessWidget {
+  const _DrawerChip({required this.shift, required this.compact});
+  final Map<String, dynamic> shift;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    int n(String k) => ((shift[k] as num?) ?? 0).toInt();
+    const green = Color(0xFF34D399);
+    Widget row(String label, int v, {Color? color, bool strong = false}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+            Expanded(child: Text(label, style: TextStyle(color: strong ? null : BrandColors.gray, fontWeight: strong ? FontWeight.w800 : FontWeight.w500))),
+            Text(_money(context, v), style: TextStyle(fontWeight: FontWeight.w800, color: color)),
+          ]),
+        );
+    return PopupMenuButton<void>(
+      tooltip: _t(context, 'تفاصيل الدرج', 'Drawer details'),
+      position: PopupMenuPosition.under,
+      itemBuilder: (_) => [
+        PopupMenuItem<void>(
+          enabled: false,
+          child: DefaultTextStyle.merge(
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14),
+            child: SizedBox(
+              width: 250,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(children: [
+                  const Icon(Icons.circle, size: 9, color: BrandColors.success),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text('${_t(context, 'وردية مفتوحة', 'Shift open')} ${shift['branch_name_ar'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800))),
+                ]),
+                const Divider(height: 16),
+                row('${_t(context, 'صافي المبيعات', 'Net sales')} (${n('sales_count')})', n('sales_minor') - n('refunds_minor')),
+                row(_t(context, 'كاش', 'Cash'), n('cash_sales_minor') - n('cash_refunds_minor')),
+                row(_t(context, 'فيزا', 'Visa'), n('card_sales_minor') - n('card_refunds_minor')),
+                row(_t(context, 'محفظة', 'Wallet'), n('wallet_sales_minor') - n('wallet_refunds_minor')),
+                if (n('refunds_minor') > 0) row(_t(context, 'مرتجع', 'Refunds'), n('refunds_minor'), color: BrandColors.error),
+                if (n('expenses_minor') > 0) row(_t(context, 'مصروفات', 'Expenses'), n('expenses_minor'), color: BrandColors.warning),
+                const Divider(height: 16),
+                row(_t(context, 'المفروض في الدرج', 'Expected in drawer'), n('expected_minor'), color: green, strong: true),
+              ]),
+            ),
+          ),
+        ),
+      ],
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(color: green.withValues(alpha: 0.12), border: Border.all(color: green.withValues(alpha: 0.45)), borderRadius: BorderRadius.circular(12)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (!compact) ...[Text(_t(context, 'الدرج', 'Drawer'), style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(width: 6)],
+          if (compact) ...[const Icon(Icons.point_of_sale_rounded, size: 18, color: green), const SizedBox(width: 6)],
+          Text(_money(context, n('expected_minor')), style: const TextStyle(fontWeight: FontWeight.w800, color: green)),
+          const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+        ]),
       ),
     );
   }

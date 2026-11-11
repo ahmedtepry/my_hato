@@ -81,6 +81,62 @@ Future<void> showCashierAssistant(BuildContext context, {String? shiftId, requir
       ),
     );
 
+/// One button for both assistants in the till's bar: the smart assistant (ask) and the on/off switch of the shift robot.
+class AssistantMenuButton extends ConsumerStatefulWidget {
+  const AssistantMenuButton({super.key, required this.shiftId});
+  final String? shiftId;
+  @override
+  ConsumerState<AssistantMenuButton> createState() => _AssistantMenuButtonState();
+}
+
+class _AssistantMenuButtonState extends ConsumerState<AssistantMenuButton> {
+  Future<void> _set(bool on) async {
+    try {
+      await ref.read(supabaseProvider).rpc('assistant_my_mode_set', params: {'p_enabled': on});
+      ref.invalidate(assistantFlagsProvider);
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
+    final canMode = f['available'] == true, canAsk = f['find'] == true;
+    if (!canMode && !canAsk) return const SizedBox.shrink();
+    final on = f['mine'] == true;
+    const green = Color(0xFF34D399);
+    return PopupMenuButton<String>(
+      tooltip: _t(context, 'المساعد', 'Assistant'),
+      onSelected: (v) {
+        if (v == 'ask') showCashierAssistant(context, shiftId: widget.shiftId, guard: f['guard'] == true);
+        if (v == 'mode') _set(!on);
+      },
+      itemBuilder: (_) => [
+        if (canAsk) PopupMenuItem(value: 'ask', child: ListTile(leading: const Icon(Icons.smart_toy_rounded, color: green), title: Text(_t(context, 'المساعد الذكي', 'Smart assistant')))),
+        if (canMode)
+          PopupMenuItem(
+            value: 'mode',
+            child: ListTile(
+              leading: Icon(on ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: on ? green : null, size: 30),
+              title: Text(_t(context, on ? 'المساعد الآلي: شغّال' : 'المساعد الآلي: مقفول', on ? 'Robot assistant: ON' : 'Robot assistant: OFF')),
+            ),
+          ),
+      ],
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: on ? green.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.18)),
+          color: on ? green.withValues(alpha: 0.12) : null,
+        ),
+        child: Icon(Icons.smart_toy_rounded, size: 21, color: on ? green : null),
+      ),
+    );
+  }
+}
+
 /// The button shown in the till's top bar.
 class AssistantButton extends ConsumerWidget {
   const AssistantButton({super.key, required this.shiftId});
