@@ -2,7 +2,6 @@
 // (the installer closes the app, replaces the files and reopens it). Android: downloads the new APK, checks its SHA-256 and hands it
 // to the Android installer, which installs it over the old app (same signing key, so data and sign-in stay).
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -10,7 +9,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'l10n.dart';
@@ -33,7 +31,6 @@ bool get _isAndroidApp => !kIsWeb && Platform.isAndroid && !AppConfig.teamOnly;
 /// Google Play build (STORE_BUILD=true): Play updates the app itself, so the in-app updater is switched off.
 const bool kStoreBuild = bool.fromEnvironment('STORE_BUILD');
 bool get appUpdateSupported => !kStoreBuild && kBuildNumber > 0 && (_isAndroidApp || (AppConfig.teamOnly && Platform.isWindows));
-String get _updatePlatform => _isAndroidApp ? 'android' : 'windows';
 const _updateChannel = MethodChannel('myhato/update');
 
 class AppUpdateState {

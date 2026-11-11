@@ -80,7 +80,6 @@ class AppTheme {
               TargetPlatform.android: CupertinoPageTransitionsBuilder(),
               TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
             }),
-      splashFactory: ReduceMotion.on ? NoSplash.splashFactory : null,
       colorScheme: ColorScheme.fromSeed(
         seedColor: BrandColors.navy,
         primary: BrandColors.navy,
@@ -90,7 +89,7 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: BrandColors.offWhite,
       // light ripple (InkSparkle needs a shader warm-up that stutters on some Android phones)
-      splashFactory: InkRipple.splashFactory,
+      splashFactory: ReduceMotion.on ? NoSplash.splashFactory : InkRipple.splashFactory,
       highlightColor: BrandColors.electric.withValues(alpha: 0.04),
     );
     // Tajawal for Arabic, Poppins for English — bundled in the APK (assets/google_fonts), no download wait
