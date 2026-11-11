@@ -534,7 +534,7 @@ class _MiniStat extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Row(children: [
-          Icon(icon, size: 16, color: BrandColors.navy),
+          Icon(icon, size: 16, color: Theme.of(context).colorScheme.onSurface),
           const SizedBox(width: 6),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -715,8 +715,8 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                foregroundColor: color ?? BrandColors.navy,
-                side: BorderSide(color: (color ?? BrandColors.navy).withValues(alpha: 0.35)),
+                foregroundColor: color ?? Theme.of(context).colorScheme.onSurface,
+                side: BorderSide(color: (color ?? Theme.of(context).colorScheme.onSurface).withValues(alpha: 0.35)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: _busy ? null : onTap,
@@ -1298,17 +1298,17 @@ class _AddMemberSheetState extends ConsumerState<_AddMemberSheet> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Material(
-                color: _picked == c ? BrandColors.navy.withValues(alpha: 0.06) : Colors.white,
+                color: _picked == c ? BrandColors.electric.withValues(alpha: 0.12) : panelColor(context),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: _picked == c ? BrandColors.navy : BrandColors.border, width: _picked == c ? 2 : 1),
+                  side: BorderSide(color: _picked == c ? BrandColors.electric : panelLine(context), width: _picked == c ? 2 : 1),
                 ),
                 child: ListTile(
                   onTap: () => setState(() => _picked = c),
                   leading: const Icon(Icons.person_rounded),
                   title: Text((c['full_name'] as String?) ?? (c['username'] as String?) ?? '—'),
                   subtitle: Text([c['customer_code'], c['phone'], c['username']].whereType<String>().join(' • '), textDirection: TextDirection.ltr),
-                  trailing: _picked == c ? const Icon(Icons.check_circle_rounded, color: BrandColors.navy) : null,
+                  trailing: _picked == c ? const Icon(Icons.check_circle_rounded, color: BrandColors.electric) : null,
                 ),
               ),
             ),

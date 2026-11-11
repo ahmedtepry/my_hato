@@ -199,6 +199,7 @@ class GlassPage extends StatelessWidget {
       tabBarTheme: TabBarThemeData(labelColor: Colors.white, unselectedLabelColor: Colors.white60, indicatorColor: BrandColors.electric, dividerColor: Colors.white12),
       floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: BrandColors.electric, foregroundColor: Colors.white),
       switchTheme: b.switchTheme,
+      bottomSheetTheme: const BottomSheetThemeData(backgroundColor: Color(0xFF111F38), modalBackgroundColor: Color(0xFF111F38), surfaceTintColor: Colors.transparent, dragHandleColor: Colors.white38),
       dataTableTheme: const DataTableThemeData(headingTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w800), dataTextStyle: TextStyle(color: Colors.white)),
     );
   }

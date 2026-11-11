@@ -24,10 +24,11 @@ class RailTile extends ConsumerWidget {
     // Tiles given their own colour (e.g. the bright "update the app") keep it.
     final plain = bg == Colors.white;
     final g = glass || (plain && ref.watch(glassLookProvider));
-    final bg = g && (plain || glass) ? const Color(0x1AFFFFFF) : this.bg;
-    final fg = g && (plain || glass) ? Colors.white : this.fg;
-    final icon = g && (plain || glass) ? ColorFiltered(colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn), child: this.icon) : this.icon;
-    return _build(context, bg, fg, icon, g);
+    final clear = g && (plain || glass);
+    final tileBg = clear ? const Color(0x1AFFFFFF) : bg;
+    final tileFg = clear ? Colors.white : fg;
+    final tileIcon = clear ? ColorFiltered(colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn), child: icon) : icon;
+    return _build(context, tileBg, tileFg, tileIcon, g);
   }
 
   Widget _build(BuildContext context, Color bg, Color fg, Widget icon, bool glass) => Center(
