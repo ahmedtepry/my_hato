@@ -780,6 +780,7 @@ class _RegisterState extends ConsumerState<_Register> {
           const Icon(Icons.circle, size: 10, color: BrandColors.success),
           Text(_t(context, 'وردية مفتوحة', 'Shift open'), style: const TextStyle(fontWeight: FontWeight.w800)),
           Text('· ${s['branch_name_ar'] ?? ''}', style: const TextStyle(color: BrandColors.gray)),
+          _SellerChip(shiftId: _shiftId, enabled: !_unknown && _cart.isEmpty),
           Text('· ${_t(context, 'مبيعات', 'Sales')} ${_money(context, (s['sales_minor'] as num?) ?? 0)} (${s['sales_count'] ?? 0})', style: const TextStyle(color: BrandColors.gray)),
           if ((((s['card_sales_minor'] as num?) ?? 0) + ((s['wallet_sales_minor'] as num?) ?? 0)) > 0)
             Text('· ${_t(context, 'كاش', 'Cash')} ${_money(context, (s['cash_sales_minor'] as num?) ?? 0)} · ${_t(context, 'فيزا', 'Visa')} ${_money(context, (s['card_sales_minor'] as num?) ?? 0)} · ${_t(context, 'محافظ', 'Wallets')} ${_money(context, (s['wallet_sales_minor'] as num?) ?? 0)}', style: const TextStyle(color: BrandColors.gray)),
@@ -1853,4 +1854,182 @@ class _TipWhereDialog extends StatelessWidget {
           FilledButton(autofocus: true, onPressed: () => Navigator.pop(context, 'take'), child: Text(_t(context, 'هاخده', 'I will take it'))),
         ],
       );
+}
+
+
+// =====================================================================================================
+// Switch the seller on the same screen: tap the name, pick a cashier of the branch, type his 4-digit PIN.
+// The shift and the drawer stay with the account that opened them; every sale records who actually sold.
+// =====================================================================================================
+class _SellerChip extends ConsumerStatefulWidget {
+  const _SellerChip({required this.shiftId, required this.enabled});
+  final String shiftId;
+  final bool enabled;
+  @override
+  ConsumerState<_SellerChip> createState() => _SellerChipState();
+}
+
+class _SellerChipState extends ConsumerState<_SellerChip> {
+  String? _name;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await ref.read(posRepoProvider).currentSeller(widget.shiftId);
+      final me = ref.read(supabaseProvider).auth.currentUser?.id;
+      if (!mounted) return;
+      ref.read(activeSellerProvider.notifier).state = r['id'] == me ? null : r;
+      setState(() => _name = '${r['name'] ?? ''}');
+    } catch (_) {}
+  }
+
+  Future<void> _open() async {
+    final picked = await showSmoothDialog<Map<String, dynamic>>(context: context, builder: (_) => _SellerDialog(shiftId: widget.shiftId));
+    if (picked == null || !mounted) return;
+    final me = ref.read(supabaseProvider).auth.currentUser?.id;
+    ref.read(activeSellerProvider.notifier).state = picked['id'] == me ? null : picked;
+    setState(() => _name = '${picked['name'] ?? ''}');
+    ref.invalidate(myChallengeProvider);
+    showSnack(context, _t(context, 'البائع دلوقتي: ${picked['name']}', 'Seller is now: ${picked['name']}'));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.enabled ? _t(context, 'تبديل البائع', 'Switch seller') : _t(context, 'فرّغ السلة الأول', 'Empty the cart first'),
+      child: ActionChip(
+        avatar: const Icon(Icons.badge_outlined, size: 18),
+        label: Text('${_t(context, 'البائع', 'Seller')}: ${_name ?? '…'}  ▾', style: const TextStyle(fontWeight: FontWeight.w800)),
+        onPressed: widget.enabled ? _open : null,
+      ),
+    );
+  }
+}
+
+class _SellerDialog extends ConsumerStatefulWidget {
+  const _SellerDialog({required this.shiftId});
+  final String shiftId;
+  @override
+  ConsumerState<_SellerDialog> createState() => _SellerDialogState();
+}
+
+class _SellerDialogState extends ConsumerState<_SellerDialog> {
+  List<Map<String, dynamic>>? _list;
+  Map<String, dynamic>? _target; // the cashier whose PIN is being typed
+  final _pin = TextEditingController();
+  final _pinFocus = FocusNode();
+  String? _err;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.read(posRepoProvider).sellerCandidates(widget.shiftId).then((l) {
+      if (mounted) setState(() => _list = l);
+    }).catchError((Object e) {
+      if (mounted) setState(() => _err = _err(context, e));
+    });
+  }
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    _pinFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final t = _target;
+    if (t == null || _pin.text.length != 4 || _busy) return;
+    setState(() {
+      _busy = true;
+      _err = null;
+    });
+    try {
+      final r = await ref.read(posRepoProvider).switchSeller(widget.shiftId, t['id'] as String, _pin.text);
+      if (!mounted) return;
+      if (r['ok'] == true) {
+        Navigator.pop(context, {'id': r['id'], 'name': r['name']});
+        return;
+      }
+      final locked = r['error'] == 'PIN_LOCKED';
+      setState(() {
+        _busy = false;
+        _pin.clear();
+        _err = locked
+            ? _t(context, 'محاولات غلط كتير. الموظف ده مقفول ${((r['seconds'] as num?) ?? 300) ~/ 60} دقايق.', 'Too many wrong tries. Locked for a few minutes.')
+            : _t(context, 'الـPIN غلط (فاضل ${r['left']} محاولات)', 'Wrong PIN (${r['left']} tries left)');
+      });
+      _pinFocus.requestFocus();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _err = _err(context, e);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = _target;
+    return AlertDialog(
+      title: Text(t == null ? _t(context, 'تبديل البائع', 'Switch seller') : '${_t(context, 'PIN', 'PIN')} · ${t['name']}'),
+      content: SizedBox(
+        width: 360,
+        child: t == null
+            ? (_list == null
+                ? SizedBox(height: 80, child: Center(child: _err == null ? const CircularProgressIndicator() : Text(_err!, style: const TextStyle(color: BrandColors.error))))
+                : Column(mainAxisSize: MainAxisSize.min, children: [
+                    for (final c in _list!)
+                      Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: Icon(c['active'] == true ? Icons.radio_button_checked : Icons.person_outline, color: c['active'] == true ? BrandColors.success : null),
+                          title: Text('${c['name']}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: c['has_pin'] == true ? null : Text(_t(context, 'مفيش PIN — المالك يحدده', 'No PIN yet — the owner sets it'), style: const TextStyle(color: BrandColors.warning, fontSize: 12)),
+                          trailing: c['active'] == true ? Text(_t(context, 'الحالي', 'Current'), style: const TextStyle(color: BrandColors.success)) : const Icon(Icons.chevron_left),
+                          enabled: c['has_pin'] == true,
+                          onTap: () {
+                            setState(() {
+                              _target = c;
+                              _err = null;
+                            });
+                            WidgetsBinding.instance.addPostFrameCallback((_) => _pinFocus.requestFocus());
+                          },
+                        ),
+                      ),
+                  ]))
+            : Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                  controller: _pin,
+                  focusNode: _pinFocus,
+                  autofocus: true,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  maxLength: 4,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: const TextStyle(fontSize: 28, letterSpacing: 12, fontWeight: FontWeight.w800),
+                  decoration: InputDecoration(counterText: '', hintText: '••••', errorText: _err),
+                  onChanged: (v) {
+                    if (v.length == 4) _submit();
+                  },
+                  onSubmitted: (_) => _submit(),
+                ),
+                if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
+              ]),
+      ),
+      actions: [
+        if (t != null) TextButton(onPressed: _busy ? null : () => setState(() { _target = null; _pin.clear(); _err = null; }), child: Text(_t(context, 'رجوع', 'Back'))),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إلغاء', 'Cancel'))),
+      ],
+    );
+  }
 }

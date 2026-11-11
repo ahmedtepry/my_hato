@@ -34,6 +34,15 @@ class PosRepository {
     return email != null && mine != null && email.toLowerCase() == mine.toLowerCase();
   }
 
+  /// Cashiers of this shift's branch who can be switched in (name, code, has_pin, active).
+  Future<List<Map<String, dynamic>>> sellerCandidates(String shiftId) async => _l(await _db.rpc('pos_seller_candidates', params: {'p_shift': shiftId}));
+
+  Future<Map<String, dynamic>> currentSeller(String shiftId) async => _m(await _db.rpc('pos_current_seller', params: {'p_shift': shiftId}));
+
+  /// `{ok:true,id,name}` or `{ok:false,error:'BAD_PIN'|'PIN_LOCKED',left,seconds}`; a missing PIN raises NO_PIN.
+  Future<Map<String, dynamic>> switchSeller(String shiftId, String userId, String pin) async =>
+      _m(await _db.rpc('pos_switch_seller', params: {'p_shift': shiftId, 'p_user': userId, 'p_pin': pin}));
+
   Future<Map<String, dynamic>> shiftSummary(String shiftId) async => _m(await _db.rpc('pos_shift_summary', params: {'p_shift': shiftId}));
 
   /// Closes the shift. The database asks for the closer's own password again and answers `{ok:false, error:'WRONG_PASSWORD'}` when it is wrong.
@@ -248,6 +257,7 @@ String posErrorText(Object e, bool ar, String Function(Object) fallback) {
   if (m.contains('SHIFT_NOT_CLOSED')) return pick('الوردية لسه مفتوحة', 'The shift is still open');
   if (m.contains('RATE_LIMITED')) return pick('محاولات غلط كتير، استنى شوية وجرّب تاني', 'Too many wrong attempts, wait a bit');
   if (m.contains('REFUND_WINDOW_PASSED')) return pick('عدّت مهلة الاسترجاع (14 يوم). المرتجع بعدها محتاج المالك.', 'The return window (14 days) has passed. Only the owner can refund now.');
+  if (m.contains('NO_PIN')) return pick('الموظف ده ملوش PIN. المالك يحدده من صفحة الفريق.', 'This member has no PIN. The owner sets it in Team.');
   if (m.contains('NOT_FOUND')) return pick('مفيش فاتورة بالرقم ده في فرعك', 'No invoice with this number in your branch');
   if (m.contains('FORBIDDEN')) return pick('مش مسموحلك بالعملية دي', 'Not allowed');
   if (m.contains('INVALID_INPUT')) return pick('البيانات مش صحيحة', 'Invalid input');

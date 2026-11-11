@@ -106,6 +106,10 @@ class TeamRepository {
 
   Future<void> resetPassword(String userId, String password) => _fn({'action': 'reset_password', 'user_id': userId, 'password': password});
 
+  Future<void> setPin(String userId, String pin) async {
+    await _db.rpc('staff_pin_set', params: {'p_user': userId, 'p_pin': pin});
+  }
+
   Future<void> setSuspended(String userId, bool suspended) => _fn({'action': 'suspend', 'user_id': userId, 'suspended': suspended});
 }
 
@@ -617,6 +621,12 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
     }, _t(context, 'اتغيّرت كلمة السر واتنسخت ✅', 'Password changed and copied ✅'));
   }
 
+  Future<void> _setPin() async {
+    final pin = await showSmoothDialog<String>(context: context, builder: (_) => const _PinDialog());
+    if (pin == null || !mounted) return;
+    await _run(() => ref.read(teamRepoProvider).setPin(_id, pin), _t(context, 'اتحدد الـPIN ✅ (الموظف يستخدمه لتبديل البائع في الكاشير)', 'PIN set ✅'));
+  }
+
   Future<void> _toggleSuspend() async {
     final to = !_suspended;
     final ok = !to ||
@@ -764,6 +774,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
           Row(children: [
             action(Icons.swap_horiz_rounded, _t(context, 'الصلاحية', 'Role'), _changeRole),
             action(Icons.key_rounded, _t(context, 'باسورد', 'Password'), _newPassword),
+            action(Icons.pin_outlined, 'PIN', _setPin),
             action(_suspended ? Icons.play_circle_rounded : Icons.pause_circle_rounded, _suspended ? _t(context, 'تشغيل', 'Resume') : _t(context, 'إيقاف', 'Suspend'),
                 _toggleSuspend,
                 color: _suspended ? BrandColors.success : BrandColors.warning),
@@ -1351,4 +1362,48 @@ class _BranchesDialogState extends State<_BranchesDialog> {
           FilledButton(onPressed: () => Navigator.pop(context, _s), child: Text(_t(context, 'حفظ', 'Save'))),
         ],
       );
+}
+
+
+/// The owner types a 4-digit PIN for a member (used to switch the seller on the cashier screen).
+class _PinDialog extends StatefulWidget {
+  const _PinDialog();
+  @override
+  State<_PinDialog> createState() => _PinDialogState();
+}
+
+class _PinDialogState extends State<_PinDialog> {
+  final _c = TextEditingController();
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_t(context, 'PIN تبديل البائع', 'Seller-switch PIN')),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(_t(context, '4 أرقام. الموظف بيكتبها لما يختار اسمه على شاشة الكاشير.', '4 digits, typed when the member is picked on the cashier screen.'), style: const TextStyle(fontSize: 12.5)),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _c,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          maxLength: 4,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: const TextStyle(fontSize: 26, letterSpacing: 10, fontWeight: FontWeight.w800),
+          decoration: const InputDecoration(counterText: '', hintText: '0000'),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (v) => v.length == 4 ? Navigator.pop(context, v) : null,
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إلغاء', 'Cancel'))),
+        FilledButton(onPressed: _c.text.length == 4 ? () => Navigator.pop(context, _c.text) : null, child: Text(_t(context, 'حفظ', 'Save'))),
+      ],
+    );
+  }
 }

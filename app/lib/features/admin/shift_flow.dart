@@ -1035,9 +1035,13 @@ class _DrawerAnim extends StatelessWidget {
 // =====================================================================================================
 /// Today's numbers for the cashier: the daily target (monthly target / days of the month), real sales so far,
 /// the products with a commission today and how many were sold. Refreshed after every sale.
+/// The seller currently switched in on this screen (null = the account that opened the shift).
+final activeSellerProvider = StateProvider<Map<String, dynamic>?>((ref) => null);
+
 final myChallengeProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
   try {
-    final r = await ref.watch(supabaseProvider).rpc('my_challenge_today');
+    final seller = ref.watch(activeSellerProvider);
+    final r = await ref.watch(supabaseProvider).rpc('my_challenge_today', params: seller == null ? null : {'p_user': seller['id']});
     return Map<String, dynamic>.from(r as Map);
   } catch (_) {
     return null;
