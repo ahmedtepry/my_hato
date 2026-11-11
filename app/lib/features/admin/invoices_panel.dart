@@ -152,30 +152,7 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
   Widget build(BuildContext context) {
     _base ??= Theme.of(context);
     _glass = ref.watch(glassLookProvider);
-    final body = _page(context);
-    if (!_glass) return body;
-    // glass look: no white sheet; the page floats on the dark background like the sidebar, with translucent cards
-    final b = _base!;
-    return Theme(
-      data: b.copyWith(
-        brightness: Brightness.dark,
-        textTheme: b.textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
-        iconTheme: const IconThemeData(color: Colors.white70),
-        colorScheme: b.colorScheme.copyWith(brightness: Brightness.dark, onSurface: Colors.white, onSurfaceVariant: Colors.white70, primary: BrandColors.electric, onPrimary: Colors.white, secondaryContainer: Colors.white24, onSecondaryContainer: Colors.white),
-        dividerColor: Colors.white12,
-        listTileTheme: const ListTileThemeData(textColor: Colors.white, iconColor: Colors.white70, subtitleTextStyle: TextStyle(color: Colors.white60, fontSize: 13)),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white.withValues(alpha: .08),
-          hintStyle: const TextStyle(color: Colors.white54),
-          prefixIconColor: Colors.white60,
-          suffixIconColor: Colors.white60,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        ),
-        chipTheme: b.chipTheme.copyWith(backgroundColor: Colors.white.withValues(alpha: .08), selectedColor: BrandColors.electric.withValues(alpha: .55), labelStyle: const TextStyle(color: Colors.white), side: BorderSide.none, checkmarkColor: Colors.white),
-      ),
-      child: Material(color: Colors.transparent, child: body),
-    );
+    return _page(context);
   }
 
   Widget _page(BuildContext context) {
@@ -183,13 +160,7 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          Expanded(child: Text(_t(context, 'جميع الفواتير', 'All invoices'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800))),
-          OutlinedButton.icon(icon: const Icon(Icons.print_rounded, size: 18), label: Text(_t(context, 'طباعة السجل', 'Print history')), onPressed: () => _history(print: true)),
-          const SizedBox(width: 8),
-          OutlinedButton.icon(icon: const Icon(Icons.picture_as_pdf_rounded, size: 18), label: const Text('PDF'), onPressed: () => _history(print: false)),
-        ]),
-        const SizedBox(height: 10),
-        SegmentedButton<String>(
+        Expanded(child: SegmentedButton<String>(
           segments: [
             ButtonSegment(value: 'paid', icon: const Icon(Icons.check_circle_outline), label: Text(_t(context, 'المدفوعة', 'Paid'))),
             ButtonSegment(value: 'cancelled', icon: const Icon(Icons.cancel_outlined), label: Text(_t(context, 'الملغية', 'Cancelled'))),
@@ -200,7 +171,10 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
             _tab = v.first;
             _reload();
           },
-        ),
+        )),
+        IconButton(tooltip: _t(context, 'طباعة سجل الفواتير', 'Print invoices history'), icon: const Icon(Icons.print_rounded), onPressed: () => _history(print: true)),
+        IconButton(tooltip: _t(context, 'حفظ سجل الفواتير PDF', 'Save invoices history as PDF'), icon: const Icon(Icons.picture_as_pdf_rounded), onPressed: () => _history(print: false)),
+        ]),
         const SizedBox(height: 10),
         if (_tab != 'held')
           Row(children: [

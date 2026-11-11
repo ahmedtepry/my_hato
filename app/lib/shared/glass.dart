@@ -142,6 +142,69 @@ class GlassBox extends StatelessWidget {
 }
 
 /// Wraps an ordinary (light) page so it sits on the glass background as one big frosted sheet and stays fully readable.
+/// Every console page in the glass look: no white sheet, the page floats on the dark glass with a dark theme
+/// (translucent cards, white text, dark dialogs), so it is lighter to draw and matches the sidebar.
+class GlassPage extends StatelessWidget {
+  const GlassPage({super.key, required this.child});
+  final Widget child;
+
+  static ThemeData dark(ThemeData b) {
+    const surface = Color(0xFF0E1A2E);
+    final scheme = ColorScheme.fromSeed(seedColor: BrandColors.electric, brightness: Brightness.dark).copyWith(
+      primary: BrandColors.electric,
+      onPrimary: Colors.white,
+      surface: surface,
+      onSurface: Colors.white,
+      onSurfaceVariant: Colors.white70,
+      surfaceContainerLowest: surface,
+      surfaceContainerLow: const Color(0xFF12213A),
+      surfaceContainer: const Color(0xFF14233D),
+      surfaceContainerHigh: const Color(0xFF172A47),
+      surfaceContainerHighest: const Color(0xFF1B2F50),
+      outline: Colors.white24,
+      outlineVariant: Colors.white12,
+    );
+    return b.copyWith(
+      brightness: Brightness.dark,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: Colors.transparent,
+      canvasColor: surface,
+      textTheme: b.textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
+      primaryTextTheme: b.primaryTextTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
+      iconTheme: const IconThemeData(color: Colors.white70),
+      dividerColor: Colors.white12,
+      cardTheme: CardThemeData(color: Colors.white.withValues(alpha: .07), elevation: 0, margin: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white12))),
+      listTileTheme: const ListTileThemeData(textColor: Colors.white, iconColor: Colors.white70, subtitleTextStyle: TextStyle(color: Colors.white60, fontSize: 13)),
+      dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF111F38), surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: .08),
+        hintStyle: const TextStyle(color: Colors.white54),
+        labelStyle: const TextStyle(color: Colors.white70),
+        prefixIconColor: Colors.white60,
+        suffixIconColor: Colors.white60,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.white12)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.white12)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: BrandColors.electric, width: 1.6)),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(foregroundColor: Colors.white, minimumSize: const Size.fromHeight(52), side: const BorderSide(color: Colors.white24), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+      ),
+      textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: Colors.white)),
+      chipTheme: b.chipTheme.copyWith(backgroundColor: Colors.white.withValues(alpha: .08), selectedColor: BrandColors.electric.withValues(alpha: .55), labelStyle: const TextStyle(color: Colors.white), side: BorderSide.none, checkmarkColor: Colors.white),
+      popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF14233D)),
+      dataTableTheme: const DataTableThemeData(headingTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w800), dataTextStyle: TextStyle(color: Colors.white)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
+        child: Theme(data: dark(Theme.of(context)), child: Material(color: Colors.transparent, child: child)),
+      );
+}
+
 class GlassSheet extends StatelessWidget {
   const GlassSheet({super.key, required this.child});
   final Widget child;

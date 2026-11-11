@@ -5,14 +5,14 @@ import '../core/theme.dart';
 /// One button of the console's left control column: a 22px icon over a short 10px label, the same size for every button.
 /// A small dot (e.g. "assistant is on") or a count bubble (e.g. unread messages) sits on its corner instead of extra text.
 class RailTile extends StatelessWidget {
-  const RailTile({super.key, required this.icon, required this.label, required this.tooltip, required this.onTap, this.dot, this.count, this.bg = Colors.white, this.fg = BrandColors.navy, this.glow = false});
+  const RailTile({super.key, required this.icon, required this.label, required this.tooltip, required this.onTap, this.dot, this.count, this.bg = Colors.white, this.fg = BrandColors.navy, this.glow = false, this.glass = false});
   final Widget icon;
   final String label, tooltip;
   final VoidCallback? onTap;
   final Color? dot;
   final String? count;
   final Color bg, fg;
-  final bool glow;
+  final bool glow, glass;
 
   static const double width = 62, height = 54;
 
@@ -25,8 +25,8 @@ class RailTile extends StatelessWidget {
             height: height,
             child: Material(
               color: bg,
-              elevation: glow ? 4 : 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: BrandColors.border)),
+              elevation: glass ? 0 : (glow ? 4 : 1),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: glass ? Colors.white24 : BrandColors.border)),
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: onTap,
@@ -36,7 +36,7 @@ class RailTile extends StatelessWidget {
                     const SizedBox(height: 3),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, height: 1.1, fontWeight: FontWeight.w700, color: onTap == null ? BrandColors.gray : fg)),
+                      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, height: 1.1, fontWeight: FontWeight.w700, color: onTap == null ? (glass ? Colors.white38 : BrandColors.gray) : fg)),
                     ),
                   ]),
                   if (dot != null) PositionedDirectional(top: 6, end: 8, child: Container(width: 9, height: 9, decoration: BoxDecoration(color: dot, shape: BoxShape.circle, border: Border.all(color: bg, width: 1.5)))),

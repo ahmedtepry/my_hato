@@ -543,18 +543,19 @@ List<Widget> _chatTiles(BuildContext ctx, WidgetRef ref) {
 /// A small tile in the left control column: icon, tiny label, optional badge.
 Widget _lookWrap(bool glass, Widget w) => glass ? GlassBackdrop(child: w) : w;
 
-class _RailTile extends StatelessWidget {
+class _RailTile extends ConsumerWidget {
   const _RailTile({required this.child, required this.label, required this.tooltip, required this.onTap, this.badge});
   final Widget child;
   final String label, tooltip;
   final String? badge;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final glass = ref.watch(glassLookProvider);
     // "On" = a green dot; a number (unread) = a red count; any other text is dropped (the tooltip says it)
     final isOn = badge == 'شغّال' || badge == 'On';
     final digits = badge == null ? null : RegExp(r'\d+').firstMatch(badge!)?.group(0);
-    return RailTile(icon: child, label: label, tooltip: tooltip, onTap: onTap, dot: isOn ? BrandColors.success : null, count: digits);
+    return RailTile(icon: child, label: label, tooltip: tooltip, onTap: onTap, dot: isOn ? BrandColors.success : null, count: digits, bg: glass ? const Color(0x14FFFFFF) : Colors.white, fg: glass ? Colors.white : BrandColors.navy, glass: glass);
   }
 }
 
@@ -771,7 +772,7 @@ class AdminHomeScreen extends ConsumerWidget {
             final glass = ref.watch(glassLookProvider);
             final pagesPlain = Column(children: [const ContestBanner(margin: EdgeInsets.fromLTRB(12, 8, 12, 0)), Expanded(child: pagesRaw)]);
             // glass look: the home page is dark glass itself; every other page sits on one frosted light sheet so it stays readable
-            final pages = glass && current != 'overview' && current != 'invoices' ? GlassSheet(child: pagesPlain) : pagesPlain; // the invoices page floats on the glass itself (no white sheet)
+            final pages = glass && current != 'overview' ? GlassPage(child: pagesPlain) : pagesPlain; // no white sheet: every page floats on the dark glass
 
             void back() {
               while (_navBack.isNotEmpty) {
