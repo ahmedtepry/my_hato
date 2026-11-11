@@ -771,7 +771,7 @@ class AdminHomeScreen extends ConsumerWidget {
             final glass = ref.watch(glassLookProvider);
             final pagesPlain = Column(children: [const ContestBanner(margin: EdgeInsets.fromLTRB(12, 8, 12, 0)), Expanded(child: pagesRaw)]);
             // glass look: the home page is dark glass itself; every other page sits on one frosted light sheet so it stays readable
-            final pages = glass && current != 'overview' ? GlassSheet(child: pagesPlain) : pagesPlain;
+            final pages = glass && current != 'overview' && current != 'invoices' ? GlassSheet(child: pagesPlain) : pagesPlain; // the invoices page floats on the glass itself (no white sheet)
 
             void back() {
               while (_navBack.isNotEmpty) {

@@ -15,6 +15,7 @@ import '../../core/money.dart';
 import '../../core/save_file.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
+import '../../shared/glass.dart';
 import '../../shared/motion.dart';
 import '../../shared/states.dart';
 import 'documents.dart' show pdfFonts;
@@ -41,6 +42,9 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
   final _q = TextEditingController();
   Future<List<Map<String, dynamic>>>? _list;
   Future<List<Map<String, dynamic>>>? _held;
+  ThemeData? _base; // the normal theme: dialogs keep it even when the page itself is dark glass
+
+  Future<T?> _dlg<T>(WidgetBuilder b) => showSmoothDialog<T>(context: context, builder: (c) => Theme(data: _base ?? Theme.of(c), child: Builder(builder: b)));
 
   @override
   void initState() {
@@ -114,7 +118,7 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
     });
   }
 
-  Future<void> _open(Map<String, dynamic> row) => showSmoothDialog<void>(context: context, builder: (_) => _InvoiceDialog(id: '${row['id']}'));
+  Future<void> _open(Map<String, dynamic> row) => _dlg<void>((_) => _InvoiceDialog(id: '${row['id']}'));
 
   /// The whole history for the chosen period (paid and cancelled together) as a printable / savable PDF.
   Future<void> _history({required bool print}) async {
@@ -141,8 +145,40 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
         _ => _t(c, 'الكل', 'All'),
       };
 
+  Color get _muted => _glass ? Colors.white60 : BrandColors.gray;
+  bool _glass = false;
+
   @override
   Widget build(BuildContext context) {
+    _base ??= Theme.of(context);
+    _glass = ref.watch(glassLookProvider);
+    final body = _page(context);
+    if (!_glass) return body;
+    // glass look: no white sheet; the page floats on the dark background like the sidebar, with translucent cards
+    final b = _base!;
+    return Theme(
+      data: b.copyWith(
+        brightness: Brightness.dark,
+        textTheme: b.textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white70),
+        colorScheme: b.colorScheme.copyWith(brightness: Brightness.dark, onSurface: Colors.white, onSurfaceVariant: Colors.white70, primary: BrandColors.electric, onPrimary: Colors.white, secondaryContainer: Colors.white24, onSecondaryContainer: Colors.white),
+        dividerColor: Colors.white12,
+        listTileTheme: const ListTileThemeData(textColor: Colors.white, iconColor: Colors.white70, subtitleTextStyle: TextStyle(color: Colors.white60, fontSize: 13)),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white.withValues(alpha: .08),
+          hintStyle: const TextStyle(color: Colors.white54),
+          prefixIconColor: Colors.white60,
+          suffixIconColor: Colors.white60,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        ),
+        chipTheme: b.chipTheme.copyWith(backgroundColor: Colors.white.withValues(alpha: .08), selectedColor: BrandColors.electric.withValues(alpha: .55), labelStyle: const TextStyle(color: Colors.white), side: BorderSide.none, checkmarkColor: Colors.white),
+      ),
+      child: Material(color: Colors.transparent, child: body),
+    );
+  }
+
+  Widget _page(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -194,37 +230,46 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
     );
   }
 
+  Widget _card(Widget child) => DecoratedBox(
+        decoration: BoxDecoration(
+          color: _glass ? Colors.white.withValues(alpha: .07) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _glass ? Colors.white12 : BrandColors.border),
+        ),
+        child: child,
+      );
+
   Widget _listBody() => FutureBuilder<List<Map<String, dynamic>>>(
         future: _list,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
           if (snap.hasError) return Center(child: Text(friendlyError(context, snap.error!)));
           final rows = snap.data ?? const [];
-          if (rows.isEmpty) return Center(child: Text(_t(context, 'مفيش فواتير', 'No invoices'), style: const TextStyle(color: BrandColors.gray)));
+          if (rows.isEmpty) return Center(child: Text(_t(context, 'مفيش فواتير', 'No invoices'), style: TextStyle(color: _muted)));
           final sum = rows.fold<int>(0, (a, r) => a + (r['total_minor'] as num).toInt());
           return Column(children: [
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: Text('${rows.length} ${_t(context, 'فاتورة', 'invoices')} · ${_money(context, sum)}', style: const TextStyle(color: BrandColors.gray, fontWeight: FontWeight.w700)),
+                child: Text('${rows.length} ${_t(context, 'فاتورة', 'invoices')} · ${_money(context, sum)}', style: TextStyle(color: _muted, fontWeight: FontWeight.w700)),
               ),
             ),
             Expanded(
               child: ListView.separated(
                 itemCount: rows.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {
                   final r = rows[i];
                   final partial = (r['refunded_minor'] as num) > 0 && r['status'] != 'cancelled';
-                  return ListTile(
+                  return _card(ListTile(
                     onTap: () => _open(r),
                     leading: Icon(r['status'] == 'cancelled' ? Icons.cancel_outlined : Icons.receipt_long_rounded, color: r['status'] == 'cancelled' ? Colors.redAccent : BrandColors.electric),
                     title: Text('${r['number']}', style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: .5)),
                     subtitle: Text('${_t(context, 'البائع', 'Seller')}: ${r['seller_code'] ?? '—'}${r['seller_name'] == null ? '' : ' · ${r['seller_name']}'}\n${_when(r['created_at'])}  ·  ${_payLabel(context, '${r['payment_method']}')}${partial ? '  ·  ${_t(context, 'مرتجع جزئي', 'Partly refunded')}' : ''}'),
                     isThreeLine: true,
                     trailing: Text(_money(context, r['total_minor'] as num), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                  );
+                  ));
                 },
               ),
             ),
@@ -237,20 +282,19 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
           final rows = snap.data ?? const [];
-          if (rows.isEmpty) return Center(child: Text(_t(context, 'مفيش فواتير معلّقة', 'No held invoices'), style: const TextStyle(color: BrandColors.gray)));
+          if (rows.isEmpty) return Center(child: Text(_t(context, 'مفيش فواتير معلّقة', 'No held invoices'), style: TextStyle(color: _muted)));
           return ListView.separated(
             itemCount: rows.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
               final r = rows[i];
-              return ListTile(
+              return _card(ListTile(
                 leading: const Icon(Icons.pause_circle_outline, color: Colors.orange),
                 title: Text('${_t(context, 'فاتورة معلّقة', 'Held invoice')} · ${r['count']} ${_t(context, 'قطعة', 'items')}', style: const TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: Text(_when(r['at'])),
                 trailing: Text(_money(context, r['total_minor'] as num), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                onTap: () => showSmoothDialog<void>(
-                  context: context,
-                  builder: (_) => AlertDialog(
+                onTap: () => _dlg<void>(
+                  (_) => AlertDialog(
                     title: Text(_t(context, 'فاتورة معلّقة', 'Held invoice')),
                     content: SizedBox(
                       width: 380,
@@ -271,7 +315,7 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
                     actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إغلاق', 'Close')))],
                   ),
                 ),
-              );
+              ));
             },
           );
         },
