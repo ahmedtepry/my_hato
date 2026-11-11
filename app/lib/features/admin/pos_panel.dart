@@ -1923,7 +1923,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
   Map<String, dynamic>? _target; // the cashier whose PIN is being typed
   final _pin = TextEditingController();
   final _pinFocus = FocusNode();
-  String? _err;
+  String? _msg;
   bool _busy = false;
 
   @override
@@ -1932,7 +1932,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
     ref.read(posRepoProvider).sellerCandidates(widget.shiftId).then((l) {
       if (mounted) setState(() => _list = l);
     }).catchError((Object e) {
-      if (mounted) setState(() => _err = _err(context, e));
+      if (mounted) setState(() => _msg = _err(context, e));
     });
   }
 
@@ -1948,7 +1948,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
     if (t == null || _pin.text.length != 4 || _busy) return;
     setState(() {
       _busy = true;
-      _err = null;
+      _msg = null;
     });
     try {
       final r = await ref.read(posRepoProvider).switchSeller(widget.shiftId, t['id'] as String, _pin.text);
@@ -1961,7 +1961,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
       setState(() {
         _busy = false;
         _pin.clear();
-        _err = locked
+        _msg = locked
             ? _t(context, 'محاولات غلط كتير. الموظف ده مقفول ${((r['seconds'] as num?) ?? 300) ~/ 60} دقايق.', 'Too many wrong tries. Locked for a few minutes.')
             : _t(context, 'الـPIN غلط (فاضل ${r['left']} محاولات)', 'Wrong PIN (${r['left']} tries left)');
       });
@@ -1970,7 +1970,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _err = _err(context, e);
+          _msg = _err(context, e);
         });
       }
     }
@@ -1985,7 +1985,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
         width: 360,
         child: t == null
             ? (_list == null
-                ? SizedBox(height: 80, child: Center(child: _err == null ? const CircularProgressIndicator() : Text(_err!, style: const TextStyle(color: BrandColors.error))))
+                ? SizedBox(height: 80, child: Center(child: _msg == null ? const CircularProgressIndicator() : Text(_msg!, style: const TextStyle(color: BrandColors.error))))
                 : Column(mainAxisSize: MainAxisSize.min, children: [
                     for (final c in _list!)
                       Card(
@@ -1999,7 +1999,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
                           onTap: () {
                             setState(() {
                               _target = c;
-                              _err = null;
+                              _msg = null;
                             });
                             WidgetsBinding.instance.addPostFrameCallback((_) => _pinFocus.requestFocus());
                           },
@@ -2017,7 +2017,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
                   maxLength: 4,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: const TextStyle(fontSize: 28, letterSpacing: 12, fontWeight: FontWeight.w800),
-                  decoration: InputDecoration(counterText: '', hintText: '••••', errorText: _err),
+                  decoration: InputDecoration(counterText: '', hintText: '••••', errorText: _msg),
                   onChanged: (v) {
                     if (v.length == 4) _submit();
                   },
@@ -2027,7 +2027,7 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
               ]),
       ),
       actions: [
-        if (t != null) TextButton(onPressed: _busy ? null : () => setState(() { _target = null; _pin.clear(); _err = null; }), child: Text(_t(context, 'رجوع', 'Back'))),
+        if (t != null) TextButton(onPressed: _busy ? null : () => setState(() { _target = null; _pin.clear(); _msg = null; }), child: Text(_t(context, 'رجوع', 'Back'))),
         TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إلغاء', 'Cancel'))),
       ],
     );
