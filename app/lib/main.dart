@@ -27,10 +27,17 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // In a release build a screen that throws while drawing turns into a blank grey box. Show a readable message instead,
   // and keep errors from other code from taking the app down.
-  ErrorWidget.builder = (details) => _BrokenScreen(error: details.exceptionAsString());
-  FlutterError.onError = (d) => FlutterError.presentError(d);
+  ErrorWidget.builder = (details) {
+    _reportError(details.exceptionAsString(), details.stack?.toString());
+    return _BrokenScreen(error: details.exceptionAsString());
+  };
+  FlutterError.onError = (d) {
+    FlutterError.presentError(d);
+    _reportError(d.exceptionAsString(), d.stack?.toString());
+  };
   ui.PlatformDispatcher.instance.onError = (error, stack) {
     debugPrint('Uncaught: $error');
+    _reportError('$error', stack.toString());
     return true;
   };
   final prefs = await SharedPreferences.getInstance();
@@ -208,6 +215,18 @@ class _MisconfiguredApp extends StatelessWidget {
           ),
         ),
       );
+}
+
+final _reported = <String>{};
+
+/// Sends a screen/app error to the server log (once per message, at most 8 per run) so it can be fixed without a screenshot.
+void _reportError(String message, String? stack) {
+  try {
+    if (kDebugMode || _reported.length >= 8 || !_reported.add(message.length > 120 ? message.substring(0, 120) : message)) return;
+    Supabase.instance.client
+        .rpc('log_client_error', params: {'p_message': message, 'p_stack': stack ?? '', 'p_platform': defaultTargetPlatform.name, 'p_build': kBuildNumber})
+        .then((_) {}, onError: (_) {});
+  } catch (_) {/* never let reporting break the app */}
 }
 
 /// Replaces the grey box Flutter paints in release when a screen fails to build.
