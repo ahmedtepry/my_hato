@@ -49,7 +49,8 @@ class ShiftReportsList extends ConsumerWidget {
                           title: Text('${r['report_no']} · ${r['branch_name_ar']}', style: const TextStyle(fontWeight: FontWeight.w700)),
                           subtitle: Text(
                             '${_t(context, 'الكاشير', 'Cashier')}: ${r['cashier_name']} · ${_t(context, 'قفلها', 'Closed by')}: ${r['closed_by_name']}\n'
-                            '${_when(r['closed_at'])}${(r['closed_device'] ?? '') == '' ? '' : ' · ${r['closed_device']}'}',
+                            '${_when(r['closed_at'])}${(r['closed_device'] ?? '') == '' ? '' : ' · ${r['closed_device']}'}'
+                            '${'${r['note'] ?? ''}'.isEmpty ? '' : '\n${v == 0 ? _t(context, 'ملاحظة', 'Note') : _t(context, v < 0 ? 'سبب العجز' : 'سبب الزيادة', v < 0 ? 'Reason for the shortage' : 'Reason for the surplus')}: ${r['note']}'}',
                           ),
                           isThreeLine: true,
                           trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [

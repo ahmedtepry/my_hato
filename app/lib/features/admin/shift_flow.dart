@@ -997,6 +997,17 @@ class _DrawerAnim extends StatelessWidget {
 // =====================================================================================================
 // Daily challenge with confetti (cashier assistant on)
 // =====================================================================================================
+/// Today's numbers for the cashier: the daily target (monthly target / days of the month), real sales so far,
+/// the products with a commission today and how many were sold. Refreshed after every sale.
+final myChallengeProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+  try {
+    final r = await ref.watch(supabaseProvider).rpc('my_challenge_today');
+    return Map<String, dynamic>.from(r as Map);
+  } catch (_) {
+    return null;
+  }
+});
+
 class DailyChallenge extends ConsumerStatefulWidget {
   const DailyChallenge({super.key, required this.sales, this.goal = 10});
   final int sales, goal;
@@ -1006,49 +1017,167 @@ class DailyChallenge extends ConsumerStatefulWidget {
 
 class _DailyChallengeState extends ConsumerState<DailyChallenge> {
   bool _celebrated = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _celebrated = widget.sales >= widget.goal; // already reached before: no party on open
-  }
+  bool _firstData = true;
 
   @override
   void didUpdateWidget(covariant DailyChallenge old) {
     super.didUpdateWidget(old);
-    if (!_celebrated && widget.sales >= widget.goal) {
-      _celebrated = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        showConfetti(context);
-        showSnack(context, _t(context, 'عاش! خلّصت تحدّي النهارده 🎉', 'Well done! Today\'s challenge is complete 🎉'));
-      });
-    }
+    if (old.sales != widget.sales) ref.invalidate(myChallengeProvider); // a sale just happened: refresh the real numbers
+  }
+
+  num _n(Map<String, dynamic> m, String k) => (m[k] as num?) ?? 0;
+
+  void _celebrate() {
+    if (_celebrated) return;
+    _celebrated = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showConfetti(context);
+      showSnack(context, _t(context, 'عاش! خلّصت تارجت النهارده 🎉', 'Well done! Today\'s target is complete 🎉'));
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final f = ref.watch(assistantFlagsProvider).valueOrNull ?? const {};
     if (f['challenge'] != true) return const SizedBox.shrink();
-    final v = (widget.sales / widget.goal).clamp(0.0, 1.0);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(border: Border.all(color: BrandColors.border), borderRadius: BorderRadius.circular(10)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(v >= 1 ? Icons.emoji_events_rounded : Icons.flag_rounded, size: 16, color: v >= 1 ? const Color(0xFFD9B25C) : BrandColors.gray),
-        const SizedBox(width: 6),
-        Text(_t(context, 'تحدّي اليوم ${math.min(widget.sales, widget.goal)}/${widget.goal}', 'Daily challenge ${math.min(widget.sales, widget.goal)}/${widget.goal}'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 70,
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: v),
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOutCubic,
-            builder: (_, x, __) => LinearProgressIndicator(value: x, minHeight: 6, borderRadius: BorderRadius.circular(3)),
-          ),
+    final ch = ref.watch(myChallengeProvider).valueOrNull;
+    final daily = ch == null ? 0 : _n(ch, 'daily_target_minor');
+    final hasTarget = daily > 0;
+    final sold = ch == null ? 0 : _n(ch, 'sales_today_minor');
+    final v = hasTarget ? (sold / daily).clamp(0.0, 1.0).toDouble() : (widget.sales / widget.goal).clamp(0.0, 1.0).toDouble();
+    // no party when the screen opens with the target already reached; only when it is reached while working
+    if (ch != null) {
+      if (_firstData) {
+        _firstData = false;
+        _celebrated = v >= 1;
+      } else if (v >= 1) {
+        _celebrate();
+      }
+    }
+    final label = hasTarget
+        ? _t(context, 'تحدّي اليوم ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}', 'Today ${_money(context, math.min(sold, daily))} / ${_money(context, daily)}')
+        : _t(context, 'تحدّي اليوم ${math.min(widget.sales, widget.goal)}/${widget.goal}', 'Daily challenge ${math.min(widget.sales, widget.goal)}/${widget.goal}');
+    return Tooltip(
+      message: _t(context, 'اضغط تشوف تارجتك اليومي والمنتجات اللي عليها حافز', 'Tap to see your daily target and the products with a bonus'),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => showSmoothDialog<void>(context: context, builder: (_) => const _ChallengeDialog()),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(border: Border.all(color: BrandColors.border), borderRadius: BorderRadius.circular(10)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(v >= 1 ? Icons.emoji_events_rounded : Icons.flag_rounded, size: 16, color: v >= 1 ? const Color(0xFFD9B25C) : BrandColors.gray),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 70,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: v),
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOutCubic,
+                builder: (_, x, __) => LinearProgressIndicator(value: x, minHeight: 6, borderRadius: BorderRadius.circular(3)),
+              ),
+            ),
+          ]),
         ),
+      ),
+    );
+  }
+}
+
+class _ChallengeDialog extends ConsumerWidget {
+  const _ChallengeDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(myChallengeProvider);
+    final ch = async.valueOrNull;
+    num n(String k) => (ch?[k] as num?) ?? 0;
+    Widget stat(String label, String value, {Color? color}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+            Expanded(child: Text(label, style: const TextStyle(color: BrandColors.gray))),
+            Text(value, style: TextStyle(fontWeight: FontWeight.w800, color: color)),
+          ]),
+        );
+    Widget body() {
+      if (async.isLoading && ch == null) return const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()));
+      if (ch == null) return Padding(padding: const EdgeInsets.all(16), child: Text(_t(context, 'مقدرتش أجيب التحدّي دلوقتي. جرّب تاني بعد شوية.', 'Could not load the challenge. Try again in a moment.')));
+      final daily = n('daily_target_minor');
+      final sold = n('sales_today_minor');
+      final products = [for (final e in (ch['products'] as List? ?? const [])) Map<String, dynamic>.from(e as Map)];
+      final done = daily > 0 && sold >= daily;
+      return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (daily > 0) ...[
+          Text(_t(context, 'تارجت النهارده', 'Today\'s target'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          const SizedBox(height: 6),
+          Text(_money(context, daily), textAlign: TextAlign.center, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: BrandColors.electric)),
+          const SizedBox(height: 8),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: (sold / daily).clamp(0.0, 1.0).toDouble()),
+            duration: const Duration(milliseconds: 600),
+            builder: (_, x, __) => LinearProgressIndicator(value: x, minHeight: 10, borderRadius: BorderRadius.circular(5)),
+          ),
+          const SizedBox(height: 6),
+          stat(_t(context, 'بعت لحد دلوقتي', 'Sold so far'), _money(context, sold), color: BrandColors.success),
+          stat(done ? _t(context, 'التارجت خلص 🎉', 'Target reached 🎉') : _t(context, 'فاضل', 'Remaining'), done ? '' : _money(context, daily - sold), color: done ? BrandColors.success : BrandColors.warning),
+          Text(
+            _t(context, 'تارجت الشهر ${_money(context, n('monthly_target_minor'))} ÷ ${n('days_in_month')} يوم. لحد دلوقتي الشهر ${_money(context, n('month_net_minor'))}.',
+                'Monthly target ${_money(context, n('monthly_target_minor'))} ÷ ${n('days_in_month')} days. Month so far ${_money(context, n('month_net_minor'))}.'),
+            style: const TextStyle(color: BrandColors.gray, fontSize: 12, height: 1.5),
+          ),
+        ] else
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: BrandColors.warning.withValues(alpha: .1), borderRadius: BorderRadius.circular(12)),
+            child: Text(_t(context, 'مفيش تارجت شهري متحدد ليك لسه. لما المدير يحدده هيتقسم هنا على أيام الشهر.', 'No monthly target is set for you yet. Once the manager sets it, it is split here over the days of the month.'), style: const TextStyle(height: 1.5)),
+          ),
+        const Divider(height: 26),
+        Row(children: [
+          const Icon(Icons.local_fire_department_rounded, color: Color(0xFFE8A317), size: 20),
+          const SizedBox(width: 6),
+          Text(_t(context, 'منتجات عليها حافز النهارده', 'Products with a bonus today'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        ]),
+        const SizedBox(height: 6),
+        if (products.isEmpty)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(_t(context, 'مفيش منتجات عليها حافز النهارده.', 'No product has a bonus today.'), style: const TextStyle(color: BrandColors.gray)))
+        else
+          for (final p in products)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${context.isAr ? p['name_ar'] : (p['name_en'] ?? p['name_ar'])}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(_t(context, 'اتباع النهارده: ${p['sold_today'] ?? 0}', 'Sold today: ${p['sold_today'] ?? 0}'), style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+                  ]),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: BrandColors.success.withValues(alpha: .12), borderRadius: BorderRadius.circular(20)),
+                  child: Text(_t(context, '+${_money(context, (p['amount_minor'] as num?) ?? 0)} للقطعة', '+${_money(context, (p['amount_minor'] as num?) ?? 0)} each'), style: const TextStyle(color: BrandColors.success, fontWeight: FontWeight.w900, fontSize: 12.5)),
+                ),
+              ]),
+            ),
+        const Divider(height: 26),
+        stat(_t(context, 'عمولتك النهارده', 'Your commission today'), _money(context, n('commission_today_minor')), color: BrandColors.success),
+        stat(_t(context, 'عمولتك الشهر ده', 'Your commission this month'), _money(context, n('commission_month_minor'))),
+        const SizedBox(height: 6),
+        Text(_t(context, 'الأرقام من البيع اللي اتسجّل فعلاً بس، وأي مرتجع بيتخصم. وبتتحدّث لوحدها بعد كل بيعة وبتظهر في «تارجتي وعمولتي».', 'Only sales really recorded count; refunds are deducted. Updated after every sale and shown in "My target".'),
+            style: const TextStyle(color: BrandColors.gray, fontSize: 12, height: 1.5)),
+      ]);
+    }
+
+    return AlertDialog(
+      title: Row(children: [
+        const Icon(Icons.emoji_events_rounded, color: Color(0xFFD9B25C)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(_t(context, 'تحدّي النهارده', 'Today\'s challenge'))),
       ]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: body())),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'تمام', 'OK')))],
     );
   }
 }

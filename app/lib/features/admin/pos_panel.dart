@@ -593,24 +593,29 @@ class _RegisterState extends ConsumerState<_Register> {
     }
   }
 
-  void _hold() {
+  void _hold({bool newInvoice = false}) {
     if (_cart.isEmpty || _unknown || _busy) return;
     setState(() {
       _held.add(_Held([for (final l in _cart.values) _Line(l.p, l.q)], _discount.text, _pm, DateTime.now(), _customer));
       _reset();
     });
     _saveDrafts();
-    showSnack(context, _t(context, 'اتحفظت كمسودة. كمّل بيع تاني وارجعلها من المسودات اللي فوق', 'Saved as a draft. Serve someone else and come back to it from the drafts above'));
+    showSnack(
+        context,
+        newInvoice
+            ? _t(context, 'فتحنالك فاتورة جديدة. الفاتورة القديمة اتعلّقت وتلاقيها فوق السلة', 'New invoice opened. The previous one is on hold above the cart')
+            : _t(context, 'الفاتورة اتعلّقت. كمّل بيع تاني وارجعلها من الفواتير المعلّقة اللي فوق', 'Invoice put on hold. Serve someone else and come back to it from the held invoices above'));
+    _searchFocus.requestFocus();
   }
 
   Future<void> _discard(int i) async {
     final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
-        title: Text(_t(d, 'إلغاء المسودة؟', 'Discard this draft?')),
+        title: Text(_t(d, 'إلغاء الفاتورة المعلّقة؟', 'Discard this held invoice?')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(d, 'لأ', 'No'))),
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: BrandColors.error), onPressed: () => Navigator.pop(d, true), child: Text(_t(d, 'إلغاء المسودة', 'Discard'))),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: BrandColors.error), onPressed: () => Navigator.pop(d, true), child: Text(_t(d, 'إلغاء الفاتورة', 'Discard'))),
         ],
       ),
     );
@@ -622,7 +627,7 @@ class _RegisterState extends ConsumerState<_Register> {
 
   void _resume(int i) {
     if (_cart.isNotEmpty) {
-      showSnack(context, _t(context, 'خلّص السلة الحالية أو احفظها مسودة الأول', 'Finish the current cart or save it as a draft first'), error: true);
+      showSnack(context, _t(context, 'خلّص الفاتورة الحالية أو علّقها الأول', 'Finish the current invoice or put it on hold first'), error: true);
       return;
     }
     final h = _held[i];
@@ -721,6 +726,7 @@ class _RegisterState extends ConsumerState<_Register> {
       setState(_reset);
       ref.invalidate(posShiftProvider);
       ref.invalidate(commissionTodayProvider);
+      ref.invalidate(myChallengeProvider);
       _loadProducts(_search.text);
       if (await receiptAutoPrintOn() && mounted) unawaited(printReceipt(context, done));
       if (!mounted) return;
@@ -807,7 +813,14 @@ class _RegisterState extends ConsumerState<_Register> {
           final cartW = c.maxWidth >= 900 ? 380.0 : 310.0;
           return Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(children: [
+            child: wide
+                ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    // the cart takes the whole height of the screen (top to bottom) so the total and the pay button are always visible
+                    Expanded(child: Column(children: [bar, const SizedBox(height: 12), Expanded(child: _productsPane())])),
+                    const SizedBox(width: 14),
+                    SizedBox(width: cartW, child: _cartPane()),
+                  ])
+                : Column(children: [
               bar,
               const SizedBox(height: 12),
               if (!wide)
@@ -822,15 +835,7 @@ class _RegisterState extends ConsumerState<_Register> {
                     onSelectionChanged: (v) => setState(() => _showCart = v.first),
                   ),
                 ),
-              Expanded(
-                child: wide
-                    ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                        Expanded(child: _productsPane()),
-                        const SizedBox(width: 14),
-                        SizedBox(width: cartW, child: _cartPane()),
-                      ])
-                    : (_showCart ? _cartPane() : _productsPane()),
-              ),
+              Expanded(child: _showCart ? _cartPane() : _productsPane()),
             ]),
           );
          })),
@@ -913,14 +918,14 @@ class _RegisterState extends ConsumerState<_Register> {
             if (_cart.isNotEmpty && !_unknown)
               TextButton.icon(
                 icon: const Icon(Icons.pause_circle_outline, size: 18),
-                label: Text(_t(context, 'مسودة', 'Draft')),
+                label: Text(_t(context, 'تعليق الفاتورة', 'Hold invoice')),
                 onPressed: _hold,
               ),
             if (_cart.isNotEmpty && !_unknown)
               TextButton.icon(
-                icon: const Icon(Icons.delete_sweep_outlined, size: 18),
-                label: Text(_t(context, 'فضّي', 'Clear')),
-                onPressed: () => setState(_reset),
+                icon: const Icon(Icons.note_add_outlined, size: 18),
+                label: Text(_t(context, 'فاتورة جديدة', 'New invoice')),
+                onPressed: () => _hold(newInvoice: true),
               ),
           ]),
           if (_held.isNotEmpty)
@@ -934,11 +939,11 @@ class _RegisterState extends ConsumerState<_Register> {
                       padding: const EdgeInsetsDirectional.only(end: 8),
                       child: InputChip(
                         avatar: const Icon(Icons.edit_note_rounded, size: 18),
-                        label: Text('${_t(context, 'مسودة', 'Draft')} ${i + 1} · ${_money(context, _held[i].lines.fold<int>(0, (a, l) => a + l.price * l.q))}'),
+                        label: Text('${_t(context, 'معلّقة', 'Held')} ${i + 1} · ${_money(context, _held[i].lines.fold<int>(0, (a, l) => a + l.price * l.q))}'),
                         onPressed: () => _resume(i),
                         onDeleted: () => _discard(i),
                         deleteIconColor: BrandColors.error,
-                        deleteButtonTooltipMessage: _t(context, 'إلغاء المسودة', 'Discard draft'),
+                        deleteButtonTooltipMessage: _t(context, 'إلغاء الفاتورة المعلّقة', 'Discard held invoice'),
                       ),
                     ),
                 ]),
