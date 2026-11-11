@@ -9,6 +9,7 @@ import 'appearance.dart';
 import 'config.dart';
 import 'l10n.dart';
 import 'supabase_providers.dart';
+import '../shared/rail_tile.dart';
 import 'theme.dart';
 
 /// Colour themes of the Windows team app. 'default' keeps the store's own colours.
@@ -144,26 +145,7 @@ class TeamThemeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     void open() => showDialog<void>(context: context, builder: (_) => _ThemeDialog(isOwner: isOwner));
     if (tile) {
-      return Tooltip(
-        message: context.isAr ? 'ألوان البرنامج' : 'App colours',
-        child: Material(
-          color: Colors.white,
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: open,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.palette_outlined, size: 32, color: BrandColors.electric),
-                const SizedBox(height: 4),
-                Text(context.isAr ? 'الألوان' : 'Colours', textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: BrandColors.navy)),
-              ]),
-            ),
-          ),
-        ),
-      );
+      return RailTile(tooltip: context.isAr ? 'ألوان البرنامج' : 'App colours', onTap: open, icon: const Icon(Icons.palette_outlined, size: 32, color: BrandColors.electric), label: context.isAr ? 'الألوان' : 'Colours');
     }
     return Material(
       color: Colors.white,

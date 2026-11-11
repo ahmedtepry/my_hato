@@ -14,6 +14,7 @@ import 'config.dart';
 import 'l10n.dart';
 import '../shared/states.dart' show showSnack;
 import 'supabase_providers.dart';
+import '../shared/rail_tile.dart';
 import 'theme.dart';
 
 class AppUpdateInfo {
@@ -152,26 +153,8 @@ class AppUpdateButton extends ConsumerWidget {
     final st = ref.watch(appUpdateProvider);
     final info = st.available;
     final ar = context.isAr;
-    Widget tile({required Widget icon, required String label, required Color bg, required Color fg, required VoidCallback? onTap, required String tip, bool glow = false}) => Tooltip(
-          message: tip,
-          child: Material(
-            color: bg,
-            elevation: glow ? 5 : 2,
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  icon,
-                  const SizedBox(height: 2),
-                  Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: fg, height: 1.15)),
-                ]),
-              ),
-            ),
-          ),
-        );
+    Widget tile({required Widget icon, required String label, required Color bg, required Color fg, required VoidCallback? onTap, required String tip, bool glow = false}) =>
+        RailTile(tooltip: tip, onTap: onTap, icon: icon, label: label, bg: bg, fg: fg, glow: glow);
     if (info == null) {
       return tile(
         tip: ar ? 'البرنامج محدّث (نسخة $kBuildNumber). اضغط للتأكد من وجود تحديث' : 'Up to date (build $kBuildNumber). Tap to check',
@@ -187,7 +170,7 @@ class AppUpdateButton extends ConsumerWidget {
     return tile(
       tip: ar ? 'نسخة جديدة جاهزة، اضغط لتحديث البرنامج' : 'A new version is ready',
       icon: const Icon(Icons.system_update_alt_rounded, size: 32, color: Colors.white),
-      label: ar ? 'تحديث\nالبرنامج' : 'Update\nthe app',
+      label: ar ? 'تحديث' : 'Update',
       bg: BrandColors.warning,
       fg: Colors.white,
       glow: true,

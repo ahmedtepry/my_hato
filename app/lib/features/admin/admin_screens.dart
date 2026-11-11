@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config.dart';
 import '../../core/dark_mode.dart';
+import '../../shared/rail_tile.dart';
 import '../../core/reduce_motion.dart';
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
@@ -481,7 +482,7 @@ List<Widget> _robotTiles(BuildContext ctx, WidgetRef ref) {
   return [
     _RailTile(
       tooltip: on ? _t(ctx, 'المساعد الآلي شغّال. اضغط لإيقافه', 'The assistant is on. Tap to turn it off') : _t(ctx, 'اضغط لتشغيل المساعد الآلي', 'Tap to turn the assistant on'),
-      label: _t(ctx, 'المساعد الآلي', 'Assistant'),
+      label: _t(ctx, 'المساعد', 'Assistant'),
       badge: on ? _t(ctx, 'شغّال', 'On') : _t(ctx, 'مقفول', 'Off'),
       // one switch for the whole assistant: tapping turns it ON (and opens its panel) or OFF (and closes it); the till's top bar shows the same state
       onTap: () async {
@@ -516,21 +517,21 @@ List<Widget> _chatTiles(BuildContext ctx, WidgetRef ref) {
   final open = ref.watch(chatOpenProvider);
   return [
     if (kind != null) ...[
-      const SizedBox(height: 8),
+      const SizedBox(height: 4),
       _RailTile(
         tooltip: kind == 'manager' ? _t(ctx, 'الرسايل المباشرة مع الموظفين', 'Direct messages with members') : _t(ctx, 'شات مباشر مع المدير', 'Direct chat with the manager'),
         onTap: () => ref.read(chatOpenProvider.notifier).set(!open),
-        label: kind == 'manager' ? _t(ctx, 'رسايل الموظفين', 'Member chats') : _t(ctx, 'شات مباشر', 'Live chat'),
+        label: kind == 'manager' ? _t(ctx, 'رسايل', 'Chats') : _t(ctx, 'الشات', 'Chat'),
         badge: unread > 0 ? _t(ctx, '$unread جديد', '$unread new') : null,
         child: Icon(open ? Icons.chat_rounded : Icons.chat_bubble_outline_rounded, size: 32, color: unread > 0 ? BrandColors.error : BrandColors.electric),
       ),
     ],
     if (perms.contains('chat.logs')) ...[
-      const SizedBox(height: 8),
+      const SizedBox(height: 4),
       _RailTile(
         tooltip: _t(ctx, 'سجل الرسايل المباشرة (للرجوع ليها)', 'Direct message log'),
         onTap: () => showSmoothDialog<void>(context: ctx, builder: (_) => ChatLogsDialog(canPurge: perms.contains('chat.purge'))),
-        label: _t(ctx, 'سجل الشات', 'Chat log'),
+        label: _t(ctx, 'السجل', 'Log'),
         child: const Icon(Icons.history_rounded, size: 32, color: BrandColors.electric),
       ),
     ],
@@ -547,33 +548,12 @@ class _RailTile extends StatelessWidget {
   final String? badge;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: Material(
-          color: Colors.white,
-          elevation: onTap == null ? 0 : 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: BrandColors.border)),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                child,
-                const SizedBox(height: 2),
-                Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: onTap == null ? BrandColors.gray : BrandColors.navy)),
-                if (badge != null)
-                  Container(
-                    margin: const EdgeInsets.only(top: 2),
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(color: BrandColors.warning.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-                    child: Text(badge!, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: BrandColors.warning)),
-                  ),
-              ]),
-            ),
-          ),
-        ),
-      );
+  Widget build(BuildContext context) {
+    // "On" = a green dot; a number (unread) = a red count; any other text is dropped (the tooltip says it)
+    final isOn = badge == 'شغّال' || badge == 'On';
+    final digits = badge == null ? null : RegExp(r'\d+').firstMatch(badge!)?.group(0);
+    return RailTile(icon: child, label: label, tooltip: tooltip, onTap: onTap, dot: isOn ? BrandColors.success : null, count: digits);
+  }
 }
 
 /// Pages visited in the desktop console, so the back button next to the colours button can return to the previous one.
@@ -900,22 +880,22 @@ class AdminHomeScreen extends ConsumerWidget {
                                       child: Directionality(textDirection: Directionality.of(context), child: const Icon(Icons.arrow_back_rounded, size: 32, color: BrandColors.electric)),
                                       label: _t(ctx, 'رجوع', 'Back'),
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 4),
                                   ],
                                   // the colour theme of this device (the owner can also set it for everyone)
                                   TeamThemeButton(tile: true, isOwner: ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 4),
                                   const AppUpdateButton(),
-                                  const SizedBox(height: 8),
+                                  const RailSep(),
                                   ..._robotTiles(ctx, ref),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 4),
                                   _RailTile(
                                     tooltip: _t(ctx, 'تغيير اللغة', 'Switch language'),
                                     onTap: () => ref.read(localeProvider.notifier).set(Locale(ctx.isAr ? 'en' : 'ar')),
                                     child: const Icon(Icons.translate_rounded, size: 32, color: BrandColors.electric),
                                     label: ctx.isAr ? 'English' : 'عربي',
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 4),
                                   Builder(builder: (_) {
                                     final dark = ref.watch(darkModeProvider);
                                     return _RailTile(
@@ -941,6 +921,7 @@ class AdminHomeScreen extends ConsumerWidget {
                                       child: _RailTile(tooltip: tip, onTap: onTap, child: Icon(icon, size: 32, color: BrandColors.electric), label: label),
                                     ),
                                   ),
+                                  const RailSep(),
                                   ..._chatTiles(ctx, ref),
                                 ])),
                               ),
