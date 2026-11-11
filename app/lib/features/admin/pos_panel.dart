@@ -1657,20 +1657,26 @@ class _CloseShiftDialogState extends ConsumerState<_CloseShiftDialog> {
                 row(_t(context, '   محافظ إلكترونية', '   E-wallets'), _money(context, (s['wallet_sales_minor'] as num?) ?? 0), c: BrandColors.gray),
               ],
               row(_t(context, 'المرتجعات', 'Refunds'), '- ${_money(context, s['refunds_minor'] as num)}'),
+              if (((s['refunds_minor'] as num?) ?? 0) != ((s['cash_refunds_minor'] as num?) ?? 0))
+                row(_t(context, '   منها كاش من الدرج', '   of which cash from the drawer'), '- ${_money(context, (s['cash_refunds_minor'] as num?) ?? 0)}', c: BrandColors.gray),
               if (((s['expenses_minor'] as num?) ?? 0) > 0) row(_t(context, 'مصروفات من الدرج', 'Drawer expenses'), '- ${_money(context, s['expenses_minor'] as num)}'),
               if (((s['tips_minor'] as num?) ?? 0) > 0)
                 row(_t(context, 'بقشيش (خدته من الدرج)', 'Tips (taken from the drawer)'), _money(context, s['tips_minor'] as num), c: BrandColors.gray),
               if (((s['tips_kept_minor'] as num?) ?? 0) > 0)
                 row(_t(context, 'بقشيش (سايبه في الدرج)', 'Tips (left in the drawer)'), _money(context, s['tips_kept_minor'] as num), c: BrandColors.gray),
               const Divider(),
-              row(_t(context, 'المفروض في الدرج', 'Expected in drawer'), _money(context, expected), b: true),
+              row(_t(context, 'المفروض في الدرج (كاش)', 'Expected in drawer (cash)'), _money(context, expected), b: true),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(_t(context, 'وسيلة دفع غلط؟ صلّحها من «الفواتير» قبل ما تقفل.', 'Wrong payment method? Fix it from "Invoices" before closing.'), style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+              ),
               const SizedBox(height: 10),
               TextField(
                 controller: _counted,
                 autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(labelText: _t(context, 'اللي عدّيته فعلياً في الدرج (ج.م)', 'Cash you actually counted (EGP)')),
+                decoration: InputDecoration(labelText: _t(context, 'الكاش اللي عدّيته فعلياً في الدرج (ج.م)', 'Cash you actually counted (EGP)'), helperText: _t(context, 'كاش بس. الفيزا والمحافظ مش بتتعدّ في الدرج.', 'Cash only. Card and e-wallet payments are not in the drawer.'), helperMaxLines: 2),
               ),
               if (diff != null) ...[
                 const SizedBox(height: 8),

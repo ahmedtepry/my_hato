@@ -150,8 +150,8 @@ class PosRepository {
     }
   }
 
-  Future<Map<String, dynamic>> setSalePayment(String saleId, String method) async =>
-      _m(await _db.rpc('pos_set_sale_payment', params: {'p_sale': saleId, 'p_method': method}));
+  Future<Map<String, dynamic>> setSalePayment(String saleId, String method, {String? reason}) async =>
+      _m(await _db.rpc('pos_set_sale_payment', params: {'p_sale': saleId, 'p_method': method, 'p_reason': reason}));
 
   /// Branch totals since a moment (used by the dashboard for "today").
   Future<List<Map<String, dynamic>>> branchReportSince(DateTime from) async =>
@@ -234,7 +234,9 @@ String posErrorText(Object e, bool ar, String Function(Object) fallback) {
   if (m.contains('CASH_SHORT')) return pick('المبلغ المستلم أقل من الإجمالي', 'Cash received is less than the total');
   if (m.contains('NO_OPEN_SHIFT')) return pick('لازم تفتح وردية الأول', 'Open a shift first');
   if (m.contains('SHIFT_ALREADY_OPEN')) return pick('عندك وردية مفتوحة بالفعل', 'You already have an open shift');
-  if (m.contains('SHIFT_CLOSED')) return pick('الوردية دي اتقفلت', 'This shift is closed');
+  if (m.contains('PAYMENT_LOCKED_TIP')) return pick('مينفعش تغيّر الدفع: فيه بقشيش متسجّل على الفاتورة دي', 'Cannot change: a tip is recorded on this invoice');
+  if (m.contains('PAYMENT_LOCKED_REFUND')) return pick('مينفعش تغيّر الدفع: فيه مرتجع على الفاتورة دي', 'Cannot change: this invoice has a refund');
+  if (m.contains('SHIFT_CLOSED')) return pick('الوردية دي اتقفلت وتقريرها نهائي، مينفعش التعديل', 'This shift is closed and its report is final');
   if (m.contains('NOTE_REQUIRED')) return pick('فيه فرق في الدرج، اكتب سببه', 'There is a cash difference, write the reason');
   if (m.contains('REASON_REQUIRED')) return pick('اكتب سبب المرتجع', 'Write the refund reason');
   if (m.contains('REFUND_EXCEEDS_SOLD')) return pick('الكمية أو المبلغ أكبر من اللي اتباع', 'More than was sold');

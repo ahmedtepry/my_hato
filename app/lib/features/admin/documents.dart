@@ -359,7 +359,7 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
     ]);
   }
   pw.Widget payRows() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        kv(switch (sale['payment_method']) { 'card' => 'مدفوع بالفيزا', 'wallet' => 'مدفوع بمحفظة إلكترونية', _ => 'المستلم' }, _egp((sale['cash_received_minor'] as num) - tip)),
+        kv('المدفوع', _egp((sale['cash_received_minor'] as num) - tip)),
         if (change > 0) kv('الباقي', _egp(change)),
         if (refunded > 0) kv('مرتجع', _egp(refunded)),
       ]);
@@ -425,7 +425,7 @@ Future<Uint8List> posReceiptPdf(Map<String, dynamic> sale, {int widthMm = 80, St
         pw.SizedBox(height: 3),
         pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [pw.Text('الكاشير', style: ts(7.5, c: _grey)), pw.Text(cashier.isEmpty ? '-' : cashier, style: ts(9))])),
-          pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [pw.Text('طريقة الدفع', style: ts(7.5, c: _grey)), pw.Text('كاش', style: ts(9))])),
+          pw.Expanded(child: pw.SizedBox()),
         ]),
         pw.SizedBox(height: 6),
         for (var i = 0; i < items.length; i++)

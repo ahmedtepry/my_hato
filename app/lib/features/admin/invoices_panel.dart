@@ -24,6 +24,7 @@ import 'pos_repository.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 String _money(BuildContext c, num minor) => formatEgp(minor.round(), c.lang);
+String _payLabel(BuildContext c, String m) => switch (m) { 'card' => _t(c, 'فيزا', 'Card'), 'wallet' => _t(c, 'محفظة', 'Wallet'), _ => _t(c, 'كاش', 'Cash') };
 String _when(Object? iso) => iso == null ? '—' : DateFormat('d/M/yyyy  HH:mm').format(DateTime.parse('$iso').toLocal());
 
 /// "All invoices" for the cashier: paid, cancelled and held, for his own branch only. The database decides who may open it
@@ -220,7 +221,7 @@ class _InvoicesPanelState extends ConsumerState<InvoicesPanel> {
                     onTap: () => _open(r),
                     leading: Icon(r['status'] == 'cancelled' ? Icons.cancel_outlined : Icons.receipt_long_rounded, color: r['status'] == 'cancelled' ? Colors.redAccent : BrandColors.electric),
                     title: Text('${r['number']}', style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: .5)),
-                    subtitle: Text('${_t(context, 'البائع', 'Seller')}: ${r['seller_code'] ?? '—'}${r['seller_name'] == null ? '' : ' · ${r['seller_name']}'}\n${_when(r['created_at'])}${partial ? '  ·  ${_t(context, 'مرتجع جزئي', 'Partly refunded')}' : ''}'),
+                    subtitle: Text('${_t(context, 'البائع', 'Seller')}: ${r['seller_code'] ?? '—'}${r['seller_name'] == null ? '' : ' · ${r['seller_name']}'}\n${_when(r['created_at'])}  ·  ${_payLabel(context, '${r['payment_method']}')}${partial ? '  ·  ${_t(context, 'مرتجع جزئي', 'Partly refunded')}' : ''}'),
                     isThreeLine: true,
                     trailing: Text(_money(context, r['total_minor'] as num), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                   );
@@ -286,7 +287,55 @@ class _InvoiceDialog extends ConsumerStatefulWidget {
 }
 
 class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
-  late final Future<Map<String, dynamic>> _f = ref.read(supabaseProvider).rpc('pos_invoice_detail', params: {'p_sale': widget.id}).then((r) => Map<String, dynamic>.from(r as Map));
+  late Future<Map<String, dynamic>> _f = _load();
+  Future<Map<String, dynamic>> _load() => ref.read(supabaseProvider).rpc('pos_invoice_detail', params: {'p_sale': widget.id}).then((r) => Map<String, dynamic>.from(r as Map));
+
+  /// Fixes a wrong payment method while the shift is still open (the drawer / branch accounts follow it automatically).
+  Future<void> _changePayment(Map<String, dynamic> s) async {
+    final cur = '${s['payment_method']}';
+    var pick = cur;
+    final reason = TextEditingController();
+    final ok = await showSmoothDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: Text(_t(ctx, 'تغيير وسيلة الدفع', 'Change payment method')),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('${s['number']} · ${_money(ctx, s['total_minor'] as num)}', style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            SegmentedButton<String>(
+              segments: [
+                ButtonSegment(value: 'cash', icon: const Icon(Icons.payments_outlined), label: Text(_t(ctx, 'كاش', 'Cash'))),
+                ButtonSegment(value: 'card', icon: const Icon(Icons.credit_card), label: Text(_t(ctx, 'فيزا', 'Card'))),
+                ButtonSegment(value: 'wallet', icon: const Icon(Icons.account_balance_wallet_outlined), label: Text(_t(ctx, 'محفظة', 'Wallet'))),
+              ],
+              selected: {pick},
+              onSelectionChanged: (v) => set(() => pick = v.first),
+            ),
+            const SizedBox(height: 10),
+            TextField(controller: reason, maxLength: 200, decoration: InputDecoration(labelText: _t(ctx, 'السبب (اختياري)', 'Reason (optional)'))),
+            Text(_t(ctx, 'الدرج وحسابات الفرع بيتظبطوا لوحدهم. التعديل مسموح لحد قفل الوردية بس، وكل تعديل بيتسجّل.', 'The drawer and branch accounts follow automatically. Allowed until the shift is closed; every change is logged.'),
+                style: const TextStyle(color: BrandColors.gray, fontSize: 12)),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_t(ctx, 'رجوع', 'Back'))),
+            FilledButton(onPressed: pick == cur ? null : () => Navigator.pop(ctx, true), child: Text(_t(ctx, 'حفظ', 'Save'))),
+          ],
+        ),
+      ),
+    );
+    final why = reason.text.trim();
+    reason.dispose();
+    if (ok != true || !mounted) return;
+    try {
+      await ref.read(posRepoProvider).setSalePayment('${s['id']}', pick, reason: why.isEmpty ? null : why);
+      if (!mounted) return;
+      setState(() => _f = _load());
+      showSnack(context, _t(context, 'اتغيّرت وسيلة الدفع ✅', 'Payment method changed ✅'));
+    } catch (e) {
+      if (mounted) showSnack(context, posErrorText(e, context.isAr, (x) => friendlyError(context, x)), error: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -315,6 +364,12 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
                 row(_t(context, 'اسم البائع', 'Seller'), '${s['cashier_name'] ?? '—'}'),
                 row(_t(context, 'الفرع', 'Branch'), '${s['branch_name_ar'] ?? '—'}'),
                 row(_t(context, 'وقت البيع', 'Sold at'), _when(s['created_at'])),
+                row(_t(context, 'وسيلة الدفع', 'Paid by'), _payLabel(context, '${s['payment_method']}')),
+                if (s['can_edit_payment'] == true)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(icon: const Icon(Icons.edit_outlined, size: 18), label: Text(_t(context, 'تغيير وسيلة الدفع', 'Change payment method')), onPressed: () => _changePayment(s)),
+                  ),
                 const Divider(),
                 for (final i in items)
                   ListTile(
