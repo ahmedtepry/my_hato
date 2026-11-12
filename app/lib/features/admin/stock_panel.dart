@@ -70,7 +70,7 @@ class _StockPanelState extends ConsumerState<StockPanel> {
           ),
           if (canTransfer) ...[
             const SizedBox(width: 8),
-            FilledButton.icon(onPressed: () => _newTransfer(context), icon: const Icon(Icons.swap_horiz_rounded), label: Text(_t(context, 'تحويل', 'Transfer'))),
+            FilledButton.icon(style: FilledButton.styleFrom(minimumSize: const Size(0, 48)), onPressed: () => _newTransfer(context), icon: const Icon(Icons.swap_horiz_rounded), label: Text(_t(context, 'تحويل', 'Transfer'))),
           ],
         ]),
       ),

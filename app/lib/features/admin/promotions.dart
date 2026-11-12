@@ -173,7 +173,7 @@ class _CouponTile extends ConsumerWidget {
                 ),
                 const Spacer(),
                 if (live)
-                  FilledButton.tonalIcon(
+                  FilledButton.tonalIcon(style: FilledButton.styleFrom(minimumSize: const Size(0, 44)), 
                     icon: const Icon(Icons.send_rounded, size: 16),
                     label: Text(_t(context, 'ابعته للعملاء', 'Send to customers')),
                     onPressed: () => _sendOffer(context, ref, c),

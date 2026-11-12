@@ -3573,7 +3573,7 @@ class _PickupBranchRowState extends ConsumerState<_PickupBranchRow> {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-          OutlinedButton(onPressed: _busy ? null : _pick, child: Text(_t(context, _branch == null ? 'حدّد الفرع' : 'غيّر الفرع', _branch == null ? 'Set branch' : 'Change branch'))),
+          OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)), onPressed: _busy ? null : _pick, child: Text(_t(context, _branch == null ? 'حدّد الفرع' : 'غيّر الفرع', _branch == null ? 'Set branch' : 'Change branch'))),
         ]),
       );
 }

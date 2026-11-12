@@ -188,6 +188,16 @@ Map<String, Object> commonRpc() => {
         {'id': fakeUserId, 'full_name': 'أحمد', 'phone': '01000000000', 'email': 'ahmed@myhato.app'},
       ],
       'cancel_requests': <Object>[],
+      'staff_entity_seen': <String, Object>{},
+      'product_reviews': <Object>[],
+      'staff_permissions_overview': <Object>[],
+      'order_transitions': [
+        {'to_status': 'confirmed', 'from_status': 'pending_confirmation', 'fulfillment': null},
+        {'to_status': 'cancelled', 'from_status': 'pending_confirmation', 'fulfillment': null},
+        {'to_status': 'preparing', 'from_status': 'confirmed', 'fulfillment': null},
+        {'to_status': 'out_for_delivery', 'from_status': 'preparing', 'fulfillment': 'delivery'},
+        {'to_status': 'ready_for_pickup', 'from_status': 'preparing', 'fulfillment': 'pickup'},
+      ],
       'application_settings': [
         {'value': {'look': 'midnight', 'locked': false}},
       ],
