@@ -115,7 +115,11 @@ Future<void> openConsole(WidgetTester t, {required Set<String> roles, required S
         locale: locale,
         supportedLocales: supportedLocales,
         localizationsDelegates: const [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
-        theme: AppTheme.light(locale),
+        // the capture machine has no system fonts: let any letter the app fonts lack (the ō of Hatō, emoji) come from Noto
+        theme: (() {
+          final th = AppTheme.light(locale);
+          return th.copyWith(textTheme: th.textTheme.apply(fontFamilyFallback: const ['NotoSans', 'NotoColorEmoji']));
+        })(),
         builder: (context, child) => ColoredBox(color: BrandColors.offWhite, child: SizedBox.expand(child: child)),
         home: const AdminHomeScreen(),
       ),
