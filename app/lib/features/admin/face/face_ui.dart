@@ -361,11 +361,16 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
 
 // ================================================================================================ my profile
 /// "ملفي": the signed-in member's name, PIN and face. Opens from the member's own name.
-Future<void> showMyProfile(BuildContext context) => showModalBottomSheet<void>(
+Future<void> showMyProfile(BuildContext context) => showSmoothDialog<void>(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const _MyProfileSheet(),
+      builder: (d) => Dialog(
+        insetPadding: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 560, maxHeight: MediaQuery.sizeOf(d).height * 0.88),
+          child: const _MyProfileSheet(),
+        ),
+      ),
     );
 
 class _MyProfileSheet extends ConsumerStatefulWidget {
@@ -451,7 +456,7 @@ class _MyProfileSheetState extends ConsumerState<_MyProfileSheet> {
     final p = ref.watch(myProfileProvider);
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
+        padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
         child: p.when(
           loading: () => const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())),
           error: (e, _) => Padding(padding: const EdgeInsets.all(24), child: Text(friendlyError(context, e))),
@@ -485,7 +490,10 @@ class _MyProfileSheetState extends ConsumerState<_MyProfileSheet> {
                   ]),
                 );
             return ListView(shrinkWrap: true, children: [
-              Text(_t(context, 'ملفي', 'My profile'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              Row(children: [
+                Expanded(child: Text(_t(context, 'ملفي', 'My profile'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
+                IconButton(tooltip: _t(context, 'إغلاق', 'Close'), onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
+              ]),
               if (m['login'] != null) Text('${_t(context, 'اسم الدخول', 'Login')}: ${m['login']}', style: TextStyle(color: ink.withValues(alpha: 0.6))),
               if (!allowed)
                 card(
