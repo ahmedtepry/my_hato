@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:camera/camera.dart';
+import 'package:camera_platform_interface/camera_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,7 +48,7 @@ class _FaceScanDialog extends ConsumerStatefulWidget {
 }
 
 class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
-  CameraController? _cam;
+  _WinCam? _cam;
   String? _fatal;
   String _title = '', _sub = '';
   bool _recognized = false, _failed = false, _closed = false;
@@ -88,11 +88,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       return;
     }
     try {
-      final cams = await availableCameras();
-      if (cams.isEmpty) throw Exception('no camera');
-      final front = cams.firstWhere((c) => c.lensDirection == CameraLensDirection.front, orElse: () => cams.first);
-      final c = CameraController(front, ResolutionPreset.medium, enableAudio: false);
-      await c.initialize();
+      final c = await _WinCam.open();
       if (!mounted) {
         await c.dispose();
         return;
@@ -128,7 +124,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
         return;
       }
       final c = _cam;
-      if (c == null || !c.value.isInitialized || c.value.isTakingPicture) {
+      if (c == null || c.busy) {
         await Future<void>.delayed(const Duration(milliseconds: 120));
         continue;
       }
@@ -292,7 +288,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                 aspectRatio: 7 / 8,
                 child: Stack(fit: StackFit.expand, children: [
                   const ColoredBox(color: Color(0xFF050F1F)),
-                  if (c != null && c.value.isInitialized && c.value.previewSize != null)
+                  if (c != null)
                     Opacity(
                       opacity: _recognized ? 0.25 : 0.55,
                       child: FittedBox(
@@ -301,9 +297,9 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                         child: Transform.flip(
                           flipX: true, // a mirror feels natural
                           child: SizedBox(
-                            width: math.max(c.value.previewSize!.width, 1),
-                            height: math.max(c.value.previewSize!.height, 1),
-                            child: CameraPreview(c),
+                            width: math.max(c.width, 1),
+                            height: math.max(c.height, 1),
+                            child: c.preview(),
                           ),
                         ),
                       ),
@@ -766,5 +762,46 @@ class FaceStylePanel extends ConsumerWidget {
           ),
       ]),
     ]);
+  }
+}
+
+
+/// The computer's camera through the Windows camera plugin directly (no Android camera code in the customer APK).
+class _WinCam {
+  _WinCam._(this.id, this.width, this.height);
+  final int id;
+  final double width, height;
+  bool busy = false;
+  bool _gone = false;
+
+  static Future<_WinCam> open() async {
+    final p = CameraPlatform.instance;
+    final cams = await p.availableCameras();
+    if (cams.isEmpty) throw Exception('no camera');
+    final cam = cams.firstWhere((c) => c.lensDirection == CameraLensDirection.front, orElse: () => cams.first);
+    final id = await p.createCamera(cam, ResolutionPreset.medium);
+    final ready = p.onCameraInitialized(id).first;
+    await p.initializeCamera(id);
+    final e = await ready.timeout(const Duration(seconds: 10));
+    return _WinCam._(id, e.previewWidth, e.previewHeight);
+  }
+
+  Widget preview() => CameraPlatform.instance.buildPreview(id);
+
+  Future<XFile> takePicture() async {
+    busy = true;
+    try {
+      return await CameraPlatform.instance.takePicture(id);
+    } finally {
+      busy = false;
+    }
+  }
+
+  Future<void> dispose() async {
+    if (_gone) return;
+    _gone = true;
+    try {
+      await CameraPlatform.instance.dispose(id);
+    } catch (_) {}
   }
 }
