@@ -1,0 +1,149 @@
+<title>Face ID Shapes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Poppins:wght@500;600&display=swap">
+<style>
+/* Layout: a dark gallery of five live scanners, like the till screen at night. One deliberate dark look (it matches the team app's glass theme). */
+:root{
+  --bg:#050F1F; --panel:#0A1C36; --line:#16345C; --ink:#E7F0FA; --muted:#8FA6C4;
+  --blue:#4FA8F5; --ice:#BFE6FF; --ok:#5EEAD4;
+  --f:'Tajawal','Poppins',system-ui,'Segoe UI',Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f);margin:0;font-size:16px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding-block:28px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:clamp(26px,4vw,36px);margin:0 0 6px;font-weight:800}
+.lead{color:var(--muted);margin:0 0 24px;max-width:62ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:22px;overflow:hidden;display:flex;flex-direction:column}
+.stage{position:relative;aspect-ratio:7/8;background:radial-gradient(120% 90% at 50% 40%,#0C2546 0%,#050F1F 70%)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.status{position:absolute;inset:auto 0 16px;text-align:center;font-weight:700;font-size:16px;letter-spacing:.2px;color:var(--ice);text-shadow:0 0 12px rgba(79,168,245,.6);transition:color .3s}
+.status.ok{color:var(--ok);text-shadow:0 0 14px rgba(94,234,212,.6)}
+.status small{display:block;font-weight:500;font-size:13px;color:var(--muted);text-shadow:none}
+.info{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.info header{display:flex;align-items:center;gap:10px}
+.letter{width:32px;height:32px;border-radius:10px;background:#12305A;color:var(--ice);display:grid;place-items:center;font-family:'Poppins',sans-serif;font-weight:600;flex:none}
+.info h2{margin:0;font-size:19px}
+.info p{margin:0;color:var(--muted);font-size:14.5px}
+.foot{margin-top:24px;color:var(--muted);font-size:14.5px}
+</style>
+
+<div class="wrap">
+  <h1>أشكال التعرّف على الوش</h1>
+  <p class="lead">كل شكل بيعرض مرحلة المسح وبعدين لحظة التعرّف، وبيعيد نفسه. الوش هنا رسمة توضيحية، وفي البرنامج هتظهر صورة الكاميرا الحقيقية ورا الشكل اللي تختاره.</p>
+  <div class="grid" id="grid"></div>
+  <p class="foot">لو الوش ما اتعرفش في 5 ثواني، أي شكل منهم هيهدى ويظهر تحته الرقم السري كبديل.</p>
+</div>
+
+<script>
+const CONCEPTS=[
+ {k:'A',name:'حلقة الضوء',desc:'حلقة شَرَط حوالين الوش بتنوّر واحدة ورا التانية مع شعاع بيلف. لما يتعرف عليك الحلقة تقفل نور كامل وتترسم علامة صح.',draw:ring},
+ {k:'B',name:'شبكة الملامح',desc:'نقط بتظهر على ملامح الوش (العين والمناخير والبُق) وتتوصل ببعض بخطوط رفيعة كأن البرنامج بيقرا الوش. لما يتعرف الشبكة تنبض مرة.',draw:mesh},
+ {k:'C',name:'موجة هاتو',desc:'خطوط الموجة اللي في لوجو My Hatō بتعدّي على الوش وتتني على شكله. لما يتعرف الخطوط تتجمع وتبقى موجتين اللوجو.',draw:wave},
+ {k:'D',name:'الضباب',desc:'غبار ضوء سايب في الفراغ، وبالتدريج بيتشد ويرسم الوش من العدم. لما يتعرف الوش يبان واضح ويلمع.',draw:fog},
+ {k:'E',name:'الليزر',desc:'خط ليزر بيمسح من فوق لتحت وسايب وراه طبقات الوش، وأرقام بتجري على الجنب. لما يتعرف أركان مربع بتقفل على الوش.',draw:laser},
+];
+const SCAN=4200,OK=1900,LOOP=SCAN+OK;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STATUS=['بندوّر على وشّك…','بنقرا الملامح…','ثانية واحدة…'];
+
+// ---- a shared drawn face (outline + features), in a 280x320 box ----
+const W=280,H=320,CX=140,CY=150,RX=72,RY=94;
+function contour(t){const y=CY-RY*Math.cos(t);const k=Math.max(0,(y-CY)/RY);const w=1-0.30*Math.pow(k,1.6);return [CX+RX*Math.sin(t)*w,y]}
+const OUT=[...Array(36)].map((_,i)=>contour(i/36*Math.PI*2));
+const FEAT=[];
+for(const s of[-1,1]){
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2;FEAT.push([CX+s*28+Math.cos(a)*11,CY-14+Math.sin(a)*5])}
+  for(let i=0;i<5;i++)FEAT.push([CX+s*(14+i*7),CY-32-Math.sin(i/4*Math.PI)*5])
+}
+for(let i=0;i<5;i++)FEAT.push([CX+(i===4?0:0),CY-6+i*8]);FEAT.push([CX-8,CY+26],[CX+8,CY+26]);
+for(let i=0;i<10;i++){const a=i/10*Math.PI*2;FEAT.push([CX+Math.cos(a)*20,CY+48+Math.sin(a)*(a<Math.PI?6:3)])}
+const PTS=[...OUT,...FEAT];
+const EDGES=(()=>{const e=[];PTS.forEach((p,i)=>{const d=PTS.map((q,j)=>[j,Math.hypot(p[0]-q[0],p[1]-q[1])]).filter(x=>x[0]!==i).sort((a,b)=>a[1]-b[1]);for(const[j,dd]of d.slice(0,3))if(dd<60&&i<j)e.push([i,j])});return e})();
+function inFace(x,y){if(y<CY-RY||y>CY+RY)return 0;const t=Math.acos(Math.max(-1,Math.min(1,(CY-y)/RY)));const[cx]=contour(t);return Math.abs(x-CX)<=cx-CX?1:0}
+function faceStroke(g,a,col){g.beginPath();OUT.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();g.strokeStyle=col;g.globalAlpha=a;g.lineWidth=1.2;g.stroke();g.globalAlpha=1}
+function rnd(i){const s=Math.sin(i*127.1+311.7)*43758.5453;return s-Math.floor(s)}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+
+// ---- A: ring of ticks ----
+function ring(g,t,ok,o){
+  const R=90,N=60;faceStroke(g,.18,'#4FA8F5');
+  const order=[...Array(N).keys()].sort((a,b)=>rnd(a)-rnd(b));const lit=new Set(order.slice(0,Math.floor((ok?1:t)*N)));
+  const sweep=(t*Math.PI*6)%(Math.PI*2);
+  for(let i=0;i<N;i++){const a=i/N*Math.PI*2-Math.PI/2;const near=Math.cos(a-sweep+Math.PI/2)>0.96;
+    const on=ok||lit.has(i);g.strokeStyle=ok?'#5EEAD4':on?'#BFE6FF':near?'#4FA8F5':'#1B3A64';
+    g.lineWidth=on?3.2:2;g.lineCap='round';g.shadowBlur=on||near?10:0;g.shadowColor=g.strokeStyle;
+    const r1=R,r2=R+(on?12:8)+(ok?Math.sin(o*Math.PI)*4:0);g.beginPath();g.moveTo(CX+Math.cos(a)*r1,CY+Math.sin(a)*r1);g.lineTo(CX+Math.cos(a)*r2,CY+Math.sin(a)*r2);g.stroke()}
+  g.shadowBlur=0;
+  if(!ok){const gr=g.createConicGradient?g.createConicGradient(sweep-Math.PI/2,CX,CY):null;if(gr){gr.addColorStop(0,'rgba(79,168,245,.28)');gr.addColorStop(.12,'rgba(79,168,245,0)');gr.addColorStop(1,'rgba(79,168,245,0)');g.fillStyle=gr;g.beginPath();g.arc(CX,CY,R-4,0,Math.PI*2);g.fill()}}
+  else{const k=ease(Math.min(1,o*2));g.strokeStyle='#5EEAD4';g.lineWidth=6;g.shadowBlur=16;g.shadowColor='#5EEAD4';g.beginPath();
+    const P=[[CX-30,CY+2],[CX-8,CY+24],[CX+34,CY-22]];g.moveTo(...P[0]);if(k<.4)g.lineTo(P[0][0]+(P[1][0]-P[0][0])*k/.4,P[0][1]+(P[1][1]-P[0][1])*k/.4);else{g.lineTo(...P[1]);const q=(k-.4)/.6;g.lineTo(P[1][0]+(P[2][0]-P[1][0])*q,P[1][1]+(P[2][1]-P[1][1])*q)}g.stroke();g.shadowBlur=0}
+}
+// ---- B: landmark mesh ----
+function mesh(g,t,ok,o){
+  const n=ok?PTS.length:Math.min(PTS.length,Math.floor(t*1.25*PTS.length));const pulse=ok?Math.sin(Math.min(1,o*1.6)*Math.PI):0;
+  g.lineWidth=.8;
+  for(const[i,j]of EDGES){if(i>=n||j>=n)continue;const fl=ok?1:(.35+.65*rnd(i*3+j+Math.floor(t*30)));g.strokeStyle=ok?`rgba(94,234,212,${.35+pulse*.5})`:`rgba(79,168,245,${.28*fl})`;g.beginPath();g.moveTo(...PTS[i]);g.lineTo(...PTS[j]);g.stroke()}
+  for(let i=0;i<n;i++){const[x,y]=PTS[i];const fresh=!ok&&i>n-6;g.fillStyle=ok?'#5EEAD4':fresh?'#FFFFFF':'#BFE6FF';g.shadowBlur=fresh||ok?10:4;g.shadowColor=g.fillStyle;g.beginPath();g.arc(x,y,fresh?2.6:1.7+pulse*1.2,0,Math.PI*2);g.fill()}
+  g.shadowBlur=0;
+  if(!ok){const k=Math.floor(t*90)%PTS.length;const[x,y]=PTS[k];g.strokeStyle='rgba(191,230,255,.5)';g.beginPath();g.arc(x,y,9,0,Math.PI*2);g.stroke()}
+}
+// ---- C: brand waves ----
+function wave(g,t,ok,o){
+  const L=26;const k=ok?ease(Math.min(1,o*1.4)):0;
+  for(let l=0;l<L;l++){const base=40+l*(240/L);g.beginPath();
+    for(let x=0;x<=W;x+=4){
+      let y=base+Math.sin(x/W*Math.PI*2+t*7+l*.25)*6;
+      const dy=(y-CY)/RY,dx=(x-CX)/RX,r=dx*dx+dy*dy;if(r<1){const bump=Math.sqrt(1-r)*26*Math.min(1,t*2.2);y-=bump*(x<CX?1:1);}
+      const target=(l<L/2?CY-18:CY+22)+Math.sin((x-40)/200*Math.PI*1.1)*-34+(x<CX?0:0);
+      y=y+(target-y)*k;x?g.lineTo(x,y):g.moveTo(x,y)}
+    const a=ok?(.45+.4*k):(.18+.5*(Math.abs(l-L*((t*1.3)%1))<2?1:0)+.12);
+    g.strokeStyle=ok?`rgba(191,230,255,${a})`:`rgba(79,168,245,${Math.min(1,a)})`;g.lineWidth=ok?1.6:1.1;g.shadowBlur=ok?8:0;g.shadowColor='#4FA8F5';g.stroke()}
+  g.shadowBlur=0;
+}
+// ---- D: fog of particles ----
+const FOG=[...Array(520)].map((_,i)=>({sx:rnd(i)*W,sy:rnd(i+999)*H,tg:PTS[i%PTS.length],j:[(rnd(i+5)-.5)*6,(rnd(i+7)-.5)*6],s:.6+rnd(i+3)*1.4}));
+function fog(g,t,ok,o){
+  const k=ok?1:ease(Math.min(1,t*1.1));
+  for(let i=0;i<FOG.length;i++){const p=FOG[i];const dr=Math.sin(t*3+i)*10*(1-k);
+    const x=p.sx+(p.tg[0]+p.j[0]-p.sx)*k+dr,y=p.sy+(p.tg[1]+p.j[1]-p.sy)*k+Math.cos(t*2.5+i)*10*(1-k);
+    const flash=ok?Math.max(0,1-o*1.5):0;g.fillStyle=ok?`rgba(94,234,212,${.55+flash*.45})`:`rgba(191,230,255,${.18+.55*k*rnd(i+Math.floor(t*20))})`;
+    g.beginPath();g.arc(x,y,p.s+flash*1.2,0,Math.PI*2);g.fill()}
+  if(ok){faceStroke(g,.5*Math.min(1,o*2),'#5EEAD4')}
+}
+// ---- E: laser sweep ----
+function laser(g,t,ok,o){
+  const top=CY-RY-14,bot=CY+RY+14;const p=ok?1:(t*2)%1;const dir=Math.floor(t*2)%2;const ly=top+(dir?1-p:p)*(bot-top);
+  const reveal=ok?bot:Math.max(ly,top);
+  for(let y=top;y<=bot;y+=5){const seen=ok||(dir?y>=ly:y<=ly)||t>.5;if(!seen)continue;
+    const ty=(CY-y)/RY;if(Math.abs(ty)>1)continue;const tt=Math.acos(Math.max(-1,Math.min(1,ty)));const[x2]=contour(tt);const x1=2*CX-x2;
+    g.strokeStyle=ok?'rgba(94,234,212,.55)':`rgba(79,168,245,${.25+.35*rnd(y+Math.floor(t*14))})`;g.lineWidth=1;g.beginPath();g.moveTo(x1,y);g.lineTo(x2,y);g.stroke()}
+  if(!ok){g.fillStyle='rgba(191,230,255,.95)';g.shadowBlur=18;g.shadowColor='#4FA8F5';g.fillRect(CX-RX-26,ly-1,(RX+26)*2,2);g.shadowBlur=0;
+    g.font='10px Poppins, monospace';g.fillStyle='rgba(79,168,245,.7)';for(let i=0;i<14;i++){const v=Math.floor(rnd(i+Math.floor(t*24))*0xffff).toString(16).padStart(4,'0');g.fillText(v,12,52+i*16);g.fillText(v.split('').reverse().join(''),W-38,52+i*16)}}
+  const k=ok?ease(Math.min(1,o*2.2)):0;const pad=34-14*k,x0=CX-RX-pad,x1=CX+RX+pad,y0=top-pad+14,y1=bot+pad-14,c=22;
+  g.strokeStyle=ok?'#5EEAD4':'rgba(191,230,255,.45)';g.lineWidth=ok?3:1.5;g.shadowBlur=ok?12:0;g.shadowColor='#5EEAD4';
+  for(const[x,y,sx,sy]of[[x0,y0,1,1],[x1,y0,-1,1],[x0,y1,1,-1],[x1,y1,-1,-1]]){g.beginPath();g.moveTo(x,y+sy*c);g.lineTo(x,y);g.lineTo(x+sx*c,y);g.stroke()}
+  g.shadowBlur=0;
+}
+
+// ---- build the cards ----
+const grid=document.getElementById('grid');const cards=[];
+CONCEPTS.forEach((c,i)=>{
+  const el=document.createElement('article');el.className='card';
+  el.innerHTML=`<div class="stage"><canvas></canvas><div class="status"></div></div><div class="info"><header><span class="letter">${c.k}</span><h2>${c.name}</h2></header><p>${c.desc}</p></div>`;
+  grid.appendChild(el);cards.push({c,cv:el.querySelector('canvas'),st:el.querySelector('.status'),off:i*530,last:''});
+});
+function size(){for(const k of cards){const r=k.cv.getBoundingClientRect(),d=Math.min(2,devicePixelRatio||1);k.cv.width=r.width*d;k.cv.height=r.height*d;k.scale=Math.min(r.width/W,r.height/H)*d;k.dx=(k.cv.width-W*k.scale)/2;k.dy=(k.cv.height-H*k.scale)/2-10*d}}
+function frame(now){
+  for(const k of cards){
+    const g=k.cv.getContext('2d');g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,k.cv.width,k.cv.height);g.setTransform(k.scale,0,0,k.scale,k.dx,k.dy);
+    const m=reduce?LOOP-200:(now+k.off)%LOOP;const ok=m>=SCAN;const t=ok?1:m/SCAN;const o=ok?(m-SCAN)/OK:0;
+    k.c.draw(g,t,ok,o);
+    const html=ok?'أهلاً يا أحمد<small>الوردية اتفتحت</small>':`${STATUS[Math.min(2,Math.floor(t*3))]}<small>بص للكاميرا</small>`;
+    if(html!==k.last){k.st.innerHTML=html;k.st.classList.toggle('ok',ok);k.last=html}
+  }
+  if(!reduce)requestAnimationFrame(frame);
+}
+size();addEventListener('resize',size);requestAnimationFrame(frame);
+</script>
