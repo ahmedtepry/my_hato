@@ -1,3 +1,5 @@
+import 'search_index.dart';
+import 'face/face_ui.dart';
 import '../../core/app_update.dart';
 import '../../core/appearance.dart';
 import 'dart:async';
@@ -2817,6 +2819,26 @@ Future<void> _openSearch(BuildContext context, WidgetRef ref, {List<String> sect
       onOpen?.call('products');
     case 'customer':
       onOpen?.call('accounts');
+    case 'action':
+      switch (picked.$2['id']) {
+        case 'my_profile':
+          await showMyProfile(context);
+        case 'face_team':
+          onOpen?.call('team');
+          if (context.mounted) showSnack(context, _t(context, 'افتح ملف الموظف وشغّل «يعدّل ملفه بنفسه».', 'Open the member and turn on “Self service”.'));
+        case 'face_style':
+          await showFaceStylePicker(context, ref);
+        case 'seller_face':
+          onOpen?.call('pos');
+          if (context.mounted) showSnack(context, _t(context, 'اضغط على اسم البائع واختار «البائع الجديد يبص للكاميرا».', 'Tap the seller name and pick “New seller looks at the camera”.'));
+        case 'close_face':
+          onOpen?.call('pos');
+          if (context.mounted) showSnack(context, _t(context, 'من «قفل الوردية» هتلاقي «اقفل الوردية بوشّك».', 'In “Close shift” you will find “Close the shift with your face”.'));
+        case 'dark':
+          toggleConsoleDark(ref);
+        case 'language':
+          ref.read(localeProvider.notifier).set(Locale(context.isAr ? 'en' : 'ar'));
+      }
   }
 }
 
@@ -2900,11 +2922,20 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
   }
 
   List<String> _matchedSections() {
-    final q = _term.toLowerCase();
-    if (q.length < 2) return const [];
+    if (_term.length < 2) return const [];
     return [
       for (final k in widget.sections)
-        if (k != 'overview' && _sectionInfo[k] != null && ('${_sectionInfo[k]!.ar} ${_sectionInfo[k]!.en}'.toLowerCase().contains(q))) k,
+        if (k != 'overview' && _sectionInfo[k] != null)
+          if (searchHit(_term, [_sectionInfo[k]!.ar, _sectionInfo[k]!.en, _sectionInfo[k]!.descAr, _sectionInfo[k]!.descEn, ...?sectionKeywords[k]])) k,
+    ];
+  }
+
+  List<SearchAction> _matchedActions() {
+    if (_term.length < 2) return const [];
+    final owner = ref.read(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false;
+    return [
+      for (final a in searchActions)
+        if ((a.section == null || widget.sections.contains(a.section)) && (!a.ownerOnly || owner) && searchHit(_term, [a.ar, a.en, ...a.words])) a,
     ];
   }
 
@@ -2913,7 +2944,8 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
     final labels = ref.watch(repairLabelsProvider).valueOrNull;
     final r = _res;
     final secs = _matchedSections();
-    final empty = r != null && r.orders.isEmpty && r.repairs.isEmpty && _products.isEmpty && _customers.isEmpty && secs.isEmpty;
+    final acts = _matchedActions();
+    final empty = r != null && r.orders.isEmpty && r.repairs.isEmpty && _products.isEmpty && _customers.isEmpty && secs.isEmpty && acts.isEmpty;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SizedBox(
@@ -2928,7 +2960,7 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
               onSubmitted: _run,
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search_rounded),
-                hintText: _t(context, 'ابحث عن أي حاجة: طلب، صيانة، منتج، عميل أو صفحة', 'Search anything: order, repair, product, customer or page'),
+                hintText: _t(context, 'ابحث بأي كلمة: face id، خصم، مرتجع، لون، طلب، منتج، عميل…', 'Search any word: face id, discount, refund, colour, order, product…'),
                 suffixIcon: _loading
                     ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2)))
                     : (_q.text.isEmpty
@@ -2956,6 +2988,20 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
                     : empty
                         ? Center(child: Text(_t(context, 'مفيش نتيجة', 'No results'), style: const TextStyle(color: BrandColors.gray)))
                         : ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
+                            if (acts.isNotEmpty) ...[
+                              _header(_t(context, 'اعمل على طول', 'Do it now'), Icons.bolt_rounded, acts.length),
+                              for (final a in acts)
+                                Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    leading: Icon(a.icon, color: BrandColors.electric),
+                                    title: Text(_t(context, a.ar, a.en), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    subtitle: Text(_t(context, a.whereAr, a.whereEn)),
+                                    onTap: () => Navigator.pop(context, ('action', {'id': a.id})),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                            ],
                             if (secs.isNotEmpty) ...[
                               _header(_t(context, 'صفحات', 'Pages'), Icons.dashboard_outlined, secs.length),
                               for (final k in secs)
@@ -2964,6 +3010,7 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
                                   child: ListTile(
                                     leading: Icon(_sectionInfo[k]!.icon, color: _sectionInfo[k]!.color),
                                     title: Text(_t(context, _sectionInfo[k]!.ar, _sectionInfo[k]!.en), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    subtitle: Text(_t(context, _sectionInfo[k]!.descAr, _sectionInfo[k]!.descEn), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     onTap: () => Navigator.pop(context, ('section', {'key': k})),
                                   ),
                                 ),
