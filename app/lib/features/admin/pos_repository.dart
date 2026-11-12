@@ -286,6 +286,7 @@ String posErrorText(Object e, bool ar, String Function(Object) fallback) {
   if (m.contains('SHIFT_NOT_CLOSED')) return pick('الوردية لسه مفتوحة', 'The shift is still open');
   if (m.contains('RATE_LIMITED')) return pick('محاولات غلط كتير، استنى شوية وجرّب تاني', 'Too many wrong attempts, wait a bit');
   if (m.contains('REFUND_WINDOW_PASSED')) return pick('عدّت مهلة الاسترجاع (14 يوم). المرتجع بعدها محتاج المالك.', 'The return window (14 days) has passed. Only the owner can refund now.');
+  if (m.contains('TIERS_ORDER')) return pick('المرحلة الأعلى لازم مكافأتها أكبر من اللي قبلها', 'A higher tier must pay more than the one before');
   if (m.contains('SPLIT_NOT_TOTAL')) return pick('مجموع الكاش والفيزا والمحفظة لازم يساوي إجمالي الفاتورة', 'Cash + Visa + wallet must equal the invoice total');
   if (m.contains('NO_PIN')) return pick('الموظف ده ملوش PIN. المالك يحدده من صفحة الفريق.', 'This member has no PIN. The owner sets it in Team.');
   if (m.contains('NOT_FOUND')) return pick('مفيش فاتورة بالرقم ده في فرعك', 'No invoice with this number in your branch');
