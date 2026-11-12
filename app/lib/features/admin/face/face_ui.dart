@@ -708,3 +708,55 @@ Future<void> showFaceStylePicker(BuildContext context, WidgetRef ref) async {
     if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
   }
 }
+
+/// Appearance → Windows: the face scan look as a page (owner picks; everybody sees the picked one).
+class FaceStylePanel extends ConsumerWidget {
+  const FaceStylePanel({super.key, required this.isOwner});
+  final bool isOwner;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cur = ref.watch(faceScanStyleProvider).valueOrNull ?? 'wave';
+    return ListView(padding: const EdgeInsets.all(20), children: [
+      Text(_t(context, 'شكل مسح الوش', 'Face scan look'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 4),
+      Text(
+          isOwner
+              ? _t(context, 'اللي تختاره بيظهر لكل الفريق وهو بيفتح الوردية أو بيبدّل البائع بوشّه.', 'What you pick is shown to the whole team when they use Face ID.')
+              : _t(context, 'المالك بس اللي يقدر يغيّره.', 'Only the owner can change it.'),
+          style: TextStyle(color: inkColor(context).withValues(alpha: 0.65))),
+      const SizedBox(height: 16),
+      Wrap(spacing: 14, runSpacing: 14, children: [
+        for (final s in faceScanStyles)
+          InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: !isOwner || s == cur
+                ? null
+                : () async {
+                    try {
+                      await ref.read(faceRepoProvider).setStyle(s);
+                      ref.invalidate(faceScanStyleProvider);
+                      if (context.mounted) showSnack(context, _t(context, 'شكل المسح: ${faceScanStyleName(s, true)} ✅', 'Scan look: ${faceScanStyleName(s, false)} ✅'));
+                    } catch (e) {
+                      if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
+                    }
+                  },
+            child: Container(
+              width: 200,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A1C36),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: s == cur ? const Color(0xFF4FA8F5) : Colors.white12, width: s == cur ? 2.4 : 1),
+              ),
+              child: Column(children: [
+                SizedBox(height: 190, child: FaceScanView(style: s)),
+                Text(faceScanStyleName(s, context.isAr), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                Text(s == cur ? _t(context, 'المختار ✓', 'Selected ✓') : (s == 'wave' ? _t(context, 'الأساسي', 'Default') : ' '),
+                    style: TextStyle(color: s == cur ? const Color(0xFF5EEAD4) : const Color(0xFF9DB1CB), fontSize: 12.5)),
+              ]),
+            ),
+          ),
+      ]),
+    ]);
+  }
+}

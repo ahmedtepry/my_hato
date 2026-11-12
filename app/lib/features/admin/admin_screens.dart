@@ -1,4 +1,5 @@
 import 'search_index.dart';
+import 'permissions.dart' show PermissionsScreen;
 import 'face/face_ui.dart';
 import '../../core/app_update.dart';
 import '../../core/appearance.dart';
@@ -567,11 +568,14 @@ final List<String> _navBack = [];
 /// The sidebar sections, grouped by what they are for so related pages sit together under one heading.
 const _sidebarGroups = <(String, String, List<String>)>[
   ('', '', ['overview']),
-  ('البيع والطلبات', 'Sales & orders', ['pos', 'invoices', 'orders', 'repairs', 'shifts', 'sales', 'ops', 'products', 'stock', 'purchases', 'shortcuts']),
-  ('الفلوس والمحاسبة', 'Money & accounting', ['books', 'wallets', 'wallet_inbox']),
-  ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'online_review', 'assistant', 'accounts']),
-  ('العملاء والتسويق', 'Customers & marketing', ['marketing', 'blocked', 'reviews', 'offers', 'gifts', 'wheel', 'contests']),
-  ('النظام والمظهر', 'System & look', ['appearance', 'occasions', 'storefront', 'app_banners', 'features']),
+  ('البيع', 'Selling', ['pos', 'invoices', 'shifts', 'shortcuts']),
+  ('الطلبات', 'Orders', ['orders', 'repairs', 'online_review']),
+  ('المنتجات والمخزن', 'Products & stock', ['products', 'stock', 'purchases']),
+  ('الفلوس والتقارير', 'Money & reports', ['sales', 'books', 'wallets', 'wallet_inbox', 'ops']),
+  ('الحسابات', 'Accounts', ['accounts', 'team', 'blocked']),
+  ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'assistant']),
+  ('التسويق', 'Marketing', ['marketing', 'offers', 'reviews', 'gifts', 'wheel', 'contests', 'features']),
+  ('المظهر', 'Appearance', ['appearance', 'occasions', 'storefront', 'app_banners']),
 ];
 
 (String, int) _sidebarGroupOf(BuildContext c, String k) {
@@ -582,12 +586,15 @@ const _sidebarGroups = <(String, String, List<String>)>[
 }
 
 bool _hiddenInSidebar(String k, List<String> tabs) =>
-    (k == 'repairs' && tabs.contains('orders')) || ((k == 'occasions' || k == 'storefront') && tabs.contains('appearance')) || (k == 'team' && tabs.contains('accounts')) ||
+    (k == 'repairs' && tabs.contains('orders')) ||
+    ((k == 'occasions' || k == 'storefront' || k == 'app_banners') && tabs.contains('appearance')) ||
+    ((k == 'team' || k == 'blocked') && tabs.contains('accounts')) ||
     (tabs.contains('sales') && (k == 'products' || k == 'reviews' || k == 'offers'));
 
 class _HostTabs extends StatelessWidget {
-  const _HostTabs({required this.tabs});
+  const _HostTabs({super.key, required this.tabs, this.topGap = true});
   final List<(String, String, IconData, Widget)> tabs;
+  final bool topGap;
   @override
   Widget build(BuildContext context) {
     if (tabs.length == 1) return tabs.first.$4;
@@ -597,7 +604,7 @@ class _HostTabs extends StatelessWidget {
         Material(
           color: panelColor(context),
           child: Padding(
-            padding: EdgeInsets.only(top: Theme.of(context).brightness == Brightness.dark ? 4 : 44),
+            padding: EdgeInsets.only(top: !topGap ? 0 : (Theme.of(context).brightness == Brightness.dark ? 4 : 44)),
             child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
               for (final t in tabs) Tab(icon: Icon(t.$3, size: 20), text: _t(context, t.$1, t.$2)),
             ]),
@@ -638,32 +645,134 @@ class _SalesHost extends ConsumerWidget {
   }
 }
 
+/// "الحسابات": every kind of account in one page: customers, the team, blocked accounts, permissions, and my own profile.
 class _AccountsHost extends ConsumerWidget {
   const _AccountsHost();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    final tabs = ref.watch(consoleTabsProvider);
     return _HostTabs(tabs: [
-      ('العملاء', 'Customers', Icons.groups_2_outlined, const AccountsTab()),
+      ('حسابات العملا', 'Customers', Icons.groups_2_outlined, const AccountsTab()),
       if (p.contains('staff.manage')) ('الفريق', 'Team', Icons.groups_rounded, const TeamScreen()),
+      if (tabs.contains('blocked')) ('المحظورين', 'Blocked', Icons.lock_person_rounded, const BlockedAccountsPanel()),
+      if (p.contains('staff.manage')) ('الصلاحيات', 'Permissions', Icons.admin_panel_settings_rounded, const PermissionsScreen()),
+      ('ملفي و Face ID', 'My profile & Face ID', Icons.face_retouching_natural_rounded, const _MyProfileTab()),
     ]);
   }
 }
 
-class _AppearanceHost extends ConsumerWidget {
+/// The profile tab: a short explanation and the button that opens "ملفي".
+class _MyProfileTab extends StatelessWidget {
+  const _MyProfileTab();
+  @override
+  Widget build(BuildContext context) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.face_retouching_natural_rounded, size: 64, color: BrandColors.electric),
+              const SizedBox(height: 12),
+              Text(_t(context, 'ملفي و Face ID', 'My profile & Face ID'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 8),
+              Text(
+                _t(context, 'غيّر اسمك والرقم السري، وسجّل وشّك علشان تفتح وتقفل الوردية وتبدّل البائع من غير ما تكتب حاجة. (لازم المالك يفعّلّك الأول من «الفريق»)',
+                    'Change your name and PIN, and record your face to close the shift and switch the seller without typing. (The owner turns it on for you in “Team” first.)'),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: inkColor(context).withValues(alpha: 0.7), height: 1.6),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(220, 54)),
+                onPressed: () => showMyProfile(context),
+                icon: const Icon(Icons.person_rounded),
+                label: Text(_t(context, 'افتح ملفي', 'Open my profile'), style: const TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ]),
+          ),
+        ),
+      );
+}
+
+/// "المظهر" in two halves: the customer app (phone) and the Windows team program.
+class _AppearanceHost extends ConsumerStatefulWidget {
   const _AppearanceHost();
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AppearanceHost> createState() => _AppearanceHostState();
+}
+
+class _AppearanceHostState extends ConsumerState<_AppearanceHost> {
+  String _part = 'app';
+
+  @override
+  Widget build(BuildContext context) {
     final p = ref.watch(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
     final owner = ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false;
-    return _HostTabs(tabs: [
+    final tabs = ref.watch(consoleTabsProvider);
+    final app = <(String, String, IconData, Widget)>[
       ('ألوان التطبيق وأيقونته', 'App colours & icon', Icons.palette_outlined, const AppearancePanel()),
-      if (p.contains('occasions.manage')) ('مؤثرات المناسبات', 'Occasion effects', Icons.auto_awesome_rounded, const OccasionsPanel()),
-      if (p.contains('appearance.welcome')) ('apk welcome logo', 'apk welcome logo', Icons.waving_hand_rounded, const WelcomeLogoPanel()),
-      if (p.contains('appearance.login')) ('شاشة دخول الفريق', 'Team login screen', Icons.login_rounded, const TeamLoginPanel()),
       if (p.contains('storefront.layout')) ('طريقة عرض الواجهة', 'Storefront layout', Icons.view_quilt_rounded, const StorefrontLayoutPanel()),
-      if (p.contains('receipt.style')) ('شكل الفاتورة', 'Invoice look', Icons.receipt_long_rounded, const InvoiceLookPanel()),
+      if (tabs.contains('app_banners')) ('بانرات التطبيق', 'App banners', Icons.view_carousel_rounded, const AppBannersPanel()),
+      if (p.contains('occasions.manage')) ('مؤثرات المناسبات', 'Occasion effects', Icons.auto_awesome_rounded, const OccasionsPanel()),
+      if (p.contains('appearance.welcome')) ('شاشة الترحيب', 'Welcome logo', Icons.waving_hand_rounded, const WelcomeLogoPanel()),
+    ];
+    final win = <(String, String, IconData, Widget)>[
+      ('الشكل والوضع الداكن', 'Look & dark mode', Icons.blur_on_rounded, const _WindowsLookPanel()),
       ('ألوان برنامج الفريق', 'Team app colours', Icons.color_lens_outlined, TeamThemeCard(isOwner: owner)),
+      if (p.contains('appearance.login')) ('شاشة دخول الفريق', 'Team login screen', Icons.login_rounded, const TeamLoginPanel()),
+      if (p.contains('receipt.style')) ('شكل الفاتورة', 'Invoice look', Icons.receipt_long_rounded, const InvoiceLookPanel()),
+      ('شكل مسح الوش', 'Face scan look', Icons.waves_rounded, FaceStylePanel(isOwner: owner)),
+    ];
+    return Column(children: [
+      Padding(
+        padding: EdgeInsets.fromLTRB(16, Theme.of(context).brightness == Brightness.dark ? 10 : 50, 16, 6),
+        child: SegmentedButton<String>(
+          segments: [
+            ButtonSegment(value: 'app', icon: const Icon(Icons.phone_iphone_rounded), label: Text(_t(context, 'مظهر التطبيق (العملا)', 'Customer app'))),
+            ButtonSegment(value: 'win', icon: const Icon(Icons.desktop_windows_rounded), label: Text(_t(context, 'مظهر الويندوز (الفريق)', 'Windows (team)'))),
+          ],
+          selected: {_part},
+          onSelectionChanged: (v) => setState(() => _part = v.first),
+        ),
+      ),
+      Expanded(child: _HostTabs(key: ValueKey(_part), tabs: _part == 'app' ? app : win, topGap: false)),
+    ]);
+  }
+}
+
+/// Appearance → Windows → the look (classic, glass, matte black…) and dark/light, same as the side-bar buttons.
+class _WindowsLookPanel extends ConsumerWidget {
+  const _WindowsLookPanel();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dark = ref.watch(glassLookProvider);
+    final locked = ref.watch(consoleLookServerProvider).valueOrNull?.locked == true;
+    final canAll = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('appearance.look') ?? false;
+    return ListView(padding: const EdgeInsets.all(20), children: [
+      Text(_t(context, 'شكل برنامج الويندوز', 'Windows program look'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 14),
+      ConsoleLookTile(
+        canSetForAll: canAll,
+        builder: (c, onTap, icon, label, tip) => Card(
+          child: ListTile(
+            leading: Icon(icon, size: 30, color: BrandColors.electric),
+            title: Text(_t(context, 'اختار الشكل: كلاسيك، زجاج، أسود مات…', 'Pick the look: classic, glass, matte black…'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text(tip),
+            trailing: const Icon(Icons.chevron_left_rounded),
+            onTap: onTap,
+          ),
+        ),
+      ),
+      Card(
+        child: SwitchListTile(
+          secondary: Icon(dark ? Icons.dark_mode_rounded : Icons.light_mode_rounded, size: 30, color: BrandColors.electric),
+          title: Text(_t(context, 'الوضع الداكن', 'Dark mode'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(locked ? _t(context, 'المالك ثبّت الشكل للكل', 'The owner locked the look for everyone') : _t(context, 'نفس زرار «داكن» اللي في الشريط', 'Same as the “Dark” side-bar button')),
+          value: dark,
+          onChanged: locked ? null : (_) => toggleConsoleDark(ref),
+        ),
+      ),
     ]);
   }
 }
