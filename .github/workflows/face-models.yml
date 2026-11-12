@@ -1,0 +1,40 @@
+# Fetches the open face models (OpenCV Zoo: YuNet face detector, MIT; SFace face recognizer, Apache-2.0)
+# and a few public test pictures, and publishes them as the release "face-models".
+# The Windows build bundles the two models from this release; the test pictures are only for checks.
+name: Face models
+on:
+  push:
+    branches: [face-models]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download
+        run: |
+          set -e
+          mkdir -p out/models out/images
+          Z=https://github.com/opencv/opencv_zoo/raw/main/models
+          curl -sSfL "$Z/face_detection_yunet/face_detection_yunet_2023mar.onnx" -o out/models/face_detection_yunet_2023mar.onnx
+          curl -sSfL "$Z/face_recognition_sface/face_recognition_sface_2021dec.onnx" -o out/models/face_recognition_sface_2021dec.onnx
+          curl -sSfL "$Z/face_detection_yunet/LICENSE" -o out/models/LICENSE_yunet.txt
+          curl -sSfL "$Z/face_recognition_sface/LICENSE" -o out/models/LICENSE_sface.txt
+          curl -sSfL https://raw.githubusercontent.com/opencv/opencv/4.x/samples/data/lena.jpg -o out/images/lena.jpg
+          curl -sSfL https://raw.githubusercontent.com/opencv/opencv/4.x/samples/data/messi5.jpg -o out/images/messi5.jpg
+          curl -sSfL https://raw.githubusercontent.com/deepinsight/insightface/master/python-package/insightface/data/images/t1.jpg -o out/images/t1.jpg
+          curl -sSfL https://raw.githubusercontent.com/deepinsight/insightface/master/python-package/insightface/data/images/Tom_Hanks_54745.png -o out/images/Tom_Hanks_54745.png
+          ls -la out/models out/images
+          sha256sum out/models/*.onnx
+          # an LFS pointer instead of the model would be ~130 bytes
+          test $(stat -c%s out/models/face_detection_yunet_2023mar.onnx) -gt 100000
+          test $(stat -c%s out/models/face_recognition_sface_2021dec.onnx) -gt 1000000
+          cd out && zip -qr ../face_models.zip .
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view face-models -R "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create face-models -R "${{ github.repository }}" --target "${{ github.sha }}" --title "Face models" --notes "YuNet (MIT) + SFace (Apache-2.0) from OpenCV Zoo, plus test pictures."
+          gh release upload face-models face_models.zip -R "${{ github.repository }}" --clobber
