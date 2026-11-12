@@ -529,6 +529,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('invoices.view')) 'invoices',
     if (p.contains('pos.approve') || p.contains('shifts.review')) 'shifts',
     if (p.contains('shifts.review') || p.contains('sales.view') || p.contains('shifts.reports')) 'books',
+    if (p.contains('daybook.view')) 'daybook',
     if (p.contains('orders.view')) 'orders',
     if (p.contains('marketing.view')) 'marketing',
     if (p.contains('accounts.unblock')) 'blocked',
@@ -566,7 +567,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     case Workspace.cashier:
       first = const ['pos', 'invoices'];
     case Workspace.accountant:
-      first = const ['books', 'invoices', 'kpi', 'sales', 'orders'];
+      first = const ['daybook', 'books', 'invoices', 'kpi', 'sales', 'orders'];
     case Workspace.sales:
       first = const ['orders', 'pos', 'invoices', 'products', 'sales'];
     case Workspace.repairs:

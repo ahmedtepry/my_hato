@@ -34,6 +34,7 @@ const sectionKeywords = <String, List<String>>{
   'pos': ['كاشير', 'بيع', 'فاتوره', 'باركود', 'سله', 'درج', 'pos', 'cashier', 'sell', 'barcode', 'kasher', 'تبديل البائع', 'البائع', 'seller', 'face id', 'وش', 'فيس', 'بصمه الوش', 'وردية', 'قفل الوردية', 'shift'],
   'invoices': ['فواتير', 'فاتوره', 'مرتجع', 'استرجاع', 'refund', 'return', 'طباعه', 'print', 'invoice', 'receipt', 'دفع مقسم', 'split'],
   'shifts': ['ورديه', 'ورديات', 'موافقه', 'موافقات', 'خصم', 'مرتجع', 'فرق الدرج', 'shift', 'approval', 'discount', 'drawer'],
+  'daybook': ['يوميه', 'اليوميه', 'تحصيل', 'حصل', 'محاسب', 'تقفيل', 'تقفيله', 'ورديه', 'جلسه', 'session', 'daybook', 'collection', 'collect', 'كاش', 'فيزا', 'محفظه', 'odoo', 'اودو', 'سطر اليوم'],
   'books': ['محاسبه', 'حسابات الفلوس', 'ارباح', 'مكسب', 'صافي', 'accounting', 'profit', 'money', 'فلوس'],
   'orders': ['طلبات', 'اوردر', 'اوردرات', 'order', 'orders', 'توصيل', 'delivery', 'شحن'],
   'repairs': ['صيانه', 'تصليح', 'فني', 'repair', 'technician', 'fix', 'شاشه مكسوره'],

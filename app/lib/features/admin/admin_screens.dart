@@ -1,4 +1,5 @@
 import 'search_index.dart';
+import 'daybook_panel.dart';
 import 'permissions.dart' show PermissionsScreen;
 import 'face/face_ui.dart';
 import '../../core/app_update.dart';
@@ -405,6 +406,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'pos': _SectionInfo(Icons.point_of_sale_rounded, Color(0xFF00A3FF), 'الكاشير', 'Cashier', 'بيع سريع بالباركود وسلة وفاتورة نقدية', 'Fast barcode sales with a cart and a cash invoice'),
   'invoices': _SectionInfo(Icons.receipt_long_rounded, Color(0xFF00A3FF), 'الفواتير', 'Invoices', 'كل فواتير الفرع: المدفوعة والملغية والمعلّقة وتفاصيلها وطباعتها', 'All branch invoices: paid, cancelled and held, with details and printing'),
   'shifts': _SectionInfo(Icons.fact_check_outlined, Color(0xFF7A5AF8), 'الورديات والموافقات', 'Shifts & approvals', 'موافقات الخصم والمرتجع وفروق الدرج ومقارنة الفروع', 'Discount and refund approvals, drawer differences, branch comparison'),
+  'daybook': _SectionInfo(Icons.event_note_rounded, Color(0xFF12B76A), 'اليومية والتحصيل', 'Daily register', 'سطر لكل يوم في كل فرع: كاش وفيزا ومحفظة، فرق الدرج، واللي المحاسب حصّله وخطوات اليوم', 'One line per day per branch: cash, card, wallet, drawer difference, collections and the day\'s steps'),
   'books': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFF12B76A), 'المحاسبة', 'Accounting', 'صافي المبيعات والمرتجعات وفروق الدرج ومقارنة الفروع', 'Net sales, refunds, drawer differences and branch comparison'),
   'orders': _SectionInfo(Icons.receipt_long_outlined, Color(0xFFF08A12), 'الطلبات', 'Orders', 'تأكيد الطلبات وتغيير حالتها', 'Confirm orders and change their status'),
   'ops': _SectionInfo(Icons.monitor_heart_rounded, Color(0xFFE5484D), 'غرفة العمليات المباشرة', 'Live operations room', 'مبيعات كل فرع لحظيًا، الورديات المفتوحة ومين فاتحها، ومين أونلاين، وكل اللي بيحصل', 'Live sales per branch, open shifts and who opened them, who is online, and everything happening'),
@@ -572,7 +574,7 @@ const _sidebarGroups = <(String, String, List<String>)>[
   ('البيع', 'Selling', ['pos', 'invoices', 'shifts', 'shortcuts']),
   ('الطلبات', 'Orders', ['orders', 'repairs', 'online_review']),
   ('المنتجات والمخزن', 'Products & stock', ['products', 'stock', 'purchases']),
-  ('الفلوس والتقارير', 'Money & reports', ['sales', 'books', 'wallets', 'wallet_inbox', 'ops']),
+  ('الفلوس والتقارير', 'Money & reports', ['daybook', 'sales', 'books', 'wallets', 'wallet_inbox', 'ops']),
   ('الحسابات', 'Accounts', ['accounts', 'team', 'blocked']),
   ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'assistant']),
   ('التسويق', 'Marketing', ['marketing', 'offers', 'reviews', 'gifts', 'wheel', 'contests', 'features']),
@@ -847,6 +849,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'invoices' => const InvoicesPanel(),
                       'shifts' => const ShiftsPanel(),
                       'books' => const AccountantPanel(),
+                      'daybook' => const DaybookPanel(),
                       'ops' => const OpsPanel(),
                       'orders' => const _OrdersHost(),
                       'blocked' => const BlockedAccountsPanel(),
