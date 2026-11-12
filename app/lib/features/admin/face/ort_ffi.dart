@@ -62,17 +62,33 @@ class Ort {
     final api = getApi(_apiVersion);
     if (api == nullptr) throw OrtException('onnxruntime.dll does not offer API version $_apiVersion');
     final o = Ort._(api);
-    o._env = o._out((p) => o._fn<_CreateEnvN, _CreateEnvD>(_createEnv)(3 /* ERROR */, 'myhato'.toNativeUtf8(), p));
-    o._mem = o._out((p) => o._fn<_MemInfoN, _MemInfoD>(_createCpuMemoryInfo)(0 /* device allocator */, 0 /* default mem */, p));
+    o._env = o._out((p) => o._createEnvF(3 /* ERROR */, 'myhato'.toNativeUtf8(), p));
+    o._mem = o._out((p) => o._memInfoF(0 /* device allocator */, 0 /* default mem */, p));
     return o;
   }
 
-  F _fn<T extends Function, F extends Function>(int slot) => _api[slot].cast<NativeFunction<T>>().asFunction<F>();
+  Pointer<NativeFunction<T>> _p<T extends Function>(int slot) => _api[slot].cast<NativeFunction<T>>();
+  late final _errMsg = _p<_ErrMsgN>(_getErrorMessage).asFunction<_ErrMsgD>();
+  late final _createEnvF = _p<_CreateEnvN>(_createEnv).asFunction<_CreateEnvD>();
+  late final _createOptsF = _p<_OutN>(_createSessionOptions).asFunction<_OutD>();
+  late final _setThreadsF = _p<_SetIntN>(_setIntraOpThreads).asFunction<_SetIntD>();
+  late final _setOptLevelF = _p<_SetIntN>(_setGraphOptLevel).asFunction<_SetIntD>();
+  late final _fromArrayF = _p<_FromArrayN>(_createSessionFromArray).asFunction<_FromArrayD>();
+  late final _memInfoF = _p<_MemInfoN>(_createCpuMemoryInfo).asFunction<_MemInfoD>();
+  late final _tensorF = _p<_TensorN>(_createTensorWithData).asFunction<_TensorD>();
+  late final _runF = _p<_RunN>(_run).asFunction<_RunD>();
+  late final _dataF = _p<_DataN>(_getTensorMutableData).asFunction<_DataD>();
+  late final _relStatus = _p<_RelN>(_releaseStatus).asFunction<_RelD>();
+  late final _relEnv = _p<_RelN>(_releaseEnv).asFunction<_RelD>();
+  late final _relMem = _p<_RelN>(_releaseMemoryInfo).asFunction<_RelD>();
+  late final _relSession = _p<_RelN>(_releaseSession).asFunction<_RelD>();
+  late final _relValue = _p<_RelN>(_releaseValue).asFunction<_RelD>();
+  late final _relOpts = _p<_RelN>(_releaseSessionOptions).asFunction<_RelD>();
 
   void _check(Pointer<Void> status) {
     if (status == nullptr) return;
-    final msg = _fn<_ErrMsgN, _ErrMsgD>(_getErrorMessage)(status).toDartString();
-    _fn<_RelN, _RelD>(_releaseStatus)(status);
+    final msg = _errMsg(status).toDartString();
+    _relStatus(status);
     throw OrtException(msg);
   }
 
@@ -87,23 +103,23 @@ class Ort {
   }
 
   OrtSession session(Uint8List model, {int threads = 2}) {
-    final opts = _out((p) => _fn<_OutN, _OutD>(_createSessionOptions)(p));
+    final opts = _out((p) => _createOptsF(p));
     final buf = calloc<Uint8>(model.length);
     try {
-      _check(_fn<_SetIntN, _SetIntD>(_setIntraOpThreads)(opts, threads));
-      _check(_fn<_SetIntN, _SetIntD>(_setGraphOptLevel)(opts, 99 /* ORT_ENABLE_ALL */));
+      _check(_setThreadsF(opts, threads));
+      _check(_setOptLevelF(opts, 99 /* ORT_ENABLE_ALL */));
       buf.asTypedList(model.length).setAll(0, model);
-      final s = _out((p) => _fn<_FromArrayN, _FromArrayD>(_createSessionFromArray)(_env, buf.cast(), model.length, opts, p));
+      final s = _out((p) => _fromArrayF(_env, buf.cast(), model.length, opts, p));
       return OrtSession._(this, s);
     } finally {
       calloc.free(buf);
-      _fn<_RelN, _RelD>(_releaseSessionOptions)(opts);
+      _relOpts(opts);
     }
   }
 
   void dispose() {
-    _fn<_RelN, _RelD>(_releaseMemoryInfo)(_mem);
-    _fn<_RelN, _RelD>(_releaseEnv)(_env);
+    _relMem(_mem);
+    _relEnv(_env);
   }
 }
 
@@ -127,28 +143,28 @@ class OrtSession {
       for (var i = 0; i < shape.length; i++) {
         dims[i] = shape[i];
       }
-      inVal.value = o._out((p) => o._fn<_TensorN, _TensorD>(_createTensorWithData)(o._mem, data.cast(), input.length * 4, dims, shape.length, 1 /* float */, p));
+      inVal.value = o._out((p) => o._tensorF(o._mem, data.cast(), input.length * 4, dims, shape.length, 1 /* float */, p));
       inName.value = inputName.toNativeUtf8();
       names.add(inName.value);
       for (var i = 0; i < outputs.length; i++) {
         outNames[i] = outputs[i].toNativeUtf8();
         names.add(outNames[i]);
       }
-      o._check(o._fn<_RunN, _RunD>(_run)(_s, nullptr, inName, inVal, 1, outNames, outputs.length, outVals));
+      o._check(o._runF(_s, nullptr, inName, inVal, 1, outNames, outputs.length, outVals));
       final res = <Float32List>[];
       for (var i = 0; i < outputs.length; i++) {
         final p = calloc<Pointer<Void>>();
         try {
-          o._check(o._fn<_DataN, _DataD>(_getTensorMutableData)(outVals[i], p));
+          o._check(o._dataF(outVals[i], p));
           res.add(Float32List.fromList(p.value.cast<Float>().asTypedList(outputSizes[i])));
         } finally {
           calloc.free(p);
-          o._fn<_RelN, _RelD>(_releaseValue)(outVals[i]);
+          o._relValue(outVals[i]);
         }
       }
       return res;
     } finally {
-      if (inVal.value != nullptr) o._fn<_RelN, _RelD>(_releaseValue)(inVal.value);
+      if (inVal.value != nullptr) o._relValue(inVal.value);
       for (final n in names) {
         calloc.free(n);
       }
@@ -161,5 +177,5 @@ class OrtSession {
     }
   }
 
-  void dispose() => _ort._fn<_RelN, _RelD>(_releaseSession)(_s);
+  void dispose() => _ort._relSession(_s);
 }
