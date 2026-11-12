@@ -287,4 +287,55 @@ void main() {
     await shot(t, '${p}_16_colors');
     await closeDialog(t);
   });
+
+  job('sales', {'sales'}, salesPerms, salesRpc, (t, lang, ar) async {
+    final p = '${lang}_sales';
+    await shot(t, '${p}_01_orders');
+    await tapText(t, 'MH-24117');
+    await shot(t, '${p}_02_order_detail');
+    await closeDialog(t);
+    await goTab(t, 'pos');
+    await shot(t, '${p}_03_pos');
+    await goTab(t, 'products');
+    await shot(t, '${p}_04_products');
+    await goTab(t, 'stock');
+    await shot(t, '${p}_05_stock');
+    await goTab(t, 'mytarget');
+    await shot(t, '${p}_06_my_target');
+  });
+
+  job('repairs', {'technician'}, technicianPerms, repairsRpc, (t, lang, ar) async {
+    final p = '${lang}_repairs';
+    await shot(t, '${p}_01_list');
+    await tapText(t, 'RP-1042');
+    await shot(t, '${p}_02_detail');
+    await closeDialog(t);
+  });
+
+  job('online', {'support'}, supportPerms, onlineRpc, (t, lang, ar) async {
+    final p = '${lang}_online';
+    await shot(t, '${p}_01_orders');
+    await tapText(t, 'MH-24117');
+    await shot(t, '${p}_02_order_detail');
+    await closeDialog(t);
+    await goTab(t, 'repairs');
+    await shot(t, '${p}_03_repairs');
+    await goTab(t, 'accounts');
+    await shot(t, '${p}_04_accounts');
+    await goTab(t, 'assistant');
+    await shot(t, '${p}_05_assistant');
+  });
+
+  job('marketing', {'marketing'}, marketingPerms, marketingRpc, (t, lang, ar) async {
+    final p = '${lang}_marketing';
+    await shot(t, '${p}_01_home');
+    await goTab(t, 'contests');
+    await shot(t, '${p}_02_contests');
+    await goTab(t, 'occasions');
+    await shot(t, '${p}_03_occasions');
+    await goTab(t, 'reviews');
+    await shot(t, '${p}_04_reviews');
+    await goTab(t, 'app_banners');
+    await shot(t, '${p}_05_banners');
+  });
 }

@@ -195,3 +195,9 @@ Map<String, Object> commonRpc() => {
         {'id': branchId, 'is_hq': false, 'name_ar': 'فرع المعادي', 'name_en': 'Maadi branch'},
       ],
     };
+
+
+Map<String, Object> salesRpc() => {...cashierRpc()};
+Map<String, Object> repairsRpc() => {...commonRpc()};
+Map<String, Object> onlineRpc() => {...commonRpc()};
+Map<String, Object> marketingRpc() => {...commonRpc()};
