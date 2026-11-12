@@ -372,9 +372,9 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
     );
     final why = reason.text.trim();
     final k = part(kCtl), w = part(wCtl);
-    reason.dispose();
-    kCtl.dispose();
-    wCtl.dispose();
+    disposeLater(reason);
+    disposeLater(kCtl);
+    disposeLater(wCtl);
     if (ok != true || !mounted) return;
     try {
       if (pick == 'split') {

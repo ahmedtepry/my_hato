@@ -918,7 +918,7 @@ class _TargetBarState extends ConsumerState<_TargetBar> {
         ],
       ),
     );
-    ctl.dispose();
+    disposeLater(ctl);
     if (text == null || !mounted) return;
     final t = text.trim();
     final minor = t.isEmpty ? 0 : parseEgpToMinor(t);

@@ -235,3 +235,7 @@ Future<T?> showSmoothDialog<T>({
     },
   );
 }
+
+/// Disposes a dialog's text box once the dialog's closing animation is over.
+/// Disposing it right after the dialog returns breaks that animation ("TextEditingController used after being disposed").
+void disposeLater(ChangeNotifier c) => Future<void>.delayed(const Duration(milliseconds: 700), c.dispose);

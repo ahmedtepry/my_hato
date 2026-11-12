@@ -542,8 +542,8 @@ class _PriceSheetState extends ConsumerState<_PriceSheet> {
     );
     final newPrice = double.tryParse(price.text.trim());
     final newCompare = compare.text.trim().isEmpty ? null : double.tryParse(compare.text.trim());
-    price.dispose();
-    compare.dispose();
+    disposeLater(price);
+    disposeLater(compare);
     if (ok != true || !mounted) return;
     if (newPrice == null || newPrice < 0 || (compare.text.trim().isNotEmpty && newCompare == null)) {
       showSnack(context, _t(context, 'السعر مش صحيح', 'Invalid price'), error: true);

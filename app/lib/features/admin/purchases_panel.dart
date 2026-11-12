@@ -1,6 +1,7 @@
 // المشتريات والموردين: suppliers, purchase orders (draft -> ordered -> partial -> received), receiving into stock, payments to the supplier.
 // Search works like Odoo: words + filters + group-by + saved favourites (shared/odoo_search.dart).
 import 'package:flutter/material.dart';
+import '../shared/motion.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors.dart';
@@ -330,8 +331,8 @@ class _PoDetailState extends ConsumerState<_PoDetail> {
     );
     final minor = parseEgpToMinor(amount.text);
     final n = note.text.trim();
-    amount.dispose();
-    note.dispose();
+    disposeLater(amount);
+    disposeLater(note);
     if (ok != true) return;
     if (minor == null || minor < 1) {
       if (mounted) showSnack(context, _t(context, 'المبلغ مش مظبوط', 'Invalid amount'), error: true);
@@ -563,7 +564,7 @@ class _PoFormState extends ConsumerState<_PoForm> {
         );
       }),
     );
-    q.dispose();
+    disposeLater(q);
     if (picked != null && mounted) setState(() => _lines.add(_Line('${picked['id']}', context.pick(picked, 'name'), 1, '')));
   }
 

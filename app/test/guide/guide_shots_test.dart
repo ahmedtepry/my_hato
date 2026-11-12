@@ -59,10 +59,12 @@ Future<void> _loadIcons() async {
   }
 }
 
-final _shotKey = GlobalKey();
+var _shotKey = GlobalKey();
 
 /// Opens the console as [roles]/[perms] against the fake server.
 Future<void> openConsole(WidgetTester t, {required Set<String> roles, required Set<String> perms, required Map<String, Object> rpc, String lang = 'ar', String look = 'midnight', Size size = const Size(1440, 900)}) async {
+  _shotKey = GlobalKey();
+  _missing.clear();
   t.view.physicalSize = size;
   t.view.devicePixelRatio = 1;
   addTearDown(t.view.reset);
@@ -148,7 +150,11 @@ Future<void> shot(WidgetTester t, String name) async {
 /// Taps the first widget showing [text] (if it is there).
 Future<bool> tapText(WidgetTester t, String text) async {
   final f = find.text(text);
-  if (f.evaluate().isEmpty) {
+  var none = true;
+  try {
+    none = f.evaluate().isEmpty;
+  } catch (_) {}
+  if (none) {
     // ignore: avoid_print
     print('MISSING text "$text"');
     return false;

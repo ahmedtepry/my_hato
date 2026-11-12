@@ -3744,8 +3744,8 @@ class _OrderRefundRowState extends ConsumerState<_OrderRefundRow> {
     );
     final minor = parseEgpToMinor(amount.text);
     final why = reason.text.trim();
-    amount.dispose();
-    reason.dispose();
+    disposeLater(amount);
+    disposeLater(reason);
     if (ok != true || !mounted) return;
     if (minor == null || minor <= 0 || minor > left || why.length < 3) {
       showSnack(context, _t(context, 'اكتب مبلغ صحيح (مايزيدش عن المتبقي) وسبب', 'Enter a valid amount (not above what is left) and a reason'), error: true);

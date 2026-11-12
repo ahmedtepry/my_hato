@@ -118,7 +118,7 @@ Future<void> sendReceiptWhatsApp(BuildContext context, String text) async {
       ],
     ),
   );
-  ctl.dispose();
+  disposeLater(ctl);
   if (phone == null || !context.mounted) return;
   final digits = waDigits(phone);
   if (digits.length < 11) {

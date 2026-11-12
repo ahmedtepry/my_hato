@@ -79,7 +79,7 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
         ],
       ),
     );
-    pass.dispose();
+    disposeLater(pass);
     if (password == null || password.isEmpty || !mounted) return;
     setState(() => _renaming = true);
     try {

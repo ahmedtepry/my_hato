@@ -5,6 +5,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'motion.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/l10n.dart';
@@ -142,7 +143,7 @@ class _OdooSearchBarState extends State<OdooSearchBar> {
       ),
     );
     final n = name.text.trim();
-    name.dispose();
+    disposeLater(name);
     if (ok == true && n.isNotEmpty) {
       _favs.removeWhere((f) => f['name'] == n);
       _favs.add({'name': n, ...widget.state.toJson()});

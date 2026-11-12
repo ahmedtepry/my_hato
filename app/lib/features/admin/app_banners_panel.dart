@@ -3,6 +3,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../shared/motion.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
@@ -233,7 +234,7 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
         );
       }),
     );
-    q.dispose();
+    disposeLater(q);
     if (picked != null && _pids.length < 10) setState(() => _pids.add(picked));
   }
 

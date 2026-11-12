@@ -576,7 +576,7 @@ class _RequestsSection extends ConsumerWidget {
       ),
     );
     final text = note.text;
-    note.dispose();
+    disposeLater(note);
     if (ok != true || !context.mounted) return;
     try {
       await ref.read(supabaseProvider).rpc('marketing_request_decide', params: {'p_id': r['id'], 'p_approve': approve, 'p_note': text});

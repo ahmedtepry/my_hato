@@ -566,8 +566,8 @@ class _RegisterState extends ConsumerState<_Register> {
     );
     final minor = parseEgpToMinor(amount.text);
     final why = reason.text.trim();
-    amount.dispose();
-    reason.dispose();
+    disposeLater(amount);
+    disposeLater(reason);
     if (ok != true || !mounted) return;
     if (minor == null || minor <= 0 || why.length < 3) {
       showSnack(context, _t(context, 'اكتب المبلغ والسبب', 'Enter the amount and a reason'), error: true);
