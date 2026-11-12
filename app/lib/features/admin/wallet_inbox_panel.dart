@@ -292,7 +292,7 @@ class _WalletInboxPanelState extends ConsumerState<WalletInboxPanel> {
           return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (r['enabled'] != true)
               Card(
-                color: const Color(0xFFFFF7E6),
+                color: BrandColors.warning.withValues(alpha: 0.14),
                 child: Padding(padding: const EdgeInsets.all(14), child: Text(_t(context, 'استقبال الرسايل لسه مش مفعّل. المالك هيفعّله ويركّبه على تليفون المكتب.', 'The SMS inbox is not switched on yet. The owner will switch it on and set it up on the office phone.'))),
               ),
             if (list.isEmpty && r['enabled'] == true) Padding(padding: const EdgeInsets.all(20), child: Text(_t(context, 'لسه مفيش تحويلات وصلت.', 'No transfers yet.'))),

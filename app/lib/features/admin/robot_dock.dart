@@ -218,7 +218,7 @@ class _RobotDockState extends ConsumerState<RobotDock> with SingleTickerProvider
             bottom: 112,
             child: Material(
               elevation: 4,
-              color: Colors.white,
+              color: panelColor(context),
               borderRadius: BorderRadius.circular(14),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -946,7 +946,7 @@ class _WalkingRobotState extends State<_WalkingRobot> with SingleTickerProviderS
                 bottom: 160 + hop,
                 child: Material(
                   elevation: 4,
-                  color: Colors.white,
+                  color: panelColor(context),
                   borderRadius: BorderRadius.circular(14),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),

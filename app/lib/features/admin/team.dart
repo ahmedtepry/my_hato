@@ -968,9 +968,9 @@ class _RoleOption extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           decoration: BoxDecoration(
-            color: selected ? role.color.withValues(alpha: 0.07) : Colors.white,
+            color: selected ? role.color.withValues(alpha: 0.12) : panelColor(context),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: selected ? role.color : BrandColors.border, width: selected ? 2 : 1),
+            border: Border.all(color: selected ? role.color : panelLine(context), width: selected ? 2 : 1),
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(14),

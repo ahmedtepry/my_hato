@@ -337,7 +337,7 @@ class _ChatBodyState extends State<_ChatBody> {
       ),
       Expanded(
         child: Container(
-          color: const Color(0xFFF4F6FA),
+          color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.03) : const Color(0xFFF4F6FA),
           child: _msgs.isEmpty
               ? Center(
                   child: Padding(

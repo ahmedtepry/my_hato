@@ -159,7 +159,7 @@ class _KpiPanelState extends ConsumerState<KpiPanel> {
           final isMonth = _preset == _Preset.month;
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Card(
-              color: const Color(0xFFF0F8FF),
+              color: BrandColors.electric.withValues(alpha: 0.10),
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Wrap(spacing: 22, runSpacing: 10, children: [

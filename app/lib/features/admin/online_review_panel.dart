@@ -114,7 +114,7 @@ class OnlineReviewPanel extends ConsumerWidget {
           const SizedBox(height: 8),
           if (dups.isNotEmpty || waitingSale.isNotEmpty)
             Card(
-              color: const Color(0xFFFFF7E6),
+              color: BrandColors.warning.withValues(alpha: 0.14),
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
