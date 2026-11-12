@@ -981,7 +981,13 @@ class AdminHomeScreen extends ConsumerWidget {
                 if (!didPop) c.animateTo(consoleIdx);
               },
               child: Scaffold(
+                // one-section jobs (the technician) and phones use this layout: on the glass look it needs the dark
+                // backdrop too, or the page's white text sits on a light background and cannot be read
+                backgroundColor: glass ? const Color(0xFF061833) : null,
                 appBar: AppBar(
+                  backgroundColor: glass ? const Color(0xFF0A2147) : null,
+                  foregroundColor: glass ? Colors.white : null,
+                  surfaceTintColor: glass ? Colors.transparent : null,
                   automaticallyImplyLeading: false,
                   leading: AppConfig.teamOnly
                       ? null
@@ -1007,7 +1013,7 @@ class AdminHomeScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                body: pages,
+                body: _lookWrap(glass, pages),
                 // a single-purpose job (the cashier) has nothing to switch to, so no bar
                 bottomNavigationBar: tabs.length <= 1
                     ? null
