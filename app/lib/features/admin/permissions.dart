@@ -104,6 +104,9 @@ const _perms = <String, _PermInfo>{
   'targets.manage': _PermInfo('pos', 'يحدد التارجت (فروع وموظفين)', 'Set targets (branches and employees)'),
   'targets.mine': _PermInfo('pos', 'يشوف تارجته وعمولته', 'See his own target and commission'),
   'commission.set': _PermInfo('pos', 'يحدد عمولة المنتجات', 'Set product commissions', sensitive: true),
+  'daybook.view': _PermInfo('pos', 'يشوف اليومية والتحصيل', 'See the daily register', sensitive: true),
+  'daybook.collect': _PermInfo('pos', 'يسجّل تحصيل اليومية (محاسب)', 'Record daily collections (accountant)', sensitive: true),
+  'daybook.lock': _PermInfo('pos', 'يقفل اليومية', 'Lock a day', sensitive: true),
   'branches.all': _PermInfo('system', 'يشوف حسابات كل الفروع', 'See the accounts of every branch',
       descAr: 'يشوف الورديات والمبيعات والتقارير لكل الفروع والإدارة، مش فرعه بس', descEn: 'See shifts, sales and reports of every branch and head office'),
 };
