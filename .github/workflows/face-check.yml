@@ -1,0 +1,37 @@
+# Runs the Dart face engine on a real Windows machine and compares it with the numpy reference (tool/face/face_ref.py).
+name: Face check
+on:
+  push:
+    branches: [face-check]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Models, runtime, reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/face" && cd "$RUNNER_TEMP/face"
+          gh release download face-models -R "${{ github.repository }}" -p face_models.zip
+          unzip -q face_models.zip
+          curl -sSfL https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-win-x64-1.20.1.zip -o ort.zip
+          unzip -q ort.zip
+          pip install -q onnxruntime numpy opencv-python-headless
+          python "$GITHUB_WORKSPACE/app/tool/face/face_ref.py" .
+      - name: Dart engine vs reference
+        working-directory: app
+        run: |
+          flutter pub get
+          FACE_DIR="$RUNNER_TEMP/face" ORT_DLL="$RUNNER_TEMP/face/onnxruntime-win-x64-1.20.1/lib/onnxruntime.dll" flutter test test/face/face_core_test.dart --reporter expanded
