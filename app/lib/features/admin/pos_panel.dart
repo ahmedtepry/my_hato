@@ -1229,19 +1229,39 @@ class _RegisterState extends ConsumerState<_Register> {
                 OutlinedButton(onPressed: _findingCustomer ? null : _findCustomer, child: Text(_t(context, 'بحث', 'Find'))),
               ]),
             ),
-          SegmentedButton<String>(
-            showSelectedIcon: false,
-            segments: [
-              ButtonSegment(value: 'cash', icon: const Icon(Icons.payments_outlined, size: 18), label: Text(_t(context, 'كاش', 'Cash'))),
-              ButtonSegment(value: 'card', icon: const Icon(Icons.credit_card_rounded, size: 18), label: Text(_t(context, 'فيزا', 'Visa'))),
-              ButtonSegment(value: 'wallet', icon: const Icon(Icons.account_balance_wallet_outlined, size: 18), label: Text(_t(context, 'محفظة', 'Wallet'))),
-              ButtonSegment(value: 'split', icon: const Icon(Icons.call_split_rounded, size: 18), label: Text(_t(context, 'مقسّم', 'Split'))),
-            ],
-            selected: {_pm},
-            onSelectionChanged: _unknown ? null : (v) => setState(() => _pm = v.first),
-          ),
-          const SizedBox(height: 8),
+          // how the customer pays: four clear tiles (icon over a one-line name), never squeezed into each other
+          Row(children: [
+            for (final (v, icon, ar, en) in const [
+              ('cash', Icons.payments_outlined, 'كاش', 'Cash'),
+              ('card', Icons.credit_card_rounded, 'فيزا', 'Visa'),
+              ('wallet', Icons.account_balance_wallet_outlined, 'محفظة', 'Wallet'),
+              ('split', Icons.call_split_rounded, 'مقسّم', 'Split'),
+            ])
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: _PayTile(
+                    icon: icon,
+                    label: _t(context, ar, en),
+                    selected: _pm == v,
+                    onTap: _unknown
+                        ? null
+                        : () => setState(() {
+                              _pm = v;
+                              if (v != 'split') {
+                                _splitCard.clear();
+                                _splitWallet.clear();
+                              }
+                            }),
+                  ),
+                ),
+              ),
+          ]),
+          const SizedBox(height: 10),
           if (_split) ...[
+            Text(_t(context, 'اكتب اللي اتدفع فيزا ومحفظة، والباقي بيتحسب كاش لوحده', 'Enter what was paid by Visa and wallet; the rest is cash'),
+                style: const TextStyle(color: BrandColors.gray, fontSize: 12.5)),
+            const SizedBox(height: 8),
             Row(children: [
               Expanded(
                 child: TextField(
@@ -1249,7 +1269,7 @@ class _RegisterState extends ConsumerState<_Register> {
                   enabled: !_unknown,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(isDense: true, prefixIcon: const Icon(Icons.credit_card_rounded, size: 18), labelText: _t(context, 'فيزا (ج.م)', 'Visa (EGP)')),
+                  decoration: InputDecoration(isDense: true, labelText: _t(context, 'فيزا', 'Visa'), suffixText: _t(context, 'ج.م', 'EGP')),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1259,14 +1279,30 @@ class _RegisterState extends ConsumerState<_Register> {
                   enabled: !_unknown,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(isDense: true, prefixIcon: const Icon(Icons.account_balance_wallet_outlined, size: 18), labelText: _t(context, 'محفظة (ج.م)', 'Wallet (EGP)')),
+                  decoration: InputDecoration(isDense: true, labelText: _t(context, 'محفظة', 'Wallet'), suffixText: _t(context, 'ج.م', 'EGP')),
                 ),
               ),
             ]),
-            const SizedBox(height: 6),
-            _row(_t(context, 'الباقي كاش', 'Cash part'), _splitCardMinor < 0 || _splitWalletMinor < 0 ? '—' : _money(context, _splitCashMinor),
-                color: _splitCashMinor < 0 ? BrandColors.error : null),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
+            // what is left to take in cash, in one clear box
+            Builder(builder: (_) {
+              final bad = _splitCardMinor < 0 || _splitWalletMinor < 0 || _splitCashMinor < 0;
+              final col = bad ? BrandColors.error : BrandColors.success;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(color: col.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: col.withValues(alpha: 0.4))),
+                child: Row(children: [
+                  Icon(bad ? Icons.error_outline_rounded : Icons.payments_outlined, color: col, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(bad ? _t(context, 'الفيزا والمحفظة أكبر من الإجمالي', 'Visa + wallet is more than the total') : _t(context, 'الباقي كاش', 'Cash part'),
+                        style: TextStyle(fontWeight: FontWeight.w700, color: col)),
+                  ),
+                  if (!bad) Text(_money(context, _splitCashMinor), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: col)),
+                ]),
+              );
+            }),
+            const SizedBox(height: 8),
             if (_splitCashMinor > 0)
               TextField(
                 controller: _cash,
@@ -1274,7 +1310,12 @@ class _RegisterState extends ConsumerState<_Register> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) => setState(() {}),
                 onSubmitted: (_) => _complete(),
-                decoration: InputDecoration(isDense: true, labelText: _t(context, 'المستلم كاش (سيبه فاضي لو بالظبط)', 'Cash received (empty = exact)')),
+                decoration: InputDecoration(
+                  isDense: true,
+                  labelText: _t(context, 'استلمت كاش كام؟', 'Cash received'),
+                  helperText: _t(context, 'سيبها فاضية لو استلمت المبلغ بالظبط', 'Leave empty if it is exact'),
+                  suffixText: _t(context, 'ج.م', 'EGP'),
+                ),
               ),
             if (_splitCashMinor > 0 && cash != null && cash > _splitCashMinor)
               Padding(
@@ -2479,6 +2520,46 @@ class _OfflineQueueDialogState extends ConsumerState<_OfflineQueueDialog> {
             label: Text(_t(context, 'ارفعهم دلوقتي', 'Send now')),
           ),
       ],
+    );
+  }
+}
+
+
+/// One payment-method tile at the till: icon over a one-line name, highlighted when chosen.
+class _PayTile extends StatelessWidget {
+  const _PayTile({required this.icon, required this.label, required this.selected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fg = selected ? cs.onPrimary : cs.onSurface;
+    return Material(
+      color: selected ? cs.primary : cs.onSurface.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          height: 56,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selected ? cs.primary : cs.onSurface.withValues(alpha: 0.15)),
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 20, color: fg),
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13, fontWeight: selected ? FontWeight.w800 : FontWeight.w600, color: fg)),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }
