@@ -343,9 +343,9 @@ void main() {
     await shot(t, '${p}_02_contests');
     await goTab(t, 'occasions');
     await shot(t, '${p}_03_occasions');
-    await goTab(t, 'reviews');
-    await shot(t, '${p}_04_reviews');
     await goTab(t, 'app_banners');
-    await shot(t, '${p}_05_banners');
+    await shot(t, '${p}_04_banners');
+    await goTab(t, 'shortcuts');
+    await shot(t, '${p}_05_shortcuts');
   });
 }

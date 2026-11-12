@@ -197,7 +197,165 @@ Map<String, Object> commonRpc() => {
     };
 
 
-Map<String, Object> salesRpc() => {...cashierRpc()};
-Map<String, Object> repairsRpc() => {...commonRpc()};
-Map<String, Object> onlineRpc() => {...commonRpc()};
-Map<String, Object> marketingRpc() => {...commonRpc()};
+List<Map<String, Object?>> orders() => [
+      for (final (i, (ref, name, status, pay, fl, total, mins, items)) in const [
+        ('MH-24117', 'منى خالد', 'pending_confirmation', 'cash_on_delivery', 'delivery', 37800, 12, [('شاحن سريع 25 واط', 'Fast charger 25W', 1, 24900), ('كابل Type-C مضفّر 1م', 'Braided Type-C cable 1m', 1, 11900)]),
+        ('MH-24116', 'عمر سامي', 'pending_confirmation', 'wallet', 'pickup', 89900, 35, [('سماعة لاسلكية Pro', 'Wireless earbuds Pro', 1, 89900)]),
+        ('MH-24115', 'سارة أحمد', 'confirmed', 'online', 'delivery', 19900, 80, [('باكدج حماية متكامل', 'Full protection bundle', 1, 19900)]),
+        ('MH-24114', 'يوسف علي', 'preparing', 'cash_on_delivery', 'delivery', 14900, 140, [('حامل موبايل للعربية', 'Car phone holder', 1, 14900)]),
+      ].indexed)
+        {
+          'id': '00000000-0000-4000-8000-00000000d${i}0e',
+          'reference': ref,
+          'customer_name': name,
+          'customer_phone': '0101234567$i',
+          'customer_email': null,
+          'total_minor': total,
+          'delivery_fee_minor': fl == 'delivery' ? 3000 : 0,
+          'status': status,
+          'fulfillment': fl,
+          'payment_method': pay,
+          'payment_status': pay == 'online' ? 'paid' : 'unpaid',
+          'delivery_notes': i == 0 ? 'الدور التالت، رن الجرس' : null,
+          'created_at': _ago(mins),
+          'closed_at': null,
+          'close_reason': null,
+          'coupon_code': null,
+          'coupon_discount_minor': 0,
+          'branch_id': branchId,
+          'branch_confirmed': i > 1,
+          'branches': {'name_ar': 'فرع المعادي', 'name_en': 'Maadi branch'},
+          'order_items': [
+            for (final (ar, en, q, p) in items) {'name_ar': ar, 'name_en': en, 'quantity': q, 'unit_price_minor': p, 'line_total_minor': p * q},
+          ],
+          'cancel_requests': <Object>[],
+        },
+    ];
+
+List<Map<String, Object?>> repairs() => [
+      for (final (i, (ref, name, brand, model, problem, status, est, mins)) in const [
+        ('RP-1042', 'محمود حسن', 'Apple', 'iPhone 13', 'الشاشة مكسورة واللمس مش شغال', 'initial_inspection', 0, 40),
+        ('RP-1041', 'نورا عادل', 'Samsung', 'Galaxy A54', 'البطارية بتفضى بسرعة', 'awaiting_approval', 85000, 190),
+        ('RP-1040', 'كريم سلامة', 'Xiaomi', 'Redmi Note 12', 'مدخل الشحن مش بيشحن', 'repair_in_progress', 35000, 600),
+        ('RP-1039', 'هالة مصطفى', 'Apple', 'iPhone 11', 'تغيير ضهر', 'ready_for_pickup', 120000, 1500),
+      ].indexed)
+        {
+          'id': '00000000-0000-4000-8000-00000000e${i}0e',
+          'reference': ref,
+          'contact_name': name,
+          'contact_phone': '0122345678$i',
+          'device_brand': brand,
+          'device_model': model,
+          'problem_description': problem,
+          'status': status,
+          'estimated_cost_minor': est == 0 ? null : est,
+          'approved_cost_minor': status == 'repair_in_progress' || status == 'ready_for_pickup' ? est : null,
+          'created_at': _ago(mins),
+          'closed_at': null,
+          'close_reason': null,
+          'cancel_requests': <Object>[],
+        },
+    ];
+
+const repairLabels = [
+  ['pickup_requested', 'تم طلب الاستلام', 'Pickup requested'],
+  ['received_at_branch', 'استلمنا جهازك', 'Device received'],
+  ['initial_inspection', 'بيتفحص دلوقتي', 'Being checked'],
+  ['diagnosis_completed', 'حددنا العطل', 'Fault found'],
+  ['awaiting_approval', 'في انتظار موافقتك على التكلفة', 'Awaiting your approval'],
+  ['repair_approved', 'تمت الموافقة على الصيانة', 'Repair approved'],
+  ['repair_in_progress', 'بيتصلح دلوقتي', 'Being repaired'],
+  ['waiting_for_parts', 'مستنيين قطعة الغيار', 'Waiting for parts'],
+  ['quality_testing', 'بنختبره بعد الإصلاح', 'Final testing'],
+  ['ready_for_pickup', 'اتصلح وجاهز تستلمه', 'Ready for pickup'],
+  ['delivered', 'اتسلّم', 'Delivered'],
+  ['cancelled', 'ملغي', 'Cancelled'],
+  ['unrepairable', 'غير قابل للإصلاح', 'Unrepairable'],
+];
+
+List<Map<String, Object?>> productRows() => [
+      for (final p in products)
+        {
+          ...p,
+          'model': null,
+          'warranty_ar': null,
+          'warranty_en': null,
+          'brand_id': null,
+          'compare_at_price_minor': null,
+          'status': 'published',
+          'is_featured': false,
+          'category_id': null,
+          'brands': null,
+          'product_images': <Object>[],
+        },
+    ];
+
+Map<String, Object> salesRpc() => {
+      ...cashierRpc(),
+      'orders': orders(),
+      'products': productRows(),
+      'stock_overview': [
+        for (final p in products)
+          {'sku': p['sku'], 'total': p['stock_quantity'], 'name_ar': p['name_ar'], 'name_en': p['name_en'], 'product_id': p['id'],
+            'branches': [{'qty': p['stock_quantity'], 'branch_id': branchId}], 'unallocated': 0},
+      ],
+      'stock_transfers_list': <Object>[],
+    };
+
+Map<String, Object> repairsRpc() => {
+      ...commonRpc(),
+      'assistant_flags': {'available': false},
+      'repair_requests': repairs(),
+      'repair_status_labels': [
+        for (final (i, l) in repairLabels.indexed) {'status': l[0], 'label_ar': l[1], 'label_en': l[2], 'message_ar': '', 'message_en': '', 'sort_order': i + 1},
+      ],
+    };
+
+Map<String, Object> onlineRpc() => {
+      ...repairsRpc(),
+      'orders': orders(),
+      'staff_accounts': <Object>[],
+      'assistant_flags': {'available': true, 'find': true},
+      'assistant_state': {
+        'guard': {'enabled': true},
+        'cashier': {'enabled': true},
+        'support': {
+          'enabled': true,
+          'log': [
+            {'at': _ago(20), 'kind': 'order_pending', 'text': 'نبّهت الفريق إن الطلب MH-24117 لسه مستني التأكيد'},
+            {'at': _ago(95), 'kind': 'order_pending', 'text': 'نبّهت الفريق إن الطلب MH-24116 لسه مستني التأكيد'},
+          ],
+        },
+      },
+    };
+
+Map<String, Object> marketingRpc() => {
+      ...commonRpc(),
+      'assistant_flags': {'available': false},
+      'product_reviews': <Object>[],
+      'marketing_overview': {'new_30d': 48, 'reviews': 31, 'opted_in': 112, 'customers': 640, 'buyers_30d': 96, 'orders_30d': 154, 'rating_avg': 4.7, 'repeat_rate': 38,
+        'revenue_30d': 18450000, 'new_prev_30d': 41, 'points_total': 51708, 'campaigns_30d': 3, 'promo_read_30d': 220, 'promo_sent_30d': 470, 'coupon_uses_30d': 27,
+        'reviews_pending': 2, 'wheel_spins_30d': 85, 'revenue_prev_30d': 16100000, 'coupon_discount_30d': 152000},
+      'marketing_segments': [
+        {'key': 'all', 'count': 640, 'reachable': 112}, {'key': 'opted_in', 'count': 112, 'reachable': 112}, {'key': 'new', 'count': 48, 'reachable': 20},
+        {'key': 'never', 'count': 210, 'reachable': 14}, {'key': 'active', 'count': 160, 'reachable': 70}, {'key': 'dormant', 'count': 95, 'reachable': 22},
+        {'key': 'vip', 'count': 34, 'reachable': 18}, {'key': 'points', 'count': 120, 'reachable': 40},
+      ],
+      'marketing_segment_sample': <Object>[],
+      'marketing_requests_list': [
+        {'id': '00000000-0000-4000-8000-0000000000f1', 'kind': 'coupon', 'mine': true, 'note': null, 'sort': '1', 'title': 'كود EID20', 'result': {'code': 'EID20'}, 'status': 'approved',
+          'details': {'code': 'EID20', 'ends_at': null, 'max_uses': 50, 'title_ar': 'خصم العيد', 'percent_off': 20, 'min_order_minor': 50000}, 'requester': 'أحمد',
+          'decided_at': _ago(300), 'requested_at': _ago(330)},
+      ],
+      'marketing_coupon_performance': [
+        {'code': 'EID20', 'title': 'خصم العيد', 'ends_at': null, 'max_uses': 50, 'is_active': true, 'uses_count': 18, 'percent_off': 20, 'revenue_minor': 4120000, 'discount_minor': 82400, 'amount_off_minor': null},
+        {'code': 'WELCOME10', 'title': 'أول طلب', 'ends_at': null, 'max_uses': null, 'is_active': true, 'uses_count': 9, 'percent_off': 10, 'revenue_minor': 1350000, 'discount_minor': 13500, 'amount_off_minor': null},
+      ],
+      'marketing_campaigns_list': <Object>[],
+      'contest_admin_list': <Object>[],
+      'banners': [
+        {'id': '00000000-0000-4000-8000-0000000000b9', 'badge': 'عرض خاص', 'color': 'blue', 'emoji': '🛡️', 'style': 'product', 'cta_ar': null, 'cta_en': null, 'ends_at': _ago(-60 * 24 * 3),
+          'title_ar': 'عروض الإسكرينات', 'title_en': 'Screen protector deals', 'is_active': true, 'link_type': null, 'starts_at': _ago(60 * 24), 'created_at': _ago(60 * 24), 'image_path': null,
+          'link_value': null, 'price_text': null, 'sort_order': 0, 'product_ids': [products[0]['id'], products[1]['id']], 'subtitle_ar': 'لحد آخر الأسبوع', 'subtitle_en': 'Until the end of the week', 'old_price_text': null},
+      ],
+    };
