@@ -27,6 +27,9 @@ jobs:
       - name: Shots
         working-directory: app
         run: |
+          mkdir -p build/fonts
+          curl -sSfL "https://github.com/google/fonts/raw/main/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf" -o build/fonts/NotoSans.ttf || echo "WARN noto"
+          curl -sSfL "https://github.com/google/fonts/raw/main/ofl/notocoloremoji/NotoColorEmoji-Regular.ttf" -o build/fonts/NotoColorEmoji.ttf || echo "WARN emoji"
           flutter pub get
           set +e
           flutter test test/guide/guide_shots_test.dart --dart-define=TEAM_ONLY=true --reporter expanded > /tmp/shots.txt 2>&1

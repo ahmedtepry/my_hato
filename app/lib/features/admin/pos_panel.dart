@@ -1226,7 +1226,11 @@ class _RegisterState extends ConsumerState<_Register> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                OutlinedButton(onPressed: _findingCustomer ? null : _findCustomer, child: Text(_t(context, 'بحث', 'Find'))),
+                // the theme makes buttons full-width; in a row that breaks the layout, so give this one its own size
+                OutlinedButton(
+                    onPressed: _findingCustomer ? null : _findCustomer,
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(72, 48)),
+                    child: Text(_t(context, 'بحث', 'Find'))),
               ]),
             ),
           // how the customer pays: four clear tiles (icon over a one-line name), never squeezed into each other

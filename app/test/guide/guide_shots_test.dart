@@ -45,6 +45,8 @@ Future<void> _loadIcons() async {
   final root = Platform.environment['FLUTTER_ROOT'] ?? '';
   for (final (family, file) in [
     ('MaterialIcons', '$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),
+    ('NotoSans', 'build/fonts/NotoSans.ttf'),
+    ('NotoColorEmoji', 'build/fonts/NotoColorEmoji.ttf'),
   ]) {
     final f = File(file);
     if (!f.existsSync()) {
@@ -175,32 +177,100 @@ Future<void> closeDialog(WidgetTester t) async {
   await settle(t);
 }
 
+/// Opens a console section (same as clicking it in the side list).
+Future<bool> goTab(WidgetTester t, String id) async {
+  final f = find.descendant(of: find.byType(DefaultTabController), matching: find.byType(AnimatedBuilder));
+  if (f.evaluate().isEmpty) return false;
+  final ctx = f.evaluate().first;
+  final tabs = ProviderScope.containerOf(ctx).read(consoleTabsProvider);
+  final i = tabs.indexOf(id);
+  if (i < 0) {
+    // ignore: avoid_print
+    print('MISSING tab $id in $tabs');
+    return false;
+  }
+  DefaultTabController.of(ctx).animateTo(i);
+  await settle(t, rounds: 8);
+  return true;
+}
+
+Future<void> typeInto(WidgetTester t, Set<String> labels, String text) async {
+  for (final e in find.byType(TextField).evaluate()) {
+    final w = e.widget as TextField;
+    if (labels.contains(w.decoration?.labelText ?? '')) {
+      await t.enterText(find.byWidget(w), text);
+      await settle(t, rounds: 2);
+      return;
+    }
+  }
+  // ignore: avoid_print
+  print('MISSING field $labels');
+}
+
+/// One job's guide pictures, in both languages.
+void job(String name, Set<String> roles, Set<String> perms, Map<String, Object> Function() rpc, Future<void> Function(WidgetTester t, String lang, bool ar) steps) {
+  for (final lang in const ['ar', 'en']) {
+    testWidgets('$name $lang', (t) async {
+      await openConsole(t, roles: roles, perms: perms, rpc: rpc(), lang: lang);
+      await steps(t, lang, lang == 'ar');
+    });
+  }
+}
+
 void main() {
   setUpAll(() async {
     GoogleFonts.config.allowRuntimeFetching = false;
     await _loadIcons();
   });
 
-  for (final lang in const ['ar', 'en']) {
-    testWidgets('cashier $lang', (t) async {
-      await openConsole(t, roles: {'cashier'}, perms: cashierPerms, rpc: cashierRpc(), lang: lang);
-      await shot(t, '${lang}_cashier_01_register');
-      // two products in the cart
-      final ar = lang == 'ar';
-      await tapText(t, ar ? 'إسكرينة زجاج كاملة 9D / 11D / 21D' : 'Full-cover tempered glass 9D');
-      await tapText(t, ar ? 'كابل Type-C مضفّر 1م' : 'Braided Type-C cable 1m');
-      await tapText(t, ar ? 'كابل Type-C مضفّر 1م' : 'Braided Type-C cable 1m');
-      await shot(t, '${lang}_cashier_02_cart');
-      // split payment
-      await tapIcon(t, Icons.call_split_rounded);
-      final fields = find.byType(TextField);
-      for (final e in fields.evaluate()) {
-        final w = e.widget as TextField;
-        final label = w.decoration?.labelText ?? '';
-        if (label == 'فيزا' || label == 'Visa') await t.enterText(find.byWidget(w), '200');
-      }
-      await settle(t);
-      await shot(t, '${lang}_cashier_03_split');
-    });
-  }
+  job('cashier', {'cashier'}, cashierPerms, cashierRpc, (t, lang, ar) async {
+    final p = '${lang}_cashier';
+    await shot(t, '${p}_01_register');
+    await tapText(t, ar ? 'إسكرينة زجاج كاملة 9D / 11D / 21D' : 'Full-cover tempered glass 9D');
+    await tapText(t, ar ? 'كابل Type-C مضفّر 1م' : 'Braided Type-C cable 1m');
+    await tapText(t, ar ? 'كابل Type-C مضفّر 1م' : 'Braided Type-C cable 1m');
+    await shot(t, '${p}_02_cart');
+    await tapIcon(t, Icons.call_split_rounded);
+    await typeInto(t, {'فيزا', 'Visa'}, '200');
+    await shot(t, '${p}_03_split');
+    await tapIcon(t, Icons.payments_outlined);
+    // the drawer, the seller, the daily target
+    await tapText(t, ar ? 'الدرج' : 'Drawer');
+    await shot(t, '${p}_04_drawer');
+    await closeDialog(t);
+    await tapText(t, ar ? 'أحمد' : 'أحمد');
+    await shot(t, '${p}_05_seller');
+    await tapText(t, ar ? 'محمد' : 'محمد');
+    await shot(t, '${p}_06_seller_pin');
+    await closeDialog(t);
+    await tapIcon(t, Icons.smart_toy_rounded);
+    await shot(t, '${p}_07_assistant_menu');
+    await closeDialog(t);
+    await tapIcon(t, Icons.assignment_return_outlined);
+    await shot(t, '${p}_08_refund_find');
+    await typeInto(t, {'رقم الفاتورة', 'Invoice number'}, '49988498');
+    await t.testTextInput.receiveAction(TextInputAction.done);
+    await settle(t);
+    await shot(t, '${p}_09_refund');
+    await closeDialog(t);
+    await tapIcon(t, Icons.receipt_long_outlined);
+    await shot(t, '${p}_10_expense');
+    await closeDialog(t);
+    await tapIcon(t, Icons.lock_clock_outlined);
+    await shot(t, '${p}_11_close_shift');
+    await closeDialog(t);
+    await goTab(t, 'invoices');
+    await shot(t, '${p}_12_invoices');
+    await tapText(t, '49988498');
+    await shot(t, '${p}_13_invoice_detail');
+    await closeDialog(t);
+    await goTab(t, 'mytarget');
+    await shot(t, '${p}_14_my_target');
+    await tapText(t, ar ? 'الشكل' : 'Look');
+    await shot(t, '${p}_15_look');
+    await closeDialog(t);
+    await tapText(t, ar ? 'الألوان' : 'Colours');
+    await shot(t, '${p}_16_colors');
+    await closeDialog(t);
+  });
 }
