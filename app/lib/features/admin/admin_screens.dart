@@ -988,6 +988,7 @@ class AdminHomeScreen extends ConsumerWidget {
                   backgroundColor: glass ? const Color(0xFF0A2147) : null,
                   foregroundColor: glass ? Colors.white : null,
                   surfaceTintColor: glass ? Colors.transparent : null,
+                  titleTextStyle: glass ? Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w800) : null,
                   automaticallyImplyLeading: false,
                   leading: AppConfig.teamOnly
                       ? null
