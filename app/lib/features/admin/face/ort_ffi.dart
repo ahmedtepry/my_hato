@@ -67,23 +67,22 @@ class Ort {
     return o;
   }
 
-  Pointer<NativeFunction<T>> _p<T extends Function>(int slot) => _api[slot].cast<NativeFunction<T>>();
-  late final _errMsg = _p<_ErrMsgN>(_getErrorMessage).asFunction<_ErrMsgD>();
-  late final _createEnvF = _p<_CreateEnvN>(_createEnv).asFunction<_CreateEnvD>();
-  late final _createOptsF = _p<_OutN>(_createSessionOptions).asFunction<_OutD>();
-  late final _setThreadsF = _p<_SetIntN>(_setIntraOpThreads).asFunction<_SetIntD>();
-  late final _setOptLevelF = _p<_SetIntN>(_setGraphOptLevel).asFunction<_SetIntD>();
-  late final _fromArrayF = _p<_FromArrayN>(_createSessionFromArray).asFunction<_FromArrayD>();
-  late final _memInfoF = _p<_MemInfoN>(_createCpuMemoryInfo).asFunction<_MemInfoD>();
-  late final _tensorF = _p<_TensorN>(_createTensorWithData).asFunction<_TensorD>();
-  late final _runF = _p<_RunN>(_run).asFunction<_RunD>();
-  late final _dataF = _p<_DataN>(_getTensorMutableData).asFunction<_DataD>();
-  late final _relStatus = _p<_RelN>(_releaseStatus).asFunction<_RelD>();
-  late final _relEnv = _p<_RelN>(_releaseEnv).asFunction<_RelD>();
-  late final _relMem = _p<_RelN>(_releaseMemoryInfo).asFunction<_RelD>();
-  late final _relSession = _p<_RelN>(_releaseSession).asFunction<_RelD>();
-  late final _relValue = _p<_RelN>(_releaseValue).asFunction<_RelD>();
-  late final _relOpts = _p<_RelN>(_releaseSessionOptions).asFunction<_RelD>();
+  late final _errMsg = _api[_getErrorMessage].cast<NativeFunction<_ErrMsgN>>().asFunction<_ErrMsgD>();
+  late final _createEnvF = _api[_createEnv].cast<NativeFunction<_CreateEnvN>>().asFunction<_CreateEnvD>();
+  late final _createOptsF = _api[_createSessionOptions].cast<NativeFunction<_OutN>>().asFunction<_OutD>();
+  late final _setThreadsF = _api[_setIntraOpThreads].cast<NativeFunction<_SetIntN>>().asFunction<_SetIntD>();
+  late final _setOptLevelF = _api[_setGraphOptLevel].cast<NativeFunction<_SetIntN>>().asFunction<_SetIntD>();
+  late final _fromArrayF = _api[_createSessionFromArray].cast<NativeFunction<_FromArrayN>>().asFunction<_FromArrayD>();
+  late final _memInfoF = _api[_createCpuMemoryInfo].cast<NativeFunction<_MemInfoN>>().asFunction<_MemInfoD>();
+  late final _tensorF = _api[_createTensorWithData].cast<NativeFunction<_TensorN>>().asFunction<_TensorD>();
+  late final _runF = _api[_run].cast<NativeFunction<_RunN>>().asFunction<_RunD>();
+  late final _dataF = _api[_getTensorMutableData].cast<NativeFunction<_DataN>>().asFunction<_DataD>();
+  late final _relStatus = _api[_releaseStatus].cast<NativeFunction<_RelN>>().asFunction<_RelD>();
+  late final _relEnv = _api[_releaseEnv].cast<NativeFunction<_RelN>>().asFunction<_RelD>();
+  late final _relMem = _api[_releaseMemoryInfo].cast<NativeFunction<_RelN>>().asFunction<_RelD>();
+  late final _relSession = _api[_releaseSession].cast<NativeFunction<_RelN>>().asFunction<_RelD>();
+  late final _relValue = _api[_releaseValue].cast<NativeFunction<_RelN>>().asFunction<_RelD>();
+  late final _relOpts = _api[_releaseSessionOptions].cast<NativeFunction<_RelN>>().asFunction<_RelD>();
 
   void _check(Pointer<Void> status) {
     if (status == nullptr) return;
