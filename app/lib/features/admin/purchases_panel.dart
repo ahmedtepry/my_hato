@@ -1,7 +1,7 @@
 // المشتريات والموردين: suppliers, purchase orders (draft -> ordered -> partial -> received), receiving into stock, payments to the supplier.
 // Search works like Odoo: words + filters + group-by + saved favourites (shared/odoo_search.dart).
 import 'package:flutter/material.dart';
-import '../shared/motion.dart';
+import '../../shared/motion.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors.dart';
