@@ -16,6 +16,15 @@ Deno.serve(async (req) => {
   // deno-lint-ignore no-explicit-any
   let body: any;
   try { body = await req.json(); } catch { return json(req, 400, { error: "invalid_json" }); }
+  // Big model files the Windows team app downloads on first use of Face ID (kept out of the installer: uploads over 50 MB are refused).
+  if (body.action === "prepare_asset") {
+    const name = String(body.name ?? "");
+    if (!["face_detection_yunet_2023mar.onnx", "face_recognition_sface_2021dec.onnx"].includes(name)) return json(req, 400, { error: "invalid_input" });
+    const path = `face/${name}`;
+    const { data, error } = await db.storage.from("app-updates").createSignedUploadUrl(path, { upsert: true });
+    if (error || !data) return json(req, 400, { error: "prepare_failed", detail: error?.message });
+    return json(req, 200, { ok: true, path, url: data.signedUrl, token: data.token });
+  }
   const platform = String(body.platform ?? "windows");
   const build = Number(body.build);
   if (!["windows", "android", "android_owner"].includes(platform) || !Number.isInteger(build) || build < 1 || build > 10000000) return json(req, 400, { error: "invalid_input" });

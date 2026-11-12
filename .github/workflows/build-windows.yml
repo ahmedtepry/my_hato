@@ -42,7 +42,8 @@ jobs:
           # Face ID (team only): the open OpenCV Zoo models (YuNet MIT, SFace Apache-2.0) go into the app's assets
           Z=https://github.com/opencv/opencv_zoo/raw/main/models
           curl -sSfL "$Z/face_detection_yunet/face_detection_yunet_2023mar.onnx" -o assets/face/face_detection_yunet_2023mar.onnx || echo "WARN: face detector download failed"
-          curl -sSfL "$Z/face_recognition_sface/face_recognition_sface_2021dec.onnx" -o assets/face/face_recognition_sface_2021dec.onnx || echo "WARN: face recognizer download failed"
+          # the 38 MB recognizer is NOT bundled (installers over 50 MB cannot be published): the app downloads it once
+          mkdir -p ../face_dl && curl -sSfL "$Z/face_recognition_sface/face_recognition_sface_2021dec.onnx" -o ../face_dl/face_recognition_sface_2021dec.onnx || echo "WARN: face recognizer download failed"
           ls -la assets/face
           flutter pub get
           # window title + app icon (non-fatal)
@@ -82,6 +83,7 @@ jobs:
           powershell -NoProfile -Command "Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath '../dist/MyHatoTeam-windows.zip' -Force"
           ls -la ../dist
           test -f ../dist/MyHatoTeam-Setup.exe || { echo "::error::the installer was not built"; exit 1; }
+          SZ=$(stat -c%s ../dist/MyHatoTeam-Setup.exe); echo "installer size $SZ"; [ "$SZ" -lt 52000000 ] || { echo "::error::the installer is over 50 MB and could not be published as an update"; exit 1; }
       - uses: actions/upload-artifact@v4
         continue-on-error: true # the release below is the real delivery; GitHub's artifact storage quota can be full
         with:
@@ -103,6 +105,13 @@ jobs:
           PUSH_SECRET: ${{ secrets.UPDATE_PUSH_SECRET }}
         run: |
           FN=https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/app-update
+          # the Face ID recognizer the app downloads on first use (the app checks its SHA-256)
+          M=face_dl/face_recognition_sface_2021dec.onnx
+          if [ -f "$M" ]; then
+            MP=$(curl -sS -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d '{"action":"prepare_asset","name":"face_recognition_sface_2021dec.onnx"}')
+            MU=$(echo "$MP" | python -c "import sys,json;print(json.load(sys.stdin)['url'])")
+            curl -sS -f -X PUT "$MU" -H "Content-Type: application/octet-stream" -H "x-upsert: true" --data-binary @"$M" && echo "face model uploaded" || echo "WARN: face model upload failed"
+          fi
           FILE=dist/MyHatoTeam-Setup.exe
           BUILD=${{ github.run_number }}
           SHA=$(sha256sum "$FILE" | cut -d' ' -f1)

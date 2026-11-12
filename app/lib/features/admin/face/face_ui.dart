@@ -79,7 +79,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
   }
 
   Future<void> _start() async {
-    _say(_t(context, 'بنجهّز الكاميرا…', 'Starting the camera…'), '');
+    _say(_t(context, 'بنجهّز الكاميرا…', 'Starting the camera…'), _t(context, 'أول مرة بس ممكن تاخد دقيقة (بنحمّل ملف التعرّف)', 'The first time may take a minute (downloading the recognizer)'));
     final FaceWorker worker;
     try {
       worker = await FaceWorker.instance;
