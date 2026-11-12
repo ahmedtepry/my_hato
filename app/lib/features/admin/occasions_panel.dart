@@ -11,6 +11,7 @@ import '../../shared/occasion_stamp.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 import '../../shared/motion.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -57,7 +58,7 @@ class OccasionsPanel extends ConsumerStatefulWidget {
 
 class _OccasionsPanelState extends ConsumerState<OccasionsPanel> {
   Future<void> _activate(_Occasion o) async {
-    final stamp = await showModalBottomSheet<String>(
+    final stamp = await showAppSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (ctx) => _StampPicker(occasion: o, current: AppOccasion.key == o.key ? AppOccasion.stamp : null),
@@ -74,7 +75,7 @@ class _OccasionsPanelState extends ConsumerState<OccasionsPanel> {
     }
   }
 
-  Future<void> _send(_Occasion o) => showModalBottomSheet<void>(
+  Future<void> _send(_Occasion o) => showAppSheet<void>(
         context: context,
         isScrollControlled: true,
         showDragHandle: true,

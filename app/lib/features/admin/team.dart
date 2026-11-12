@@ -22,6 +22,7 @@ import 'permissions.dart';
 import 'admin_repository.dart' show staffContextProvider;
 import 'face/face_ui.dart';
 import 'loyalty_gifts.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -561,7 +562,7 @@ class _MiniStat extends StatelessWidget {
 
 // ---------------------------------------------------------------- member details
 Future<void> _openMember(BuildContext context, WidgetRef ref, Map<String, dynamic> m) async {
-  await showModalBottomSheet<void>(
+  await showAppSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -923,7 +924,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
       );
 }
 
-Future<String?> _pickRole(BuildContext context, {String? current}) => showModalBottomSheet<String>(
+Future<String?> _pickRole(BuildContext context, {String? current}) => showAppSheet<String>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -1005,7 +1006,7 @@ class _RoleOption extends StatelessWidget {
 
 // ---------------------------------------------------------------- new team account
 Future<void> _addMember(BuildContext context, WidgetRef ref) async {
-  final creds = await showModalBottomSheet<({String login, String password, String role})>(
+  final creds = await showAppSheet<({String login, String password, String role})>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,

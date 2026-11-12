@@ -11,6 +11,7 @@ import '../core/config.dart';
 import '../core/l10n.dart';
 import '../core/supabase_providers.dart';
 import '../core/theme.dart';
+import 'app_sheet.dart';
 
 const _seenKey = 'permissions_intro_v1';
 
@@ -66,7 +67,7 @@ class _PermissionsIntroGateState extends ConsumerState<PermissionsIntroGate> {
 }
 
 /// Also reachable from the account screen ("Permissions").
-Future<void> showPermissionsIntro(BuildContext context) => showModalBottomSheet<void>(
+Future<void> showPermissionsIntro(BuildContext context) => showAppSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

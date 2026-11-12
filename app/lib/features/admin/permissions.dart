@@ -17,6 +17,7 @@ import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
 import 'team.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -492,7 +493,7 @@ class _AccountsTab extends ConsumerWidget {
                     ? Chip(label: Text(_s(context, 'exceptions', '{n} استثناء', '{n} exceptions', {'n': '$count'})))
                     : const Icon(Icons.chevron_right_rounded),
                 onTap: () async {
-                  await showModalBottomSheet<void>(
+                  await showAppSheet<void>(
                     context: context,
                     isScrollControlled: true,
                     showDragHandle: true,

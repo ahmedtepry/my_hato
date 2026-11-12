@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/config.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
+import 'app_sheet.dart';
 
 /// Customer support on WhatsApp (and phone). The number comes from AppConfig.
 Uri whatsappUri([String? message]) => Uri.parse(
@@ -14,7 +15,7 @@ String get supportPhoneLocal =>
 
 /// Bottom sheet: "contact support" with WhatsApp and call buttons.
 Future<void> showSupportSheet(BuildContext context, {required String title, required String body, String? whatsappMessage}) =>
-    showModalBottomSheet(
+    showAppSheet(
       context: context,
       showDragHandle: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),

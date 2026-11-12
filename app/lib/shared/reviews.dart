@@ -11,6 +11,7 @@ import '../core/l10n.dart';
 import '../core/supabase_providers.dart';
 import '../core/theme.dart';
 import 'states.dart';
+import 'app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -229,7 +230,7 @@ class _ReviewTile extends ConsumerWidget {
 /// Bottom sheet: tap 1–5 stars, optional comment, "publish". The server decides right away:
 /// published, or "under review" when the language filter flags it.
 Future<void> showReviewSheet(BuildContext context, WidgetRef ref, {required String productId, Map<String, dynamic>? existing}) =>
-    showModalBottomSheet(
+    showAppSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

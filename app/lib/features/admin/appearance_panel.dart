@@ -12,6 +12,7 @@ import '../../shared/launch_animation.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 import '../../shared/motion.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -117,7 +118,7 @@ class _AppearancePanelState extends ConsumerState<AppearancePanel> {
 
   Future<void> _pick(String slot) async {
     final ctl = TextEditingController(text: _palette[slot]);
-    final picked = await showModalBottomSheet<String>(
+    final picked = await showAppSheet<String>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => Padding(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../core/l10n.dart';
 import '../core/theme.dart';
+import 'app_sheet.dart';
 
 /// Built-in cartoon avatars (drawn in code, no image files): 8 men (m1–m4 young, m5–m8 older) and
 /// 8 women (f1–f8, incl. hijab and niqab). Customers pick one instead of uploading a photo.
@@ -499,7 +500,7 @@ class _AvatarPainter extends CustomPainter {
 }
 
 /// Bottom sheet with the 16 avatars (men rows, women rows). Returns the chosen id.
-Future<String?> showAvatarPicker(BuildContext context, {String? current}) => showModalBottomSheet<String>(
+Future<String?> showAvatarPicker(BuildContext context, {String? current}) => showAppSheet<String>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,

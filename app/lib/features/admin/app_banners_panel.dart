@@ -14,6 +14,7 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/app_banner.dart';
 import '../../shared/states.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -42,7 +43,7 @@ class AppBannersPanel extends ConsumerWidget {
   const AppBannersPanel({super.key});
 
   Future<void> _edit(BuildContext context, WidgetRef ref, [Map<String, dynamic>? row]) async {
-    final saved = await showModalBottomSheet<bool>(
+    final saved = await showAppSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -364,7 +365,12 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
             _f('cta_ar', 'كلمة الزر (عربي)', 'Button word (Arabic)', max: 20),
             _f('cta_en', 'كلمة الزر (إنجليزي)', 'Button word (English)', max: 20),
           ],
-          _f('emoji', 'إيموجي (🔥 🎁 📱)', 'Emoji (🔥 🎁 📱)', max: 8),
+          _f('emoji', 'إيموجي (اختار من تحت أو اكتب)', 'Emoji (pick below or type)', max: 8),
+          _EmojiPicker(
+            selected: _c['emoji']!.text,
+            onPick: (e) => setState(() => _c['emoji']!.text = _c['emoji']!.text == e ? '' : e),
+          ),
+          const SizedBox(height: 10),
         ],
         if (_style == 'product') ...[
           Text(_t(context, 'المنتجات (كل منتج سلايد، والضغط عليه يفتح المنتج فورًا)', 'Products (one slide each; tapping opens the product)'), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -456,5 +462,56 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
         ),
       ]),
     );
+  }
+}
+
+
+/// Ready emojis for a banner: tap one to use it (tap it again to remove). Nobody has to remember emoji codes.
+class _EmojiPicker extends StatelessWidget {
+  const _EmojiPicker({required this.selected, required this.onPick});
+  final String selected;
+  final ValueChanged<String> onPick;
+
+  static const _groups = <(String, String, List<String>)>[
+    ('عروض وخصومات', 'Offers', ['🔥', '🎁', '💥', '⚡', '🏷️', '💯', '🤑', '💸', '🛍️', '🎉', '⭐', '🆕']),
+    ('موبايلات وإكسسوارات', 'Phones & accessories', ['📱', '🎧', '🔋', '🔌', '⌚', '💻', '🖥️', '🎮', '📷', '🔊', '🧲', '🛡️']),
+    ('صيانة', 'Repairs', ['🛠️', '🔧', '🔨', '⚙️', '🩺', '✅', '🧰', '🔍']),
+    ('توصيل وخدمة', 'Delivery & service', ['🚚', '📦', '🏪', '📍', '⏰', '📞', '💬', '🤝']),
+    ('مناسبات', 'Occasions', ['🌙', '🏮', '🎊', '🎈', '🎄', '🇪🇬', '❤️', '🥳']),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final g in _groups) ...[
+        Padding(
+          padding: const EdgeInsets.only(top: 6, bottom: 4),
+          child: Text(ar ? g.$1 : g.$2, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: inkColor(context).withValues(alpha: 0.65))),
+        ),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final e in g.$3)
+            Tooltip(
+              message: ar ? 'اضغط تحطه' : 'Tap to use',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => onPick(e),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 46,
+                  height: 46,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected == e ? BrandColors.electric.withValues(alpha: 0.18) : panelColor(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: selected == e ? BrandColors.electric : panelLine(context), width: selected == e ? 2 : 1),
+                  ),
+                  child: Text(e, style: const TextStyle(fontSize: 24)),
+                ),
+              ),
+            ),
+        ]),
+      ],
+    ]);
   }
 }

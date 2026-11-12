@@ -9,6 +9,7 @@ import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../shared/states.dart';
+import '../../shared/app_sheet.dart';
 
 /// OWNER ONLY. Who reached which loyalty level, the gift codes, and the owner's control of the gift:
 /// customers never see levels or gifts until the owner types the gift here and presses "reveal".
@@ -117,7 +118,7 @@ class _AwardsState extends ConsumerState<_Awards> {
                       trailing: Icon(done ? Icons.lock_rounded : Icons.edit_outlined),
                       onTap: done
                           ? () => showSnack(context, _t(context, 'الهدية اتسلمت والكود اتقفل ومينفعش يتستخدم تاني', 'Delivered: this code is locked and cannot be used again'))
-                          : () => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => _EditAward(award: a, statuses: statuses.values.toList())),
+                          : () => showAppSheet<void>(context: context, isScrollControlled: true, builder: (_) => _EditAward(award: a, statuses: statuses.values.toList())),
                     ),
                   );
                 },
@@ -299,7 +300,7 @@ class _CustomersState extends ConsumerState<_Customers> {
                   onTap: !isOwner
                       ? null
                       : () async {
-                          final done = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (_) => _AdjustPoints(customer: c));
+                          final done = await showAppSheet<bool>(context: context, isScrollControlled: true, builder: (_) => _AdjustPoints(customer: c));
                           if (done == true) {
                             ref.invalidate(ownerGiftsProvider);
                             _reload();
@@ -414,7 +415,7 @@ class _Levels extends ConsumerWidget {
             subtitle: Text('${_t(context, 'المخطط', 'Planned')}: ${l['plan_ar'] ?? '—'}'),
             trailing: const Icon(Icons.edit_rounded, size: 20),
             onTap: () async {
-              final done = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (_) => _EditLevel(level: l));
+              final done = await showAppSheet<bool>(context: context, isScrollControlled: true, builder: (_) => _EditLevel(level: l));
               if (done == true) ref.invalidate(ownerGiftsProvider);
             },
           ),

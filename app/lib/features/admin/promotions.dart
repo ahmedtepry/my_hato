@@ -16,6 +16,7 @@ import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -189,7 +190,7 @@ class _CouponTile extends ConsumerWidget {
 
 // ---------------------------------------------------------------- create / edit a code
 Future<void> _editCoupon(BuildContext context, WidgetRef ref, Map<String, dynamic>? c) async {
-  final saved = await showModalBottomSheet<Map<String, dynamic>>(
+  final saved = await showAppSheet<Map<String, dynamic>>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -419,7 +420,7 @@ class _CouponFormState extends ConsumerState<_CouponForm> {
 
 // ---------------------------------------------------------------- send an offer
 Future<void> _sendOffer(BuildContext context, WidgetRef ref, Map<String, dynamic>? coupon) async {
-  final n = await showModalBottomSheet<int>(
+  final n = await showAppSheet<int>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,

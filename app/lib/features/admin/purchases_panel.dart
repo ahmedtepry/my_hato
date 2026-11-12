@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../shared/odoo_search.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -81,7 +82,7 @@ class _PurchasesPanelState extends ConsumerState<PurchasesPanel> {
   bool _can(String p) => ref.read(staffContextProvider).valueOrNull?.permissions.contains(p) ?? false;
 
   Future<void> _openPo([Map<String, dynamic>? existing]) async {
-    final ok = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true, builder: (_) => _PoForm(poId: existing?['id'] as String?));
+    final ok = await showAppSheet<bool>(context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true, builder: (_) => _PoForm(poId: existing?['id'] as String?));
     if (ok == true) {
       ref.invalidate(_posProvider);
       ref.invalidate(_suppliersProvider);
@@ -212,7 +213,7 @@ class _PoTile extends ConsumerWidget {
         subtitle: Text('${row['supplier']} · ${row['items']} ${_t(context, 'صنف', 'items')} · ${_money(context, row['total_minor'])}${s != 'cancelled' && owed > 0 && s != 'draft' ? ' · ${_t(context, 'متبقي', 'left')} ${_money(context, owed)}' : ''}'),
         trailing: const Icon(Icons.chevron_left_rounded),
         onTap: () async {
-          final changed = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true, builder: (_) => _PoDetail(id: '${row['id']}', onEdit: onEdit));
+          final changed = await showAppSheet<bool>(context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true, builder: (_) => _PoDetail(id: '${row['id']}', onEdit: onEdit));
           if (changed == true) onChanged();
         },
       ),

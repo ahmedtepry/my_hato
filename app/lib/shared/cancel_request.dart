@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/errors.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
+import 'app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -42,7 +43,7 @@ class _CancelRequestBlockState extends State<CancelRequestBlock> {
   String? _sentReason;
 
   Future<void> _open() async {
-    final sent = await showModalBottomSheet<String>(
+    final sent = await showAppSheet<String>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

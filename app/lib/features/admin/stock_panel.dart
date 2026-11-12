@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../shared/odoo_search.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
+import '../../shared/app_sheet.dart';
 
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -171,7 +172,7 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
     final unalloc = (p['unallocated'] as num?)?.toInt();
     return Card(
       child: InkWell(
-       onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _WhereSheet(product: p)),
+       onTap: () => showAppSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _WhereSheet(product: p)),
        child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -411,12 +412,12 @@ class _TransferCard extends ConsumerWidget {
   }
 
   Future<void> _receive(BuildContext context, WidgetRef ref) async {
-    final ok = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _ReceiveSheet(t: t));
+    final ok = await showAppSheet<bool>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _ReceiveSheet(t: t));
     if (ok == true) ref.invalidate(_transfersProvider);
   }
 
   Future<void> _reject(BuildContext context, WidgetRef ref) async {
-    final ok = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _ReasonSheet(t: t));
+    final ok = await showAppSheet<bool>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _ReasonSheet(t: t));
     if (ok == true) ref.invalidate(_transfersProvider);
   }
 

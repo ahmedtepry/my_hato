@@ -16,6 +16,7 @@ import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -560,13 +561,13 @@ class _ContestTile extends ConsumerWidget {
               ),
             if (state != 'draft')
               OutlinedButton.icon(
-                onPressed: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _ResultsSheet(contestId: id, title: '${contest['title']}', announced: contest['announced_at'] != null)),
+                onPressed: () => showAppSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _ResultsSheet(contestId: id, title: '${contest['title']}', announced: contest['announced_at'] != null)),
                 icon: const Icon(Icons.leaderboard_rounded, size: 18),
                 label: Text(_t(context, 'النتايج', 'Results')),
               ),
             if (state != 'draft' && ((contest['winners'] as num?)?.toInt() ?? 0) > 0)
               FilledButton.tonalIcon(
-                onPressed: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _WinnersSheet(contestId: id, title: '${contest['title']}')),
+                onPressed: () => showAppSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _WinnersSheet(contestId: id, title: '${contest['title']}')),
                 icon: const Icon(Icons.emoji_events_rounded, size: 18),
                 label: Text(_t(context, 'الفايزين (${contest['winners']})', 'Winners (${contest['winners']})')),
               ),
@@ -1032,7 +1033,7 @@ class _WinnersSheetState extends ConsumerState<_WinnersSheet> {
   }
 
   Future<void> _message(Map<String, dynamic> w) async {
-    final sent = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _MessageWinnerSheet(winner: w));
+    final sent = await showAppSheet<bool>(context: context, isScrollControlled: true, showDragHandle: true, builder: (_) => _MessageWinnerSheet(winner: w));
     if (sent == true && mounted) showSnack(context, _t(context, 'الرسالة وصلت للفايز', 'Message sent'));
   }
 

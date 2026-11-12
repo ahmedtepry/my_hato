@@ -20,6 +20,7 @@ import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'documents.dart' show waDigits;
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -158,7 +159,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
   }
 
   Future<void> _reject() async {
-    final reason = await showModalBottomSheet<String>(
+    final reason = await showAppSheet<String>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

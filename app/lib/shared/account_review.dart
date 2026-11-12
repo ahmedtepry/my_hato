@@ -9,6 +9,7 @@ import '../core/l10n.dart';
 import '../core/supabase_providers.dart';
 import '../core/theme.dart';
 import 'support_contact.dart';
+import 'app_sheet.dart';
 
 /// 'approved' | 'pending' | 'rejected' for the signed-in customer (null when signed out).
 final accountReviewProvider = FutureProvider<String?>((ref) async {
@@ -26,7 +27,7 @@ final accountReviewProvider = FutureProvider<String?>((ref) async {
 bool isAccountPendingError(Object e) => e.toString().contains('ACCOUNT_PENDING');
 
 /// Friendly explanation when a locked action is tried.
-Future<void> showAccountPendingSheet(BuildContext context) => showModalBottomSheet<void>(
+Future<void> showAccountPendingSheet(BuildContext context) => showAppSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (_) => const _PendingSheet(),

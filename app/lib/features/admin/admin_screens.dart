@@ -77,6 +77,7 @@ import 'team.dart';
 import 'admin_repository.dart';
 import 'documents.dart';
 import 'stock_tools.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -1680,7 +1681,7 @@ Future<void> _orderSheet(BuildContext context, WidgetRef ref, Map<String, dynami
       ),
     );
   } else {
-    await showModalBottomSheet(
+    await showAppSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -1805,7 +1806,7 @@ Future<void> _repairSheet(BuildContext context, WidgetRef ref, Map<String, dynam
   if (!context.mounted) return;
   final closed = r['closed_at'] != null;
   final canQuote = !closed && ['initial_inspection', 'diagnosis_completed', 'received_at_branch', 'device_collected', 'awaiting_approval'].contains(r['status']);
-  await showModalBottomSheet(
+  await showAppSheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -2910,7 +2911,7 @@ class _CancelRequestCardState extends ConsumerState<_CancelRequestCard> {
 // Search by order / repair number
 // =====================================================================================
 Future<void> _openSearch(BuildContext context, WidgetRef ref, {List<String> sections = const [], void Function(String key)? onOpen}) async {
-  final picked = await showModalBottomSheet<(String, Map<String, dynamic>)>(
+  final picked = await showAppSheet<(String, Map<String, dynamic>)>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -3289,7 +3290,7 @@ class _CloseOperationButton extends ConsumerWidget {
         icon: const Icon(Icons.lock_outline_rounded),
         label: Text(_t(context, 'إغلاق العملية', 'Close operation')),
         onPressed: () async {
-          final reason = await showModalBottomSheet<String>(
+          final reason = await showAppSheet<String>(
             context: context,
             showDragHandle: true,
             builder: (_) => _CloseReasonSheet(kind: kind),

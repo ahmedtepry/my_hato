@@ -17,6 +17,7 @@ import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
 import 'app_banners_panel.dart';
 import 'blocked_accounts_panel.dart';
+import '../../shared/app_sheet.dart';
 
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -57,7 +58,7 @@ class ShortcutsPanel extends ConsumerWidget {
           ),
         );
     Future<void> open(Widget sheet) =>
-        showModalBottomSheet<void>(context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true, builder: (_) => sheet);
+        showAppSheet<void>(context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true, builder: (_) => sheet);
     return ListView(padding: const EdgeInsets.all(16), children: [
       if (has('shortcut.goods_receipt'))
         card(Icons.move_to_inbox_rounded, const Color(0xFF0E9384), 'استلام بضاعة من المورد', 'Receive goods', 'سجّل بضاعة وصلت وزوّد بيها المخزن', 'Record goods that arrived and add them to stock',

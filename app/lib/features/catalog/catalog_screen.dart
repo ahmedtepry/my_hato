@@ -10,6 +10,7 @@ import '../../shared/motion.dart';
 import '../../shared/product_card.dart';
 import '../../shared/states.dart';
 import 'catalog_repository.dart';
+import '../../shared/app_sheet.dart';
 
 /// Phones / Accessories / Used catalog, "see all" lists and search results.
 /// Sorting, filters and search are all applied server-side together, with
@@ -225,7 +226,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       };
 
   Future<void> _pickSort() async {
-    final picked = await showModalBottomSheet<SortOption>(
+    final picked = await showAppSheet<SortOption>(
       context: context,
       showDragHandle: true,
       builder: (c) => SafeArea(
@@ -244,7 +245,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   Future<void> _openFilters() async {
-    final result = await showModalBottomSheet<CatalogQuery>(
+    final result = await showAppSheet<CatalogQuery>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

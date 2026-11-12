@@ -16,6 +16,7 @@ import '../../shared/barcode_scanner.dart';
 import '../../shared/product_card.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
+import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -53,7 +54,7 @@ Future<void> receiveStockByBarcode(BuildContext context, WidgetRef ref, {require
       if (add == true) onNewProduct(code);
       return;
     }
-    final again = await showModalBottomSheet<bool>(
+    final again = await showAppSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -309,7 +310,7 @@ Future<void> importProductsExcel(BuildContext context, WidgetRef ref, {VoidCallb
       if (c.price != null || c.compare != null || c.clearCompare || c.stock != null || c.cost != null) changes.add(c);
     }
     if (!context.mounted) return;
-    await showModalBottomSheet(
+    await showAppSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
