@@ -1,3 +1,4 @@
+import 'face/face_ui.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -2322,11 +2323,20 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
   final _pin = TextEditingController();
   final _pinFocus = FocusNode();
   String? _msg;
-  bool _busy = false;
+  bool _busy = false, _faceOk = false;
+
+  Future<void> _byFace() async {
+    final r = await showFaceScan(context, FaceMode.seller, shiftId: widget.shiftId);
+    if (!mounted || r is! Map || r['ok'] != true) return;
+    Navigator.pop(context, {'id': r['id'], 'name': r['name']});
+  }
 
   @override
   void initState() {
     super.initState();
+    faceAvailable().then((v) {
+      if (mounted) setState(() => _faceOk = v);
+    });
     ref.read(posRepoProvider).sellerCandidates(widget.shiftId).then((l) {
       if (mounted) setState(() => _list = l);
     }).catchError((Object e) {
@@ -2385,6 +2395,17 @@ class _SellerDialogState extends ConsumerState<_SellerDialog> {
             ? (_list == null
                 ? SizedBox(height: 80, child: Center(child: _msg == null ? const CircularProgressIndicator() : Text(_msg!, style: const TextStyle(color: BrandColors.error))))
                 : Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (_faceOk)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 54)),
+                          onPressed: _byFace,
+                          icon: const Icon(Icons.face_retouching_natural_rounded),
+                          label: Text(_t(context, 'البائع الجديد يبص للكاميرا', 'New seller looks at the camera'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                    if (_faceOk) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_t(context, 'أو اختار الاسم واكتب الرقم السري:', 'Or pick the name and type the PIN:'), style: const TextStyle(fontSize: 13))),
                     for (final c in _list!)
                       Card(
                         margin: const EdgeInsets.only(bottom: 8),

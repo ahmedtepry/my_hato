@@ -1,3 +1,4 @@
+import 'face/face_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
@@ -116,10 +117,20 @@ class DesktopSidebar extends ConsumerWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-                  Text(role.label(context), style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                ]),
+                child: Tooltip(
+                  message: _t(context, 'ملفي: الاسم والرقم السري والوش', 'My profile: name, PIN and face'),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => showMyProfile(context),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+                        Text(role.label(context), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      ]),
+                    ),
+                  ),
+                ),
               ),
               IconButton(
                 tooltip: _t(context, 'خروج', 'Sign out'),
@@ -277,10 +288,20 @@ class DesktopTopBar extends ConsumerWidget {
         ),
         if (onToggleLayout != null) IconButton(tooltip: _t(context, 'ترتيب: غيّر شكل القايمة', 'Arrange: switch the menu layout'), icon: const Icon(Icons.view_sidebar_outlined, color: Colors.white70, size: 20), onPressed: onToggleLayout),
         const SizedBox(width: 6),
-        Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(name.isEmpty ? role.label(context) : name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
-          if (name.isNotEmpty) Text(role.label(context), style: const TextStyle(color: Colors.white54, fontSize: 11.5)),
-        ]),
+        Tooltip(
+          message: _t(context, 'ملفي: الاسم والرقم السري والوش', 'My profile: name, PIN and face'),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => showMyProfile(context),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(name.isEmpty ? role.label(context) : name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5)),
+                if (name.isNotEmpty) Text(role.label(context), style: const TextStyle(color: Colors.white54, fontSize: 11.5)),
+              ]),
+            ),
+          ),
+        ),
         IconButton(tooltip: _t(context, 'خروج', 'Sign out'), icon: const Icon(Icons.logout_rounded, color: Colors.white70, size: 20), onPressed: onSignOut),
       ]),
     );

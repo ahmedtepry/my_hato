@@ -602,3 +602,109 @@ class _ChangePinDialogState extends State<_ChangePinDialog> {
         ],
       );
 }
+
+// ================================================================================================ owner controls
+/// In a member's sheet (owner only): turn self service on/off, see whether a face is saved, delete it.
+class OwnerFaceControls extends ConsumerStatefulWidget {
+  const OwnerFaceControls({super.key, required this.userId});
+  final String userId;
+  @override
+  ConsumerState<OwnerFaceControls> createState() => _OwnerFaceControlsState();
+}
+
+class _OwnerFaceControlsState extends ConsumerState<OwnerFaceControls> {
+  bool _busy = false;
+
+  Future<void> _run(Future<void> Function() f, String done) async {
+    setState(() => _busy = true);
+    try {
+      await f();
+      ref.invalidate(bioOverviewProvider);
+      if (mounted) showSnack(context, done);
+    } catch (e) {
+      if (mounted) showSnack(context, friendlyError(context, e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = ref.watch(bioOverviewProvider).valueOrNull?[widget.userId];
+    final m = o is Map ? o : const {};
+    final on = m['self_service'] == true;
+    final faces = (m['faces'] as num?)?.toInt() ?? 0;
+    final repo = ref.read(faceRepoProvider);
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: panelLine(context))),
+      child: Column(children: [
+        SwitchListTile(
+          value: on,
+          onChanged: _busy
+              ? null
+              : (v) => _run(() => repo.setSelfService(widget.userId, v),
+                  v ? _t(context, 'يقدر دلوقتي يعدّل ملفه ويسجّل وشّه ✅', 'Self service on ✅') : _t(context, 'ملفه اتقفل', 'Self service off')),
+          secondary: const Icon(Icons.face_retouching_natural_rounded),
+          title: Text(_t(context, 'يعدّل ملفه بنفسه', 'Self service'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(_t(context, 'الاسم والرقم السري وبصمة الوش', 'Name, PIN and Face ID')),
+        ),
+        ListTile(
+          dense: true,
+          leading: Icon(faces > 0 ? Icons.verified_rounded : Icons.face_outlined, color: faces > 0 ? BrandColors.success : null),
+          title: Text(faces > 0 ? _t(context, 'وشّه متسجّل ($faces لقطات)', 'Face saved ($faces shots)') : _t(context, 'لسه ما سجّلش وشّه', 'No face yet')),
+          trailing: faces > 0
+              ? TextButton(
+                  onPressed: _busy ? null : () => _run(() => repo.clearFace(widget.userId), _t(context, 'وشّه اتمسح', 'Face deleted')),
+                  child: Text(_t(context, 'امسح وشّه', 'Delete face')),
+                )
+              : null,
+        ),
+      ]),
+    );
+  }
+}
+
+/// Owner: pick the scan look everybody sees (Hatō wave by default).
+Future<void> showFaceStylePicker(BuildContext context, WidgetRef ref) async {
+  final cur = ref.read(faceScanStyleProvider).valueOrNull ?? 'wave';
+  final picked = await showSmoothDialog<String>(
+    context: context,
+    builder: (d) => AlertDialog(
+      title: Text(_t(context, 'شكل مسح الوش', 'Face scan look')),
+      content: SizedBox(
+        width: 640,
+        child: Wrap(spacing: 12, runSpacing: 12, children: [
+          for (final s in faceScanStyles)
+            InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => Navigator.pop(d, s),
+              child: Container(
+                width: 190,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A1C36),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: s == cur ? const Color(0xFF4FA8F5) : Colors.white12, width: s == cur ? 2 : 1),
+                ),
+                child: Column(children: [
+                  SizedBox(height: 180, child: FaceScanView(style: s)),
+                  Text(faceScanStyleName(s, context.isAr), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                  if (s == 'wave') Text(_t(context, 'الأساسي', 'Default'), style: const TextStyle(color: Color(0xFF9DB1CB), fontSize: 12)),
+                ]),
+              ),
+            ),
+        ]),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(d), child: Text(_t(context, 'إلغاء', 'Cancel')))],
+    ),
+  );
+  if (picked == null || picked == cur || !context.mounted) return;
+  try {
+    await ref.read(faceRepoProvider).setStyle(picked);
+    ref.invalidate(faceScanStyleProvider);
+    if (context.mounted) showSnack(context, _t(context, 'شكل المسح اتغيّر لـ ${faceScanStyleName(picked, true)} ✅', 'Scan look: ${faceScanStyleName(picked, false)} ✅'));
+  } catch (e) {
+    if (context.mounted) showSnack(context, friendlyError(context, e), error: true);
+  }
+}

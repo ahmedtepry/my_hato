@@ -19,6 +19,8 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'permissions.dart';
+import 'admin_repository.dart' show staffContextProvider;
+import 'face/face_ui.dart';
 import 'loyalty_gifts.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -339,6 +341,17 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
             icon: const Icon(Icons.admin_panel_settings_rounded),
             onPressed: () => openPermissions(context),
           ),
+          IconButton(
+            tooltip: _t(context, 'ملفي (الاسم والرقم السري والوش)', 'My profile (name, PIN, face)'),
+            icon: const Icon(Icons.face_retouching_natural_rounded),
+            onPressed: () => showMyProfile(context),
+          ),
+          if (ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false)
+            IconButton(
+              tooltip: _t(context, 'شكل مسح الوش', 'Face scan look'),
+              icon: const Icon(Icons.waves_rounded),
+              onPressed: () => showFaceStylePicker(context, ref),
+            ),
           IconButton(
             tooltip: _t(context, 'هدايا العملاء', 'Customer gifts'),
             icon: const Icon(Icons.card_giftcard_rounded),
@@ -788,6 +801,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
               onPressed: _busy ? null : _changeBranches,
             ),
           ),
+          if (ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false) OwnerFaceControls(userId: _id),
           if (phone != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),

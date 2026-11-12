@@ -39,6 +39,11 @@ jobs:
           for w in Regular Medium SemiBold Bold ExtraBold Black; do
             curl -sSfL "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-$w.ttf" -o "assets/google_fonts/Poppins-$w.ttf" || echo "WARN: Poppins-$w failed"
           done
+          # Face ID (team only): the open OpenCV Zoo models (YuNet MIT, SFace Apache-2.0) go into the app's assets
+          Z=https://github.com/opencv/opencv_zoo/raw/main/models
+          curl -sSfL "$Z/face_detection_yunet/face_detection_yunet_2023mar.onnx" -o assets/face/face_detection_yunet_2023mar.onnx || echo "WARN: face detector download failed"
+          curl -sSfL "$Z/face_recognition_sface/face_recognition_sface_2021dec.onnx" -o assets/face/face_recognition_sface_2021dec.onnx || echo "WARN: face recognizer download failed"
+          ls -la assets/face
           flutter pub get
           # window title + app icon (non-fatal)
           sed -i 's/L"myhato"/L"My Hato Team"/' windows/runner/main.cpp || true
@@ -59,6 +64,8 @@ jobs:
             --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
           REL=build/windows/x64/runner/Release
           ls "$REL"
+          # ONNX Runtime for Face ID (MIT, Microsoft), next to myhato.exe
+          curl -sSfL https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-win-x64-1.20.1.zip -o ort.zip && unzip -q -o ort.zip && cp onnxruntime-win-x64-1.20.1/lib/onnxruntime.dll "$REL/" || echo "WARN: onnxruntime.dll not added (Face ID off)"
           # the Visual C++ runtime, so it also starts on a clean Windows
           for d in msvcp140.dll vcruntime140.dll vcruntime140_1.dll; do cp "/c/Windows/System32/$d" "$REL/" || echo "WARN: $d not copied"; done
       - name: Installer (.exe) and zip

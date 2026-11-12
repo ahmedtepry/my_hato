@@ -21,6 +21,8 @@ import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'cashier_assistant.dart';
+import 'face/face_repository.dart';
+import 'face/face_ui.dart';
 import 'pos_repository.dart';
 import 'shift_robot.dart';
 
@@ -131,10 +133,35 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
   PosRepository get _repo => ref.read(posRepoProvider);
   SupabaseClient get _db => ref.read(supabaseProvider);
 
+  bool _faceOk = false;
+
+  Future<void> _loadFace() async {
+    if (!await faceAvailable()) return;
+    try {
+      final p = await ref.read(faceRepoProvider).myProfile();
+      if (mounted && ((p['faces'] as num?) ?? 0) > 0) setState(() => _faceOk = true);
+    } catch (_) {}
+  }
+
+  /// Closing by face: the server accepts an empty password once, right after the member matched their own face.
+  Future<void> _useFace() async {
+    final r = await showFaceScan(context, FaceMode.verify);
+    if (!mounted) return;
+    if (r is! Map || r['ok'] != true) {
+      ctl.say(_t(context, 'الوش ماتأكدش. اكتب الباسورد.', 'The face was not confirmed. Type your password.'));
+      return;
+    }
+    _password = '';
+    ctl.setMood(RobotMood.happy);
+    await ctl.say(_t(context, 'تمام${_name.isEmpty ? '' : ' يا $_name'}. هراجع الوردية.', 'Great${_name.isEmpty ? '' : ', $_name'}. Reviewing the shift.'), ms: 22);
+    if (mounted) await _review();
+  }
+
   @override
   void initState() {
     super.initState();
     _loadBio();
+    _loadFace();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ctl.setMood(RobotMood.idle);
       ctl.say(_t(context, 'أهلاً ${_name.isEmpty ? '' : '$_name، '}خلّصت يومك؟ اكتب الفلوس اللي عدّيتها في الدرج.', 'Hi${_name.isEmpty ? '' : ' $_name'}! Count the drawer and type the cash.'));
@@ -426,6 +453,15 @@ class _CloseDialogState extends ConsumerState<_CloseDialog> {
         return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _title(_t(context, 'اتأكد إنه إنت', 'Confirm it is you')),
           const SizedBox(height: 14),
+          if (_faceOk) ...[
+            FilledButton.icon(
+              style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 54)),
+              onPressed: _busy ? null : _useFace,
+              icon: const Icon(Icons.face_retouching_natural_rounded),
+              label: Text(_t(context, 'اقفل الوردية بوشّك', 'Close the shift with your face'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (_bioOn) ...[
             Center(
               child: IconButton.filledTonal(
