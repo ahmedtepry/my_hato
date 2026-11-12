@@ -1,8 +1,16 @@
 ; Installer for the My Hato team app (Windows). Built in CI; the Release folder comes from `flutter build windows --release`.
+#ifndef AppBuild
+  #define AppBuild "0"
+#endif
 [Setup]
 AppName=My Hato Team
-AppVersion=1.0
+AppVersion=1.0.{#AppBuild}
 AppPublisher=My Hato
+VersionInfoVersion=1.0.{#AppBuild}.0
+VersionInfoCompany=My Hato
+VersionInfoDescription=My Hato Team setup (staff and cashier app)
+VersionInfoProductName=My Hato Team
+VersionInfoCopyright=Copyright (C) 2026 My Hato
 DefaultDirName={autopf}\MyHatoTeam
 DefaultGroupName=My Hato Team
 OutputBaseFilename=MyHatoTeam-Setup

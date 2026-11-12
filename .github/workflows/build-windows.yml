@@ -44,6 +44,12 @@ jobs:
           sed -i 's/L"myhato"/L"My Hato Team"/' windows/runner/main.cpp || true
           # open maximised (full screen of the work area)
           sed -i 's/SW_SHOWNORMAL/SW_SHOWMAXIMIZED/' windows/runner/win32_window.cpp || true
+          # who made the file: Windows and antivirus trust a file with a named publisher and description more than a blank one
+          sed -i -e 's/"CompanyName", "[^"]*"/"CompanyName", "My Hato"/' \
+                 -e 's/"FileDescription", "[^"]*"/"FileDescription", "My Hato Team (staff and cashier app)"/' \
+                 -e 's/"ProductName", "[^"]*"/"ProductName", "My Hato Team"/' \
+                 -e 's/"LegalCopyright", "[^"]*"/"LegalCopyright", "Copyright (C) 2026 My Hato"/' windows/runner/Runner.rc || true
+          grep -E '"(CompanyName|FileDescription|ProductName|LegalCopyright)"' windows/runner/Runner.rc || true
           (pip install pillow >/dev/null 2>&1 && python tool/windows/make_ico.py) || echo "WARN: icon step failed"
           flutter build windows --release \
             --dart-define=TEAM_ONLY=true \
@@ -62,7 +68,7 @@ jobs:
           choco install innosetup -y --no-progress || echo "WARN: innosetup install failed"
           ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           if [ -f "$ISCC" ]; then
-            (cd tool/windows && "$ISCC" installer.iss) && cp tool/windows/out/MyHatoTeam-Setup.exe ../dist/MyHatoTeam-Setup.exe
+            (cd tool/windows && "$ISCC" /DAppBuild=${{ github.run_number }} installer.iss) && cp tool/windows/out/MyHatoTeam-Setup.exe ../dist/MyHatoTeam-Setup.exe
           else
             echo "WARN: Inno Setup not found, only the zip will be published"
           fi
