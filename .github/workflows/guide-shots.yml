@@ -1,0 +1,46 @@
+# Takes pictures of the real team-app screens (with sample data, against a fake server) for the staff guides.
+# Start it by pushing the branch `guide-shots`. The pictures are uploaded as the artifact "guide-shots".
+name: Guide screenshots
+on:
+  push:
+    branches: [guide-shots]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guide-shots
+  cancel-in-progress: true
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - name: Fonts
+        working-directory: app
+        run: |
+          mkdir -p assets/google_fonts
+          for w in Regular Medium Bold ExtraBold Black; do curl -sSfL "https://github.com/google/fonts/raw/main/ofl/tajawal/Tajawal-$w.ttf" -o "assets/google_fonts/Tajawal-$w.ttf"; done
+          for w in Regular Medium SemiBold Bold ExtraBold Black; do curl -sSfL "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-$w.ttf" -o "assets/google_fonts/Poppins-$w.ttf"; done
+      - name: Shots
+        working-directory: app
+        run: |
+          flutter pub get
+          set +e
+          flutter test test/guide/guide_shots_test.dart --dart-define=TEAM_ONLY=true --reporter expanded > /tmp/shots.txt 2>&1
+          echo "rc=$?"
+          grep -E "SHOT|MISSING|FAIL |EXCEPTION|Error:" /tmp/shots.txt | sort | uniq -c | sort -rn | head -150
+          ls -la build/guide_shots || true
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guide-shots
+          path: |
+            app/build/guide_shots
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guide-shots-log
+          path: /tmp/shots.txt
