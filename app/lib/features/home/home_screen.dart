@@ -17,6 +17,7 @@ import '../../shared/loyalty_shortcut.dart';
 import '../../shared/product_card.dart';
 import '../../shared/motion.dart';
 import '../../shared/press_scale.dart';
+import '../../shared/permissions_intro.dart';
 import '../../shared/states.dart';
 import '../auth/auth_repository.dart';
 import '../catalog/catalog_repository.dart';
@@ -71,6 +72,7 @@ class HomeScreen extends ConsumerWidget {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
       body: Stack(children: [
+      const PermissionsIntroGate(),
       RefreshIndicator(
         onRefresh: refresh,
         child: CustomScrollView(controller: homeScrollController, slivers: [

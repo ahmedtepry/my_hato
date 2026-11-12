@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../core/config.dart';
+
 /// System notifications on the phone (status bar + sound) for new in-app notifications:
 /// order / repair updates for customers, and new orders / repairs / cancellations / reviews /
 /// low stock for staff. Shown while the app is running (open or recently in the background).
@@ -31,7 +33,8 @@ class PhoneNotifications {
           if (link != null && link.isNotEmpty) onOpen?.call(link);
         },
       );
-      await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
+      // the customer app asks with an explanation on the permissions screen (shared/permissions_intro.dart)
+      if (AppConfig.teamOnly) await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
       _ready = true;
     } catch (e) {
       debugPrint('notifications unavailable: $e');

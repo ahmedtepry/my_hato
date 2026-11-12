@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../shared/permissions_intro.dart';
 import '../../core/appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +93,12 @@ class ProfileScreen extends ConsumerWidget {
           EmptyState(icon: Icons.person_outline, title: context.tr('login_required'), action: context.tr('login'), onAction: () => context.push('/auth/login?redirect=%2Faccount')),
           ListTile(leading: const Icon(Icons.manage_search_rounded), title: Text(context.tr('track_repair')), onTap: () => context.push('/repairs/lookup')),
           ListTile(leading: const Icon(Icons.language), title: Text(context.tr('settings')), onTap: () => context.push('/account/settings')),
+          if (!kIsWeb && Platform.isAndroid)
+            ListTile(
+              leading: const Icon(Icons.verified_user_outlined),
+              title: Text(context.isAr ? 'الأذونات (إشعارات، كاميرا، موقع، تحديثات)' : 'Permissions (notifications, camera, location, updates)'),
+              onTap: () => showPermissionsIntro(context),
+            ),
           ListTile(leading: const Icon(Icons.support_agent), title: Text(context.tr('help')), onTap: () => context.push('/account/help')),
           ListTile(leading: const Icon(Icons.privacy_tip_outlined), title: Text(context.tr('privacy')), onTap: () => context.push('/account/legal')),
           const AppUpdateTile(),
