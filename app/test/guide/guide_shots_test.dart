@@ -238,6 +238,12 @@ void main() {
   job('cashier', {'cashier'}, cashierPerms, cashierRpc, (t, lang, ar) async {
     final p = '${lang}_cashier';
     await shot(t, '${p}_01_register');
+    // the seller (only with an empty cart)
+    await tapTip(t, ar ? 'تبديل البائع' : 'Switch seller');
+    await shot(t, '${p}_05_seller');
+    await tapText(t, 'محمد');
+    await shot(t, '${p}_06_seller_pin');
+    await closeDialog(t);
     await tapText(t, ar ? 'إسكرينة زجاج كاملة 9D / 11D / 21D' : 'Full-cover tempered glass 9D');
     await tapText(t, ar ? 'كابل Type-C مضفّر 1م' : 'Braided Type-C cable 1m');
     await tapText(t, ar ? 'كابل Type-C مضفّر 1م' : 'Braided Type-C cable 1m');
@@ -246,32 +252,30 @@ void main() {
     await typeInto(t, {'فيزا', 'Visa'}, '200');
     await shot(t, '${p}_03_split');
     await tapIcon(t, Icons.payments_outlined);
-    // the drawer, the seller, the daily target
     await tapTip(t, ar ? 'تفاصيل الدرج' : 'Drawer details');
     await shot(t, '${p}_04_drawer');
-    await closeDialog(t);
-    await tapTip(t, ar ? 'تبديل البائع' : 'Switch seller');
-    await shot(t, '${p}_05_seller');
-    await tapText(t, 'محمد');
-    await shot(t, '${p}_06_seller_pin');
     await closeDialog(t);
     await tapTip(t, ar ? 'المساعد' : 'Assistant');
     await shot(t, '${p}_07_assistant_menu');
     await closeDialog(t);
-    await tapTip(t, ar ? 'مرتجع' : 'Refund');
-    await shot(t, '${p}_08_refund_find');
+    // the tools sit in the "more" menu when the screen is narrow
+    Future<void> tool(String arName, String enName, String name) async {
+      if (!await tapTip(t, ar ? 'المزيد' : 'More')) return;
+      await shot(t, '${p}_more_menu');
+      await tapText(t, ar ? arName : enName);
+      await shot(t, name);
+    }
+
+    await tool('مرتجع', 'Refund', '${p}_08_refund_find');
     await typeInto(t, {'رقم الفاتورة', 'Invoice number'}, '49988498');
     await t.testTextInput.receiveAction(TextInputAction.done);
     await settle(t);
     await shot(t, '${p}_09_refund');
     await closeDialog(t);
-    await tapTip(t, ar ? 'مصروف' : 'Expense');
-    await shot(t, '${p}_10_expense');
+    await tool('مصروف', 'Expense', '${p}_10_expense');
     await closeDialog(t);
-    // close shift needs an empty cart: start a new invoice first
     await tapText(t, ar ? 'فاتورة جديدة' : 'New invoice');
-    await tapTip(t, ar ? 'إقفال الوردية' : 'Close shift');
-    await shot(t, '${p}_11_close_shift');
+    await tool('إقفال الوردية', 'Close shift', '${p}_11_close_shift');
     await closeDialog(t);
     await goTab(t, 'invoices');
     await shot(t, '${p}_12_invoices');

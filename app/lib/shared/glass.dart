@@ -216,7 +216,7 @@ class GlassPage extends ConsumerWidget {
         style: OutlinedButton.styleFrom(foregroundColor: Colors.white, minimumSize: const Size.fromHeight(52), side: const BorderSide(color: Colors.white24), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
       ),
       textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: Colors.white)),
-      chipTheme: b.chipTheme.copyWith(backgroundColor: Colors.white.withValues(alpha: .08), selectedColor: BrandColors.electric.withValues(alpha: .55), labelStyle: const TextStyle(color: Colors.white), side: BorderSide.none, checkmarkColor: Colors.white),
+      chipTheme: b.chipTheme.copyWith(backgroundColor: Colors.white.withValues(alpha: .08), selectedColor: BrandColors.electric.withValues(alpha: .55), labelStyle: b.textTheme.labelLarge?.copyWith(color: Colors.white), side: BorderSide.none, checkmarkColor: Colors.white),
       popupMenuTheme: PopupMenuThemeData(color: pop),
       appBarTheme: AppBarTheme(backgroundColor: Colors.transparent, foregroundColor: Colors.white, surfaceTintColor: Colors.transparent, elevation: 0, scrolledUnderElevation: 0,
           titleTextStyle: b.textTheme.titleLarge?.copyWith(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800), iconTheme: const IconThemeData(color: Colors.white), actionsIconTheme: const IconThemeData(color: Colors.white)),
@@ -224,7 +224,7 @@ class GlassPage extends ConsumerWidget {
       floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: BrandColors.electric, foregroundColor: Colors.white),
       switchTheme: b.switchTheme,
       bottomSheetTheme: BottomSheetThemeData(backgroundColor: dlg, modalBackgroundColor: dlg, surfaceTintColor: Colors.transparent, dragHandleColor: Colors.white38),
-      dataTableTheme: const DataTableThemeData(headingTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w800), dataTextStyle: TextStyle(color: Colors.white)),
+      dataTableTheme: DataTableThemeData(headingTextStyle: b.textTheme.bodyMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w800), dataTextStyle: b.textTheme.bodyMedium?.copyWith(color: Colors.white)),
     );
   }
 
