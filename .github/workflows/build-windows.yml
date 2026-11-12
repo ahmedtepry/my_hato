@@ -75,12 +75,13 @@ jobs:
           choco install innosetup -y --no-progress || echo "WARN: innosetup install failed"
           ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           if [ -f "$ISCC" ]; then
-            (cd tool/windows && "$ISCC" /DAppBuild=${{ github.run_number }} installer.iss) && cp tool/windows/out/MyHatoTeam-Setup.exe ../dist/MyHatoTeam-Setup.exe
+            (cd tool/windows && MSYS_NO_PATHCONV=1 "$ISCC" "-DAppBuild=${{ github.run_number }}" installer.iss) && cp tool/windows/out/MyHatoTeam-Setup.exe ../dist/MyHatoTeam-Setup.exe
           else
             echo "WARN: Inno Setup not found, only the zip will be published"
           fi
           powershell -NoProfile -Command "Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath '../dist/MyHatoTeam-windows.zip' -Force"
           ls -la ../dist
+          test -f ../dist/MyHatoTeam-Setup.exe || { echo "::error::the installer was not built"; exit 1; }
       - uses: actions/upload-artifact@v4
         continue-on-error: true # the release below is the real delivery; GitHub's artifact storage quota can be full
         with:
