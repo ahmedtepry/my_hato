@@ -6,7 +6,7 @@ on:
     branches: [guide-shots]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: guide-shots
   cancel-in-progress: true
@@ -34,13 +34,12 @@ jobs:
           grep -E "SHOT|MISSING|FAIL |EXCEPTION|Error:" /tmp/shots.txt | sort | uniq -c | sort -rn | head -150
           ls -la build/guide_shots || true
           exit 0
-      - uses: actions/upload-artifact@v4
-        with:
-          name: guide-shots
-          path: |
-            app/build/guide_shots
-          if-no-files-found: warn
-      - uses: actions/upload-artifact@v4
-        with:
-          name: guide-shots-log
-          path: /tmp/shots.txt
+      - name: Publish pictures (release "guide-shots", replaced each run; the artifact storage is full)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p app/build/guide_shots
+          cp /tmp/shots.txt app/build/guide_shots/log.txt
+          (cd app/build && zip -qr ../../guide_shots.zip guide_shots)
+          gh release view guide-shots >/dev/null 2>&1 || gh release create guide-shots --prerelease --title "Guide screenshots (internal)" --notes "Pictures of the team app for the staff guides. Replaced on every run."
+          gh release upload guide-shots guide_shots.zip --clobber
