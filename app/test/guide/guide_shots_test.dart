@@ -170,6 +170,18 @@ Future<bool> tapIcon(WidgetTester t, IconData icon) async {
   return true;
 }
 
+Future<bool> tapTip(WidgetTester t, String tip) async {
+  final f = find.byTooltip(tip);
+  if (f.evaluate().isEmpty) {
+    // ignore: avoid_print
+    print('MISSING tooltip "$tip"');
+    return false;
+  }
+  await t.tap(f.first, warnIfMissed: false);
+  await settle(t);
+  return true;
+}
+
 Future<void> closeDialog(WidgetTester t) async {
   final nav = find.byType(Navigator);
   if (nav.evaluate().isEmpty) return;
@@ -235,28 +247,30 @@ void main() {
     await shot(t, '${p}_03_split');
     await tapIcon(t, Icons.payments_outlined);
     // the drawer, the seller, the daily target
-    await tapText(t, ar ? 'الدرج' : 'Drawer');
+    await tapTip(t, ar ? 'تفاصيل الدرج' : 'Drawer details');
     await shot(t, '${p}_04_drawer');
     await closeDialog(t);
-    await tapText(t, ar ? 'أحمد' : 'أحمد');
+    await tapTip(t, ar ? 'تبديل البائع' : 'Switch seller');
     await shot(t, '${p}_05_seller');
-    await tapText(t, ar ? 'محمد' : 'محمد');
+    await tapText(t, 'محمد');
     await shot(t, '${p}_06_seller_pin');
     await closeDialog(t);
-    await tapIcon(t, Icons.smart_toy_rounded);
+    await tapTip(t, ar ? 'المساعد' : 'Assistant');
     await shot(t, '${p}_07_assistant_menu');
     await closeDialog(t);
-    await tapIcon(t, Icons.assignment_return_outlined);
+    await tapTip(t, ar ? 'مرتجع' : 'Refund');
     await shot(t, '${p}_08_refund_find');
     await typeInto(t, {'رقم الفاتورة', 'Invoice number'}, '49988498');
     await t.testTextInput.receiveAction(TextInputAction.done);
     await settle(t);
     await shot(t, '${p}_09_refund');
     await closeDialog(t);
-    await tapIcon(t, Icons.receipt_long_outlined);
+    await tapTip(t, ar ? 'مصروف' : 'Expense');
     await shot(t, '${p}_10_expense');
     await closeDialog(t);
-    await tapIcon(t, Icons.lock_clock_outlined);
+    // close shift needs an empty cart: start a new invoice first
+    await tapText(t, ar ? 'فاتورة جديدة' : 'New invoice');
+    await tapTip(t, ar ? 'إقفال الوردية' : 'Close shift');
     await shot(t, '${p}_11_close_shift');
     await closeDialog(t);
     await goTab(t, 'invoices');

@@ -197,7 +197,8 @@ class GlassPage extends ConsumerWidget {
       iconTheme: const IconThemeData(color: Colors.white70),
       dividerColor: Colors.white12,
       cardTheme: CardThemeData(color: Colors.white.withValues(alpha: .07), elevation: 0, margin: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white12))),
-      listTileTheme: const ListTileThemeData(textColor: Colors.white, iconColor: Colors.white70, subtitleTextStyle: TextStyle(color: Colors.white60, fontSize: 13)),
+      // keep the app font (a bare TextStyle here dropped it and the subtitles fell back to the system font)
+      listTileTheme: ListTileThemeData(textColor: Colors.white, iconColor: Colors.white70, subtitleTextStyle: b.textTheme.bodyMedium?.copyWith(color: Colors.white60, fontSize: 13)),
       dialogTheme: DialogThemeData(backgroundColor: dlg, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -217,8 +218,8 @@ class GlassPage extends ConsumerWidget {
       textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: Colors.white)),
       chipTheme: b.chipTheme.copyWith(backgroundColor: Colors.white.withValues(alpha: .08), selectedColor: BrandColors.electric.withValues(alpha: .55), labelStyle: const TextStyle(color: Colors.white), side: BorderSide.none, checkmarkColor: Colors.white),
       popupMenuTheme: PopupMenuThemeData(color: pop),
-      appBarTheme: const AppBarTheme(backgroundColor: Colors.transparent, foregroundColor: Colors.white, surfaceTintColor: Colors.transparent, elevation: 0, scrolledUnderElevation: 0,
-          titleTextStyle: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800), iconTheme: IconThemeData(color: Colors.white), actionsIconTheme: IconThemeData(color: Colors.white)),
+      appBarTheme: AppBarTheme(backgroundColor: Colors.transparent, foregroundColor: Colors.white, surfaceTintColor: Colors.transparent, elevation: 0, scrolledUnderElevation: 0,
+          titleTextStyle: b.textTheme.titleLarge?.copyWith(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800), iconTheme: const IconThemeData(color: Colors.white), actionsIconTheme: const IconThemeData(color: Colors.white)),
       tabBarTheme: TabBarThemeData(labelColor: Colors.white, unselectedLabelColor: Colors.white60, indicatorColor: BrandColors.electric, dividerColor: Colors.white12),
       floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: BrandColors.electric, foregroundColor: Colors.white),
       switchTheme: b.switchTheme,

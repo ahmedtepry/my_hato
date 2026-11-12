@@ -1372,7 +1372,7 @@ class _RegisterState extends ConsumerState<_Register> {
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(l, style: TextStyle(fontSize: big ? 18 : 14, fontWeight: big ? FontWeight.w800 : FontWeight.w500, color: color)),
-          Text(r, style: TextStyle(fontSize: big ? 22 : 14, fontWeight: FontWeight.w800, color: color ?? (big ? BrandColors.navy : null))),
+          Text(r, style: TextStyle(fontSize: big ? 22 : 14, fontWeight: FontWeight.w800, color: color ?? (big ? inkColor(context) : null))),
         ]),
       );
 }
@@ -1391,7 +1391,8 @@ class _ProductCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      color: inCart > 0 ? const Color(0xFFF0F8FF) : null,
+      // in the cart: a light blue tint on the light look, a blue glass tint on the dark (a near-white card hid the white text there)
+      color: inCart > 0 ? (Theme.of(context).brightness == Brightness.dark ? BrandColors.electric.withValues(alpha: 0.22) : const Color(0xFFF0F8FF)) : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
