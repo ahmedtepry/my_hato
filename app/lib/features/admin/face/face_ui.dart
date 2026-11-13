@@ -306,7 +306,29 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                 aspectRatio: 7 / 8,
                 child: Stack(fit: StackFit.expand, children: [
                   const ColoredBox(color: Color(0xFF050F1F)),
-                  if (c != null)
+                  if (c != null && style == 'circle')
+                    // phone-style: the picture in a circle, bright, with the ring of lines around it
+                    LayoutBuilder(builder: (_, box) {
+                      final d = (faceCircleRadius(box.biggest) - 20) * 2;
+                      return Center(
+                        child: ClipOval(
+                          child: SizedBox(
+                            width: d,
+                            height: d,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 300),
+                              opacity: _recognized ? 0.35 : 1,
+                              child: FittedBox(
+                                fit: BoxFit.cover,
+                                clipBehavior: Clip.hardEdge,
+                                child: SizedBox(width: math.max(c.width, 1), height: math.max(c.height, 1), child: c.preview()),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    })
+                  else if (c != null)
                     Opacity(
                       opacity: _recognized ? 0.25 : 0.55,
                       child: FittedBox(
@@ -322,7 +344,13 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                         ),
                       ),
                     ),
-                  if (_fatal == null) FaceScanView(style: style, recognized: _recognized, failed: _failed),
+                  if (_fatal == null)
+                    FaceScanView(
+                      style: style,
+                      recognized: _recognized,
+                      failed: _failed,
+                      progress: widget.mode == FaceMode.enroll ? _prints.length / 3 : (widget.mode == FaceMode.verify && _prints.isNotEmpty ? 0.5 : null),
+                    ),
                   if (_fatal != null)
                     Center(
                       child: Padding(

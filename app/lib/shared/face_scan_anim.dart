@@ -5,14 +5,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/supabase_providers.dart';
 
+/// Ring radius of the circle look for a box of [size] (the camera picture goes inside, 20 px smaller).
+double faceCircleRadius(Size size) => math.min(size.width, size.height) / 2 - 14;
+
 /// The five face-recognition looks. The Hatō wave is the default; the owner can switch everyone to another one.
-const faceScanStyles = ['wave', 'ring', 'mesh', 'fog', 'laser'];
+const faceScanStyles = ['circle', 'wave', 'ring', 'mesh', 'fog', 'laser'];
 
 String faceScanStyleName(String id, bool ar) => switch (id) {
       'ring' => ar ? 'حلقة الضوء' : 'Ring of light',
       'mesh' => ar ? 'شبكة الملامح' : 'Feature mesh',
       'fog' => ar ? 'الضباب' : 'Fog',
       'laser' => ar ? 'الليزر' : 'Laser',
+      'circle' => ar ? 'الدايرة السريعة (زي الموبايل)' : 'Quick circle (phone-style)',
       _ => ar ? 'موجة هاتو' : 'Hatō wave',
     };
 
@@ -31,10 +35,13 @@ const _blue = Color(0xFF4FA8F5), _ice = Color(0xFFBFE6FF), _ok = Color(0xFF5EEAD
 /// The scanner overlay. While [recognized] is false it scans in a loop; when it turns true it plays the
 /// "recognized" moment once. Put the camera picture behind it in a Stack.
 class FaceScanView extends StatefulWidget {
-  const FaceScanView({super.key, required this.style, this.recognized = false, this.failed = false});
+  const FaceScanView({super.key, required this.style, this.recognized = false, this.failed = false, this.progress});
   final String style;
   final bool recognized;
   final bool failed;
+
+  /// circle look: how much of the ring is filled (0..1); null = still looking (a turning highlight)
+  final double? progress;
   @override
   State<FaceScanView> createState() => _FaceScanViewState();
 }
@@ -82,6 +89,7 @@ class _FaceScanViewState extends State<FaceScanView> with TickerProviderStateMix
               widget.recognized ? (_reduce ? 1 : _done.value) : 0,
               widget.failed,
               _scan.lastElapsedDuration?.inMilliseconds ?? 0,
+              widget.progress,
             ),
             size: Size.infinite,
           ),
@@ -157,7 +165,8 @@ class _Dust {
 final List<_Dust> _fog = [for (var i = 0; i < 420; i++) _Dust(i)];
 
 class _FacePainter extends CustomPainter {
-  _FacePainter(this.style, this.t, this.ok, this.o, this.failed, this.ms);
+  _FacePainter(this.style, this.t, this.ok, this.o, this.failed, this.ms, this.progress);
+  final double? progress;
   final String style;
   final double t, o;
   final bool ok, failed;
@@ -168,6 +177,10 @@ class _FacePainter extends CustomPainter {
 
   @override
   void paint(Canvas c, Size size) {
+    if (style == 'circle') {
+      _circle(c, size);
+      return;
+    }
     final k = math.min(size.width / _w, size.height / _h);
     c.save();
     c.translate((size.width - _w * k) / 2, (size.height - _h * k) / 2);
@@ -202,6 +215,55 @@ class _FacePainter extends CustomPainter {
   void _faceOutline(Canvas c, double a, Color col) {
     final path = Path()..addPolygon(_out, true);
     c.drawPath(path, _stroke(col.withValues(alpha: a), 1.2));
+  }
+
+  /// Ring radius of the circle look for a box of [size]; the camera picture sits inside it (see face_ui.dart).
+  static double circleRadius(Size size) => faceCircleRadius(size);
+
+  // ------------------------------------------------------------------ circle: a ring of short lines around the face
+  void _circle(Canvas c, Size size) {
+    final center = size.center(Offset.zero);
+    final r = circleRadius(size);
+    const n = 90;
+    final fill = ok ? 1.0 : (progress ?? 0).clamp(0.0, 1.0);
+    final head = (t * n * 1.6) % n; // the turning highlight while looking
+    for (var i = 0; i < n; i++) {
+      final a = i / n * math.pi * 2 - math.pi / 2;
+      final lit = ok || i < fill * n;
+      final dist = ((i - head) % n + n) % n;
+      final near = progress == null && !ok && dist < 14;
+      final len = lit ? 13.0 : (near ? 10 + (14 - dist) * 0.25 : 8.0);
+      final col = ok
+          ? _ok
+          : failed
+              ? const Color(0xFFF0A453)
+              : lit
+                  ? const Color(0xFF34D399)
+                  : near
+                      ? _ice.withValues(alpha: 0.35 + (14 - dist) / 14 * 0.65)
+                      : Colors.white.withValues(alpha: 0.22);
+      final p1 = center + Offset(math.cos(a), math.sin(a)) * (r - len / 2);
+      final p2 = center + Offset(math.cos(a), math.sin(a)) * (r + len / 2);
+      c.drawLine(p1, p2, _stroke(col, lit || ok ? 3.4 : 2.6));
+    }
+    if (ok) {
+      final k = _ease(math.min(1, o * 2));
+      final rr = r - 18;
+      c.drawCircle(center, rr, Paint()..color = const Color(0xFF050F1F).withValues(alpha: 0.55 * k));
+      final s = rr / 60;
+      final p0 = center + Offset(-24 * s, 2 * s), p1 = center + Offset(-6 * s, 20 * s), p2 = center + Offset(26 * s, -18 * s);
+      final path = Path()..moveTo(p0.dx, p0.dy);
+      if (k < .4) {
+        final q = Offset.lerp(p0, p1, k / .4)!;
+        path.lineTo(q.dx, q.dy);
+      } else {
+        final q = Offset.lerp(p1, p2, (k - .4) / .6)!;
+        path
+          ..lineTo(p1.dx, p1.dy)
+          ..lineTo(q.dx, q.dy);
+      }
+      c.drawPath(path, _stroke(_ok, 7 * s, glow: 3));
+    }
   }
 
   // ------------------------------------------------------------------ C: Hatō wave (default)
