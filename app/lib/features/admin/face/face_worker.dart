@@ -125,11 +125,16 @@ class FaceWorker {
   }
 
   /// Analyzes one encoded picture (jpg/png/bmp). Null when there is no face.
-  Future<FaceScan?> analyze(Uint8List picture) async {
+  Future<FaceScan?> analyze(Uint8List picture) => _ask([TransferableTypedData.fromList([picture])]);
+
+  /// Analyzes raw RGBA pixels (a snapshot of the camera preview). Null when there is no face.
+  Future<FaceScan?> analyzeRgba(Uint8List rgba, int width, int height) => _ask([TransferableTypedData.fromList([rgba]), width, height]);
+
+  Future<FaceScan?> _ask(List<Object> payload) async {
     final id = _next++;
     final c = Completer<Object?>();
     _pending[id] = c;
-    _send.send([id, TransferableTypedData.fromList([picture])]);
+    _send.send([id, ...payload]);
     final r = await c.future.timeout(const Duration(seconds: 20));
     if (r is String) throw Exception(r);
     if (r == null) return null;
@@ -158,7 +163,21 @@ class FaceWorker {
       final l = m as List;
       final id = l[0] as int;
       try {
-        final r = core.analyze((l[1] as TransferableTypedData).materialize().asUint8List());
+        final bytes = (l[1] as TransferableTypedData).materialize().asUint8List();
+        final FaceResult? r;
+        if (l.length >= 4) {
+          // raw RGBA from the preview snapshot
+          final w = l[2] as int, h = l[3] as int;
+          final rgb = Float32List(w * h * 3);
+          for (var i = 0, j = 0; i + 3 < bytes.length && j < rgb.length; i += 4, j += 3) {
+            rgb[j] = bytes[i].toDouble();
+            rgb[j + 1] = bytes[i + 1].toDouble();
+            rgb[j + 2] = bytes[i + 2].toDouble();
+          }
+          r = core.analyzeRgb(rgb, w, h);
+        } else {
+          r = core.analyze(bytes);
+        }
         out.send([
           id,
           r == null

@@ -2,9 +2,11 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:camera_platform_interface/camera_platform_interface.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -132,10 +134,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       FaceScan? s;
       final sw = Stopwatch()..start();
       try {
-        final f = await c.takePicture();
-        final bytes = await f.readAsBytes();
-        unawaited(File(f.path).delete().then((_) => null, onError: (_) => null));
-        s = await worker.analyze(bytes);
+        s = await _grab(worker, c);
         _errors = 0;
       } catch (e) {
         // never fail silently: after a few errors in a row, say what is wrong
@@ -167,6 +166,41 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       }
       await _onFace(s);
     }
+  }
+
+  final _snapKey = GlobalKey();
+  bool _useFile = false; // the preview snapshot came out black: save pictures through the camera instead
+  int _blank = 0;
+
+  /// One picture: a snapshot of the preview on screen (fast, no file), or a saved photo when snapshots do not work here.
+  Future<FaceScan?> _grab(FaceWorker worker, _WinCam c) async {
+    if (!_useFile) {
+      final b = _snapKey.currentContext?.findRenderObject();
+      if (b is RenderRepaintBoundary) {
+        final img = await b.toImage(pixelRatio: 1);
+        final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+        final w = img.width, h = img.height;
+        img.dispose();
+        if (data != null && w > 32 && h > 32) {
+          final px = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+          var sum = 0;
+          for (var i = 0; i < px.length; i += 4 * 997) {
+            sum += px[i] + px[i + 1] + px[i + 2];
+          }
+          if (sum > (px.length ~/ (4 * 997)) * 12) {
+            _blank = 0;
+            return worker.analyzeRgba(px, w, h);
+          }
+        }
+        if (++_blank >= 6) _useFile = true; // the camera picture never reaches the snapshot on this computer
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        return null;
+      }
+    }
+    final f = await c.takePicture();
+    final bytes = await f.readAsBytes();
+    unawaited(File(f.path).delete().then((_) => null, onError: (_) => null));
+    return worker.analyze(bytes);
   }
 
   static double _dot(List<double> a, List<double> b) {
@@ -321,7 +355,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                               child: FittedBox(
                                 fit: BoxFit.cover,
                                 clipBehavior: Clip.hardEdge,
-                                child: SizedBox(width: math.max(c.width, 1), height: math.max(c.height, 1), child: c.preview()),
+                                child: RepaintBoundary(key: _snapKey, child: SizedBox(width: math.max(c.width, 1), height: math.max(c.height, 1), child: c.preview())),
                               ),
                             ),
                           ),
@@ -339,7 +373,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                           child: SizedBox(
                             width: math.max(c.width, 1),
                             height: math.max(c.height, 1),
-                            child: c.preview(),
+                            child: RepaintBoundary(key: _snapKey, child: c.preview()),
                           ),
                         ),
                       ),
