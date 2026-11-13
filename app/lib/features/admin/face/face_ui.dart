@@ -53,7 +53,6 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
   String _title = '', _sub = '';
   bool _recognized = false, _failed = false, _closed = false;
   int _step = 0; // enroll: 0 straight, 1 turn one way, 2 turn the other way. check: 0 straight, 1 small turn
-  double _turnSign = 0, _yaw0 = 0;
   final List<List<double>> _prints = [];
   late final DateTime _deadline = DateTime.now().add(widget.mode == FaceMode.enroll ? const Duration(seconds: 75) : const Duration(seconds: 15));
 
@@ -103,19 +102,21 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
   }
 
   void _prompt() {
-    switch ((widget.mode, _step)) {
-      case (FaceMode.enroll, 0):
-        _say(_t(context, 'بص قدام على الكاميرا', 'Look straight at the camera'), _t(context, 'لقطة 1 من 3', 'Shot 1 of 3'));
-      case (FaceMode.enroll, 1):
-        _say(_t(context, 'لف وشّك يمين شوية', 'Turn your head a little to one side'), _t(context, 'لقطة 2 من 3', 'Shot 2 of 3'));
-      case (FaceMode.enroll, _):
-        _say(_t(context, 'دلوقتي لف وشّك للناحية التانية', 'Now turn to the other side'), _t(context, 'لقطة 3 من 3', 'Shot 3 of 3'));
-      case (_, 0):
-        _say(_t(context, 'بص للكاميرا', 'Look at the camera'), _t(context, 'بنقرا ملامحك…', 'Reading your face…'));
-      case (_, _):
-        _say(_t(context, 'لف وشّك سنة صغيرة', 'Turn your head slightly'), _t(context, 'علشان نتأكد إنه إنت مش صورة', 'So we know it is you, not a photo'));
+    if (widget.mode == FaceMode.enroll) {
+      final msg = switch (_step) {
+        0 => _t(context, 'بص على الكاميرا', 'Look at the camera'),
+        1 => _t(context, 'حرّك راسك سنة صغيرة يمين', 'Move your head slightly to one side'),
+        _ => _t(context, 'وسنة صغيرة شمال', 'And slightly to the other side'),
+      };
+      _say(msg, '${_t(context, 'لقطة', 'Shot')} ${_step + 1} ${_t(context, 'من', 'of')} 3');
+    } else {
+      _say(_t(context, 'بص للكاميرا', 'Look at the camera'), _t(context, 'بنقرا ملامحك…', 'Reading your face…'));
     }
   }
+
+  int _errors = 0;
+  String _diag = '';
+  DateTime _lastShot = DateTime.fromMillisecondsSinceEpoch(0);
 
   Future<void> _loop(FaceWorker worker) async {
     while (!_closed && mounted && !_recognized && !_failed) {
@@ -125,29 +126,42 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       }
       final c = _cam;
       if (c == null || c.busy) {
-        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await Future<void>.delayed(const Duration(milliseconds: 40));
         continue;
       }
       FaceScan? s;
+      final sw = Stopwatch()..start();
       try {
         final f = await c.takePicture();
         final bytes = await f.readAsBytes();
-        unawaited(File(f.path).delete().catchError((_) => File(f.path)));
+        unawaited(File(f.path).delete().then((_) => null, onError: (_) => null));
         s = await worker.analyze(bytes);
-      } catch (_) {
-        await Future<void>.delayed(const Duration(milliseconds: 300));
+        _errors = 0;
+      } catch (e) {
+        // never fail silently: after a few errors in a row, say what is wrong
+        _errors++;
+        if (mounted) setState(() => _diag = '${_t(context, 'خطأ', 'Error')}: ${'$e'.split('\n').first}');
+        if (_errors >= 6 && mounted) {
+          setState(() => _fatal = '${_t(context, 'الكاميرا مش بتدّي صورة للبرنامج.', 'The camera is not giving pictures.')}\n$_diag');
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 250));
         continue;
       }
       if (!mounted || _closed) return;
+      final ms = sw.elapsedMilliseconds;
+      setState(() => _diag = s == null
+          ? '${_t(context, 'مفيش وش', 'no face')} · $ms ms'
+          : '${s.faces} ${_t(context, 'وش', 'face')} · ${(s.score * 100).round()}% · ${_t(context, 'زاوية', 'angle')} ${s.yaw.toStringAsFixed(2)} · $ms ms');
       if (s == null) {
-        _say(_t(context, 'مش شايف وشّك', 'I cannot see your face'), _t(context, 'اقعد قدام الكاميرا في نور كويس', 'Sit in front of the camera in good light'));
+        _say(_t(context, 'مش شايف وشّك', 'I cannot see your face'), _t(context, 'خلّي وشّك في نص الكاميرا في نور كويس', 'Keep your face in the middle, in good light'));
         continue;
       }
       if (s.faces > 1) {
         _say(_t(context, 'واحد بس قدام الكاميرا', 'Only one person, please'), _t(context, 'في أكتر من وش في الصورة', 'More than one face is in view'));
         continue;
       }
-      if (s.sizeRatio < 0.14) {
+      if (s.sizeRatio < 0.12) {
         _say(_t(context, 'قرّب من الكاميرا شوية', 'Come a little closer'), '');
         continue;
       }
@@ -163,64 +177,49 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
     return s;
   }
 
+  final List<double> _yaws = [];
+
   Future<void> _onFace(FaceScan s) async {
     if (widget.mode == FaceMode.enroll) {
-      final ok = switch (_step) {
-        0 => s.yaw.abs() < 0.12,
-        1 => s.yaw.abs() > 0.2,
-        _ => s.yaw.abs() > 0.2 && s.yaw.sign == -_turnSign,
-      };
-      if (!ok) {
-        _prompt();
+      // three good shots, a moment apart; a small head movement between them gives better prints, but it is never required
+      if (DateTime.now().difference(_lastShot) < const Duration(milliseconds: 350)) return;
+      if (_prints.isEmpty && s.yaw.abs() > 0.35) {
+        _say(_t(context, 'بص قدام على الكاميرا', 'Look at the camera'), _t(context, 'وشّك لافف زيادة', 'Your head is turned too much'));
         return;
       }
-      // every shot must be the same person as the first one
       if (_prints.isNotEmpty && _dot(_prints.first, s.print) < 0.45) {
         _say(_t(context, 'الشخص اتغيّر', 'A different person'), _t(context, 'نفس الشخص لازم يكمّل التسجيل', 'The same person must finish'));
         return;
       }
-      if (_step == 1) _turnSign = s.yaw.sign;
+      _lastShot = DateTime.now();
       _prints.add(s.print);
+      _yaws.add(s.yaw);
       HapticFeedback.selectionClick();
-      if (_step < 2) {
-        setState(() => _step++);
+      if (_prints.length < 3) {
+        setState(() => _step = _prints.length);
         _prompt();
         return;
       }
+      setState(() => _step = 3);
       _say(_t(context, 'بنحفظ…', 'Saving…'), '');
       try {
         await ref.read(faceRepoProvider).enroll(_prints);
-        await _succeed(_t(context, 'وشّك اتسجّل', 'Your face is saved'), _t(context, 'من النهارده تقدر تفتح بيه', 'You can use it from now on'), true);
+        await _succeed(_t(context, 'وشّك اتسجّل', 'Your face is saved'), _t(context, 'من دلوقتي تقدر تفتح بيه', 'You can use it from now on'), true);
       } catch (e) {
         if (mounted) await _fail(_t(context, 'ماتحفظش', 'Not saved'), friendlyError(context, e));
       }
       return;
     }
-    // "is it me" / seller: one straight shot, then a small turn (a flat photo cannot change its head angle)
-    if (_step == 0) {
-      if (s.yaw.abs() > 0.15) {
-        _prompt();
-        return;
-      }
-      _prints
-        ..clear()
-        ..add(s.print);
-      _yaw0 = s.yaw;
-      setState(() => _step = 1);
-      _prompt();
-      return;
-    }
-    if ((s.yaw - _yaw0).abs() < 0.12) return;
-    if (_dot(_prints.first, s.print) < 0.45) {
-      setState(() => _step = 0);
-      _prompt();
+    // "is it me" / seller: the first good picture goes straight to the server (fast, like a phone's face unlock)
+    if (s.yaw.abs() > 0.4) {
+      _say(_t(context, 'بص للكاميرا', 'Look at the camera'), '');
       return;
     }
     _say(_t(context, 'ثانية واحدة…', 'One moment…'), '');
     Map<String, dynamic> r;
     try {
       final repo = ref.read(faceRepoProvider);
-      r = widget.mode == FaceMode.seller ? await repo.switchSeller(widget.shiftId!, _prints.first) : await repo.checkMe(_prints.first);
+      r = widget.mode == FaceMode.seller ? await repo.switchSeller(widget.shiftId!, s.print) : await repo.checkMe(s.print);
     } catch (e) {
       if (mounted) await _fail(_t(context, 'حصلت مشكلة', 'Something went wrong'), friendlyError(context, e));
       return;
@@ -235,9 +234,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       await _fail(_t(context, 'محاولات كتير', 'Too many tries'), _t(context, 'استخدم الرقم السري', 'Use the PIN'));
       return;
     }
-    // not matched: try again until the time runs out
-    setState(() => _step = 0);
-    _say(_t(context, 'لسه ما عرفتكش', 'Not recognised yet'), _t(context, 'بص قدام تاني', 'Look straight again'));
+    _say(_t(context, 'لسه ما عرفتكش', 'Not recognised yet'), _t(context, 'بص للكاميرا', 'Look at the camera'));
   }
 
   Future<void> _succeed(String title, String sub, Object result) async {
@@ -295,7 +292,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                         fit: BoxFit.cover,
                         clipBehavior: Clip.hardEdge,
                         child: Transform.flip(
-                          flipX: true, // a mirror feels natural
+                          flipX: false, // the Windows preview is already a mirror
                           child: SizedBox(
                             width: math.max(c.width, 1),
                             height: math.max(c.height, 1),
@@ -327,6 +324,11 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
               ),
               const SizedBox(height: 4),
               Text(_sub, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF9DB1CB), fontSize: 14.5)),
+              if (_diag.isNotEmpty && !_recognized)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(_diag, textAlign: TextAlign.center, style: const TextStyle(color: Color(0x889DB1CB), fontSize: 11.5)),
+                ),
               if (widget.mode == FaceMode.enroll) ...[
                 const SizedBox(height: 12),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
