@@ -139,7 +139,12 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       } catch (e) {
         // never fail silently: after a few errors in a row, say what is wrong
         _errors++;
-        if (mounted) setState(() => _diag = '${_t(context, 'خطأ', 'Error')}: ${'$e'.split('\n').first}');
+        if (mounted) {
+          setState(() => _diag = '$e'.contains('capture path')
+              ? _t(context, 'ويندوز مش لاقي فولدر «الصور» (Pictures) علشان يحفظ اللقطة. افتح File Explorer واعمل فولدر Pictures، أو رجّعه من OneDrive.',
+                  'Windows cannot find the Pictures folder to save the shot. Create it in File Explorer or restore it from OneDrive.')
+              : '${_t(context, 'خطأ', 'Error')}: ${'$e'.split('\n').first}');
+        }
         if (_errors >= 6 && mounted) {
           setState(() => _fatal = '${_t(context, 'الكاميرا مش بتدّي صورة للبرنامج.', 'The camera is not giving pictures.')}\n$_diag');
           return;
