@@ -210,10 +210,28 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       }
       return;
     }
-    // "is it me" / seller: the first good picture goes straight to the server (fast, like a phone's face unlock)
+    // seller switch: the first good picture goes straight to the server (fast, like a phone's face unlock)
+    // closing the shift (money): one picture, then any small head movement (a photo cannot change its angle)
     if (s.yaw.abs() > 0.4) {
       _say(_t(context, 'بص للكاميرا', 'Look at the camera'), '');
       return;
+    }
+    if (widget.mode == FaceMode.verify) {
+      if (_prints.isEmpty) {
+        _prints.add(s.print);
+        _yaws.add(s.yaw);
+        setState(() => _step = 1);
+        _say(_t(context, 'حرّك راسك سنة صغيرة', 'Move your head slightly'), _t(context, 'علشان نتأكد إنه إنت مش صورة', 'So we know it is you, not a photo'));
+        return;
+      }
+      if (_dot(_prints.first, s.print) < 0.45) {
+        _prints.clear();
+        _yaws.clear();
+        setState(() => _step = 0);
+        _prompt();
+        return;
+      }
+      if ((s.yaw - _yaws.first).abs() < 0.08) return; // still the same angle: wait for the movement
     }
     _say(_t(context, 'ثانية واحدة…', 'One moment…'), '');
     Map<String, dynamic> r;
@@ -234,6 +252,9 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       await _fail(_t(context, 'محاولات كتير', 'Too many tries'), _t(context, 'استخدم الرقم السري', 'Use the PIN'));
       return;
     }
+    _prints.clear();
+    _yaws.clear();
+    if (mounted) setState(() => _step = 0);
     _say(_t(context, 'لسه ما عرفتكش', 'Not recognised yet'), _t(context, 'بص للكاميرا', 'Look at the camera'));
   }
 
