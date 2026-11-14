@@ -104,7 +104,10 @@ class AdminGateScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final staff = ref.watch(isStaffProvider);
-    if (user != null && staff.valueOrNull == true) return const AdminHomeScreen();
+    if (user != null && staff.valueOrNull == true) {
+      QuickLogin.ensureForCurrent(ref.read(supabaseProvider)); // remembers this computer for face / fingerprint sign-in
+      return const AdminHomeScreen();
+    }
     if (user != null && staff.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (AppConfig.teamOnly && user != null && staff.valueOrNull == false) {
       // A customer session (fresh login or restored) is never kept in the team app:
@@ -283,7 +286,6 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
         if (mounted) setState(() => _error = msg);
       } else {
         ref.read(_loginNoticeProvider.notifier).state = null;
-        QuickLogin.rememberAfterPasswordLogin(ref.read(supabaseProvider), _user.text).ignore(); // enables face / fingerprint sign-in on this computer
       }
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(context, e));

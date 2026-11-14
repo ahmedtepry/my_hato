@@ -77,6 +77,26 @@ class QuickLogin {
     } catch (_) {}
   }
 
+  static String? _ensured;
+
+  /// Called whenever a team member is signed in (fresh password sign-in or a kept session): keeps a device key for
+  /// them on this computer once per run. Never throws, never blocks.
+  static void ensureForCurrent(SupabaseClient db) {
+    final uid = db.auth.currentUser?.id;
+    if (!supported || uid == null || _ensured == uid) return;
+    _ensured = uid;
+    () async {
+      var name = '';
+      try {
+        final p = await db.rpc('my_profile');
+        if (p is Map) name = '${p['name'] ?? p['display'] ?? ''}';
+      } catch (_) {}
+      if (name.isEmpty) name = (await account(uid))?.name ?? (db.auth.currentUser?.email ?? '').split('@').first;
+      await rememberAfterPasswordLogin(db, name);
+      if ((await account(uid)) == null) _ensured = null; // failed: try again next time
+    }();
+  }
+
   /// Turns the fingerprint sign-in on/off for the signed-in member on this computer. Turning on asks Windows Hello first.
   /// Returns null when done, otherwise a short reason.
   static Future<String?> setHello(SupabaseClient db, bool on, {required String reason}) async {
