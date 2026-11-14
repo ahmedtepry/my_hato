@@ -34,6 +34,20 @@ enum FaceMode { enroll, verify, seller, login }
 Future<Object?> showFaceScan(BuildContext context, FaceMode mode, {String? shiftId, Future<Map<String, dynamic>> Function(List<double> print)? onPrint}) =>
     showSmoothDialog<Object>(context: context, barrierDismissible: false, builder: (_) => _FaceScanDialog(mode: mode, shiftId: shiftId, onPrint: onPrint));
 
+/// Starts the face engine in the background (models + ONNX session), so the first scan opens instantly. Never throws.
+void faceWarmUp() {
+  if (kIsWebOrNotWindows) return;
+  FaceWorker.instance.then((_) {}, onError: (_) {});
+}
+
+bool get kIsWebOrNotWindows {
+  try {
+    return !Platform.isWindows;
+  } catch (_) {
+    return true;
+  }
+}
+
 /// True when this computer can do face scans (Windows team build with the models and a camera driver).
 Future<bool> faceAvailable() async {
   try {
@@ -89,15 +103,19 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
 
   Future<void> _start() async {
     _say(_t(context, 'بنجهّز الكاميرا…', 'Starting the camera…'), _t(context, 'أول مرة بس ممكن تاخد دقيقة (بنحمّل ملف التعرّف)', 'The first time may take a minute (downloading the recognizer)'));
+    // the camera and the engine start at the same time (each takes about a second)
+    final camF = _WinCam.open();
+    camF.then((_) {}, onError: (_) {});
     final FaceWorker worker;
     try {
       worker = await FaceWorker.instance;
     } catch (_) {
+      camF.then((c) => c.dispose(), onError: (_) {});
       if (mounted) setState(() => _fatal = _t(context, 'التعرّف على الوش مش متاح على الجهاز ده. ${_fbAr()}.', 'Face recognition is not available on this computer. ${_fbEn()}.'));
       return;
     }
     try {
-      final c = await _WinCam.open();
+      final c = await camF;
       if (!mounted) {
         await c.dispose();
         return;
@@ -263,7 +281,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       _say(_t(context, 'بص للكاميرا', 'Look at the camera'), '');
       return;
     }
-    if (widget.mode == FaceMode.verify || _login) {
+    if (widget.mode == FaceMode.verify) {
       if (_prints.isEmpty) {
         _prints.add(s.print);
         _yaws.add(s.yaw);
@@ -322,7 +340,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
   Future<void> _succeed(String title, String sub, Object result) async {
     setState(() => _recognized = true);
     _say(title, sub);
-    await Future<void>.delayed(const Duration(milliseconds: 1700));
+    await Future<void>.delayed(Duration(milliseconds: widget.mode == FaceMode.verify ? 900 : 550));
     if (mounted) Navigator.pop(context, result);
   }
 
@@ -411,7 +429,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                       style: style,
                       recognized: _recognized,
                       failed: _failed,
-                      progress: widget.mode == FaceMode.enroll ? _prints.length / 3 : ((widget.mode == FaceMode.verify || _login) && _prints.isNotEmpty ? 0.5 : null),
+                      progress: widget.mode == FaceMode.enroll ? _prints.length / 3 : (widget.mode == FaceMode.verify && _prints.isNotEmpty ? 0.5 : null),
                     ),
                   if (_fatal != null)
                     Center(

@@ -143,14 +143,26 @@ class QuickLogin {
   }
 
   static Future<Map<String, dynamic>> _ask(SupabaseClient db, Map<String, Object> body) async {
-    final res = await db.functions.invoke('staff-quick-login', body: body);
+    final res = await db.functions.invoke('staff-quick-login', body: {...body, 'v': 2});
     final r = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{'ok': false, 'error': 'server'};
     if (r['ok'] == true) {
-      final th = r['token_hash'] as String?;
-      if (th == null) return {'ok': false, 'error': 'server'};
-      await db.auth.verifyOTP(type: OtpType.magiclink, tokenHash: th);
+      final session = r['session'];
+      if (session is Map && session['refresh_token'] != null) {
+        // the server already opened the session: use it directly (saves a round trip)
+        await db.auth.recoverSession(jsonEncode(session));
+      } else {
+        final th = r['token_hash'] as String?;
+        if (th == null) return {'ok': false, 'error': 'server'};
+        await db.auth.verifyOTP(type: OtpType.magiclink, tokenHash: th);
+      }
     }
     return r;
+  }
+
+  /// Wakes the sign-in server function while the login screen is open, so the real call does not pay its start-up time.
+  static void warmServer() {
+    if (!supported) return;
+    Supabase.instance.client.functions.invoke('staff-quick-login', body: {'ping': true}).then((_) {}, onError: (_) {});
   }
 
   /// Shows the Windows Hello prompt (fingerprint / face / Windows PIN of this computer) in a separate process, so the app
