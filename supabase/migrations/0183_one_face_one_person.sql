@@ -1,0 +1,4 @@
+-- One face = one person: my_face_enroll refuses prints that match another member's saved face
+-- (cosine distance under the face_match threshold, 0.52) with FACE_TAKEN, and audits the attempt.
+-- Applied live; see public.my_face_enroll in the database. The test copy of the owner's face that had been
+-- recorded on the cashier account ahmed9 was removed.

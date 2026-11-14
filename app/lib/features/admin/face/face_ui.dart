@@ -272,7 +272,13 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
         await ref.read(faceRepoProvider).enroll(_prints);
         await _succeed(_t(context, 'وشّك اتسجّل', 'Your face is saved'), _t(context, 'من دلوقتي تقدر تفتح بيه', 'You can use it from now on'), true);
       } catch (e) {
-        if (mounted) await _fail(_t(context, 'ماتحفظش', 'Not saved'), friendlyError(context, e));
+        if (mounted) {
+          await _fail(
+              _t(context, 'ماتحفظش', 'Not saved'),
+              '$e'.contains('FACE_TAKEN')
+                  ? _t(context, 'الوش ده متسجّل لموظف تاني. كل موظف لازم يسجّل وشّه هو بنفسه.', 'This face belongs to another member. Everyone records their own face.')
+                  : friendlyError(context, e));
+        }
       }
       return;
     }
