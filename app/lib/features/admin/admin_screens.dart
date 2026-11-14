@@ -2,6 +2,7 @@ import 'search_index.dart';
 import 'daybook_panel.dart';
 import 'permissions.dart' show PermissionsScreen;
 import 'face/face_ui.dart';
+import 'face/quick_login.dart';
 import '../../core/app_update.dart';
 import '../../core/appearance.dart';
 import 'dart:async';
@@ -131,6 +132,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
   bool _busy = false;
   bool _obscure = true;
   String? _error;
+  List<QuickAccount> _quick = const [];
 
   @override
   void initState() {
@@ -138,6 +140,122 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
     _user.addListener(() {
       if (mounted) setState(() {});
     });
+    if (QuickLogin.supported) {
+      QuickLogin.accounts().then((l) {
+        if (mounted) setState(() => _quick = l);
+      });
+    }
+  }
+
+  /// Face sign-in: needs a password sign-in on this computer once (device key) and a recorded face.
+  Future<void> _faceLogin() async {
+    if (_quick.isEmpty) {
+      setState(() => _error = _t(context, 'ادخل بكلمة السر مرة واحدة على الجهاز ده الأول، وسجّل وشّك من «ملفي». بعدها تدخل بوشّك على طول.',
+          'Sign in with your password once on this computer and record your face in My profile. After that, just look at the camera.'));
+      return;
+    }
+    setState(() => _error = null);
+    final container = ProviderScope.containerOf(context);
+    await showFaceScan(context, FaceMode.login, onPrint: (print) async {
+      final r = await QuickLogin.loginWithFace(container.read(supabaseProvider), print);
+      if (r['ok'] == true) {
+        container.invalidate(staffContextProvider);
+        container.read(_loginNoticeProvider.notifier).state = null;
+      }
+      return r;
+    });
+  }
+
+  /// Fingerprint sign-in (Windows Hello) for a member who turned it on for this computer in My profile.
+  Future<void> _helloLogin() async {
+    final list = _quick.where((a) => a.hello).toList();
+    if (list.isEmpty) {
+      setState(() => _error = _t(context, 'الدخول بالبصمة مش متفعّل على الجهاز ده. ادخل بكلمة السر وفعّله من «ملفي».',
+          'Fingerprint sign-in is not on for this computer. Sign in with your password and turn it on in My profile.'));
+      return;
+    }
+    final a = list.length == 1
+        ? list.first
+        : await showSmoothDialog<QuickAccount>(
+            context: context,
+            builder: (d) => SimpleDialog(
+              title: Text(_t(context, 'مين هيدخل؟', 'Who is signing in?')),
+              children: [
+                for (final x in list)
+                  SimpleDialogOption(
+                    onPressed: () => Navigator.pop(d, x),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(children: [const Icon(Icons.fingerprint_rounded), const SizedBox(width: 10), Text(x.name.isEmpty ? '—' : x.name, style: const TextStyle(fontSize: 16))]),
+                    ),
+                  ),
+              ],
+            ),
+          );
+    if (a == null || !mounted) return;
+    final container = ProviderScope.containerOf(context);
+    final busyAr = 'الدخول على My Hatō باسم ${a.name}';
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    String? err;
+    try {
+      final r = await QuickLogin.loginWithHello(container.read(supabaseProvider), a, reason: context.isAr ? busyAr : 'Sign in to My Hatō as ${a.name}');
+      if (r['ok'] == true) {
+        container.invalidate(staffContextProvider);
+        container.read(_loginNoticeProvider.notifier).state = null;
+      } else {
+        err = '${r['error']}';
+      }
+    } catch (e) {
+      if (mounted) err = friendlyError(context, e);
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = switch (err) {
+        null => null,
+        'CANCELED' => _t(context, 'البصمة ما اتأكدتش. جرّب تاني أو ادخل بكلمة السر.', 'Fingerprint not confirmed. Try again or use your password.'),
+        'NO_HELLO' => _t(context, 'البصمة مش متظبطة في الويندوز (Windows Hello).', 'Windows Hello is not set up on this computer.'),
+        'NO_DEVICE' => _t(context, 'الدخول السريع اتقفل للحساب ده. ادخل بكلمة السر.', 'Quick sign-in is off for this account. Use your password.'),
+        'TOO_MANY' => _t(context, 'محاولات كتير. ادخل بكلمة السر.', 'Too many tries. Use your password.'),
+        _ => err,
+      };
+    });
+  }
+
+  Widget _quickButtons({required bool dark}) {
+    if (!QuickLogin.supported || widget.signedInAsCustomer) return const SizedBox.shrink();
+    final fg = dark ? Colors.white : const Color(0xFF1F5FD6);
+    ButtonStyle st() => OutlinedButton.styleFrom(
+          foregroundColor: fg,
+          minimumSize: const Size(0, 50),
+          side: BorderSide(color: dark ? Colors.white30 : const Color(0xFFC9D4E8), width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        );
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            style: st(),
+            onPressed: _busy ? null : _faceLogin,
+            icon: const Icon(Icons.face_retouching_natural_rounded),
+            label: Text(_t(context, 'دخول بالوش', 'Face'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: OutlinedButton.icon(
+            style: st(),
+            onPressed: _busy ? null : _helloLogin,
+            icon: const Icon(Icons.fingerprint_rounded),
+            label: Text(_t(context, 'دخول بالبصمة', 'Fingerprint'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ),
+      ]),
+    );
   }
 
   @override
@@ -165,6 +283,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
         if (mounted) setState(() => _error = msg);
       } else {
         ref.read(_loginNoticeProvider.notifier).state = null;
+        QuickLogin.rememberAfterPasswordLogin(ref.read(supabaseProvider), _user.text).ignore(); // enables face / fingerprint sign-in on this computer
       }
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(context, e));
@@ -253,6 +372,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
                             : Text(_t(context, 'دخول', 'Sign in'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                       ),
                     ),
+                    _quickButtons(dark: false),
                     const SizedBox(height: 14),
                     Text(_t(context, 'للموظفين فقط. لو نسيت كلمة السر كلّم المسؤول.', 'Staff only. If you forgot your password, ask the manager.'),
                         textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFF4A5A78))),
@@ -357,6 +477,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
                     ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
                     : Text(_t(context, 'دخول', 'Sign in')),
               ),
+              _quickButtons(dark: true),
             ],
           ]),
         ),

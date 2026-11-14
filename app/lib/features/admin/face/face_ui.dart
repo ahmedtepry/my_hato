@@ -12,24 +12,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors.dart';
 import '../../../core/l10n.dart';
+import '../../../core/supabase_providers.dart';
 import '../../../core/theme.dart';
 import '../../../shared/face_scan_anim.dart';
 import '../../../shared/motion.dart';
 import '../../../shared/states.dart';
 import 'face_repository.dart';
 import 'face_worker.dart';
+import 'quick_login.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
-enum FaceMode { enroll, verify, seller }
+enum FaceMode { enroll, verify, seller, login }
 
 /// Opens the camera scan. Returns:
 ///  enroll  -> true when the face was saved
 ///  verify  -> {ok:true, ...} when the signed-in member matched their own face
 ///  seller  -> {ok:true, id, name} when the seller was switched
 /// and null when cancelled, timed out or not recognised (the caller then falls back to the PIN / password).
-Future<Object?> showFaceScan(BuildContext context, FaceMode mode, {String? shiftId}) =>
-    showSmoothDialog<Object>(context: context, barrierDismissible: false, builder: (_) => _FaceScanDialog(mode: mode, shiftId: shiftId));
+///  login   -> {ok:true, name} when [onPrint] signed the member in (Windows sign-in screen)
+Future<Object?> showFaceScan(BuildContext context, FaceMode mode, {String? shiftId, Future<Map<String, dynamic>> Function(List<double> print)? onPrint}) =>
+    showSmoothDialog<Object>(context: context, barrierDismissible: false, builder: (_) => _FaceScanDialog(mode: mode, shiftId: shiftId, onPrint: onPrint));
 
 /// True when this computer can do face scans (Windows team build with the models and a camera driver).
 Future<bool> faceAvailable() async {
@@ -42,9 +45,10 @@ Future<bool> faceAvailable() async {
 }
 
 class _FaceScanDialog extends ConsumerStatefulWidget {
-  const _FaceScanDialog({required this.mode, this.shiftId});
+  const _FaceScanDialog({required this.mode, this.shiftId, this.onPrint});
   final FaceMode mode;
   final String? shiftId;
+  final Future<Map<String, dynamic>> Function(List<double> print)? onPrint;
   @override
   ConsumerState<_FaceScanDialog> createState() => _FaceScanDialogState();
 }
@@ -71,6 +75,10 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
     super.dispose();
   }
 
+  bool get _login => widget.mode == FaceMode.login;
+  String _fbAr() => _login ? 'ادخل بكلمة السر' : 'استخدم الرقم السري';
+  String _fbEn() => _login ? 'Use your password' : 'Use the PIN';
+
   void _say(String title, String sub) {
     if (!mounted || (_title == title && _sub == sub)) return;
     setState(() {
@@ -85,7 +93,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
     try {
       worker = await FaceWorker.instance;
     } catch (_) {
-      if (mounted) setState(() => _fatal = _t(context, 'التعرّف على الوش مش متاح على الجهاز ده. استخدم الرقم السري.', 'Face recognition is not available on this computer. Use the PIN.'));
+      if (mounted) setState(() => _fatal = _t(context, 'التعرّف على الوش مش متاح على الجهاز ده. ${_fbAr()}.', 'Face recognition is not available on this computer. ${_fbEn()}.'));
       return;
     }
     try {
@@ -96,7 +104,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       }
       setState(() => _cam = c);
     } catch (_) {
-      if (mounted) setState(() => _fatal = _t(context, 'مفيش كاميرا شغّالة. وصّل كاميرا أو استخدم الرقم السري.', 'No working camera. Connect one or use the PIN.'));
+      if (mounted) setState(() => _fatal = _t(context, 'مفيش كاميرا شغّالة. وصّل كاميرا أو ${_fbAr()}.', 'No working camera. Connect one or ${_fbEn().toLowerCase()}.'));
       return;
     }
     _prompt();
@@ -123,7 +131,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
   Future<void> _loop(FaceWorker worker) async {
     while (!_closed && mounted && !_recognized && !_failed) {
       if (DateTime.now().isAfter(_deadline)) {
-        await _fail(_t(context, 'ما عرفتكش', 'Not recognised'), _t(context, 'استخدم الرقم السري', 'Use the PIN'));
+        await _fail(_t(context, 'ما عرفتكش', 'Not recognised'), _t(context, _fbAr(), _fbEn()));
         return;
       }
       final c = _cam;
@@ -255,7 +263,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       _say(_t(context, 'بص للكاميرا', 'Look at the camera'), '');
       return;
     }
-    if (widget.mode == FaceMode.verify) {
+    if (widget.mode == FaceMode.verify || _login) {
       if (_prints.isEmpty) {
         _prints.add(s.print);
         _yaws.add(s.yaw);
@@ -276,7 +284,11 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
     Map<String, dynamic> r;
     try {
       final repo = ref.read(faceRepoProvider);
-      r = widget.mode == FaceMode.seller ? await repo.switchSeller(widget.shiftId!, s.print) : await repo.checkMe(s.print);
+      r = widget.mode == FaceMode.seller
+          ? await repo.switchSeller(widget.shiftId!, s.print)
+          : _login
+              ? await widget.onPrint!(s.print)
+              : await repo.checkMe(s.print);
     } catch (e) {
       if (mounted) await _fail(_t(context, 'حصلت مشكلة', 'Something went wrong'), friendlyError(context, e));
       return;
@@ -284,11 +296,21 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
     if (!mounted) return;
     if (r['ok'] == true) {
       final name = '${r['name'] ?? ''}'.trim().split(RegExp(r'\s+')).first;
-      await _succeed(_t(context, 'أهلاً يا $name', 'Hi $name'), widget.mode == FaceMode.seller ? _t(context, 'إنت البائع دلوقتي', 'You are the seller now') : _t(context, 'اتأكدنا إنه إنت', 'Confirmed'), r);
+      await _succeed(_t(context, 'أهلاً يا $name', 'Hi $name'), widget.mode == FaceMode.seller
+              ? _t(context, 'إنت البائع دلوقتي', 'You are the seller now')
+              : _login
+                  ? _t(context, 'بندخّلك…', 'Signing you in…')
+                  : _t(context, 'اتأكدنا إنه إنت', 'Confirmed'),
+          r);
+      return;
+    }
+    if (r['error'] == 'NO_DEVICE') {
+      await _fail(_t(context, 'الدخول بالوش مش متفعّل هنا', 'Face sign-in is not set up here'),
+          _t(context, 'ادخل بكلمة السر مرة على الجهاز ده، وسجّل وشّك من «ملفي»', 'Sign in with your password once on this computer and record your face in My profile'));
       return;
     }
     if (r['error'] == 'TOO_MANY') {
-      await _fail(_t(context, 'محاولات كتير', 'Too many tries'), _t(context, 'استخدم الرقم السري', 'Use the PIN'));
+      await _fail(_t(context, 'محاولات كتير', 'Too many tries'), _t(context, _fbAr(), _fbEn()));
       return;
     }
     _prints.clear();
@@ -319,6 +341,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       FaceMode.enroll => _t(context, 'سجّل وشّك', 'Record your face'),
       FaceMode.verify => _t(context, 'اتأكد إنه إنت', 'Confirm it is you'),
       FaceMode.seller => _t(context, 'مين هيبيع دلوقتي؟', 'Who is selling now?'),
+      FaceMode.login => _t(context, 'ادخل بوشّك', 'Sign in with your face'),
     };
     final color = _recognized ? const Color(0xFF5EEAD4) : (_failed ? const Color(0xFFF0A453) : const Color(0xFFBFE6FF));
     return Dialog(
@@ -388,7 +411,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                       style: style,
                       recognized: _recognized,
                       failed: _failed,
-                      progress: widget.mode == FaceMode.enroll ? _prints.length / 3 : (widget.mode == FaceMode.verify && _prints.isNotEmpty ? 0.5 : null),
+                      progress: widget.mode == FaceMode.enroll ? _prints.length / 3 : ((widget.mode == FaceMode.verify || _login) && _prints.isNotEmpty ? 0.5 : null),
                     ),
                   if (_fatal != null)
                     Center(
@@ -631,11 +654,14 @@ class _MyProfileSheetState extends ConsumerState<_MyProfileSheet> {
                   ),
                 ]),
               ),
-              card(
-                icon: Icons.fingerprint_rounded,
-                title: _t(context, 'بصمة الصباع', 'Fingerprint'),
-                sub: _t(context, 'محتاج جهاز بصمة متوصّل بالكمبيوتر', 'Needs a fingerprint reader on this computer'),
-              ),
+              if (QuickLogin.supported)
+                _HelloCard(allowed: allowed, card: card)
+              else
+                card(
+                  icon: Icons.fingerprint_rounded,
+                  title: _t(context, 'بصمة الصباع', 'Fingerprint'),
+                  sub: _t(context, 'متاحة على برنامج الويندوز', 'Available in the Windows app'),
+                ),
               const SizedBox(height: 12),
               Text(_t(context, 'مش بنحفظ صورة وشّك. بنحفظ أرقام بتمثّل ملامحك، وتقدر تمسحها في أي وقت.', 'Your photo is never stored, only numbers describing your face. Delete them anytime.'),
                   style: TextStyle(fontSize: 12.5, color: ink.withValues(alpha: 0.6))),
@@ -894,4 +920,69 @@ class _WinCam {
       await CameraPlatform.instance.dispose(id);
     } catch (_) {}
   }
+}
+
+
+/// "My profile" on Windows: sign in to this computer with the fingerprint (Windows Hello). The face sign-in needs no
+/// switch: it works on every computer where the member signed in once with the password and has a recorded face.
+class _HelloCard extends ConsumerStatefulWidget {
+  const _HelloCard({required this.allowed, required this.card});
+  final bool allowed;
+  final Widget Function({required IconData icon, required String title, required String sub, Widget? action, bool hi}) card;
+  @override
+  ConsumerState<_HelloCard> createState() => _HelloCardState();
+}
+
+class _HelloCardState extends ConsumerState<_HelloCard> {
+  bool? _on;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = ref.read(supabaseProvider).auth.currentUser?.id;
+    final a = uid == null ? null : await QuickLogin.account(uid);
+    if (mounted) setState(() => _on = a?.hello ?? false);
+  }
+
+  Future<void> _toggle(bool v) async {
+    setState(() => _busy = true);
+    String? err;
+    try {
+      err = await QuickLogin.setHello(ref.read(supabaseProvider), v, reason: _t(context, 'تفعيل الدخول بالبصمة على My Hatō', 'Turn on fingerprint sign-in for My Hatō'));
+    } catch (e) {
+      err = 'failed';
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (err == null) {
+      setState(() => _on = v);
+      showSnack(context, v ? _t(context, 'الدخول بالبصمة اتفعّل على الجهاز ده ✅', 'Fingerprint sign-in is on for this computer ✅') : _t(context, 'الدخول بالبصمة اتقفل', 'Fingerprint sign-in is off'));
+    } else {
+      showSnack(
+          context,
+          err == 'NO_HELLO'
+              ? _t(context, 'البصمة مش متظبطة في الويندوز. افتح Settings ← Accounts ← Sign-in options وسجّل بصمتك (Windows Hello) الأول.',
+                  'Windows Hello is not set up. Open Settings → Accounts → Sign-in options and add your fingerprint first.')
+              : err == 'CANCELED'
+                  ? _t(context, 'البصمة ما اتأكدتش', 'Fingerprint not confirmed')
+                  : _t(context, 'ما قدرناش نفعّلها، جرّب تاني', 'Could not turn it on, try again'),
+          error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.card(
+        icon: Icons.fingerprint_rounded,
+        title: _t(context, 'الدخول بالبصمة', 'Fingerprint sign-in'),
+        sub: _t(context, 'على الجهاز ده بس · بصمة Windows Hello', 'This computer only · Windows Hello'),
+        hi: false,
+        action: _on == null || _busy
+            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.2))
+            : Switch(value: _on!, onChanged: widget.allowed ? _toggle : null),
+      );
 }

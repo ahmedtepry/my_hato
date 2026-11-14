@@ -1,0 +1,17 @@
+name: quick-login-check
+on:
+  workflow_dispatch:
+    inputs:
+      key:
+        description: test device key (revoked right after)
+        required: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: call staff-quick-login
+        run: |
+          URL=https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/staff-quick-login
+          echo "bad key:"; curl -sS -X POST $URL -H 'content-type: application/json' -d '{"keys":["zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"]}'; echo
+          echo "test key (fingerprint mode):"
+          curl -sS -X POST $URL -H 'content-type: application/json' -d "{\"keys\":[\"${{ inputs.key }}\"]}" | python3 -c "import sys,json; r=json.load(sys.stdin); print({k:(('<%d chars>'%len(v)) if k=='token_hash' else v) for k,v in r.items()})"
