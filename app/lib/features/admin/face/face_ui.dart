@@ -243,6 +243,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
   }
 
   final List<double> _yaws = [];
+  DateTime _firstAt = DateTime.now();
 
   Future<void> _onFace(FaceScan s) async {
     if (widget.mode == FaceMode.enroll) {
@@ -298,6 +299,28 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
       }
       if ((s.yaw - _yaws.first).abs() < 0.08) return; // still the same angle: wait for the movement
     }
+    if (_login) {
+      // sign-in: a living face is never perfectly still, so the natural tiny movement over a few pictures (~0.3 s)
+      // is enough and nobody is asked to move. A printed photo held still never changes its angle; only then we ask.
+      if (_prints.isEmpty || _dot(_prints.first, s.print) < 0.45) {
+        _prints
+          ..clear()
+          ..add(s.print);
+        _yaws
+          ..clear()
+          ..add(s.yaw);
+        _firstAt = DateTime.now();
+        return;
+      }
+      _yaws.add(s.yaw);
+      final spread = _yaws.reduce(math.max) - _yaws.reduce(math.min);
+      if (spread < 0.03) {
+        if (DateTime.now().difference(_firstAt) > const Duration(milliseconds: 1300)) {
+          _say(_t(context, 'حرّك راسك سنة صغيرة', 'Move your head slightly'), _t(context, 'علشان نتأكد إنه إنت مش صورة', 'So we know it is you, not a photo'));
+        }
+        return;
+      }
+    }
     _say(_t(context, 'ثانية واحدة…', 'One moment…'), '');
     Map<String, dynamic> r;
     try {
@@ -313,7 +336,8 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
     }
     if (!mounted) return;
     if (r['ok'] == true) {
-      final name = '${r['name'] ?? ''}'.trim().split(RegExp(r'\s+')).first;
+      final full = '${r['name'] ?? ''}'.trim();
+      final name = full.length <= 18 ? full : full.split(RegExp(r'\s+')).first;
       await _succeed(_t(context, 'أهلاً يا $name', 'Hi $name'), widget.mode == FaceMode.seller
               ? _t(context, 'إنت البائع دلوقتي', 'You are the seller now')
               : _login

@@ -1908,7 +1908,6 @@ class _RepairsTab extends ConsumerWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {
                   final r = list[i];
-                  final st = r['status'] as String;
                   return _Rise(i, child: Card(
                     child: ListTile(
                       onTap: () => _repairSheet(context, ref, r),
