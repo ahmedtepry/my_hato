@@ -1,4 +1,5 @@
 import 'face/face_ui.dart';
+import 'face/quick_login.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -114,7 +115,12 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
     super.initState();
     _loadRemembered();
     _loadBio();
+    faceAvailable().then((v) {
+      if (mounted && v) setState(() => _faceOk = true);
+    });
   }
+
+  bool _faceOk = false;
 
   Future<void> _loadRemembered() async {
     try {
@@ -142,25 +148,70 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
     super.dispose();
   }
 
-  Future<void> _open(List<Map<String, dynamic>> branches) async {
+  /// The branch and the opening cash must be filled in, whichever way the cashier proves it is them.
+  bool _inputsOk(List<Map<String, dynamic>> branches) {
+    final b = _branch ?? (branches.length == 1 ? branches.first['id'] as String : null);
+    if (b == null || parseEgpToMinor(_cash.text) == null) {
+      showSnack(context, _t(context, 'اختار الفرع واكتب العهدة اللي في الدرج الأول (ممكن صفر)', 'Pick the branch and type the opening cash first (0 is fine)'), error: true);
+      return false;
+    }
+    return true;
+  }
+
+  /// Opening by face: the server checks the face belongs to the signed-in member (a small head movement, like closing).
+  Future<void> _openWithFace(List<Map<String, dynamic>> branches) async {
+    if (!_inputsOk(branches)) return;
+    final r = await showFaceScan(context, FaceMode.verify);
+    if (!mounted) return;
+    if (r is Map && r['ok'] == true) {
+      await _open(branches, verified: true);
+    } else {
+      showSnack(context, _t(context, 'الوش ماتأكدش. افتح بالباسورد.', 'The face was not confirmed. Use the password.'), error: true);
+    }
+  }
+
+  /// Opening by fingerprint on Windows (Windows Hello): only for a member who turned on fingerprint sign-in for this computer.
+  Future<void> _openWithHello(List<Map<String, dynamic>> branches) async {
+    if (!_inputsOk(branches)) return;
+    final a = await QuickLogin.account(_uid);
+    if (!mounted) return;
+    if (a == null || !a.hello) {
+      showSnack(context, _t(context, 'فعّل «الدخول بالبصمة» من «ملفي» الأول', 'Turn on fingerprint sign-in in My profile first'), error: true);
+      return;
+    }
+    final err = await QuickLogin.helloPrompt(_t(context, 'تأكيد فتح الوردية', 'Confirm opening the shift'));
+    if (!mounted) return;
+    if (err != null) {
+      showSnack(
+          context,
+          err == 'NO_HELLO'
+              ? _t(context, 'البصمة مش متظبطة في الويندوز (Windows Hello)', 'Windows Hello is not set up')
+              : _t(context, 'البصمة ماتأكدتش، جرّب تاني أو افتح بالباسورد', 'Fingerprint not confirmed, try again or use the password'),
+          error: true);
+      return;
+    }
+    await _open(branches, verified: true);
+  }
+
+  Future<void> _open(List<Map<String, dynamic>> branches, {bool verified = false}) async {
     final b = _branch ?? (branches.length == 1 ? branches.first['id'] as String : null);
     final minor = parseEgpToMinor(_cash.text);
     if (b == null || minor == null) {
       showSnack(context, _t(context, 'اختار الفرع واكتب العهدة (ممكن صفر)', 'Pick the branch and type the opening cash (0 is fine)'), error: true);
       return;
     }
-    if (_login.text.trim().isEmpty || _pass.text.isEmpty) {
+    if (!verified && (_login.text.trim().isEmpty || _pass.text.isEmpty)) {
       showSnack(context, _t(context, 'اكتب اسم المستخدم والباسورد علشان تفتح الوردية', 'Type your username and password to open the shift'), error: true);
       return;
     }
     setState(() => _busy = true);
     try {
       final repo = ref.read(posRepoProvider);
-      if (!await repo.verifyLogin(_login.text, _pass.text)) {
+      if (!verified && !await repo.verifyLogin(_login.text, _pass.text)) {
         if (mounted) showSnack(context, _t(context, 'اسم المستخدم أو الباسورد غلط، أو مش بتاعك', 'Wrong username or password, or not yours'), error: true);
         return;
       }
-      try {
+      if (!verified) try {
         final p = await SharedPreferences.getInstance();
         if (_remember && _mayRemember) {
           await p.setString(_kLogin, _login.text.trim());
@@ -169,7 +220,7 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
         }
       } catch (_) {}
       // the cashier may keep the fingerprint for the next shift (the password stays in the device's encrypted storage)
-      if (_bioAvail && !_bioOn && mounted) {
+      if (!verified && _bioAvail && !_bioOn && mounted) {
         final yes = await showSmoothDialog<bool>(
           context: context,
           builder: (d) => AlertDialog(
@@ -188,7 +239,7 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
       final pw = _pass.text;
       _pass.clear();
       await repo.openShift(b, minor);
-      if (pw.isNotEmpty && mounted) {
+      if ((verified || pw.isNotEmpty) && mounted) {
         final guard = (await ref.read(assistantFlagsProvider.future))['robot_open'] == true;
         if (guard && mounted) {
           final bn = branches.where((x) => x['id'] == b).map((x) => '${x['name_ar']}').firstOrNull ?? '';
@@ -290,6 +341,33 @@ class _OpenShiftCardState extends ConsumerState<_OpenShiftCard> {
                       ),
                     ),
                   FilledButton(onPressed: _busy ? null : () => _open(list), child: Text(_busy ? '…' : _t(context, 'فتح الوردية', 'Open shift'))),
+                  if (_faceOk || QuickLogin.supported) ...[
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      if (_faceOk)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                            onPressed: _busy ? null : () => _openWithFace(list),
+                            icon: const Icon(Icons.face_retouching_natural_rounded),
+                            label: Text(_t(context, 'افتح بوشّك', 'Open by face')),
+                          ),
+                        ),
+                      if (_faceOk && QuickLogin.supported) const SizedBox(width: 10),
+                      if (QuickLogin.supported)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                            onPressed: _busy ? null : () => _openWithHello(list),
+                            icon: const Icon(Icons.fingerprint_rounded),
+                            label: Text(_t(context, 'افتح ببصمتك', 'Open by fingerprint')),
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(height: 6),
+                    Text(_t(context, 'بالوش أو البصمة مش محتاج تكتب اسم المستخدم والباسورد، بس العهدة لازم تتكتب.', 'With face or fingerprint no username or password is needed, but the opening cash must be typed.'),
+                        textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+                  ],
                 ],
               ]);
               },
