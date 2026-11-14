@@ -145,6 +145,8 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
       if (mounted) setState(() {});
     });
     if (QuickLogin.supported) {
+      appUpdateDeviceKey = QuickLogin.anyKey;
+      Future.microtask(() => ref.read(appUpdateProvider.notifier).check()); // the corner button turns orange when a new version waits
       faceWarmUp(); // the engine is ready before the button is pressed
       QuickLogin.warmServer();
       QuickLogin.accounts().then((l) {
@@ -313,7 +315,8 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
         );
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FC),
-      body: Row(children: [
+      body: Stack(children: [
+        Row(children: [
         Expanded(
           child: Center(
             child: SingleChildScrollView(
@@ -412,6 +415,9 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
                 ),
         ),
       ]),
+        // top corner of the form side, just under the window buttons: update before starting work
+        const PositionedDirectional(top: 52, start: 20, child: LoginUpdateButton()),
+      ]),
     );
   }
 
@@ -428,6 +434,7 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
           foregroundColor: Colors.white,
           automaticallyImplyLeading: false,
           leading: AppConfig.teamOnly ? null : CloseButton(onPressed: () => context.canPop() ? context.pop() : context.go('/')),
+          actions: [if (AppConfig.teamOnly) const Padding(padding: EdgeInsetsDirectional.only(end: 12), child: LoginUpdateButton(onDark: true))],
         ),
         body: SafeArea(
           child: ListView(padding: const EdgeInsets.fromLTRB(28, 8, 28, 28), children: [

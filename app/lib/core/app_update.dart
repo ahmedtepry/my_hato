@@ -34,6 +34,10 @@ const bool kStoreBuild = bool.fromEnvironment('STORE_BUILD');
 bool get appUpdateSupported => !kStoreBuild && kBuildNumber > 0 && (_isAndroidApp || (AppConfig.teamOnly && Platform.isWindows));
 const _updateChannel = MethodChannel('myhato/update');
 
+/// Windows team app before sign-in: a device key of a member who already signed in on this computer (set by the
+/// team login screen). With it the server tells this computer about new builds; without it, nothing before sign-in.
+Future<String?> Function()? appUpdateDeviceKey;
+
 class AppUpdateState {
   const AppUpdateState({this.available, this.checking = false, this.error});
   final AppUpdateInfo? available;
@@ -60,11 +64,20 @@ class AppUpdateController extends Notifier<AppUpdateState> {
     try {
       final db = ref.read(supabaseProvider);
       // the customer app asks before anyone signs in (public info); the Windows team app needs a signed-in member
+      String? deviceKey;
       if (!_isAndroidApp && db.auth.currentUser == null) {
-        state = const AppUpdateState();
-        return;
+        deviceKey = await appUpdateDeviceKey?.call();
+        if (deviceKey == null) {
+          state = const AppUpdateState();
+          return;
+        }
       }
-      final rows = (_isAndroidApp ? await db.rpc('latest_android_update') : await db.rpc('latest_app_update', params: {'p_platform': 'windows'})) as List? ?? const [];
+      final rows = (_isAndroidApp
+              ? await db.rpc('latest_android_update')
+              : deviceKey != null
+                  ? await db.rpc('latest_windows_update_for_device', params: {'p_key': deviceKey})
+                  : await db.rpc('latest_app_update', params: {'p_platform': 'windows'})) as List? ??
+          const [];
       AppUpdateInfo? info;
       if (rows.isNotEmpty) {
         final r = Map<String, dynamic>.from(rows.first as Map);
@@ -465,6 +478,70 @@ class AppUpdateTile extends ConsumerWidget {
           await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _UpdateDialog(info: i));
         }
       },
+    );
+  }
+}
+
+
+/// The update button in a corner of the team sign-in screen: one tap checks for a new version and installs it, so
+/// staff can update before they start work. Orange with a dot when a new version is waiting.
+class LoginUpdateButton extends ConsumerWidget {
+  const LoginUpdateButton({super.key, this.onDark = false});
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!appUpdateSupported) return const SizedBox.shrink();
+    final st = ref.watch(appUpdateProvider);
+    final info = st.available;
+    final ar = context.isAr;
+    final fg = info != null ? Colors.white : (onDark ? Colors.white : const Color(0xFF1F5FD6));
+    return Tooltip(
+      message: ar ? 'نسختك $kBuildNumber · دوس علشان تشوف لو فيه تحديث' : 'Build $kBuildNumber · tap to check for an update',
+      child: Material(
+        color: info != null ? BrandColors.warning : (onDark ? Colors.white.withValues(alpha: 0.10) : Colors.white),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: info != null ? BrandColors.warning : (onDark ? Colors.white24 : const Color(0xFFC9D4E8)), width: 1.4),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: st.checking
+              ? null
+              : () async {
+                  await ref.read(appUpdateProvider.notifier).check();
+                  if (!context.mounted) return;
+                  final i = ref.read(appUpdateProvider).available;
+                  final err = ref.read(appUpdateProvider).error;
+                  if (i != null) {
+                    await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _UpdateDialog(info: i));
+                  } else if (appUpdateDeviceKey != null && await appUpdateDeviceKey!() == null) {
+                    if (context.mounted) {
+                      showSnack(context, ar ? 'الجهاز ده بيشوف التحديثات بعد أول دخول لموظف عليه' : 'This computer sees updates after a team member signs in once');
+                    }
+                  } else if (err != null) {
+                    showSnack(context, ar ? 'مفيش نت أو السيرفر مش بيرد، جرّب تاني' : 'No connection, try again', error: true);
+                  } else {
+                    showSnack(context, ar ? 'إنت على أحدث نسخة ($kBuildNumber) ✅' : 'You have the latest version ($kBuildNumber) ✅');
+                  }
+                },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              st.checking
+                  ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2, color: fg))
+                  : Icon(info != null ? Icons.system_update_alt_rounded : Icons.sync_rounded, size: 22, color: fg),
+              const SizedBox(width: 8),
+              Text(info != null ? (ar ? 'حدّث دلوقتي' : 'Update now') : (ar ? 'تحديث' : 'Update'),
+                  style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 14.5)),
+              if (info == null) ...[
+                const SizedBox(width: 6),
+                Text('$kBuildNumber', style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 12)),
+              ],
+            ]),
+          ),
+        ),
+      ),
     );
   }
 }

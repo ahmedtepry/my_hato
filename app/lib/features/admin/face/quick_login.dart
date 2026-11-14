@@ -50,6 +50,12 @@ class QuickLogin {
     }
   }
 
+  /// Any device key on this computer (for the update check before sign-in), or null.
+  static Future<String?> anyKey() async {
+    final l = await accounts();
+    return l.isEmpty ? null : l.first.key;
+  }
+
   static Future<QuickAccount?> account(String uid) async => (await accounts()).where((a) => a.uid == uid).firstOrNull;
 
   static Future<void> _put(QuickAccount a) async {
