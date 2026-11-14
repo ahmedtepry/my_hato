@@ -106,6 +106,7 @@ class AdminGateScreen extends ConsumerWidget {
     final staff = ref.watch(isStaffProvider);
     if (user != null && staff.valueOrNull == true) {
       QuickLogin.ensureForCurrent(ref.read(supabaseProvider)); // remembers this computer for face / fingerprint sign-in
+      if (QuickLogin.supported) Future<void>.delayed(const Duration(seconds: 4), faceWarmUp); // seller switch / closing the shift open instantly
       return const AdminHomeScreen();
     }
     if (user != null && staff.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -144,6 +145,8 @@ class _AdminLoginState extends ConsumerState<_AdminLogin> {
       if (mounted) setState(() {});
     });
     if (QuickLogin.supported) {
+      faceWarmUp(); // the engine is ready before the button is pressed
+      QuickLogin.warmServer();
       QuickLogin.accounts().then((l) {
         if (mounted) setState(() => _quick = l);
       });

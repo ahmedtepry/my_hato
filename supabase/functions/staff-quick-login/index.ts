@@ -18,6 +18,7 @@ Deno.serve(async (req) => {
   // deno-lint-ignore no-explicit-any
   let body: any;
   try { body = await req.json(); } catch { return json(req, 400, { error: "invalid_json" }); }
+  if (body.ping === true) return json(req, 200, { ok: true, warm: true });
   const keys = Array.isArray(body.keys) ? body.keys.filter((k: unknown) => typeof k === "string" && k.length >= 32 && k.length <= 200).slice(0, 20) : [];
   if (keys.length === 0) return json(req, 400, { error: "invalid_input" });
   let print: string | null = null;
@@ -42,5 +43,10 @@ Deno.serve(async (req) => {
     console.error("generateLink", link.error?.message);
     return json(req, 500, { ok: false, error: "server" });
   }
-  return json(req, 200, { ok: true, token_hash: tokenHash, name: r.name });
+  // app 158+ (v: 2): open the session here, next to the auth server, so the app does not need another round trip
+  if (body.v !== 2) return json(req, 200, { ok: true, token_hash: tokenHash, name: r.name });
+  const anon = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
+  const v = await anon.auth.verifyOtp({ type: "magiclink", token_hash: tokenHash });
+  if (v.error || !v.data?.session) return json(req, 200, { ok: true, token_hash: tokenHash, name: r.name });
+  return json(req, 200, { ok: true, session: v.data.session, name: r.name });
 });
