@@ -35,6 +35,9 @@ echo "MainActivity patched (package $PKG)"
 G=android/app/build.gradle; [ -f "$G.kts" ] && G="$G.kts"
 sed -i -E 's/applicationId ?=? ?"[^"]+"/applicationId = "com.myhato.app"/' "$G"
 sed -i -E 's/minSdk ?=? ?flutter\.minSdkVersion/minSdk = 26/' "$G"
+# Google Play: new apps and updates must target Android 16 (API 36) since 31 Aug 2026
+sed -i -E 's/targetSdk ?=? ?flutter\.targetSdkVersion/targetSdk = 36/' "$G"
+sed -i -E 's/compileSdk ?=? ?flutter\.compileSdkVersion/compileSdk = 36/' "$G"
 
 step "release signing"
 KS="$PWD/android/app/myhato-release.jks"
@@ -54,7 +57,7 @@ python3 tool/patch_signing.py || exit 1
 python3 tool/patch_desugar.py || exit 1
 python3 tool/patch_compilesdk.py || exit 1
 printf '\ndependencies {\n    implementation("androidx.core:core-ktx:1.13.1")\n}\n' >> "$G"   # FileProvider for the in-app update
-grep -nE "applicationId|minSdk|signingConfig" "$G"
+grep -nE "applicationId|minSdk|targetSdk|compileSdk|signingConfig" "$G"
 
 step "bundle fonts"
 mkdir -p assets/google_fonts

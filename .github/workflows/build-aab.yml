@@ -3,6 +3,8 @@
 name: Build Play AAB
 on:
   workflow_dispatch:
+  push:
+    branches: [aab-build]   # the default branch does not carry this workflow: push to aab-build to run it
 permissions:
   contents: read
 concurrency:
