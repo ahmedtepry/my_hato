@@ -85,7 +85,10 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
   @override
   void dispose() {
     _closed = true;
-    _cam?.dispose();
+    final c = _cam;
+    _cam = null;
+    // turn the camera (and its light) off now, plus anything a half-finished start left behind
+    (c?.dispose() ?? Future<void>.value()).whenComplete(_WinCam.closeAll);
     super.dispose();
   }
 
@@ -938,16 +941,27 @@ class _WinCam {
   bool busy = false;
   bool _gone = false;
 
+  /// Every camera this app opened and has not released yet. The camera light must go off the moment a face screen
+  /// closes, so anything left over (an open that failed half-way, a release that failed) is released here too.
+  static final Set<int> _live = {};
+
   static Future<_WinCam> open() async {
+    await closeAll(); // never two cameras at once, and nothing left from a previous scan
     final p = CameraPlatform.instance;
     final cams = await p.availableCameras();
     if (cams.isEmpty) throw Exception('no camera');
     final cam = cams.firstWhere((c) => c.lensDirection == CameraLensDirection.front, orElse: () => cams.first);
     final id = await p.createCamera(cam, ResolutionPreset.medium);
-    final ready = p.onCameraInitialized(id).first;
-    await p.initializeCamera(id);
-    final e = await ready.timeout(const Duration(seconds: 10));
-    return _WinCam._(id, e.previewWidth, e.previewHeight);
+    _live.add(id);
+    try {
+      final ready = p.onCameraInitialized(id).first;
+      await p.initializeCamera(id);
+      final e = await ready.timeout(const Duration(seconds: 10));
+      return _WinCam._(id, e.previewWidth, e.previewHeight);
+    } catch (_) {
+      await _release(id); // half-open camera: turn it off before giving up
+      rethrow;
+    }
   }
 
   Widget preview() => CameraPlatform.instance.buildPreview(id);
@@ -964,9 +978,31 @@ class _WinCam {
   Future<void> dispose() async {
     if (_gone) return;
     _gone = true;
-    try {
-      await CameraPlatform.instance.dispose(id);
-    } catch (_) {}
+    // a picture being written keeps the device busy: wait for it (at most 2 s) so the release really happens
+    for (var i = 0; busy && i < 20; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    await _release(id);
+  }
+
+  static Future<void> _release(int id) async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await CameraPlatform.instance.dispose(id);
+        _live.remove(id);
+        return;
+      } catch (_) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    }
+    _live.remove(id);
+  }
+
+  /// Releases every camera still open (called when a face screen closes and before a new one opens).
+  static Future<void> closeAll() async {
+    for (final id in _live.toList()) {
+      await _release(id);
+    }
   }
 }
 
