@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../shared/odoo_search.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
+import 'permissions.dart' show showAddBranchDialog, showRenameBranchesDialog;
 import '../../shared/app_sheet.dart';
 
 List<Map<String, dynamic>> _maps(Object? v) => (v as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -149,6 +150,38 @@ class _BalancesTabState extends ConsumerState<_BalancesTab> {
           Padding(padding: const EdgeInsets.all(6), child: ChoiceChip(label: Text(_t(context, 'كل الفروع', 'All')), selected: _branch == null, onSelected: (_) => setState(() { _branch = null; _load(); }))),
           for (final b in branches)
             Padding(padding: const EdgeInsets.all(6), child: ChoiceChip(label: Text(_t(context, '${b['name_ar']}', '${b['name_en']}')), selected: _branch == '${b['id']}', onSelected: (_) => setState(() { _branch = '${b['id']}'; _load(); }))),
+          // right after the warehouse: add a branch, it works like the others at once (sales, stock, transfers, staff)
+          if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('branches.manage') ?? false)
+            Padding(
+              padding: const EdgeInsets.all(6),
+              child: ActionChip(
+                avatar: const Icon(Icons.add_business_rounded, size: 18, color: BrandColors.electric),
+                label: Text(_t(context, 'فرع جديد', 'New branch'), style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.electric)),
+                side: const BorderSide(color: BrandColors.electric, width: 1.4),
+                onPressed: () async {
+                  if (await showAddBranchDialog(context)) {
+                    ref.invalidate(_viewBranchesProvider);
+                    ref.invalidate(_myBranchesProvider);
+                    _load();
+                  }
+                },
+              ),
+            ),
+          if (ref.watch(staffContextProvider).valueOrNull?.permissions.contains('branches.rename') ?? false)
+            Padding(
+              padding: const EdgeInsets.all(6),
+              child: ActionChip(
+                avatar: const Icon(Icons.edit_rounded, size: 17, color: BrandColors.electric),
+                label: Text(_t(context, 'تعديل الأسماء', 'Rename'), style: const TextStyle(fontWeight: FontWeight.w800, color: BrandColors.electric)),
+                side: const BorderSide(color: BrandColors.electric, width: 1.4),
+                onPressed: () async {
+                  await showRenameBranchesDialog(context);
+                  ref.invalidate(_viewBranchesProvider);
+                  ref.invalidate(_myBranchesProvider);
+                  _load();
+                },
+              ),
+            ),
         ]),
       ),
       Expanded(

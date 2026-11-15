@@ -713,6 +713,13 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
 }
 
 
+/// Opens "Rename branches" from anywhere (the stock page uses it next to the warehouse).
+Future<void> showRenameBranchesDialog(BuildContext context) => showSmoothDialog<void>(context: context, builder: (_) => const _RenameBranchesDialog());
+
+/// Opens "Add a branch" from anywhere (the stock page uses it next to the warehouse). True when a branch was added.
+Future<bool> showAddBranchDialog(BuildContext context) async =>
+    await showSmoothDialog<bool>(context: context, builder: (_) => const _AddBranchDialog()) == true;
+
 /// Adds a branch (needs "branches.manage"). It works like every other branch right away: sales, stock, transfers, reports; the staff who
 /// work in all the other branches get it too, anyone limited to some branches is left as he is (the owner can add it to him).
 class _AddBranchDialog extends ConsumerStatefulWidget {
