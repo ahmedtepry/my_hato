@@ -77,16 +77,33 @@ final _listProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) asy
       _ => (_t(c, 'مفيش كاش', 'No cash'), BrandColors.gray, Icons.remove_circle_outline_rounded),
     };
 
-Widget _pill(BuildContext c, String? s) {
+/// The day's status. With [onTap] (accountant / owner, day waiting for collection) it is a button: tap it to mark
+/// the day collected.
+Widget _pill(BuildContext c, String? s, {VoidCallback? onTap}) {
   final (label, color, icon) = _status(c, s);
-  return Container(
+  final body = Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withValues(alpha: 0.5))),
+    decoration: BoxDecoration(
+        color: color.withValues(alpha: onTap != null ? 0.22 : 0.14),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: onTap != null ? 0.9 : 0.5), width: onTap != null ? 1.6 : 1)),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 15, color: color),
       const SizedBox(width: 5),
       Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12.5)),
+      if (onTap != null) ...[
+        const SizedBox(width: 6),
+        Icon(Icons.touch_app_rounded, size: 15, color: color),
+      ],
     ]),
+  );
+  if (onTap == null) return body;
+  return Tooltip(
+    message: _t(c, 'اضغط علشان تسجّل إنه اتحصّل', 'Tap to mark it collected'),
+    child: MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Material(type: MaterialType.transparency, child: InkWell(borderRadius: BorderRadius.circular(20), onTap: onTap, child: body)),
+    ),
   );
 }
 
@@ -280,7 +297,7 @@ class _DayLine extends ConsumerWidget {
                     decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(8), border: Border.all(color: panelLine(context))),
                     child: Text('${r['branch_name'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                   ),
-                  _pill(context, status),
+                  _pill(context, status, onTap: canCollect && (status == 'due' || status == 'partial') ? () => collectDay(context, ref, r) : null),
                   Text('${_i(r['shifts'])} ${_t(context, 'وردية', 'shifts')} · ${_i(r['sales_count'])} ${_t(context, 'فاتورة', 'invoices')}',
                       style: TextStyle(fontSize: 12.5, color: ink.withValues(alpha: 0.6))),
                 ]),
@@ -488,7 +505,12 @@ class _DayDialogState extends ConsumerState<_DayDialog> {
                   Expanded(
                     child: Wrap(spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                       Text('${s['branch_name']} · ${_dayLabel(context, widget.day)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-                      _pill(context, status),
+                      _pill(context, status,
+                          onTap: canCollect && (status == 'due' || status == 'partial') && !_busy
+                              ? () async {
+                                  if (await collectDay(context, ref, s)) _reload();
+                                }
+                              : null),
                     ]),
                   ),
                   IconButton(tooltip: _t(context, 'إغلاق', 'Close'), onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
