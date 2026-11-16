@@ -12,7 +12,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config.dart';
-import 'face_core.dart' show faceModelId;
+import 'face_model_id.dart';
 
 class QuickAccount {
   QuickAccount(this.uid, this.name, this.key, this.hello);

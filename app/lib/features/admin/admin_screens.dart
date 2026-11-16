@@ -4,6 +4,7 @@ import 'permissions.dart' show PermissionsScreen;
 import 'face/face_ui.dart';
 import 'face/quick_login.dart';
 import 'my_sales_panel.dart';
+import 'web_gate.dart';
 import '../../core/app_update.dart';
 import '../../core/appearance.dart';
 import 'dart:async';
@@ -11,6 +12,7 @@ import 'dart:typed_data';
 import '../../shared/glass.dart';
 import '../../shared/motion.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,6 +110,8 @@ class AdminGateScreen extends ConsumerWidget {
     if (user != null && staff.valueOrNull == true) {
       QuickLogin.ensureForCurrent(ref.read(supabaseProvider)); // remembers this computer for face / fingerprint sign-in
       if (QuickLogin.supported) Future<void>.delayed(const Duration(seconds: 4), faceWarmUp); // seller switch / closing the shift open instantly
+      // in a web browser: the owner only, with the 6-digit second step
+      if (kIsWeb && AppConfig.teamOnly) return const WebOwnerGate(child: AdminHomeScreen());
       return const AdminHomeScreen();
     }
     if (user != null && staff.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));

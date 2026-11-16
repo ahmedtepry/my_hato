@@ -1,0 +1,43 @@
+# The team console for the web browser (owner only, two-step sign-in) -> GitHub Pages at /my_hato/team/
+# Runs on push to branch web-build (the default branch does not carry this workflow).
+name: build-web
+on:
+  workflow_dispatch:
+  push:
+    branches: [web-build]
+permissions:
+  contents: write
+concurrency: { group: build-web, cancel-in-progress: true }
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - name: Build
+        working-directory: app
+        run: |
+          flutter create --platforms=web --org com.myhato --project-name myhato .
+          flutter pub get
+          flutter build web --release --base-href /my_hato/team/ --no-web-resources-cdn \
+            --dart-define=TEAM_ONLY=true \
+            --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
+            --dart-define=APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" \
+            --dart-define=BUILD_NUMBER=${{ github.run_number }} \
+            --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
+          # never let search engines list the console
+          printf 'User-agent: *\nDisallow: /\n' > build/web/robots.txt
+          sed -i 's#<head>#<head><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">#' build/web/index.html
+          sed -i 's#<title>[^<]*</title>#<title>My Hatō Team</title>#' build/web/index.html
+          ls -la build/web | head
+      - name: Publish to gh-pages/team
+        run: |
+          git config user.name "myhato-bot"; git config user.email "bot@users.noreply.github.com"
+          git fetch origin gh-pages
+          git worktree add ../pages origin/gh-pages
+          rm -rf ../pages/team && mkdir -p ../pages/team && cp -r app/build/web/. ../pages/team/
+          cd ../pages
+          git add -A
+          git commit -m "team web console build ${{ github.run_number }}" || echo "nothing to commit"
+          git push origin HEAD:gh-pages

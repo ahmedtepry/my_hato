@@ -44,6 +44,7 @@ dependencies:
   camera_platform_interface: ^2.7.0
   camera_windows: ^0.2.6
   permission_handler: ^11.3.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

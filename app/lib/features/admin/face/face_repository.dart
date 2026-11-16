@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/supabase_providers.dart';
-import 'face_core.dart' show faceModelId;
+import 'face_model_id.dart';
 
 class FaceRepository {
   FaceRepository(this._db);

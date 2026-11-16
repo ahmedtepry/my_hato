@@ -9,7 +9,7 @@ import 'package:image/image.dart' as img;
 import 'ort_ffi.dart';
 
 /// The model name stored with each print. A new model must get a new name (prints of different models never match).
-const faceModelId = 'sface-2021dec';
+export 'face_model_id.dart';
 
 class FaceBox {
   FaceBox(this.score, this.x, this.y, this.w, this.h, this.kps);
