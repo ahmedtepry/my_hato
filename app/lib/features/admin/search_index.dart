@@ -41,6 +41,7 @@ const sectionKeywords = <String, List<String>>{
   'ops': ['عمليات', 'مباشر', 'لايف', 'live', 'ops', 'اونلاين دلوقتي', 'مين فاتح'],
   'kpi': ['عموله', 'عمولات', 'kpi', 'commission', 'اداء', 'performance', 'بقشيش', 'tips'],
   'targets': ['تارجت', 'هدف', 'target', 'مكافاه', 'bonus', 'تحدي'],
+  'mysales': ['مبيعاتي', 'مبيعات', 'بعت كام', 'اللي بعته', 'اكسسوارات', 'براند', 'صيانه', 'كود الموظف', 'كود', 'my sales', 'sales', 'cons', 'brand', 'accessories'],
   'mytarget': ['تارجتي', 'عمولتي', 'my target'],
   'sales': ['مبيعات', 'تقرير', 'تقارير', 'اكسيل', 'excel', 'sales', 'report'],
   'wallets': ['محفظه', 'محافظ', 'فودافون كاش', 'اتصالات كاش', 'انستا باي', 'instapay', 'vodafone cash', 'wallet'],

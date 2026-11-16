@@ -3,6 +3,7 @@ import 'daybook_panel.dart';
 import 'permissions.dart' show PermissionsScreen;
 import 'face/face_ui.dart';
 import 'face/quick_login.dart';
+import 'my_sales_panel.dart';
 import '../../core/app_update.dart';
 import '../../core/appearance.dart';
 import 'dart:async';
@@ -545,6 +546,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'ops': _SectionInfo(Icons.monitor_heart_rounded, Color(0xFFE5484D), 'غرفة العمليات المباشرة', 'Live operations room', 'مبيعات كل فرع لحظيًا، الورديات المفتوحة ومين فاتحها، ومين أونلاين، وكل اللي بيحصل', 'Live sales per branch, open shifts and who opened them, who is online, and everything happening'),
   'kpi': _SectionInfo(Icons.leaderboard_rounded, Color(0xFF7A5AF8), 'عمولات و KPI الموظفين', 'Commissions & KPIs', 'سجل عمولات كل موظف ومبيعاته وفواتيره ومتوسط الفاتورة والمرتجعات والبقشيش لأي فترة', 'Every employee\'s commission log, sales, invoices, average ticket, refunds and tips for any period'),
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
+  'mysales': _SectionInfo(Icons.point_of_sale_rounded, Color(0xFF2E7CF6), 'مبيعاتي', 'My sales', 'اللي بعته باسمك: اليوم أو الشهر أو السنة، إكسسوارات وبراند وصيانة', 'What you sold: day, month or year, accessories, brand and repairs'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
   'wallets': _SectionInfo(Icons.account_balance_wallet_outlined, Color(0xFFE60000), 'محافظ الدفع', 'Wallet payments', 'أرقام فودافون كاش واتصالات كاش وإنستا باي اللي العميل يحوّل عليها', 'The Vodafone Cash, Etisalat Cash and InstaPay numbers customers transfer to'),
@@ -709,7 +711,7 @@ const _sidebarGroups = <(String, String, List<String>)>[
   ('المنتجات والمخزن', 'Products & stock', ['products', 'stock', 'purchases']),
   ('الفلوس والتقارير', 'Money & reports', ['daybook', 'sales', 'books', 'wallets', 'wallet_inbox', 'ops']),
   ('الحسابات', 'Accounts', ['accounts', 'team', 'blocked']),
-  ('الفريق والأداء', 'Team & performance', ['kpi', 'targets', 'mytarget', 'online', 'assistant']),
+  ('الفريق والأداء', 'Team & performance', ['mysales', 'kpi', 'targets', 'mytarget', 'online', 'assistant']),
   ('التسويق', 'Marketing', ['marketing', 'offers', 'reviews', 'gifts', 'wheel', 'contests', 'features']),
   ('المظهر', 'Appearance', ['appearance', 'occasions', 'storefront', 'app_banners']),
 ];
@@ -993,6 +995,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'targets' => const TargetsPanel(),
                       'kpi' => const KpiPanel(),
                       'mytarget' => const MyTargetPanel(),
+                      'mysales' => const MySalesPanel(),
                       'occasions' => const OccasionsPanel(),
                       'contests' => const ContestsPanel(),
                       'features' => const FeatureSwitchesPanel(),
@@ -3064,6 +3067,8 @@ Future<void> _openSearch(BuildContext context, WidgetRef ref, {List<String> sect
       onOpen?.call('products');
     case 'customer':
       onOpen?.call('accounts');
+    case 'staff':
+      await showMemberSales(context, picked.$2['user_id'] as String);
     case 'action':
       switch (picked.$2['id']) {
         case 'my_profile':
@@ -3175,6 +3180,15 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
     ];
   }
 
+  /// Team members by code ("101") or name, for whoever may see others' sales (owner / manager).
+  List<Map<String, dynamic>> _matchedStaff() {
+    if (_term.isEmpty) return const [];
+    final perms = ref.read(staffContextProvider).valueOrNull?.permissions ?? const <String>{};
+    if (!perms.contains('sales.view')) return const [];
+    final list = ref.watch(staffCodesProvider).valueOrNull ?? const [];
+    return [for (final m in list) if (staffMatches(m, _term)) m].take(8).toList();
+  }
+
   List<SearchAction> _matchedActions() {
     if (_term.length < 2) return const [];
     final owner = ref.read(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false;
@@ -3190,7 +3204,8 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
     final r = _res;
     final secs = _matchedSections();
     final acts = _matchedActions();
-    final empty = r != null && r.orders.isEmpty && r.repairs.isEmpty && _products.isEmpty && _customers.isEmpty && secs.isEmpty && acts.isEmpty;
+    final staff = _matchedStaff();
+    final empty = r != null && r.orders.isEmpty && r.repairs.isEmpty && _products.isEmpty && _customers.isEmpty && secs.isEmpty && acts.isEmpty && staff.isEmpty;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SizedBox(
@@ -3233,6 +3248,24 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
                     : empty
                         ? Center(child: Text(_t(context, 'مفيش نتيجة', 'No results'), style: const TextStyle(color: BrandColors.gray)))
                         : ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
+                            if (staff.isNotEmpty) ...[
+                              _header(_t(context, 'الموظفين', 'Team members'), Icons.badge_outlined, staff.length),
+                              for (final m in staff)
+                                Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: BrandColors.electric.withValues(alpha: 0.14),
+                                      child: Text('${m['code'] ?? '—'}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: BrandColors.electric)),
+                                    ),
+                                    title: Text('${m['name'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    subtitle: Text(_t(context, 'مبيعاته: إكسسوارات وبراند وصيانة، باليوم والشهر والسنة', 'His sales: accessories, brand and repairs, by day, month and year')),
+                                    trailing: const Icon(Icons.chevron_left_rounded),
+                                    onTap: () => Navigator.pop(context, ('staff', Map<String, dynamic>.from(m))),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                            ],
                             if (acts.isNotEmpty) ...[
                               _header(_t(context, 'اعمل على طول', 'Do it now'), Icons.bolt_rounded, acts.length),
                               for (final a in acts)

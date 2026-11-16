@@ -22,6 +22,7 @@ import 'permissions.dart';
 import 'admin_repository.dart' show staffContextProvider;
 import 'face/face_ui.dart';
 import 'loyalty_gifts.dart';
+import 'my_sales_panel.dart' show staffCodesProvider, showMemberSales;
 import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -107,6 +108,12 @@ class TeamRepository {
   Future<void> create({required String login, required String password, required String role, String? fullName, String? phone}) =>
       _fn({'action': 'create', 'login': login, 'password': password, 'role': role, 'full_name': fullName, 'phone': phone});
 
+  // 3-digit staff codes (owners 001+, everyone else 101+); only the owner changes them
+  Future<String?> codeNext() async => await _db.rpc('staff_code_next') as String?;
+  Future<bool> codeFree(String code) async => await _db.rpc('staff_code_free', params: {'p_code': code}) == true;
+  Future<void> setCode(String userId, String code) => _db.rpc('staff_code_set', params: {'p_user': userId, 'p_code': code});
+  Future<void> setCodeByLogin(String login, String code) => _db.rpc('staff_code_set_login', params: {'p_login': login, 'p_code': code});
+
   Future<void> resetPassword(String userId, String password) => _fn({'action': 'reset_password', 'user_id': userId, 'password': password});
 
   Future<void> setPin(String userId, String pin) async {
@@ -117,6 +124,66 @@ class TeamRepository {
 }
 
 final teamRepoProvider = Provider((ref) => TeamRepository(ref.watch(supabaseProvider)));
+
+String? _codeOf(WidgetRef ref, String? userId) {
+  for (final m in ref.watch(staffCodesProvider).valueOrNull ?? const <Map<String, dynamic>>[]) {
+    if (m['user_id'] == userId) return m['code'] as String?;
+  }
+  return null;
+}
+
+/// Owner: a new 3-digit code for a member (checked against the whole team).
+Future<String?> _askCode(BuildContext context, String? current) => showSmoothDialog<String>(context: context, builder: (_) => _CodeDialog(current: current));
+
+class _CodeDialog extends ConsumerStatefulWidget {
+  const _CodeDialog({this.current});
+  final String? current;
+  @override
+  ConsumerState<_CodeDialog> createState() => _CodeDialogState();
+}
+
+class _CodeDialogState extends ConsumerState<_CodeDialog> {
+  late final _c = TextEditingController(text: widget.current ?? '');
+  String? _err;
+  bool _busy = false;
+
+  Future<void> _ok() async {
+    final v = _c.text.trim().padLeft(3, '0');
+    if (!RegExp(r'^\d{3}$').hasMatch(v) || v == '000') return setState(() => _err = _t(context, 'الكود ٣ أرقام (زي 105)', 'The code is 3 digits (like 105)'));
+    if (v == widget.current) return Navigator.pop(context);
+    setState(() => _busy = true);
+    final free = await ref.read(teamRepoProvider).codeFree(v).catchError((_) => false);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (!free) return setState(() => _err = _t(context, 'الكود $v مستخدم لموظف تاني', 'Code $v belongs to another member'));
+    Navigator.pop(context, v);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(_t(context, 'كود الموظف', 'Staff code')),
+        content: TextField(
+          controller: _c,
+          autofocus: true,
+          maxLength: 3,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 3),
+          decoration: InputDecoration(prefixText: '#', errorText: _err, helperText: _t(context, 'المالك من 001، والموظفين من 101', 'Owners from 001, staff from 101')),
+          onSubmitted: (_) => _ok(),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(_t(context, 'إلغاء', 'Cancel'))),
+          FilledButton(onPressed: _busy ? null : _ok, child: Text(_t(context, 'حفظ', 'Save'))),
+        ],
+      );
+}
 final _teamProvider = FutureProvider.autoDispose((ref) => ref.watch(teamRepoProvider).team());
 
 String _teamError(BuildContext context, Object e) {
@@ -443,6 +510,7 @@ class _MemberCard extends ConsumerWidget {
     final lastIn = m['last_sign_in_at'] == null ? null : DateTime.parse(m['last_sign_in_at'] as String).toLocal();
     final today = (m['actions_today'] as num?)?.toInt() ?? 0;
     final area = areaLabel(context, m['area'] as String?);
+    final code = _codeOf(ref, m['user_id'] as String?);
 
     final statusLine = switch (presence) {
       'online' => me ? _t(context, 'إنت • أونلاين دلوقتي', 'You • online now') : '${_t(context, 'أونلاين دلوقتي', 'Online now')}${area.isEmpty ? '' : ' • $area'}',
@@ -478,8 +546,20 @@ class _MemberCard extends ConsumerWidget {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(name.isEmpty ? (login ?? '—') : name,
-                        maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5)),
+                    Row(children: [
+                      if (code != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                          decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(8)),
+                          child: Text('#$code', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: BrandColors.electric)),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Flexible(
+                        child: Text(name.isEmpty ? (login ?? '—') : name,
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5)),
+                      ),
+                    ]),
                     const SizedBox(height: 2),
                     Text(statusLine, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: pColor, fontWeight: FontWeight.w700)),
                   ]),
@@ -768,7 +848,52 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
             ),
           ]),
         ]),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
+        Builder(builder: (context) {
+          final code = _codeOf(ref, _id);
+          final owner = ref.watch(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false;
+          final canSales = ref.watch(staffContextProvider).valueOrNull?.permissions.contains('sales.view') ?? false;
+          return Row(children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(color: BrandColors.electric.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(14)),
+                child: Row(children: [
+                  const Icon(Icons.tag_rounded, color: BrandColors.electric),
+                  const SizedBox(width: 8),
+                  Text(_t(context, 'كود الموظف', 'Staff code'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  Text(code == null ? '—' : '#$code', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: BrandColors.electric, letterSpacing: 1.5)),
+                  if (owner)
+                    IconButton(
+                      tooltip: _t(context, 'غيّر الكود', 'Change the code'),
+                      icon: const Icon(Icons.edit_rounded, size: 20),
+                      onPressed: _busy
+                          ? null
+                          : () async {
+                              final v = await _askCode(context, code);
+                              if (v == null || !mounted) return;
+                              await _run(() async {
+                                await ref.read(teamRepoProvider).setCode(_id, v);
+                                ref.invalidate(staffCodesProvider);
+                              }, _t(context, 'الكود بقى #$v ✅', 'Code is now #$v ✅'));
+                            },
+                    ),
+                ]),
+              ),
+            ),
+            if (canSales) ...[
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+                icon: const Icon(Icons.point_of_sale_rounded, size: 18),
+                label: Text(_t(context, 'مبيعاته', 'His sales')),
+                onPressed: () => showMemberSales(context, _id),
+              ),
+            ],
+          ]);
+        }),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(color: panelColor(context), borderRadius: BorderRadius.circular(16)),
@@ -1078,6 +1203,10 @@ class _AddMemberSheetState extends ConsumerState<_AddMemberSheet> {
   final _phone = TextEditingController();
   final _password = TextEditingController();
   final _search = TextEditingController();
+  final _code = TextEditingController();
+  bool? _codeFree;
+  Timer? _codeDebounce;
+  bool get _owner => ref.read(staffContextProvider).valueOrNull?.roles.contains('owner') ?? false;
   bool _showPw = true;
   bool? _available;
   Timer? _debounce;
@@ -1087,8 +1216,36 @@ class _AddMemberSheetState extends ConsumerState<_AddMemberSheet> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    // the next free code (101, 102, …) is offered; the owner may type another one
+    ref.read(teamRepoProvider).codeNext().then((c) {
+      if (mounted && c != null && _code.text.isEmpty) {
+        setState(() {
+          _code.text = c;
+          _codeFree = true;
+        });
+      }
+    }, onError: (_) {});
+  }
+
+  void _checkCode(String v) {
+    _codeDebounce?.cancel();
+    setState(() => _codeFree = null);
+    if (v.trim().isEmpty) return;
+    _codeDebounce = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final ok = await ref.read(teamRepoProvider).codeFree(v.trim());
+        if (mounted && _code.text == v) setState(() => _codeFree = ok);
+      } catch (_) {}
+    });
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
+    _codeDebounce?.cancel();
+    _code.dispose();
     for (final c in [_login, _name, _phone, _password, _search]) {
       c.dispose();
     }
@@ -1129,7 +1286,12 @@ class _AddMemberSheetState extends ConsumerState<_AddMemberSheet> {
       _error = null;
     });
     final repo = ref.read(teamRepoProvider);
+    final code = _code.text.trim().isEmpty ? null : _code.text.trim().padLeft(3, '0');
     try {
+      if (_owner && code != null) {
+        if (!RegExp(r'^\d{3}$').hasMatch(code) || code == '000') throw _UserMsg(_t(context, 'كود الموظف ٣ أرقام (زي 105)', 'The staff code is 3 digits (like 105)'));
+        if (!await repo.codeFree(code)) throw _UserMsg(_t(context, 'الكود $code مستخدم لموظف تاني', 'Code $code belongs to another member'));
+      }
       if (_newAccount) {
         final login = _login.text.trim().replaceAll(RegExp(r'\s+'), ' ');
         if (login.length < 2) throw _UserMsg(_t(context, 'اكتب اسم الدخول', 'Enter a login name'));
@@ -1143,10 +1305,22 @@ class _AddMemberSheetState extends ConsumerState<_AddMemberSheet> {
           fullName: _name.text.trim().isEmpty ? null : _name.text.trim(),
           phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
         );
+        if (_owner && code != null) {
+          try {
+            await repo.setCodeByLogin(login, code);
+          } catch (_) {} // the account exists already; the automatic code stays and can be changed from his card
+        }
+        ref.invalidate(staffCodesProvider);
         if (mounted) Navigator.pop(context, (login: login, password: _password.text, role: _role));
       } else {
         if (_picked == null) throw _UserMsg(_t(context, 'اختار الحساب الأول', 'Pick an account first'));
         await repo.assignRole(_picked!['user_id'] as String, _role);
+        if (_owner && code != null) {
+          try {
+            await repo.setCode(_picked!['user_id'] as String, code);
+          } catch (_) {}
+        }
+        ref.invalidate(staffCodesProvider);
         if (mounted) {
           Navigator.pop(context);
           showSnack(context, _t(context, 'اتضاف للفريق ✅ يدخل بحسابه العادي', 'Added ✅ they sign in with their usual account'));
@@ -1229,6 +1403,31 @@ class _AddMemberSheetState extends ConsumerState<_AddMemberSheet> {
           ]),
         ),
         const SizedBox(height: 14),
+        if (_owner) ...[
+          TextField(
+            controller: _code,
+            onChanged: _checkCode,
+            maxLength: 3,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2),
+            decoration: InputDecoration(
+              labelText: _t(context, 'كود الموظف', 'Staff code'),
+              prefixIcon: const Icon(Icons.tag_rounded),
+              prefixText: '#',
+              suffixIcon: _code.text.trim().isEmpty
+                  ? null
+                  : _codeFree == null
+                      ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                      : Icon(_codeFree! ? Icons.check_circle_rounded : Icons.cancel_rounded, color: _codeFree! ? BrandColors.success : BrandColors.error),
+              helperText: _codeFree == false
+                  ? _t(context, 'الكود ده مستخدم لموظف تاني', 'This code belongs to another member')
+                  : _t(context, 'اقترحنا أول كود فاضي، وتقدر تغيّره', 'We suggested the next free code; you can change it'),
+              counterText: '',
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         SegmentedButton<bool>(
           segments: [
             ButtonSegment(value: true, icon: const Icon(Icons.person_add_rounded), label: Text(_t(context, 'اسم وكلمة سر', 'Login + password'))),

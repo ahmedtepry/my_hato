@@ -537,6 +537,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('ops.live')) 'ops',
     if (p.contains('targets.view') && !p.contains('commission.view')) 'targets', // with the KPI page, targets live inside it
     if (p.contains('commission.view')) 'kpi',
+    if (p.contains('sales.mine') || p.contains('sales.view')) 'mysales',
     if (p.contains('targets.mine')) 'mytarget',
     if (p.contains('appearance.manage')) 'appearance',
     if (p.contains('occasions.manage')) 'occasions',
@@ -565,7 +566,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     case Workspace.full:
       return all.where((k) => k != 'books').toList(); // owner / manager: the full console, unchanged
     case Workspace.cashier:
-      first = const ['pos', 'invoices'];
+      first = const ['pos', 'invoices', 'mysales'];
     case Workspace.accountant:
       first = const ['daybook', 'books', 'invoices', 'kpi', 'sales', 'orders'];
     case Workspace.sales:
