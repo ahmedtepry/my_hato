@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../core/app_update.dart' show kStoreBuild;
+
 import '../core/config.dart';
 import '../core/l10n.dart';
 import '../core/supabase_providers.dart';
@@ -22,7 +24,7 @@ class _Perm {
   final String ar, en, whyAr, whyEn;
 }
 
-const _perms = [
+const _allPerms = [
   _Perm(Permission.notification, Icons.notifications_active_rounded, 'الإشعارات', 'Notifications',
       'نبلّغك أول ما طلبك يتأكد أو يخرج للتوصيل، ولما موبايلك يخلص من الصيانة، وبالعروض والكوبونات.',
       'We tell you when your order is confirmed or out for delivery, when your phone repair is done, and about offers.'),
@@ -36,6 +38,9 @@ const _perms = [
       'لما تنزل نسخة جديدة فيها مميزات، التطبيق يحدّث نفسه بضغطة واحدة.',
       'When a new version is out, the app updates itself with one tap.'),
 ];
+
+/// The Google Play build never installs updates itself (Play does it), so it never asks for that permission.
+final _perms = [for (final p in _allPerms) if (!(kStoreBuild && p.permission == Permission.requestInstallPackages)) p];
 
 /// Put once in the customer home screen: shows the intro the first time only.
 class PermissionsIntroGate extends ConsumerStatefulWidget {
