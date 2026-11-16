@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -12,7 +13,7 @@ const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sh
 /// Gives the person a file: on the Windows team app it is saved in the Downloads folder and opened (the Windows
 /// share sheet is not reliable); on phones it goes through the normal share sheet.
 Future<void> deliverFile(BuildContext context, Uint8List bytes, String name, String mime) async {
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     final home = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
     var dir = home == null ? Directory.systemTemp : Directory('$home${Platform.pathSeparator}Downloads');
     if (!await dir.exists()) dir = Directory.systemTemp;

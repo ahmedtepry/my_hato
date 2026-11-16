@@ -31,7 +31,7 @@ const int kBuildNumber = int.fromEnvironment('BUILD_NUMBER', defaultValue: 0);
 bool get _isAndroidApp => !kIsWeb && Platform.isAndroid && !AppConfig.teamOnly;
 /// Google Play build (STORE_BUILD=true): Play updates the app itself, so the in-app updater is switched off.
 const bool kStoreBuild = bool.fromEnvironment('STORE_BUILD');
-bool get appUpdateSupported => !kStoreBuild && kBuildNumber > 0 && (_isAndroidApp || (AppConfig.teamOnly && Platform.isWindows));
+bool get appUpdateSupported => !kStoreBuild && kBuildNumber > 0 && (_isAndroidApp || (AppConfig.teamOnly && !kIsWeb && Platform.isWindows));
 const _updateChannel = MethodChannel('myhato/update');
 
 /// Windows team app before sign-in: a device key of a member who already signed in on this computer (set by the
