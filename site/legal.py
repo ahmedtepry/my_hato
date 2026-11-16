@@ -80,11 +80,12 @@ def page(title: str, body: str) -> str:
 </html>
 """
 
-privacy = page("سياسة الخصوصية – My Hatō",
-               f"<section>{md(legal['ar'])}</section>\n<section class=\"en\" lang=\"en\" dir=\"ltr\">{md(legal['en'])}</section>")
-
 contact_ar = legal.get("contact_ar", "")
 contact_en = legal.get("contact_en", "")
+support = (f'<section><h2>رقم الدعم</h2><p><a href="https://wa.me/201118819464">{html.escape(contact_ar)}</a></p></section>' if contact_ar else '')
+support_en = (f'<section class="en" lang="en" dir="ltr"><h2>Support</h2><p><a href="https://wa.me/201118819464">{html.escape(contact_en)}</a></p></section>' if contact_en else '')
+privacy = page("سياسة الخصوصية – My Hatō",
+               f"<section>{md(legal['ar'])}</section>\n{support}\n<section class=\"en\" lang=\"en\" dir=\"ltr\">{md(legal['en'])}</section>\n{support_en}")
 delete = page("حذف الحساب – My Hatō", f"""
 <section>
 <h1>حذف حسابك وبياناتك من My Hatō</h1>
