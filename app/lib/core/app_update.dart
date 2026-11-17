@@ -519,6 +519,8 @@ class LoginUpdateButton extends ConsumerWidget {
                     if (context.mounted) {
                       showSnack(context, ar ? 'الجهاز ده بيشوف التحديثات بعد أول دخول لموظف عليه' : 'This computer sees updates after a team member signs in once');
                     }
+                  } else if (!context.mounted) {
+                    return;
                   } else if (err != null) {
                     showSnack(context, ar ? 'مفيش نت أو السيرفر مش بيرد، جرّب تاني' : 'No connection, try again', error: true);
                   } else {

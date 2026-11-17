@@ -105,7 +105,10 @@ class ErrorView extends StatelessWidget {
 }
 
 void showSnack(BuildContext context, String msg, {bool error = false, SnackBarAction? action}) {
-  ScaffoldMessenger.of(context)
+  if (!context.mounted) return; // the screen closed while waiting: nothing to show, and no crash
+  final m = ScaffoldMessenger.maybeOf(context);
+  if (m == null) return;
+  m
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
       content: Text(msg),

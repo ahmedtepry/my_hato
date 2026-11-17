@@ -162,21 +162,6 @@ Widget _panel({required Widget child, EdgeInsets? margin, Color? border}) => Con
       child: child,
     );
 
-class _Bar extends StatelessWidget {
-  const _Bar(this.value, {this.color = BrandColors.electric});
-  final double value;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: value.clamp(0, 1).toDouble()),
-          duration: const Duration(milliseconds: 600),
-          builder: (_, v, __) => LinearProgressIndicator(value: v, minHeight: 9, backgroundColor: Colors.white12, valueColor: AlwaysStoppedAnimation(color)),
-        ),
-      );
-}
-
 class _Header extends StatelessWidget {
   const _Header({required this.d});
   final Map<String, dynamic> d;

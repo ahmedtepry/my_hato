@@ -54,53 +54,6 @@ class BrandMark extends StatelessWidget {
   }
 }
 
-class _MPainter extends CustomPainter {
-  _MPainter({required this.onDark, required this.progress});
-  final bool onDark;
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size s) {
-    final w = s.width, h = s.height;
-    final stroke = w * 0.2;
-    final base = Paint()
-      ..color = onDark ? BrandColors.white : BrandColors.navy
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    // left leg + first diagonal
-    final p1 = Path()
-      ..moveTo(stroke / 2, h - stroke / 2)
-      ..lineTo(stroke / 2, stroke / 2)
-      ..lineTo(w * 0.5, h * 0.62);
-    _drawPartial(canvas, p1, base, (progress * 2).clamp(0.0, 1.0));
-    // electric diagonal + right leg
-    final accent = Paint()
-      ..shader = const LinearGradient(colors: [BrandColors.electric, Color(0xFF1E6BFF)])
-          .createShader(Rect.fromLTWH(0, 0, w, h))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final p2 = Path()
-      ..moveTo(w * 0.5, h * 0.62)
-      ..lineTo(w - stroke / 2, stroke / 2)
-      ..lineTo(w - stroke / 2, h - stroke / 2);
-    _drawPartial(canvas, p2, accent, ((progress - 0.5) * 2).clamp(0.0, 1.0));
-  }
-
-  void _drawPartial(Canvas canvas, Path path, Paint paint, double t) {
-    if (t <= 0) return;
-    for (final m in path.computeMetrics()) {
-      canvas.drawPath(m.extractPath(0, m.length * t), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_MPainter old) => old.progress != progress || old.onDark != onDark;
-}
-
 class BrandWordmark extends StatelessWidget {
   const BrandWordmark({super.key, this.size = 28, this.onDark = false, this.showSlogan = false});
   final double size;

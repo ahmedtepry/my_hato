@@ -143,10 +143,9 @@ class _Log extends ConsumerWidget {
 // ---------------------------------------------------------------- shared pieces
 /// A search box + results; [builder] draws one result row.
 class _ProductSearch extends ConsumerStatefulWidget {
-  const _ProductSearch({super.key, required this.branch, required this.builder, this.onResults});
+  const _ProductSearch({super.key, required this.branch, required this.builder});
   final String? branch;
   final Widget Function(BuildContext, Map<String, dynamic>) builder;
-  final void Function(List<Map<String, dynamic>>)? onResults;
   @override
   ConsumerState<_ProductSearch> createState() => _ProductSearchState();
 }
@@ -179,7 +178,6 @@ class _ProductSearchState extends ConsumerState<_ProductSearch> {
         _rows = r;
         _loading = false;
       });
-      widget.onResults?.call(r);
     } catch (e) {
       if (!mounted || my != _seq) return;
       setState(() => _loading = false);

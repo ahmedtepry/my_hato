@@ -10,7 +10,6 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
-import '../../shared/states.dart';
 import 'admin_repository.dart' show staffContextProvider;
 import 'pos_repository.dart' show posErrorText;
 import 'targets.dart' show TargetsPanel;
@@ -231,7 +230,7 @@ class _EmployeeCard extends ConsumerWidget {
             if (pct != null) ...[
               const SizedBox(height: 10),
               Row(children: [
-                Text(_t(context, 'التارجت ${_money(context, target!)}', 'Target ${_money(context, target!)}'), style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
+                Text(_t(context, 'التارجت ${_money(context, target!)}', 'Target ${_money(context, target)}'), style: const TextStyle(fontSize: 12, color: BrandColors.gray)),
                 const Spacer(),
                 Text('${pct.toStringAsFixed(0)}%', style: TextStyle(fontWeight: FontWeight.w800, color: pct >= 100 ? BrandColors.success : BrandColors.navy)),
               ]),

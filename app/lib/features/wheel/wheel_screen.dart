@@ -10,7 +10,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
-import '../../shared/states.dart';
 import '../admin/feature_switches.dart';
 import '../orders/orders_repository.dart' show pendingCouponProvider;
 

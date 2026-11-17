@@ -13,7 +13,6 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/supabase_providers.dart';
 import '../../core/theme.dart';
-import '../../shared/states.dart';
 import 'pos_repository.dart' show posErrorText;
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;

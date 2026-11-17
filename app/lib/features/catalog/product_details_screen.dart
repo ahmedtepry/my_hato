@@ -220,8 +220,9 @@ class _InfoTile extends StatelessWidget {
 }
 
 class _QtyStepper extends StatelessWidget {
-  const _QtyStepper({required this.value, required this.max, required this.onChanged, this.min = 1});
-  final int value, max, min;
+  const _QtyStepper({required this.value, required this.max, required this.onChanged});
+  final int value, max;
+  static const min = 1;
   final ValueChanged<int> onChanged;
   @override
   Widget build(BuildContext context) => Container(

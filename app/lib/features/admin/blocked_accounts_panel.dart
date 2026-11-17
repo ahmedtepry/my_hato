@@ -8,7 +8,6 @@ import 'package:intl/intl.dart' hide TextDirection;
 import '../../core/errors.dart';
 import '../../core/l10n.dart';
 import '../../core/supabase_providers.dart';
-import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'team.dart' show teamRepoProvider;

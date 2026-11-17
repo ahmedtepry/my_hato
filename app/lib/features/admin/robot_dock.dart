@@ -248,7 +248,6 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
   int _lastDone = -1;
   final Set<String> _nudged = {}; // orders already reminded about, so the robot nags once per order
   int _lastTransfer = -1;
-  bool? _shiftOpen;
 
   @override
   void initState() {
@@ -644,7 +643,6 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
       if (!open) {
         _add(RobotMsg(true, _t(context, 'افتح شيفت الأونلاين', 'Open the online shift')));
         await ref.read(supabaseProvider).rpc('online_shift_open');
-        _shiftOpen = true;
         if (!mounted) return;
         final g = timeOfDayGreeting(context).greet;
         _add(RobotMsg(false, '$g\n${_t(context, 'الشيفت اتفتح. مفيش فلوس في إيدك: اللي بيتحسب ليك الأوردرات اللي بتأكدها وتتسلم. بالتوفيق!', 'The shift is open. No cash for you: what counts is the orders you confirm that get delivered. Good luck!')}'));
@@ -652,7 +650,6 @@ class _RobotChatPanelState extends ConsumerState<RobotChatPanel> {
       } else {
         _add(RobotMsg(true, _t(context, 'اقفل شيفت الأونلاين', 'Close the online shift')));
         final r = Map<String, dynamic>.from(await ref.read(supabaseProvider).rpc('online_shift_close') as Map);
-        _shiftOpen = false;
         if (!mounted) return;
         final bye = staffOutro[DateTime.now().day % staffOutro.length];
         _add(RobotMsg(false, '${_t(context, 'الشيفت اتقفل. في الشيفت ده اتسلم لك ${r['orders']} أوردر بقيمة ${_egp((r['value_minor'] as num?) ?? 0)}.', 'Shift closed. In this shift ${r['orders']} order(s) of yours were delivered, worth ${_egp((r['value_minor'] as num?) ?? 0)}.')}\n${_t(context, bye.$1, bye.$2)}'));

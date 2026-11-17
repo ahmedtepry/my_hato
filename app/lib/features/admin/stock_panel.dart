@@ -82,7 +82,7 @@ class _StockPanelState extends ConsumerState<StockPanel> {
 
   Future<void> _newTransfer(BuildContext context, {Map<String, dynamic>? product}) async {
     final ok = await showSmoothDialog<bool>(context: context, builder: (_) => Dialog(insetPadding: const EdgeInsets.all(16), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: Padding(padding: const EdgeInsets.only(top: 16), child: _NewTransferSheet(product: product)))));
-    if (ok == true && mounted) {
+    if (ok == true && mounted && context.mounted) {
       ref.invalidate(_transfersProvider);
       setState(() => _tab = 1);
       showSnack(context, _t(context, 'التحويل اتبعت. فرع المستلم اتبلّغ.', 'Transfer sent. The other branch was notified.'));

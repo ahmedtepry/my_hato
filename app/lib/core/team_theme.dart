@@ -11,7 +11,6 @@ import 'config.dart';
 import 'l10n.dart';
 import 'supabase_providers.dart';
 import '../shared/rail_tile.dart';
-import 'theme.dart';
 
 /// Colour themes of the Windows team app. 'default' keeps the store's own colours.
 class TeamThemeDef {

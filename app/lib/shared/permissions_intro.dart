@@ -11,7 +11,6 @@ import '../core/app_update.dart' show kStoreBuild;
 
 import '../core/config.dart';
 import '../core/l10n.dart';
-import '../core/supabase_providers.dart';
 import '../core/theme.dart';
 import 'app_sheet.dart';
 

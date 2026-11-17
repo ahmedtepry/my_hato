@@ -6,7 +6,6 @@ import '../../core/appearance.dart';
 import '../../core/l10n.dart';
 import '../../shared/launch_animation.dart';
 import '../../core/theme.dart';
-import '../../shared/brand_logo.dart';
 
 const onboardingDoneKey = 'onboarding_done_v1';
 

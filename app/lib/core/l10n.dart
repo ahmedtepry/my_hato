@@ -25,8 +25,20 @@ class LocaleController extends Notifier<Locale> {
 
 final localeProvider = NotifierProvider<LocaleController, Locale>(LocaleController.new);
 
+/// The app's language, kept for code that runs after a screen has closed (a reply that arrives after the user left).
+String lastKnownLang = 'ar';
+
 extension Tr on BuildContext {
-  String get lang => Localizations.localeOf(this).languageCode;
+  /// Never throws: a closed screen (unmounted context) answers with the last known language instead of crashing.
+  String get lang {
+    if (!mounted) return lastKnownLang;
+    try {
+      return lastKnownLang = Localizations.localeOf(this).languageCode;
+    } catch (_) {
+      return lastKnownLang;
+    }
+  }
+
   bool get isAr => lang == 'ar';
   String tr(String key, [Map<String, String> args = const {}]) {
     var s = (_strings[key]?[lang]) ?? _strings[key]?['ar'] ?? key;

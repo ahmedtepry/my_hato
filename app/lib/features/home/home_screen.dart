@@ -14,7 +14,6 @@ import '../../shared/app_banner.dart';
 import '../../shared/avatars.dart';
 import '../../shared/brand_logo.dart';
 import '../../shared/loyalty_shortcut.dart';
-import '../../shared/product_card.dart';
 import '../../shared/motion.dart';
 import '../../shared/press_scale.dart';
 import '../../shared/permissions_intro.dart';
