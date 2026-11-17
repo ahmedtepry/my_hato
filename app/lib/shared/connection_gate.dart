@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import '../core/config.dart';
 import '../core/l10n.dart';
@@ -47,6 +49,15 @@ class _ConnectionGateState extends State<ConnectionGate> with WidgetsBindingObse
   }
 
   Future<bool> _reachable() async {
+    if (kIsWeb) {
+      // a browser cannot look up names itself: ask the server's health page instead (any answer = online)
+      try {
+        await http.get(Uri.parse('${AppConfig.supabaseUrl}/auth/v1/health'), headers: {'apikey': AppConfig.supabaseAnonKey}).timeout(const Duration(seconds: 6));
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
     try {
       final host = Uri.parse(AppConfig.supabaseUrl).host;
       final r = await InternetAddress.lookup(host.isEmpty ? 'google.com' : host).timeout(const Duration(seconds: 4));
