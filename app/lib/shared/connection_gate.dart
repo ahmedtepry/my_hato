@@ -51,13 +51,6 @@ class _ConnectionGateState extends State<ConnectionGate> with WidgetsBindingObse
     // in a browser: trust the browser (a check from the page can be blocked by the browser itself and lie)
     if (kIsWeb) return true;
     try {
-        await http.get(Uri.parse('${AppConfig.supabaseUrl}/auth/v1/health'), headers: {'apikey': AppConfig.supabaseAnonKey}).timeout(const Duration(seconds: 6));
-        return true;
-      } catch (_) {
-        return false;
-      }
-    }
-    try {
       final host = Uri.parse(AppConfig.supabaseUrl).host;
       final r = await InternetAddress.lookup(host.isEmpty ? 'google.com' : host).timeout(const Duration(seconds: 4));
       return r.isNotEmpty && r.first.rawAddress.isNotEmpty;
