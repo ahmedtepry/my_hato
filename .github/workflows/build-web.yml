@@ -20,7 +20,7 @@ jobs:
         run: |
           flutter create --platforms=web --org com.myhato --project-name myhato .
           flutter pub get
-          flutter build web --release --base-href /my_hato/team/ --no-web-resources-cdn \
+          flutter build web --release --base-href /my_hato/team/ --no-web-resources-cdn --pwa-strategy=none \
             --dart-define=TEAM_ONLY=true \
             --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
             --dart-define=APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" \
@@ -30,6 +30,8 @@ jobs:
           printf 'User-agent: *\nDisallow: /\n' > build/web/robots.txt
           sed -i 's#<head>#<head><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">#' build/web/index.html
           sed -i 's#<title>[^<]*</title>#<title>My Hatō Team</title>#' build/web/index.html
+          # drop any copy an older build left in the browser, so every visit gets the newest version
+          sed -i 's#</head>#<script>if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(r=>r.forEach(x=>x.unregister()));if(window.caches)caches.keys().then(k=>k.forEach(n=>caches.delete(n)));}</script></head>#' build/web/index.html
           ls -la build/web | head
       - name: Publish to gh-pages/team
         run: |
