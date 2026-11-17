@@ -554,7 +554,7 @@ class _ChatLogsDialogState extends ConsumerState<ChatLogsDialog> {
     final ok = await showSmoothDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
-        title: Text(all ? _t(d, 'مسح كل المحادثات المقفولة؟', 'Delete every closed conversation?') : _t(d, 'مسح ${ids.length} محادثة؟', 'Delete ${ids.length} conversation(s)?')),
+        title: Text(all ? _t(d, 'مسح كل المحادثات المقفولة؟', 'Delete every closed conversation?') : _t(d, 'مسح ${ids!.length} محادثة؟', 'Delete ${ids.length} conversation(s)?')),
         content: Text(_t(d, 'هتتمسح نهائيًا من السيستم ومش هترجع. (المحادثات المفتوحة دلوقتي مش بتتمسح مع «مسح الكل».)', 'They are removed for good. (Conversations still open are not removed by "delete all".)')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(d, false), child: Text(_t(d, 'لأ', 'No'))),
