@@ -283,8 +283,9 @@ const money=m=>`${(m/100).toLocaleString('en-US',{maximumFractionDigits:2})}<sma
 // data: start from the saved copy, then refresh from the store's live catalogue
 let DATA={cats:SNAP.c.map(([s,a,e])=>({s,a,e})),
   prods:SNAP.p.map(([s,c,a,e,da,de,pr,st,r,rc,f,ims])=>({s,c,a,e,da,de,pr,st,r,rc,f,imgs:ims.map(id=>`https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=900&h=900&q=80`)})),
-  build:SNAP.build,path:SNAP.path,size:SNAP.size};
-const apkUrl=()=>`${SUPA}/storage/v1/object/public/app-updates/${DATA.path}?download=MyHato.apk`;
+  build:SNAP.build,path:SNAP.path,size:SNAP.size,url:SNAP.url||null};
+// GitHub Releases: free downloads (Supabase Storage downloads count against the Free plan)
+const apkUrl=()=>DATA.url||`${SUPA}/storage/v1/object/public/app-updates/${DATA.path}?download=MyHato.apk`;
 
 async function live(){
   const h={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
@@ -296,7 +297,7 @@ async function live(){
       fetch(`${SUPA}/rest/v1/categories?is_active=eq.true&parent_id=is.null&select=slug,name_ar,name_en&order=sort_order`,{headers:h,signal:ctl.signal}).then(r=>r.ok?r.json():null)
     ]);
     const up=Array.isArray(u)?u[0]:u;
-    if(up&&up.path){DATA.build=up.build;DATA.path=up.path;DATA.size=up.size_bytes}
+    if(up&&up.path){DATA.build=up.build;DATA.path=up.path;DATA.size=up.size_bytes;DATA.url=up.url||null}
     if(Array.isArray(ps)&&ps.length){
       DATA.prods=ps.map(p=>({s:p.slug,c:p.category?.slug||'other-accessories',a:p.name_ar,e:p.name_en||p.name_ar,da:p.description_ar||'',de:p.description_en||p.description_ar||'',
         pr:p.price_minor,st:p.stock_quantity,r:+p.rating_avg||0,rc:p.rating_count||0,f:p.is_featured?1:0,

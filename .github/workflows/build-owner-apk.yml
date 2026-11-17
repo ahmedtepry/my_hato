@@ -58,5 +58,5 @@ jobs:
           URL=$(echo "$PREP" | python3 -c "import sys,json;print(json.load(sys.stdin)['url'])")
           curl -sS -f -X PUT "$URL" -H "Content-Type: application/octet-stream" -H "x-upsert: true" --data-binary @"$FILE"
           NOTES=$(git log -1 --pretty=%s | head -c 280)
-          BODY=$(python3 -c "import json,sys;print(json.dumps({'action':'publish','platform':'android_owner','build':int(sys.argv[1]),'sha256':sys.argv[2],'notes':sys.argv[3]}))" "$BUILD" "$SHA" "$NOTES")
+          BODY=$(python3 -c "import json,sys;print(json.dumps({'action':'publish','platform':'android_owner','build':int(sys.argv[1]),'sha256':sys.argv[2],'notes':sys.argv[3],'url':sys.argv[4]}))" "$BUILD" "$SHA" "$NOTES" "https://github.com/${{ github.repository }}/releases/download/owner-${{ github.run_number }}/MyHatoOwner.apk")
           curl -sS -f -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d "$BODY"

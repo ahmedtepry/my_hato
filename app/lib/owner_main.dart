@@ -429,7 +429,8 @@ class OwnerUpdater extends ChangeNotifier {
       final dir = await _ch.invokeMethod<String>('cacheDir') ?? Directory.systemTemp.path;
       final file = File('$dir/updates/owner-$b.apk');
       await file.parent.create(recursive: true);
-      final url = db.storage.from('app-updates').getPublicUrl('${r['path']}');
+      // GitHub Releases (free, no download limit); the Supabase copy only for builds published before it existed
+      final url = (r['url'] as String?)?.isNotEmpty == true ? r['url'] as String : db.storage.from('app-updates').getPublicUrl('${r['path']}');
       final want = '${r['sha256']}'.toLowerCase();
       final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
       try {

@@ -103,14 +103,14 @@ jobs:
         continue-on-error: true
         env:
           PUSH_SECRET: ${{ secrets.UPDATE_PUSH_SECRET }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           FN=https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/app-update
           # the Face ID recognizer the app downloads on first use (the app checks its SHA-256)
           M=face_dl/face_recognition_sface_2021dec.onnx
+          # on GitHub Releases (free downloads), not Supabase Storage
           if [ -f "$M" ]; then
-            MP=$(curl -sS -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d '{"action":"prepare_asset","name":"face_recognition_sface_2021dec.onnx"}')
-            MU=$(echo "$MP" | python -c "import sys,json;print(json.load(sys.stdin)['url'])")
-            curl -sS -f -X PUT "$MU" -H "Content-Type: application/octet-stream" -H "x-upsert: true" --data-binary @"$M" && echo "face model uploaded" || echo "WARN: face model upload failed"
+            gh release upload face-models "$M" --clobber && echo "face model on GitHub" || echo "WARN: face model upload failed"
           fi
           FILE=dist/MyHatoTeam-Setup.exe
           BUILD=${{ github.run_number }}
@@ -120,7 +120,7 @@ jobs:
           echo "prepare: ${PREP:0:120}"
           URL=$(echo "$PREP" | python -c "import sys,json;print(json.load(sys.stdin)['url'])")
           curl -sS -f -X PUT "$URL" -H "Content-Type: application/octet-stream" -H "x-upsert: true" --data-binary @"$FILE"
-          BODY=$(python -c "import json,sys;print(json.dumps({'action':'publish','platform':'windows','build':int(sys.argv[1]),'sha256':sys.argv[2],'notes':sys.argv[3]}))" "$BUILD" "$SHA" "$NOTES")
+          BODY=$(python -c "import json,sys;print(json.dumps({'action':'publish','platform':'windows','build':int(sys.argv[1]),'sha256':sys.argv[2],'notes':sys.argv[3],'url':sys.argv[4]}))" "$BUILD" "$SHA" "$NOTES" "https://github.com/${{ github.repository }}/releases/download/team-win-${{ github.run_number }}/MyHatoTeam-Setup.exe")
           curl -sS -f -X POST "$FN" -H "x-push-secret: $PUSH_SECRET" -H "Content-Type: application/json" -d "$BODY"
       - name: Publish build log to ci-logs-win branch
         if: always()

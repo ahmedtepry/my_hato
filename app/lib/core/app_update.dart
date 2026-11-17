@@ -18,9 +18,12 @@ import '../shared/rail_tile.dart';
 import 'theme.dart';
 
 class AppUpdateInfo {
-  const AppUpdateInfo({required this.build, required this.url, required this.sha256, this.size, this.notes});
+  const AppUpdateInfo({required this.build, required this.url, required this.sha256, this.size, this.notes, this.fallbackUrl});
   final int build;
+
+  /// GitHub Releases (free, no download limit); [fallbackUrl] = the copy on Supabase Storage, tried if GitHub fails
   final String url, sha256;
+  final String? fallbackUrl;
   final int? size;
   final String? notes;
 }
@@ -85,7 +88,8 @@ class AppUpdateController extends Notifier<AppUpdateState> {
         if (build > kBuildNumber) {
           info = AppUpdateInfo(
             build: build,
-            url: db.storage.from('app-updates').getPublicUrl('${r['path']}'),
+            url: (r['url'] as String?)?.isNotEmpty == true ? r['url'] as String : db.storage.from('app-updates').getPublicUrl('${r['path']}'),
+            fallbackUrl: (r['url'] as String?)?.isNotEmpty == true ? db.storage.from('app-updates').getPublicUrl('${r['path']}') : null,
             sha256: '${r['sha256']}'.toLowerCase(),
             size: (r['size_bytes'] as num?)?.toInt(),
             notes: r['notes'] as String?,
@@ -102,12 +106,24 @@ class AppUpdateController extends Notifier<AppUpdateState> {
 
 final appUpdateProvider = NotifierProvider<AppUpdateController, AppUpdateState>(AppUpdateController.new);
 
-/// Downloads [url] into [file] (reporting progress) and checks the SHA-256.
+/// Downloads the update into [file] (reporting progress) and checks the SHA-256: from GitHub first, then from the
+/// Supabase copy if GitHub cannot be reached.
 Future<void> _download(AppUpdateInfo info, File file, void Function(double) onProgress) async {
+  try {
+    await _downloadFrom(info.url, info, file, onProgress);
+  } catch (e) {
+    final fb = info.fallbackUrl;
+    if (fb == null || e is FormatException) rethrow;
+    onProgress(0);
+    await _downloadFrom(fb, info, file, onProgress);
+  }
+}
+
+Future<void> _downloadFrom(String url, AppUpdateInfo info, File file, void Function(double) onProgress) async {
   await file.parent.create(recursive: true);
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
   try {
-    final req = await client.getUrl(Uri.parse(info.url));
+    final req = await client.getUrl(Uri.parse(url));
     final res = await req.close();
     if (res.statusCode != 200) throw HttpException('HTTP ${res.statusCode}');
     final total = res.contentLength > 0 ? res.contentLength : (info.size ?? 0);

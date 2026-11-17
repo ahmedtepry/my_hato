@@ -1,7 +1,10 @@
 // Called by the build pipeline (never by the app): uploads a new Windows (.exe) or Android (.apk) build to the public "app-updates" bucket and registers it.
 // Protected by a shared secret whose SHA-256 is stored in app_update_keys. Two steps:
 //   { action: "prepare", platform, build }                  -> a signed upload URL for the installer file
-//   { action: "publish", platform, build, sha256, notes }   -> checks the file is there and registers the build
+//   { action: "publish", platform, build, sha256, notes, url } -> checks the file is there and registers the build
+// Apps download from `url` (GitHub Releases: free, no download limit). The Supabase copy is only for apps older than
+// that and for a GitHub outage, so after each publish every older file of that platform is deleted from Storage
+// (the Free plan has 1 GB; 4.7 GB of old installers got the project restricted in Nov 2026).
 import { corsHeaders, json, serviceClient, sha256Hex } from "../_shared/util.ts";
 
 Deno.serve(async (req) => {
@@ -43,12 +46,21 @@ Deno.serve(async (req) => {
     const f = (files ?? []).find((x) => x.name === fileName);
     if (!f) return json(req, 400, { error: "file_missing" });
     const size = Number(f.metadata?.size ?? 0) || null;
+    const url = typeof body.url === "string" && body.url.startsWith("https://github.com/ahmedtepry/my_hato/releases/download/") ? body.url : null;
     const { error } = await db.from("app_releases").upsert(
-      { platform, build, path, sha256, size_bytes: size, notes: String(body.notes ?? "").slice(0, 300) || null },
+      { platform, build, path, sha256, size_bytes: size, notes: String(body.notes ?? "").slice(0, 300) || null, url },
       { onConflict: "platform,build" },
     );
     if (error) return json(req, 400, { error: "register_failed", detail: error.message });
-    return json(req, 200, { ok: true, build, path });
+    // keep only this build's file on Storage
+    const { data: all } = await db.storage.from("app-updates").list(platform, { limit: 1000 });
+    const old = (all ?? []).map((x) => `${platform}/${x.name}`).filter((p) => p !== path);
+    let removed = 0;
+    if (old.length) {
+      const { data: gone } = await db.storage.from("app-updates").remove(old);
+      removed = gone?.length ?? 0;
+    }
+    return json(req, 200, { ok: true, build, path, url, removed });
   }
   return json(req, 400, { error: "unknown_action" });
 });

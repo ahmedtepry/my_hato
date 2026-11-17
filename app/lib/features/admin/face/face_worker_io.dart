@@ -77,7 +77,11 @@ class FaceWorker {
     return w;
   }
 
-  static const _modelBase = 'https://efdomvgypdkpqubkkjwm.supabase.co/storage/v1/object/public/app-updates/face';
+  // GitHub Releases first (free, no download limit), the Supabase copy only if GitHub cannot be reached
+  static const _modelBases = [
+    'https://github.com/ahmedtepry/my_hato/releases/download/face-models',
+    'https://efdomvgypdkpqubkkjwm.supabase.co/storage/v1/object/public/app-updates/face',
+  ];
 
   /// A model file: from the app's assets when the build carries it (the small detector), otherwise downloaded once
   /// from the update store into %LOCALAPPDATA%\MyHato\face (the 38 MB recognizer; installers over 50 MB cannot be
@@ -94,14 +98,30 @@ class FaceWorker {
       final bytes = await file.readAsBytes();
       if (crypto.sha256.convert(bytes).toString() == sha) return bytes;
     }
+    Object? last;
+    for (final base in _modelBases) {
+      try {
+        final bytes = await _fetch('$base/$name');
+        if (crypto.sha256.convert(bytes).toString() != sha) throw FaceUnavailable('model file damaged');
+        await dir.create(recursive: true);
+        await file.writeAsBytes(bytes, flush: true);
+        return bytes;
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw last is FaceUnavailable ? last : FaceUnavailable('model download failed: $last');
+  }
+
+  static Future<Uint8List> _fetch(String url) async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
     try {
-      final req = await client.getUrl(Uri.parse('$_modelBase/$name'));
+      final req = await client.getUrl(Uri.parse(url));
       final res = await req.close().timeout(const Duration(seconds: 30));
       if (res.statusCode != 200) throw FaceUnavailable('model download failed (${res.statusCode})');
       final parts = <List<int>>[];
       var total = 0;
-      await for (final chunk in res.timeout(const Duration(seconds: 60))) {
+      await for (final chunk in res.timeout(const Duration(seconds: 90))) {
         parts.add(chunk);
         total += chunk.length;
       }
@@ -111,14 +131,7 @@ class FaceWorker {
         bytes.setRange(at, at + c.length, c);
         at += c.length;
       }
-      if (crypto.sha256.convert(bytes).toString() != sha) throw FaceUnavailable('model file damaged');
-      await dir.create(recursive: true);
-      await file.writeAsBytes(bytes, flush: true);
       return bytes;
-    } on FaceUnavailable {
-      rethrow;
-    } catch (e) {
-      throw FaceUnavailable('model download failed: $e');
     } finally {
       client.close(force: true);
     }
