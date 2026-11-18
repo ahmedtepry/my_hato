@@ -18,8 +18,6 @@ jobs:
         run: |
           echo "::add-mask::${{ inputs.old_pw }}"
           echo "::add-mask::${{ inputs.new_pw }}"
-      - uses: supabase/setup-cli@v1
-        with: { version: latest }
       - name: Find poolers
         id: p
         run: |
@@ -38,9 +36,9 @@ jobs:
           NEW: postgresql://postgres.${{ inputs.new_ref }}:${{ inputs.new_pw }}@${{ steps.p.outputs.new }}.pooler.supabase.com:5432/postgres
         run: |
           set -e
-          supabase db dump --db-url "$OLD" -f roles.sql --role-only
-          supabase db dump --db-url "$OLD" -f schema.sql
-          supabase db dump --db-url "$OLD" -f data.sql --use-copy --data-only
+          npx -y supabase@latest db dump --db-url "$OLD" -f roles.sql --role-only
+          npx -y supabase@latest db dump --db-url "$OLD" -f schema.sql
+          npx -y supabase@latest db dump --db-url "$OLD" -f data.sql --use-copy --data-only
           wc -c roles.sql schema.sql data.sql
           grep -c "^COPY" data.sql || true
           psql "$NEW" -v ON_ERROR_STOP=1 -tAc "select count(*) from pg_tables where schemaname='public'"
