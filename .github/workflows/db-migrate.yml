@@ -24,16 +24,16 @@ jobs:
         id: p
         run: |
           set +e
-          pick(){ ref=$1; pw=$2
+          pick(){ ref=$1; pw=$2; us=$3
             for h in aws-0-eu-central-1 aws-1-eu-central-1 aws-0-eu-west-1 aws-1-eu-west-1 aws-0-eu-west-2 aws-1-eu-west-2 aws-0-us-east-1 aws-1-us-east-1 aws-0-eu-central-2 aws-1-eu-central-2 aws-0-ap-south-1 aws-1-ap-south-1; do
-              u="postgresql://postgres.$ref:$pw@$h.pooler.supabase.com:5432/postgres"
+              u="postgresql://$us.$ref:$pw@$h.pooler.supabase.com:5432/postgres"
               if PGCONNECT_TIMEOUT=8 psql "$u" -tAc "select 1" >/dev/null 2>&1; then echo "$h"; return; fi; done; echo none; }
-          o=$(pick ${{ inputs.old_ref }} ${{ inputs.old_pw }}); n=$(pick ${{ inputs.new_ref }} ${{ inputs.new_pw }})
+          o=$(pick ${{ inputs.old_ref }} ${{ inputs.old_pw }} migrator); n=$(pick ${{ inputs.new_ref }} ${{ inputs.new_pw }} postgres)
           echo "old pooler: $o  new pooler: $n"; echo "old=$o" >> $GITHUB_OUTPUT; echo "new=$n" >> $GITHUB_OUTPUT
           [ "$o" != none ] && [ "$n" != none ]
       - name: Dump and restore
         env:
-          OLD: postgresql://postgres.${{ inputs.old_ref }}:${{ inputs.old_pw }}@${{ steps.p.outputs.old }}.pooler.supabase.com:5432/postgres
+          OLD: postgresql://migrator.${{ inputs.old_ref }}:${{ inputs.old_pw }}@${{ steps.p.outputs.old }}.pooler.supabase.com:5432/postgres
           NEW: postgresql://postgres.${{ inputs.new_ref }}:${{ inputs.new_pw }}@${{ steps.p.outputs.new }}.pooler.supabase.com:5432/postgres
         run: |
           set -e
