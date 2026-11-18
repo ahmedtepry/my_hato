@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
+import '../../shared/image_shrink.dart';
 
 class ProfileRepository {
   ProfileRepository(this._db);
@@ -26,7 +27,8 @@ class ProfileRepository {
     await _db.from('profiles').update(data).eq('id', _uid);
   }
 
-  Future<String> uploadAvatar(Uint8List bytes) async {
+  Future<String> uploadAvatar(Uint8List raw) async {
+    final bytes = await Shrink.avatar(raw);
     final path = '$_uid/avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
     await _db.storage.from('avatars').uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'image/jpeg'));
     await update(avatarPath: path);

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
+import '../../shared/image_shrink.dart';
 
 class RepairsRepository {
   RepairsRepository(this._db);
@@ -45,9 +46,11 @@ class RepairsRepository {
   }
 
   /// Uploads to the PRIVATE bucket: repair-photos/{uid}/{repairId}/{n}.jpg
-  Future<void> uploadPhoto(String repairId, Uint8List bytes, String ext, int index) async {
+  Future<void> uploadPhoto(String repairId, Uint8List raw, String ext, int index) async {
     final uid = _db.auth.currentUser!.id;
-    final safeExt = {'jpg', 'jpeg', 'png', 'webp', 'heic'}.contains(ext.toLowerCase()) ? ext.toLowerCase() : 'jpg';
+    final bytes = await Shrink.repair(raw);
+    final shrunk = !identical(bytes, raw);
+    final safeExt = shrunk ? 'jpg' : ({'jpg', 'jpeg', 'png', 'webp', 'heic'}.contains(ext.toLowerCase()) ? ext.toLowerCase() : 'jpg');
     final path = '$uid/$repairId/${DateTime.now().millisecondsSinceEpoch}_$index.$safeExt';
     await _db.storage.from('repair-photos').uploadBinary(path, bytes,
         fileOptions: FileOptions(contentType: safeExt == 'jpg' ? 'image/jpeg' : 'image/$safeExt', upsert: false));

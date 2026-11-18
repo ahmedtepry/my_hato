@@ -15,6 +15,7 @@ import '../../core/theme.dart';
 import '../../shared/app_banner.dart';
 import '../../shared/states.dart';
 import '../../shared/app_sheet.dart';
+import '../../shared/image_shrink.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -271,7 +272,7 @@ class _BannerFormState extends ConsumerState<_BannerForm> {
       String? path = widget.row?['image_path'] as String?;
       if (_img != null) {
         path = 'app/${DateTime.now().microsecondsSinceEpoch}.jpg';
-        await db.storage.from('banners').uploadBinary(path, _img!, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+        await db.storage.from('banners').uploadBinary(path, await Shrink.banner(_img!), fileOptions: const FileOptions(contentType: 'image/jpeg'));
       }
       String? n(String k) => _c[k]!.text.trim().isEmpty ? null : _c[k]!.text.trim();
       final data = {

@@ -15,6 +15,7 @@ import '../../shared/motion.dart';
 import '../../shared/product_card.dart' show NetImage;
 import '../../shared/states.dart';
 import 'admin_repository.dart';
+import '../../shared/image_shrink.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
 
@@ -785,7 +786,7 @@ class _IdeaDialogState extends ConsumerState<_IdeaDialog> {
     try {
       if (_kind == 'banner') {
         final path = 'proposals/${DateTime.now().microsecondsSinceEpoch}.jpg';
-        await sb.storage.from('banners').uploadBinary(path, _img!, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+        await sb.storage.from('banners').uploadBinary(path, await Shrink.banner(_img!), fileOptions: const FileOptions(contentType: 'image/jpeg'));
         d['image_path'] = path;
       }
       await sb.rpc('marketing_request_create', params: {'p_kind': _kind, 'p_title': title, 'p_details': d});

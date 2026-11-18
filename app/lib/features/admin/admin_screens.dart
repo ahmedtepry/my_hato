@@ -4,6 +4,7 @@ import 'permissions.dart' show PermissionsScreen;
 import 'face/face_ui.dart';
 import 'face/quick_login.dart';
 import 'my_sales_panel.dart';
+import 'server_usage_panel.dart';
 import 'web_gate.dart';
 import '../../core/app_update.dart';
 import '../../core/appearance.dart';
@@ -550,6 +551,7 @@ const _sectionInfo = <String, _SectionInfo>{
   'ops': _SectionInfo(Icons.monitor_heart_rounded, Color(0xFFE5484D), 'غرفة العمليات المباشرة', 'Live operations room', 'مبيعات كل فرع لحظيًا، الورديات المفتوحة ومين فاتحها، ومين أونلاين، وكل اللي بيحصل', 'Live sales per branch, open shifts and who opened them, who is online, and everything happening'),
   'kpi': _SectionInfo(Icons.leaderboard_rounded, Color(0xFF7A5AF8), 'عمولات و KPI الموظفين', 'Commissions & KPIs', 'سجل عمولات كل موظف ومبيعاته وفواتيره ومتوسط الفاتورة والمرتجعات والبقشيش لأي فترة', 'Every employee\'s commission log, sales, invoices, average ticket, refunds and tips for any period'),
   'targets': _SectionInfo(Icons.flag_rounded, Color(0xFFE8A317), 'التارجت', 'Targets', 'مين من الفروع حقق التارجت ومين لأ، وتارجت وعمولة الموظفين', 'Which branches hit their target, plus employee targets and commissions'),
+  'server': _SectionInfo(Icons.dns_rounded, Color(0xFF12B76A), 'استهلاك السيرفر', 'Server usage', 'مساحة قاعدة البيانات والملفات من الحد المجاني، والتنظيف الليلي والنسخ الاحتياطي', 'Database and file space against the free plan, nightly cleanup and backups'),
   'mysales': _SectionInfo(Icons.point_of_sale_rounded, Color(0xFF2E7CF6), 'مبيعاتي', 'My sales', 'اللي بعته باسمك: اليوم أو الشهر أو السنة، إكسسوارات وبراند وصيانة', 'What you sold: day, month or year, accessories, brand and repairs'),
   'mytarget': _SectionInfo(Icons.emoji_events_outlined, Color(0xFFE8A317), 'تارجتي وعمولتي', 'My target', 'وصلت لكام في المية من تارجتك وعمولتك لحظة بلحظة', 'Your progress and commission, live'),
   'sales': _SectionInfo(Icons.trending_up_rounded, Color(0xFF12B76A), 'المبيعات', 'Sales', 'مبيعات اليوم والأسبوع والشهر وتصدير Excel', 'Daily, weekly and monthly sales with Excel export'),
@@ -718,6 +720,7 @@ const _sidebarGroups = <(String, String, List<String>)>[
   ('الفريق والأداء', 'Team & performance', ['mysales', 'kpi', 'targets', 'mytarget', 'online', 'assistant']),
   ('التسويق', 'Marketing', ['marketing', 'offers', 'reviews', 'gifts', 'wheel', 'contests', 'features']),
   ('المظهر', 'Appearance', ['appearance', 'occasions', 'storefront', 'app_banners']),
+  ('النظام', 'System', ['server']),
 ];
 
 (String, int) _sidebarGroupOf(BuildContext c, String k) {
@@ -1000,6 +1003,7 @@ class AdminHomeScreen extends ConsumerWidget {
                       'kpi' => const KpiPanel(),
                       'mytarget' => const MyTargetPanel(),
                       'mysales' => const MySalesPanel(),
+                      'server' => const ServerUsagePanel(),
                       'occasions' => const OccasionsPanel(),
                       'contests' => const ContestsPanel(),
                       'features' => const FeatureSwitchesPanel(),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
+import '../../shared/image_shrink.dart';
 
 /// Store management from inside the app. Every call runs as the signed-in staff member:
 /// the database re-checks permissions (RLS + staff_* functions) and writes the audit log,
@@ -171,7 +172,7 @@ class AdminRepository {
   /// Uploads an offer picture to the public banners bucket (offers/ folder) and returns its public URL.
   Future<String> uploadOfferImage(Uint8List bytes) async {
     final path = 'offers/${DateTime.now().microsecondsSinceEpoch}.jpg';
-    await _db.storage.from('banners').uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+    await _db.storage.from('banners').uploadBinary(path, await Shrink.banner(bytes), fileOptions: const FileOptions(contentType: 'image/jpeg'));
     return _db.storage.from('banners').getPublicUrl(path);
   }
 
@@ -418,7 +419,7 @@ class AdminRepository {
     String? path = imageUrl;
     if (imageBytes != null) {
       path = '$id/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await _db.storage.from('product-images').uploadBinary(path, imageBytes, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+      await _db.storage.from('product-images').uploadBinary(path, await Shrink.product(imageBytes), fileOptions: const FileOptions(contentType: 'image/jpeg'));
     }
     if (path != null && path.isNotEmpty) {
       await _db.from('product_images').insert({'product_id': id, 'storage_path': path, 'alt_ar': nameAr, 'alt_en': nameEn, 'sort_order': 0});
@@ -427,7 +428,8 @@ class AdminRepository {
     return id;
   }
 
-  Future<void> addImage(String productId, Uint8List bytes, int sortOrder) async {
+  Future<void> addImage(String productId, Uint8List raw, int sortOrder) async {
+    final bytes = await Shrink.product(raw);
     final path = '$productId/${DateTime.now().millisecondsSinceEpoch}.jpg';
     await _db.storage.from('product-images').uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'image/jpeg'));
     await _db.from('product_images').insert({'product_id': productId, 'storage_path': path, 'sort_order': sortOrder});
@@ -538,6 +540,7 @@ final consoleTabsProvider = Provider<List<String>>((ref) {
     if (p.contains('targets.view') && !p.contains('commission.view')) 'targets', // with the KPI page, targets live inside it
     if (p.contains('commission.view')) 'kpi',
     if (p.contains('sales.mine') || p.contains('sales.view')) 'mysales',
+    if (p.contains('staff.manage')) 'server',
     if (p.contains('targets.mine')) 'mytarget',
     if (p.contains('appearance.manage')) 'appearance',
     if (p.contains('occasions.manage')) 'occasions',

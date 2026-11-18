@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/supabase_providers.dart';
+import '../../shared/image_shrink.dart';
 
 class OrdersRepository {
   OrdersRepository(this._db);
@@ -49,8 +50,9 @@ class OrdersRepository {
       _db.rpc('order_wallet_submit', params: {'p_order_id': orderId, 'p_wallet': wallet, 'p_from_phone': fromPhone});
 
   /// Optional screenshot of the transfer: private bucket, path {customer uid}/{order id}.jpg
-  Future<void> walletProofUpload(String orderId, Uint8List bytes) async {
+  Future<void> walletProofUpload(String orderId, Uint8List raw) async {
     final uid = _db.auth.currentUser!.id;
+    final bytes = await Shrink.proof(raw);
     final path = '$uid/$orderId.jpg';
     await _db.storage.from('transfer-proofs').uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
     await _db.rpc('order_wallet_proof_set', params: {'p_order_id': orderId, 'p_path': path});
