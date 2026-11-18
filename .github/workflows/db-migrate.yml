@@ -36,12 +36,30 @@ jobs:
           NEW: postgresql://postgres.${{ inputs.new_ref }}:${{ inputs.new_pw }}@${{ steps.p.outputs.new }}.pooler.supabase.com:5432/postgres
         run: |
           set -e
-          npx -y supabase@latest db dump --db-url "$OLD" -f roles.sql --role-only
-          npx -y supabase@latest db dump --db-url "$OLD" -f schema.sql
-          npx -y supabase@latest db dump --db-url "$OLD" -f data.sql --use-copy --data-only
-          wc -c roles.sql schema.sql data.sql
-          grep -c "^COPY" data.sql || true
-          psql "$NEW" -v ON_ERROR_STOP=1 -tAc "select count(*) from pg_tables where schemaname='public'"
-          psql "$NEW" --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql --command 'SET session_replication_role = replica' --file data.sql
-          psql "$NEW" -tAc "select count(*) from pg_tables where schemaname='public'; select count(*) from auth.users;"
-          rm -f roles.sql schema.sql data.sql
+          PG="docker run --rm -i --network host -v $PWD:/w -w /w postgres:17"
+          # extensions first (they live in the extensions schema)
+          $PG psql "$NEW" -v ON_ERROR_STOP=1 -c "create extension if not exists pg_trgm with schema extensions; create extension if not exists vector with schema extensions; create extension if not exists pg_cron; create extension if not exists \"uuid-ossp\" with schema extensions; create extension if not exists pgcrypto with schema extensions;"
+          # schema of public (tables, functions, policies, triggers, grants)
+          $PG pg_dump "$OLD" --schema-only -n public --no-owner -f schema.sql
+          sed -i -E '/^CREATE SCHEMA public;/d; /^COMMENT ON SCHEMA public /d' schema.sql
+          # policies on storage.objects and triggers on auth/storage tables written by us
+          $PG psql "$OLD" -tAX -v ON_ERROR_STOP=1 -f - > extra.sql <<'SQL'
+          select format('create policy %I on %I.%I as %s for %s to %s%s%s;', policyname, schemaname, tablename, permissive, cmd, array_to_string(roles, ','),
+                 case when qual is not null then ' using ('||qual||')' else '' end, case when with_check is not null then ' with check ('||with_check||')' else '' end)
+          from pg_policies where schemaname in ('storage');
+          select pg_get_triggerdef(t.oid)||';' from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace
+          where not t.tgisinternal and n.nspname in ('auth','storage') and pg_get_triggerdef(t.oid) ilike '%public.%';
+          select format('alter publication supabase_realtime add table %I.%I;', schemaname, tablename) from pg_publication_tables where pubname='supabase_realtime' and schemaname='public';
+          SQL
+          # data: public + auth users/identities + storage buckets
+          $PG pg_dump "$OLD" --data-only -n public -f data_public.sql
+          $PG pg_dump "$OLD" --data-only -t auth.users -t auth.identities -t storage.buckets -f data_sys.sql
+          wc -c schema.sql extra.sql data_public.sql data_sys.sql
+          grep -c "^COPY" data_public.sql || true
+          $PG psql "$NEW" -v ON_ERROR_STOP=1 --single-transaction -f schema.sql
+          echo "schema ok"
+          $PG psql "$NEW" -v ON_ERROR_STOP=0 -f extra.sql 2>&1 | tail -20
+          $PG psql "$NEW" -v ON_ERROR_STOP=1 --single-transaction -c "SET session_replication_role = replica" -f data_sys.sql -f data_public.sql
+          echo "data ok"
+          $PG psql "$NEW" -tAc "select count(*) from pg_tables where schemaname='public'; select count(*) from auth.users; select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public';"
+          rm -f *.sql
