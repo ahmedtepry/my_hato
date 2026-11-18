@@ -327,6 +327,10 @@ Map<String, Object> repairsRpc() => {
       ...commonRpc(),
       'assistant_flags': {'available': false},
       'repair_requests': repairs(),
+      'repair_transitions': [
+        for (final x in ['initial_inspection', 'diagnosis_completed', 'repair_in_progress', 'waiting_for_parts', 'quality_testing', 'repair_completed', 'ready_for_pickup', 'unrepairable', 'cancelled'])
+          {'to_status': x},
+      ],
       'repair_status_labels': [
         for (final (i, l) in repairLabels.indexed) {'status': l[0], 'label_ar': l[1], 'label_en': l[2], 'message_ar': '', 'message_en': '', 'sort_order': i + 1},
       ],

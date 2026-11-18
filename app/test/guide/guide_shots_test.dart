@@ -408,10 +408,65 @@ void main() {
     });
   }
 
-  job('tour_owner', {'owner'}, ownerPerms, wideRpc, (t, lang, ar) async {
-    await tour(t, 'owner');
-    await ownerExtras(t);
+  job('tour_owner', {'owner'}, ownerPerms, wideRpc, (t, lang, ar) => tour(t, 'owner'));
+  job('x_owner', {'owner'}, ownerPerms, wideRpc, (t, lang, ar) => ownerExtras(t));
+  Future<bool> tapHas(WidgetTester t, String text) async {
+    final f = find.textContaining(text);
+    if (f.evaluate().isEmpty) {
+      // ignore: avoid_print
+      print('MISSING text~ "$text"');
+      return false;
+    }
+    await t.tap(f.first, warnIfMissed: false);
+    await settle(t);
+    return true;
+  }
+  Future<void> dialogShots(WidgetTester t, String p, List<(String, String, String)> items) async {
+    for (final (tab, text, name) in items) {
+      await safe(name, () async {
+        if (tab.isNotEmpty) await goTab(t, tab);
+        if (await tapHas(t, text)) {
+          await shot(t, '${p}_x_$name');
+          await closeDialog(t);
+        }
+      });
+    }
+  }
+  job('x_technician', {'technician'}, technicianPerms, wideRpc, (t, lang, ar) async {
+    for (final r in ['RP-1042', 'RP-1041', 'RP-1040', 'RP-1039']) {
+      await safe(r, () async {
+        if (await tapHas(t, r)) {
+          await shot(t, 'technician_x_$r');
+          final lv = find.byType(Scrollable);
+          if (lv.evaluate().isNotEmpty) {
+            await t.drag(lv.last, const Offset(0, -420), warnIfMissed: false);
+            await settle(t);
+            await shot(t, 'technician_x_${r}_b');
+            await t.drag(lv.last, const Offset(0, -420), warnIfMissed: false);
+            await settle(t);
+            await shot(t, 'technician_x_${r}_c');
+          }
+          await closeDialog(t);
+        }
+      });
+    }
   });
+  job('x_marketing', {'marketing'}, marketingPerms, wideRpc, (t, lang, ar) => dialogShots(t, 'marketing', [
+        ('contests', 'مسابقة جديدة', 'new_contest'),
+        ('app_banners', 'بانر جديد', 'new_banner'),
+        ('marketing', 'فكرة جديدة', 'new_idea'),
+      ]));
+  job('x_online', {'sales'}, salesPerms, wideRpc, (t, lang, ar) => dialogShots(t, 'online', [
+        ('orders', 'MH-24116', 'order'),
+        ('products', 'إسكرينة خصوصية', 'product'),
+        ('stock', 'حوّل', 'transfer'),
+      ]));
+  job('x_manager', {'manager'}, managerPerms, wideRpc, (t, lang, ar) => dialogShots(t, 'manager', [
+        ('shortcuts', 'استلام بضاعة من المورد', 'receive'),
+        ('shortcuts', 'جرد المخزن', 'stocktake'),
+        ('orders', 'MH-24117', 'order'),
+        ('repairs', 'RP-1041', 'repair'),
+      ]));
   job('tour_manager', {'manager'}, managerPerms, wideRpc, (t, lang, ar) => tour(t, 'manager'));
   job('tour_accountant', {'accountant'}, accountantPerms, wideRpc, (t, lang, ar) => tour(t, 'accountant'));
   job('tour_online', {'sales'}, salesPerms, wideRpc, (t, lang, ar) => tour(t, 'online'));
