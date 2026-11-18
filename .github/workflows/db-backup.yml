@@ -1,0 +1,72 @@
+name: db-backup
+# Nightly backup of the MyHato database (the Supabase Free plan has no backups of its own).
+# Dumps schema + data of public, the sign-in accounts (auth.users / auth.identities) and the storage buckets, then encrypts the
+# file with AES-256 (passphrase only in the BACKUP_PASSPHRASE secret) and keeps it as a workflow artifact:
+# 30 days for nightly copies, 90 days for the Sunday copy. Restore steps: docs/BACKUP_RESTORE.md.
+# Needs two repository secrets: BACKUP_DB_URL (read-only role backup_reader) and BACKUP_PASSPHRASE.
+on:
+  schedule:
+    - cron: "40 0 * * *"   # 02:40 Cairo
+  workflow_dispatch:
+    inputs:
+      test_url: { required: false, type: string, description: 'one-off test only (normally empty: the secrets are used)' }
+      test_pass: { required: false, type: string }
+permissions:
+  contents: read
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Mask
+        run: |
+          echo "::add-mask::${{ inputs.test_url }}"
+          echo "::add-mask::${{ inputs.test_pass }}"
+      - name: Check secrets
+        env:
+          URL: ${{ secrets.BACKUP_DB_URL || inputs.test_url }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE || inputs.test_pass }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$PASS" ]; then echo "::error::Add the BACKUP_DB_URL and BACKUP_PASSPHRASE secrets (Settings > Secrets and variables > Actions)"; exit 1; fi
+          if [ ${#PASS} -lt 16 ]; then echo "::error::BACKUP_PASSPHRASE must be at least 16 characters"; exit 1; fi
+      - name: Dump
+        env:
+          URL: ${{ secrets.BACKUP_DB_URL || inputs.test_url }}
+        run: |
+          set -e
+          PG="docker run --rm -i --network host -v $PWD:/w -w /w postgres:17"
+          $PG pg_dump "$URL" -n public --no-owner -f public.sql
+          $PG pg_dump "$URL" --data-only -t auth.users -t auth.identities -t storage.buckets -f system.sql
+          $PG psql "$URL" -tAX -v ON_ERROR_STOP=1 -f - > extras.sql <<'SQL'
+          select format('select cron.schedule(%L, %L, %L);', jobname, schedule, command) from cron.job;
+          select pg_get_triggerdef(t.oid)||';' from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace
+           where not t.tgisinternal and n.nspname = 'auth';
+          select format('create policy %I on %I.%I as %s for %s to %s%s%s;', policyname, schemaname, tablename, permissive, cmd, array_to_string(roles, ','),
+                 case when qual is not null then ' using ('||qual||')' else '' end, case when with_check is not null then ' with check ('||with_check||')' else '' end)
+            from pg_policies where schemaname = 'storage';
+          SQL
+          { echo "-- MyHato backup $(date -u +%FT%TZ)"; echo "-- 1) public schema + data"; cat public.sql; echo "-- 2) accounts and buckets (load with: SET session_replication_role = replica)"; cat system.sql; echo "-- 3) cron jobs, auth triggers, storage policies"; cat extras.sql; } | gzip -9 > backup.sql.gz
+          ls -la backup.sql.gz
+          grep -c "^COPY" public.sql system.sql || true
+          rm -f public.sql system.sql extras.sql
+      - name: Encrypt
+        env:
+          PASS: ${{ secrets.BACKUP_PASSPHRASE || inputs.test_pass }}
+        run: |
+          set -e
+          NAME="myhato-db-$(date -u +%Y-%m-%d).sql.gz.enc"
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 300000 -in backup.sql.gz -out "$NAME" -pass env:PASS
+          rm -f backup.sql.gz
+          # prove the file opens with the passphrase before keeping it
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 -in "$NAME" -pass env:PASS | gzip -t
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          echo "DAYS=$([ "$(date -u +%u)" = 7 ] && echo 90 || echo 30)" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}
+          retention-days: ${{ env.DAYS }}
+          compression-level: 0
