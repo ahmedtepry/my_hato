@@ -42,6 +42,8 @@ jobs:
           # schema of public (tables, functions, policies, triggers, grants)
           $PG pg_dump "$OLD" --schema-only -n public --no-owner -f schema.sql
           sed -i -E '/^CREATE SCHEMA public;/d; /^COMMENT ON SCHEMA public /d' schema.sql
+          grep -n 'DEFAULT PRIVILEGES FOR ROLE' schema.sql | grep -v 'FOR ROLE postgres ' | cut -c1-140 || true
+          sed -i -E '/^ALTER DEFAULT PRIVILEGES FOR ROLE (supabase_admin|supabase_auth_admin|supabase_storage_admin|pgsodium_keymaker)/d' schema.sql
           # policies on storage.objects and triggers on auth/storage tables written by us
           $PG psql "$OLD" -tAX -v ON_ERROR_STOP=1 -f - > extra.sql <<'SQL'
           select format('create policy %I on %I.%I as %s for %s to %s%s%s;', policyname, schemaname, tablename, permissive, cmd, array_to_string(roles, ','),
