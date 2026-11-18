@@ -80,7 +80,7 @@ class FaceWorker {
   // GitHub Releases first (free, no download limit), the Supabase copy only if GitHub cannot be reached
   static const _modelBases = [
     'https://github.com/ahmedtepry/my_hato/releases/download/face-models',
-    'https://efdomvgypdkpqubkkjwm.supabase.co/storage/v1/object/public/app-updates/face',
+    'https://ytncfollpvkvlmtpxmzg.supabase.co/storage/v1/object/public/app-updates/face',
   ];
 
   /// A model file: from the app's assets when the build carries it (the small detector), otherwise downloaded once

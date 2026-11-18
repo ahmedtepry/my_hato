@@ -66,7 +66,7 @@ jobs:
           PUSH_SECRET: ${{ secrets.UPDATE_PUSH_SECRET }}
         run: |
           if [ ! -f dist/stable-key.flag ]; then echo "temporary signing key: not offering this build as an in-app update"; exit 0; fi
-          FN=https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/app-update
+          FN=https://ytncfollpvkvlmtpxmzg.supabase.co/functions/v1/app-update
           FILE=dist/myhato-release.apk
           BUILD=${{ github.run_number }}
           SHA=$(sha256sum "$FILE" | cut -d' ' -f1)

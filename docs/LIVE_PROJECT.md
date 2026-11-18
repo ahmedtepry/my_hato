@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Project | **myhato-store** (`efdomvgypdkpqubkkjwm`), region eu-central-1 (Frankfurt) |
-| API URL | https://efdomvgypdkpqubkkjwm.supabase.co |
-| Dashboard | https://supabase.com/dashboard/project/efdomvgypdkpqubkkjwm |
+| Project | **myhato-store** (`ytncfollpvkvlmtpxmzg`), region eu-central-1 (Frankfurt) |
+| API URL | https://ytncfollpvkvlmtpxmzg.supabase.co |
+| Dashboard | https://supabase.com/dashboard/project/ytncfollpvkvlmtpxmzg |
 
 ## Already done
 * All migrations 0001–0009 applied (42 tables, RLS on every table, 61 functions, 5 storage buckets, realtime).

@@ -50,7 +50,7 @@ jobs:
           PUSH_SECRET: ${{ secrets.UPDATE_PUSH_SECRET }}
         run: |
           if [ ! -f dist/stable-key.flag ]; then echo "temporary key: not offered as an update"; exit 0; fi
-          FN=https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/app-update
+          FN=https://ytncfollpvkvlmtpxmzg.supabase.co/functions/v1/app-update
           FILE=dist/MyHatoOwner.apk
           BUILD=${{ github.run_number }}
           SHA=$(sha256sum "$FILE" | cut -d' ' -f1)

@@ -15,7 +15,7 @@ The Google button appears automatically once the provider is enabled (the app re
      While in *Testing*, only the test users you list can sign in.
 3. **Credentials → Create credentials → OAuth client ID → Web application**
    - Name: `Supabase`
-   - Authorized redirect URI: `https://efdomvgypdkpqubkkjwm.supabase.co/auth/v1/callback`
+   - Authorized redirect URI: `https://ytncfollpvkvlmtpxmzg.supabase.co/auth/v1/callback`
    - Copy the **Client ID** and **Client secret**.
 
 ## 2. Supabase (project myhato-store)
@@ -27,4 +27,4 @@ Open the app → تسجيل الدخول → «المتابعة بـ Google» �
 Google accounts arrive with a confirmed email, so the account is verified automatically.
 
 Facebook works the same way (Supabase → Providers → Facebook, with an app from developers.facebook.com and
-redirect URI `https://efdomvgypdkpqubkkjwm.supabase.co/auth/v1/callback`).
+redirect URI `https://ytncfollpvkvlmtpxmzg.supabase.co/auth/v1/callback`).

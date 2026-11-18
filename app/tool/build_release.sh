@@ -3,8 +3,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 DEFINES=(
-  --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co
-  --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
+  --dart-define=SUPABASE_URL=https://ytncfollpvkvlmtpxmzg.supabase.co
+  --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0bmNmb2xscHZrdmxtdHB4bXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ5OTQ2OTMsImV4cCI6MjExMDU3MDY5M30.FzKq68QcVzFRO503KlXaH_lBJ59Nto_-Hn4anNPxWhg
   --dart-define=SUPPORT_PHONE=${SUPPORT_PHONE:-}
   --dart-define=SUPPORT_WHATSAPP=${SUPPORT_WHATSAPP:-}
 )

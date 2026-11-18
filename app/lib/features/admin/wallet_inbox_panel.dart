@@ -35,7 +35,7 @@ String _walletName(BuildContext c, String? w) => switch (w) {
       _ => _t(c, 'محفظة', 'Wallet'),
     };
 
-const _hookUrl = 'https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/wallet-sms';
+const _hookUrl = 'https://ytncfollpvkvlmtpxmzg.supabase.co/functions/v1/wallet-sms';
 
 final _inboxProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async =>
     Map<String, dynamic>.from(await ref.watch(supabaseProvider).rpc('wallet_inbox_list', params: {'p_limit': 60}) as Map));

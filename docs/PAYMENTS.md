@@ -39,7 +39,7 @@ Payment methods appear only if they are **enabled on your Paymob account** (one 
    - **Developers → Payment Integrations**: note the **Integration ID** of each method you want (card, wallet, Apple Pay…).
    - Ask Paymob for a **card verification / tokenization integration** (no capture) for the admin card. This step is optional.
    - Set the **Transaction processed callback** and **Transaction response callback** of each integration to:
-     `https://efdomvgypdkpqubkkjwm.supabase.co/functions/v1/payments-webhook`
+     `https://ytncfollpvkvlmtpxmzg.supabase.co/functions/v1/payments-webhook`
 3. **Supabase → Project Settings → Edge Functions → Secrets**:
 
    | Secret | Value |

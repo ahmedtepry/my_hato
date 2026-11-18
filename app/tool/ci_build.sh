@@ -80,10 +80,10 @@ build_apk() {
   local KIND=apk TP="--target-platform android-arm64" SB=""
   if [ "${STORE_BUILD:-}" = 1 ]; then KIND=appbundle; TP=""; SB="--dart-define=STORE_BUILD=true"; fi
   flutter build $KIND --release $TP $SB --build-number="${GITHUB_RUN_NUMBER:-1}" --obfuscate --split-debug-info=build/symbols \
-    --dart-define=SUPABASE_URL=https://efdomvgypdkpqubkkjwm.supabase.co \
+    --dart-define=SUPABASE_URL=https://ytncfollpvkvlmtpxmzg.supabase.co \
     --dart-define=BUILD_NUMBER="${GITHUB_RUN_NUMBER:-0}" \
     --dart-define=APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" \
-    --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmZG9tdmd5cGRrcHF1YmtrandtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjUzMjMsImV4cCI6MjEwODI0MTMyM30.EcvDTYBNfh2bka7UUA7gdcK12e8y4DnvOcIuGRmI4dg
+    --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0bmNmb2xscHZrdmxtdHB4bXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ5OTQ2OTMsImV4cCI6MjExMDU3MDY5M30.FzKq68QcVzFRO503KlXaH_lBJ59Nto_-Hn4anNPxWhg
 }
 if ! build_apk; then
   # transient SDK/NDK download failures ("Error on ZipFile unknown archive") leave a half-installed
