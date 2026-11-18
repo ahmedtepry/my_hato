@@ -171,7 +171,8 @@ Map<String, Object> teamRpc() => {
       },
       'online_overview': {
         'employees': [
-          {'user_id': _u[4], 'name': 'منى', 'shift_from': '10:00', 'shift_to': '18:00', 'orders_target': 80, 'value_target_minor': 1500000, 'orders': 63, 'value_minor': 1210000, 'commission_minor': 36000, 'online_now': true},
+          {'user_id': _u[4], 'name': 'منى', 'daily_hours': 8, 'orders_done': 63, 'orders_target': 80, 'value_done_minor': 1210000, 'value_target_minor': 1500000},
+          {'user_id': _u[1], 'name': 'محمد', 'daily_hours': 4, 'orders_done': 21, 'orders_target': 30, 'value_done_minor': 402000, 'value_target_minor': 600000},
         ],
       },
       'online_report': {
@@ -215,6 +216,7 @@ Map<String, Object> teamRpc() => {
         {'id': '00000000-0000-4000-8000-0000000f101e', 'name': 'مؤسسة النور للموبايلات', 'phone': '0225550002', 'is_active': true, 'orders': 6, 'owed_minor': 0, 'note': 'موبايلات براند'},
       ],
       'goods_receipts_list': <Object>[],
+      'wheel_gifts_list': <Object>[],
       'stocktakes_list': <Object>[],
       'price_changes_list': <Object>[],
       'wheel_admin_get': {
@@ -222,7 +224,7 @@ Map<String, Object> teamRpc() => {
         'segments': [
           for (final (i, (kind, ar, en, w, pts, pct)) in const [
             ('points', '50 نقطة', '50 points', 30, 50, null), ('discount', 'خصم 10%', '10% off', 15, null, 10), ('points', '100 نقطة', '100 points', 15, 100, null),
-            ('nothing', 'حظ أوفر', 'Better luck', 25, null, null), ('gift', 'جراب هدية', 'Free case', 5, null, null), ('discount', 'خصم 5%', '5% off', 10, null, 5),
+            ('lose', 'حظ أوفر', 'Better luck', 25, null, null), ('gift', 'جراب هدية', 'Free case', 5, null, null), ('discount', 'خصم 5%', '5% off', 10, null, 5),
           ].indexed)
             {'id': '00000000-0000-4000-8000-00000000510$i', 'kind': kind, 'active': true, 'points': pts, 'weight': w, 'label_ar': ar, 'label_en': en, 'daily_limit': kind == 'gift' ? 3 : null,
               'given_today': i == 0 ? 9 : i, 'valid_hours': 72, 'discount_percent': pct},

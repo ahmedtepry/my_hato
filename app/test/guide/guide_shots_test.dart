@@ -367,18 +367,67 @@ void main() {
     final tabs = ProviderScope.containerOf(f.evaluate().first).read(consoleTabsProvider);
     // ignore: avoid_print
     print('TABS $p ${tabs.join(',')}');
-    for (final id in tabs) {
-      if (await goTab(t, id)) await shot(t, '${p}_tab_$id');
+    // purchases last: its page can throw in the fake server and stop the rest
+    final order = [...tabs.where((x) => x != 'purchases'), if (tabs.contains('purchases')) 'purchases'];
+    for (final id in order) {
+      try {
+        if (await goTab(t, id)) await shot(t, '${p}_tab_$id');
+      } catch (e) {
+        // ignore: avoid_print
+        print('TOURFAIL $p $id $e');
+      }
     }
   }
 
-  job('tour_owner', {'owner'}, ownerPerms, wideRpc, (t, lang, ar) => tour(t, 'owner'));
+  Future<void> safe(String what, Future<void> Function() f) async {
+    try {
+      await f();
+    } catch (e) {
+      // ignore: avoid_print
+      print('STEPFAIL $what $e');
+    }
+  }
+
+  Future<void> ownerExtras(WidgetTester t) async {
+    await safe('team', () async {
+      await goTab(t, 'accounts');
+      await shot(t, 'owner_x_accounts');
+      if (await tapText(t, 'الفريق')) await shot(t, 'owner_x_team');
+      if (await tapText(t, 'الصلاحيات')) await shot(t, 'owner_x_permissions');
+    });
+    await safe('stock', () async {
+      await goTab(t, 'stock');
+      if (await tapText(t, 'فرع جديد')) {
+        await shot(t, 'owner_x_new_branch');
+        await closeDialog(t);
+      }
+    });
+    await safe('shifts', () async {
+      await goTab(t, 'shifts');
+      if (await tapText(t, 'موافقة')) await shot(t, 'owner_x_approve');
+    });
+  }
+
+  job('tour_owner', {'owner'}, ownerPerms, wideRpc, (t, lang, ar) async {
+    await tour(t, 'owner');
+    await ownerExtras(t);
+  });
   job('tour_manager', {'manager'}, managerPerms, wideRpc, (t, lang, ar) => tour(t, 'manager'));
   job('tour_accountant', {'accountant'}, accountantPerms, wideRpc, (t, lang, ar) => tour(t, 'accountant'));
   job('tour_online', {'sales'}, salesPerms, wideRpc, (t, lang, ar) => tour(t, 'online'));
-  job('tour_cashier', {'cashier'}, cashierPerms, cashierRpc, (t, lang, ar) => tour(t, 'cashier'));
-  job('tour_marketing', {'marketing'}, marketingPerms, marketingRpc, (t, lang, ar) => tour(t, 'marketing'));
-  job('tour_technician', {'technician'}, technicianPerms, repairsRpc, (t, lang, ar) => tour(t, 'technician'));
+  job('tour_cashier', {'cashier'}, cashierPerms, wideRpc, (t, lang, ar) => tour(t, 'cashier'));
+  job('tour_marketing', {'marketing'}, marketingPerms, wideRpc, (t, lang, ar) => tour(t, 'marketing'));
+  job('tour_technician', {'technician'}, technicianPerms, wideRpc, (t, lang, ar) async {
+    await tour(t, 'technician');
+    for (final r in ['RP-1042', 'RP-1041', 'RP-1040']) {
+      await safe(r, () async {
+        if (await tapText(t, r)) {
+          await shot(t, 'technician_x_$r');
+          await closeDialog(t);
+        }
+      });
+    }
+  });
 
   job('marketing', {'marketing'}, marketingPerms, marketingRpc, (t, lang, ar) async {
     final p = '${lang}_marketing';
