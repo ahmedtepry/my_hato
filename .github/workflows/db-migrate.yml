@@ -1,0 +1,48 @@
+name: db-migrate
+# One-off: copies the MyHato database (roles, schema, auth users, data) from the restricted project to the new one.
+# Passwords are one-time values that are rotated right after the run.
+on:
+  workflow_dispatch:
+    inputs:
+      old_ref: { required: true, type: string }
+      new_ref: { required: true, type: string }
+      old_pw: { required: true, type: string }
+      new_pw: { required: true, type: string }
+      step: { required: true, type: string, default: "all" }
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Mask
+        run: |
+          echo "::add-mask::${{ inputs.old_pw }}"
+          echo "::add-mask::${{ inputs.new_pw }}"
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Find poolers
+        id: p
+        run: |
+          set +e
+          pick(){ ref=$1; pw=$2
+            for h in aws-0-eu-central-1 aws-1-eu-central-1 aws-0-eu-west-1 aws-1-eu-west-1 aws-0-eu-west-2 aws-1-eu-west-2 aws-0-us-east-1 aws-1-us-east-1 aws-0-eu-central-2 aws-1-eu-central-2 aws-0-ap-south-1 aws-1-ap-south-1; do
+              u="postgresql://postgres.$ref:$pw@$h.pooler.supabase.com:5432/postgres"
+              if PGCONNECT_TIMEOUT=8 psql "$u" -tAc "select 1" >/dev/null 2>&1; then echo "$h"; return; fi; done; echo none; }
+          o=$(pick ${{ inputs.old_ref }} ${{ inputs.old_pw }}); n=$(pick ${{ inputs.new_ref }} ${{ inputs.new_pw }})
+          echo "old pooler: $o  new pooler: $n"; echo "old=$o" >> $GITHUB_OUTPUT; echo "new=$n" >> $GITHUB_OUTPUT
+          [ "$o" != none ] && [ "$n" != none ]
+      - name: Dump and restore
+        env:
+          OLD: postgresql://postgres.${{ inputs.old_ref }}:${{ inputs.old_pw }}@${{ steps.p.outputs.old }}.pooler.supabase.com:5432/postgres
+          NEW: postgresql://postgres.${{ inputs.new_ref }}:${{ inputs.new_pw }}@${{ steps.p.outputs.new }}.pooler.supabase.com:5432/postgres
+        run: |
+          set -e
+          supabase db dump --db-url "$OLD" -f roles.sql --role-only
+          supabase db dump --db-url "$OLD" -f schema.sql
+          supabase db dump --db-url "$OLD" -f data.sql --use-copy --data-only
+          wc -c roles.sql schema.sql data.sql
+          grep -c "^COPY" data.sql || true
+          psql "$NEW" -v ON_ERROR_STOP=1 -tAc "select count(*) from pg_tables where schemaname='public'"
+          psql "$NEW" --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql --command 'SET session_replication_role = replica' --file data.sql
+          psql "$NEW" -tAc "select count(*) from pg_tables where schemaname='public'; select count(*) from auth.users;"
+          rm -f roles.sql schema.sql data.sql
