@@ -1,4 +1,5 @@
 // Sample data for the guide screenshots (same shapes the real server returns).
+part 'team_fixtures.dart';
 const fakeUserId = '00000000-0000-4000-8000-000000000001';
 const fakeSellerId = '00000000-0000-4000-8000-000000000002';
 const branchId = '00000000-0000-4000-8000-0000000000b1';
@@ -7,13 +8,13 @@ const shiftId = '00000000-0000-4000-8000-0000000000a1';
 const cashierPerms = {
   'assistant.cashier', 'assistant.guard', 'assistant.use_challenge', 'assistant.use_find', 'assistant.use_fingerprint', 'assistant.use_overview',
   'assistant.use_reel', 'assistant.use_robot_close', 'assistant.use_robot_open', 'chat.use', 'commission.today', 'invoices.view', 'pos.discount',
-  'pos.refund', 'pos.remember_login', 'pos.sell', 'pos.shift', 'targets.mine',
+  'pos.refund', 'pos.remember_login', 'pos.sell', 'pos.shift', 'targets.mine', 'sales.mine', 'daybook.view',
 };
 const salesPerms = {
   'banners.manage', 'cancel_requests.decide', 'chat.use', 'commission.today', 'coupons.manage', 'customers.view', 'inventory.manage', 'marketing.view',
   'notifications.broadcast', 'online.mine', 'online.shift', 'orders.address', 'orders.confirm_wallet', 'orders.manage', 'orders.set_branch', 'orders.view',
   'payments.manage', 'pos.remember_login', 'pos.sell', 'pos.shift', 'products.manage', 'reviews.moderate', 'stock.receive', 'stock.transfer', 'stock.view',
-  'targets.mine', 'wallet.view',
+  'targets.mine', 'wallet.view', 'sales.mine',
 };
 const technicianPerms = {'chat.use', 'repairs.manage', 'repairs.update_assigned', 'repairs.view'};
 const supportPerms = {
@@ -24,6 +25,16 @@ const supportPerms = {
 const marketingPerms = {
   'banners.manage', 'chat.use', 'contest.manage', 'coupons.manage', 'customers.view', 'marketing.analytics', 'marketing.campaigns', 'marketing.request',
   'marketing.segments', 'marketing.view', 'notifications.broadcast', 'occasions.manage', 'pos.remember_login', 'reviews.moderate',
+};
+
+const ownerPerms = {
+  'accounts.unblock', 'appearance.login', 'appearance.look', 'appearance.manage', 'appearance.welcome', 'assistant.accountant', 'assistant.cashier', 'assistant.guard', 'assistant.support', 'assistant.use_challenge', 'assistant.use_find', 'assistant.use_fingerprint', 'assistant.use_overview', 'assistant.use_reel', 'assistant.use_robot_close', 'assistant.use_robot_open', 'audit.export', 'audit.view', 'banners.manage', 'books.period', 'branches.all', 'branches.manage', 'branches.rename', 'cancel_requests.decide', 'chat.logs', 'chat.manage', 'chat.purge', 'commission.set', 'commission.today', 'commission.view', 'contest.manage', 'cost.manage', 'coupons.manage', 'customers.reset_password', 'customers.review', 'customers.view', 'daybook.collect', 'daybook.lock', 'daybook.view', 'features.manage', 'gifts.manage', 'inventory.manage', 'invoices.view', 'marketing.analytics', 'marketing.approve', 'marketing.campaigns', 'marketing.request', 'marketing.segments', 'marketing.view', 'notifications.broadcast', 'occasions.manage', 'online.manage', 'online.mine', 'online.review', 'online.shift', 'ops.live', 'orders.address', 'orders.confirm_wallet', 'orders.manage', 'orders.set_branch', 'orders.view', 'payments.manage', 'payments.wallets', 'permissions.manage', 'pos.approve', 'pos.discount', 'pos.refund', 'pos.remember_login', 'pos.sell', 'pos.shift', 'products.manage', 'profit.view', 'purchases.manage', 'purchases.pay', 'purchases.receive', 'purchases.view', 'receipt.style', 'repairs.manage', 'repairs.update_assigned', 'repairs.view', 'reviews.moderate', 'roles.assign', 'sales.mine', 'sales.view', 'settings.manage', 'shifts.correct', 'shifts.reports', 'shifts.review', 'shortcut.export', 'shortcut.goods_receipt', 'shortcut.price_edit', 'shortcut.stocktake', 'staff.manage', 'stock.allocate', 'stock.others', 'stock.receive', 'stock.transfer', 'stock.view', 'storefront.layout', 'support.manage', 'targets.manage', 'targets.view', 'wallet.manage', 'wallet.refund', 'wallet.view', 'wheel.manage'
+};
+const managerPerms = {
+  'audit.export', 'audit.view', 'banners.manage', 'books.period', 'branches.all', 'cancel_requests.decide', 'chat.manage', 'chat.use', 'commission.today', 'commission.view', 'coupons.manage', 'customers.review', 'customers.view', 'daybook.view', 'inventory.manage', 'invoices.view', 'marketing.analytics', 'marketing.request', 'marketing.segments', 'marketing.view', 'notifications.broadcast', 'online.mine', 'online.review', 'online.shift', 'orders.address', 'orders.confirm_wallet', 'orders.manage', 'orders.set_branch', 'orders.view', 'payments.manage', 'pos.approve', 'pos.discount', 'pos.refund', 'pos.remember_login', 'pos.sell', 'pos.shift', 'products.manage', 'profit.view', 'purchases.manage', 'purchases.receive', 'purchases.view', 'repairs.manage', 'repairs.update_assigned', 'repairs.view', 'reviews.moderate', 'sales.mine', 'shifts.correct', 'shifts.reports', 'shifts.review', 'shortcut.goods_receipt', 'shortcut.stocktake', 'stock.receive', 'stock.transfer', 'stock.view', 'support.manage', 'targets.view', 'wallet.view'
+};
+const accountantPerms = {
+  'assistant.accountant', 'assistant.guard', 'assistant.use_challenge', 'assistant.use_fingerprint', 'books.period', 'branches.all', 'chat.use', 'commission.view', 'daybook.collect', 'daybook.view', 'invoices.view', 'online.manage', 'online.review', 'orders.confirm_wallet', 'pos.approve', 'pos.discount', 'pos.refund', 'pos.remember_login', 'profit.view', 'purchases.pay', 'purchases.view', 'sales.view', 'shifts.correct', 'shifts.reports', 'shifts.review', 'stock.view', 'targets.view', 'wallet.refund', 'wallet.view'
 };
 
 String _ago(int minutes) => DateTime.now().toUtc().subtract(Duration(minutes: minutes)).toIso8601String();
@@ -368,4 +379,16 @@ Map<String, Object> marketingRpc() => {
           'title_ar': 'عروض الإسكرينات', 'title_en': 'Screen protector deals', 'is_active': true, 'link_type': null, 'starts_at': _ago(60 * 24), 'created_at': _ago(60 * 24), 'image_path': null,
           'link_value': null, 'price_text': null, 'sort_order': 0, 'product_ids': [products[0]['id'], products[1]['id']], 'subtitle_ar': 'لحد آخر الأسبوع', 'subtitle_en': 'Until the end of the week', 'old_price_text': null},
       ],
+    };
+
+/// The owner / manager / accountant see the whole shop: every answer the other jobs use, plus their own (filled in teamRpc()).
+Map<String, Object> wideRpc() => {
+      ...salesRpc(),
+      ...onlineRpc(),
+      ...marketingRpc(),
+      ...cashierRpc(),
+      'orders': orders(),
+      'products': productRows(),
+      'repair_requests': repairs(),
+      ...teamRpc(),
     };

@@ -61,6 +61,9 @@ Future<void> _loadIcons() async {
 
 var _shotKey = GlobalKey();
 
+/// 2x for the training videos (sharp when the camera zooms in); the PDF guides used 1.5.
+const shotRatio = 2.0;
+
 /// Opens the console as [roles]/[perms] against the fake server.
 Future<void> openConsole(WidgetTester t, {required Set<String> roles, required Set<String> perms, required Map<String, Object> rpc, String lang = 'ar', String look = 'midnight', Size size = const Size(1440, 900)}) async {
   _shotKey = GlobalKey();
@@ -141,12 +144,30 @@ Future<void> shot(WidgetTester t, String name) async {
   await settle(t, rounds: 3);
   final b = _shotKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
   await t.runAsync(() async {
-    final img = await b.toImage(pixelRatio: 1.5);
+    final img = await b.toImage(pixelRatio: shotRatio);
     final data = await img.toByteData(format: ui.ImageByteFormat.png);
     final f = File('build/guide_shots/$name.png');
     f.parent.createSync(recursive: true);
     f.writeAsBytesSync(data!.buffer.asUint8List());
   });
+  // where every piece of text sits (logical pixels), so the training videos can zoom onto the exact button
+  final texts = <Map<String, Object>>[];
+  final size = b.size;
+  void visit(RenderObject ro) {
+    if (ro is RenderParagraph) {
+      final txt = ro.text.toPlainText().trim();
+      if (txt.isNotEmpty && ro.hasSize && ro.attached) {
+        final o = ro.localToGlobal(Offset.zero, ancestor: b);
+        final r = o & ro.size;
+        if (r.right > 0 && r.bottom > 0 && r.left < size.width && r.top < size.height && r.width > 1 && r.height > 1) {
+          texts.add({'t': txt, 'x': r.left.round(), 'y': r.top.round(), 'w': r.width.round(), 'h': r.height.round()});
+        }
+      }
+    }
+    ro.visitChildren(visit);
+  }
+  b.visitChildren(visit);
+  File('build/guide_shots/$name.json').writeAsStringSync(jsonEncode({'w': size.width, 'h': size.height, 'ratio': shotRatio, 'texts': texts}));
   // ignore: avoid_print
   print('SHOT $name');
 }
@@ -230,8 +251,8 @@ Future<void> typeInto(WidgetTester t, Set<String> labels, String text) async {
 }
 
 /// One job's guide pictures, in both languages.
-void job(String name, Set<String> roles, Set<String> perms, Map<String, Object> Function() rpc, Future<void> Function(WidgetTester t, String lang, bool ar) steps) {
-  for (final lang in const ['ar', 'en']) {
+void job(String name, Set<String> roles, Set<String> perms, Map<String, Object> Function() rpc, Future<void> Function(WidgetTester t, String lang, bool ar) steps, {List<String> langs = const ['ar']}) {
+  for (final lang in langs) {
     testWidgets('$name $lang', (t) async {
       await openConsole(t, roles: roles, perms: perms, rpc: rpc(), lang: lang);
       await steps(t, lang, lang == 'ar');
@@ -339,6 +360,25 @@ void main() {
     await goTab(t, 'assistant');
     await shot(t, '${p}_05_assistant');
   });
+
+  // Training videos: every section each job can open, in sidebar order.
+  Future<void> tour(WidgetTester t, String p) async {
+    final f = find.descendant(of: find.byType(DefaultTabController), matching: find.byType(AnimatedBuilder));
+    final tabs = ProviderScope.containerOf(f.evaluate().first).read(consoleTabsProvider);
+    // ignore: avoid_print
+    print('TABS $p ${tabs.join(',')}');
+    for (final id in tabs) {
+      if (await goTab(t, id)) await shot(t, '${p}_tab_$id');
+    }
+  }
+
+  job('tour_owner', {'owner'}, ownerPerms, wideRpc, (t, lang, ar) => tour(t, 'owner'));
+  job('tour_manager', {'manager'}, managerPerms, wideRpc, (t, lang, ar) => tour(t, 'manager'));
+  job('tour_accountant', {'accountant'}, accountantPerms, wideRpc, (t, lang, ar) => tour(t, 'accountant'));
+  job('tour_online', {'sales'}, salesPerms, wideRpc, (t, lang, ar) => tour(t, 'online'));
+  job('tour_cashier', {'cashier'}, cashierPerms, cashierRpc, (t, lang, ar) => tour(t, 'cashier'));
+  job('tour_marketing', {'marketing'}, marketingPerms, marketingRpc, (t, lang, ar) => tour(t, 'marketing'));
+  job('tour_technician', {'technician'}, technicianPerms, repairsRpc, (t, lang, ar) => tour(t, 'technician'));
 
   job('marketing', {'marketing'}, marketingPerms, marketingRpc, (t, lang, ar) async {
     final p = '${lang}_marketing';
