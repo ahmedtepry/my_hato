@@ -71,8 +71,8 @@ const Map<String, Map<String, String>> _strings = {
   'used_title': {'ar': 'الأجهزة المستعملة', 'en': 'Used devices'},
   'used_coming_soon': {'ar': 'قريبًا', 'en': 'Coming soon'},
   'used_coming_soon_body': {
-    'ar': 'بنجهّز قسم الأجهزة المستعملة المفحوصة والمضمونة. تابعنا، هيكون متاح قريبًا!',
-    'en': 'We are preparing a section of inspected, guaranteed used devices. Stay tuned — it is coming soon!'
+    'ar': 'بنجهّز قسم الأجهزة المستعملة حالة جيدة بضمان. تابعنا، هيكون متاح قريبًا!',
+    'en': 'We are preparing a section of used devices in good condition, with warranty. Stay tuned — it is coming soon!'
   },
   'notify_me': {'ar': 'تصفّح الأجهزة الجديدة', 'en': 'Browse new devices'},
   // onboarding
