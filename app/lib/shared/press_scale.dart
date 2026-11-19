@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/reduce_motion.dart';
 
 /// Subtle press feedback: the child sinks a little while pressed and springs back on release.
 /// Uses raw pointer events, so the child's own taps / ripples keep working; a scroll that starts on
@@ -37,7 +38,7 @@ class _PressScaleState extends State<PressScale> {
       onPointerCancel: (_) => _set(false),
       child: AnimatedScale(
         scale: _down ? widget.scale : 1,
-        duration: _down ? const Duration(milliseconds: 110) : const Duration(milliseconds: 260),
+        duration: ReduceMotion.d(_down ? const Duration(milliseconds: 110) : const Duration(milliseconds: 260)),
         curve: _down ? Curves.easeOut : Curves.easeOutBack,
         child: widget.child,
       ),

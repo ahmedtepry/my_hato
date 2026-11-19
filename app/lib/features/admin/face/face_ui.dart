@@ -19,6 +19,7 @@ import '../../../shared/motion.dart';
 import '../../../shared/states.dart';
 import 'face_repository.dart';
 import 'face_worker.dart';
+import '../../../core/reduce_motion.dart';
 import 'quick_login.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -429,7 +430,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                             width: d,
                             height: d,
                             child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 300),
+                              duration: ReduceMotion.d(const Duration(milliseconds: 300)),
                               opacity: _recognized ? 0.35 : 1,
                               child: FittedBox(
                                 fit: BoxFit.cover,
@@ -481,7 +482,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
             const SizedBox(height: 14),
             if (_fatal == null) ...[
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
+                duration: ReduceMotion.d(const Duration(milliseconds: 220)),
                 child: Text(_title, key: ValueKey(_title), textAlign: TextAlign.center, style: TextStyle(color: color, fontSize: 21, fontWeight: FontWeight.w800)),
               ),
               const SizedBox(height: 4),
@@ -496,7 +497,7 @@ class _FaceScanDialogState extends ConsumerState<_FaceScanDialog> {
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   for (var i = 0; i < 3; i++)
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
+                      duration: ReduceMotion.d(const Duration(milliseconds: 250)),
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       width: i == _step && !_recognized ? 26 : 10,
                       height: 10,

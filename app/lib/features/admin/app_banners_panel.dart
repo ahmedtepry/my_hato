@@ -15,6 +15,7 @@ import '../../core/theme.dart';
 import '../../shared/app_banner.dart';
 import '../../shared/states.dart';
 import '../../shared/app_sheet.dart';
+import '../../core/reduce_motion.dart';
 import '../../shared/image_shrink.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -498,7 +499,7 @@ class _EmojiPicker extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => onPick(e),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
+                  duration: ReduceMotion.d(const Duration(milliseconds: 150)),
                   width: 46,
                   height: 46,
                   alignment: Alignment.center,

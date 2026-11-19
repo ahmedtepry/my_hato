@@ -23,11 +23,22 @@ class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    if (!ReduceMotion.on) _c.repeat(reverse: true); // fast mode: a still placeholder
+    _sync();
+    ReduceMotion.changes.addListener(_sync);
+  }
+
+  void _sync() {
+    if (ReduceMotion.on) {
+      _c.stop();
+      _c.value = 1; // fast mode: a still placeholder
+    } else if (!_c.isAnimating) {
+      _c.repeat(reverse: true);
+    }
   }
 
   @override
   void dispose() {
+    ReduceMotion.changes.removeListener(_sync);
     _c.dispose();
     super.dispose();
   }

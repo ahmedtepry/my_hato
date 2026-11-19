@@ -20,6 +20,7 @@ import '../../core/theme.dart';
 import '../../shared/states.dart';
 import 'admin_repository.dart';
 import 'documents.dart' show waDigits;
+import '../../core/reduce_motion.dart';
 import '../../shared/app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -220,7 +221,7 @@ class _AccountCardState extends ConsumerState<_AccountCard> {
     };
 
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 300),
+      duration: ReduceMotion.d(const Duration(milliseconds: 300)),
       opacity: _done != null ? 0.55 : 1,
       child: Material(
         color: panelColor(context),

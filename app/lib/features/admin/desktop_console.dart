@@ -16,6 +16,7 @@ import '../auth/auth_repository.dart';
 import '../profile/profile_repository.dart';
 import 'admin_repository.dart';
 import 'pos_repository.dart';
+import '../../core/reduce_motion.dart';
 import 'team.dart' show roleOf;
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -325,7 +326,7 @@ class _NavTile extends StatelessWidget {
             hoverColor: Colors.white.withValues(alpha: 0.06),
             onTap: onTap,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 260),
+              duration: ReduceMotion.d(const Duration(milliseconds: 260)),
               curve: Curves.easeOutCubic,
               height: 46,
               padding: const EdgeInsets.symmetric(horizontal: 14),

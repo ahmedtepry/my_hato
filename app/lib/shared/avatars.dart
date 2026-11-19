@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../core/l10n.dart';
 import '../core/theme.dart';
+import '../core/reduce_motion.dart';
 import 'app_sheet.dart';
 
 /// Built-in cartoon avatars (drawn in code, no image files): 8 men (m1–m4 young, m5–m8 older) and
@@ -78,12 +79,13 @@ class _HatoAvatarState extends State<HatoAvatar> with SingleTickerProviderStateM
   Timer? _timer;
 
   void _sync() {
-    if (widget.animate && _timer == null) {
+    final animate = widget.animate && !ReduceMotion.on; // fast mode: no blinking
+    if (animate && _timer == null) {
       final every = Duration(milliseconds: 3800 + 230 * avatarIds.indexOf(widget.id).clamp(0, 15));
       _timer = Timer.periodic(every, (_) {
         if (mounted) _c.forward(from: 0);
       });
-    } else if (!widget.animate && _timer != null) {
+    } else if (!animate && _timer != null) {
       _timer!.cancel();
       _timer = null;
     }
@@ -93,6 +95,7 @@ class _HatoAvatarState extends State<HatoAvatar> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _sync();
+    ReduceMotion.changes.addListener(_sync);
   }
 
   @override
@@ -103,6 +106,7 @@ class _HatoAvatarState extends State<HatoAvatar> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    ReduceMotion.changes.removeListener(_sync);
     _timer?.cancel();
     _c.dispose();
     super.dispose();
@@ -527,10 +531,10 @@ class _AvatarPickerState extends State<_AvatarPicker> {
               onTap: () => setState(() => _sel = id),
               child: AnimatedScale(
                 scale: _sel == id ? 1.08 : 0.94,
-                duration: const Duration(milliseconds: 260),
+                duration: ReduceMotion.d(const Duration(milliseconds: 260)),
                 curve: Curves.easeOutBack,
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
+                  duration: ReduceMotion.d(const Duration(milliseconds: 220)),
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
@@ -555,7 +559,7 @@ class _AvatarPickerState extends State<_AvatarPicker> {
               textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
+            duration: ReduceMotion.d(const Duration(milliseconds: 260)),
             transitionBuilder: (c, a) => ScaleTransition(scale: a, child: FadeTransition(opacity: a, child: c)),
             child: _sel == null
                 ? const SizedBox(key: ValueKey('none'), height: 120, child: Icon(Icons.face_retouching_natural_rounded, size: 72, color: BrandColors.border))

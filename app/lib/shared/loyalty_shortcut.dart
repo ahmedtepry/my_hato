@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/l10n.dart';
+import '../core/reduce_motion.dart';
 import '../features/admin/feature_switches.dart' show featureVisible;
 
 const _gold = Color(0xFFF5B83D);
@@ -84,7 +85,7 @@ class _LoyaltyShortcutState extends ConsumerState<LoyaltyShortcut> with SingleTi
                   alignment: const Alignment(0, 0.55),
                   child: AnimatedScale(
                     scale: _overBin ? 1.25 : 1,
-                    duration: const Duration(milliseconds: 150),
+                    duration: ReduceMotion.d(const Duration(milliseconds: 150)),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 28),
                       Text(ar ? 'سيبها هنا عشان تتشال' : 'Drop here to remove', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
@@ -137,7 +138,7 @@ class _LoyaltyShortcutState extends ConsumerState<LoyaltyShortcut> with SingleTi
               label: ar ? 'مكافآت ${AppName.ar}' : '${AppName.en} Rewards',
               child: AnimatedScale(
                 scale: _dragging ? 1.12 : 1,
-                duration: const Duration(milliseconds: 150),
+                duration: ReduceMotion.d(const Duration(milliseconds: 150)),
                 child: Container(
                   width: _size,
                   height: _size,

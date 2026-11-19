@@ -1,5 +1,6 @@
 import 'dart:ui' show ImageFilter;
 
+import '../core/reduce_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -156,7 +157,8 @@ class GlassBox extends StatelessWidget {
       ),
       child: child,
     );
-    final framed = blur <= 0 ? ClipRRect(borderRadius: r, clipBehavior: Clip.hardEdge, child: body) : ClipRRect(borderRadius: r, clipBehavior: Clip.hardEdge, child: BackdropFilter(filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur), child: body));
+    final framed = blur <= 0 || ReduceMotion.on ? // fast mode: no backdrop blur (heavy on weak graphics)
+         ClipRRect(borderRadius: r, clipBehavior: Clip.hardEdge, child: body) : ClipRRect(borderRadius: r, clipBehavior: Clip.hardEdge, child: BackdropFilter(filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur), child: body));
     return margin == null ? framed : Padding(padding: margin!, child: framed);
   }
 }

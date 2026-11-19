@@ -11,6 +11,7 @@ import '../core/l10n.dart';
 import '../core/supabase_providers.dart';
 import '../core/theme.dart';
 import 'states.dart';
+import '../core/reduce_motion.dart';
 import 'app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -316,7 +317,7 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: AnimatedScale(
                       scale: _stars == i ? 1.25 : 1,
-                      duration: const Duration(milliseconds: 220),
+                      duration: ReduceMotion.d(const Duration(milliseconds: 220)),
                       curve: Curves.easeOutBack,
                       child: Icon(_stars >= i ? Icons.star_rounded : Icons.star_outline_rounded,
                           size: 44, color: _stars >= i ? const Color(0xFFFFB400) : BrandColors.border),
@@ -327,7 +328,7 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
           ),
           const SizedBox(height: 6),
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
+            duration: ReduceMotion.d(const Duration(milliseconds: 180)),
             child: Text(
               _stars == 0 ? _t(context, 'اختار من نجمة لـ 5 نجوم', 'Choose 1 to 5 stars') : (ar ? _labelsAr[_stars] : _labelsEn[_stars]),
               key: ValueKey(_stars),

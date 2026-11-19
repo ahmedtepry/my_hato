@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../core/reduce_motion.dart';
 import 'package:local_auth/local_auth.dart';
 
 // ---------------------------------------------------------------- fingerprint
@@ -357,7 +358,7 @@ class _RobotSceneState extends State<RobotScene> {
     return ListenableBuilder(
       listenable: ctl,
       builder: (_, __) => AnimatedContainer(
-        duration: const Duration(milliseconds: 1400),
+        duration: ReduceMotion.d(const Duration(milliseconds: 1400)),
         decoration: BoxDecoration(
           gradient: RadialGradient(
             center: const Alignment(0, -.3),
@@ -388,7 +389,7 @@ class _RobotSceneState extends State<RobotScene> {
               // on a problem the robot leans in towards the cashier
               AnimatedScale(
                 scale: ctl.mood == RobotMood.worry ? 1.14 : 1.0,
-                duration: const Duration(milliseconds: 500),
+                duration: ReduceMotion.d(const Duration(milliseconds: 500)),
                 curve: Curves.easeOutBack,
                 child: SizedBox(width: widget.robotWidth, child: RepaintBoundary(child: RobotView(key: ctl.robotKey, mood: ctl.mood))),
               ),
@@ -407,7 +408,7 @@ class _Sunrise extends StatelessWidget {
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(seconds: 4),
+      duration: ReduceMotion.d(const Duration(seconds: 4)),
       curve: Curves.easeOutCubic,
       builder: (_, v, __) => CustomPaint(painter: _SunPainter(v)),
     );
@@ -458,12 +459,17 @@ class RobotViewState extends State<RobotView> with TickerProviderStateMixin {
 
   /// Lights go off one by one: eyes, chest, antenna, then the glow underneath.
   void powerOff() {
-    if (mounted) _dim.forward(from: 0);
+    if (!mounted) return;
+    if (ReduceMotion.on) {
+      _dim.value = 1; // fast mode: lights off at once
+    } else {
+      _dim.forward(from: 0);
+    }
   }
 
   /// A short glow in the head: something was taken in.
   void pulse() {
-    if (mounted) _pulse.forward(from: 0);
+    if (mounted && !ReduceMotion.on) _pulse.forward(from: 0);
   }
 
   @override

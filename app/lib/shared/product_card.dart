@@ -13,6 +13,7 @@ import 'press_scale.dart';
 import '../core/l10n.dart';
 import '../core/money.dart';
 import '../core/supabase_providers.dart';
+import '../core/reduce_motion.dart';
 import '../core/theme.dart';
 
 class NetImage extends ConsumerWidget {
@@ -250,7 +251,7 @@ class _QuickAddState extends ConsumerState<_QuickAdd> {
           child: SizedBox.square(
             dimension: 34,
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
+              duration: ReduceMotion.d(const Duration(milliseconds: 220)),
               transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
               child: _busy
                   ? const Padding(

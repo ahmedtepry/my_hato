@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/reduce_motion.dart';
 
 /// Soft depth transition for a [PageView] page: while swiping, neighbouring pages shrink a little,
 /// fade and drift at a slower speed than the swipe (parallax), so switching images feels smooth
@@ -61,7 +62,7 @@ class PageDots extends StatelessWidget {
   Widget build(BuildContext context) => Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         for (var i = 0; i < count; i++)
           AnimatedContainer(
-            duration: const Duration(milliseconds: 320),
+            duration: ReduceMotion.d(const Duration(milliseconds: 320)),
             curve: Curves.easeOutCubic,
             margin: const EdgeInsets.symmetric(horizontal: 3),
             width: i == index ? 20 : 7,

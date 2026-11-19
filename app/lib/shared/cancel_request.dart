@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/errors.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
+import '../core/reduce_motion.dart';
 import 'app_sheet.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -181,7 +182,7 @@ class _CancelReasonSheetState extends State<CancelReasonSheet> {
                     selected: sel,
                     selectedTileColor: BrandColors.electric.withValues(alpha: 0.06),
                     leading: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
+                      duration: ReduceMotion.d(const Duration(milliseconds: 180)),
                       child: Icon(sel ? Icons.radio_button_checked : Icons.radio_button_unchecked,
                           key: ValueKey(sel), color: sel ? BrandColors.electric : BrandColors.gray),
                     ),
@@ -192,7 +193,7 @@ class _CancelReasonSheetState extends State<CancelReasonSheet> {
             ]),
           ),
           AnimatedSize(
-            duration: const Duration(milliseconds: 200),
+            duration: ReduceMotion.d(const Duration(milliseconds: 200)),
             child: _selected == -1
                 ? Padding(
                     padding: const EdgeInsets.only(top: 12),

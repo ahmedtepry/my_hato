@@ -320,6 +320,7 @@ class _PresenceDotState extends State<_PresenceDot> with SingleTickerProviderSta
   void initState() {
     super.initState();
     _sync();
+    ReduceMotion.changes.addListener(_sync);
   }
 
   @override
@@ -330,7 +331,12 @@ class _PresenceDotState extends State<_PresenceDot> with SingleTickerProviderSta
 
   void _sync() {
     if (widget.presence == 'online') {
-      if (!_c.isAnimating && !ReduceMotion.on) _c.repeat();
+      if (ReduceMotion.on) {
+        _c.stop();
+        _c.value = 0; // fast mode: a still dot, no pulsing ring
+      } else if (!_c.isAnimating) {
+        _c.repeat();
+      }
     } else {
       _c.stop();
     }
@@ -338,6 +344,7 @@ class _PresenceDotState extends State<_PresenceDot> with SingleTickerProviderSta
 
   @override
   void dispose() {
+    ReduceMotion.changes.removeListener(_sync);
     _c.dispose();
     super.dispose();
   }
@@ -462,7 +469,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                                 borderRadius: BorderRadius.circular(14),
                                 onTap: () => setState(() => _filter = _filter == p ? 'all' : p),
                                 child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
+                                  duration: ReduceMotion.d(const Duration(milliseconds: 200)),
                                   margin: const EdgeInsetsDirectional.only(end: 8),
                                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                                   decoration: BoxDecoration(
@@ -1092,7 +1099,7 @@ class _RoleOption extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: ReduceMotion.d(const Duration(milliseconds: 180)),
           decoration: BoxDecoration(
             color: selected ? role.color.withValues(alpha: 0.12) : panelColor(context),
             borderRadius: BorderRadius.circular(14),
@@ -1359,7 +1366,7 @@ class _AddMemberSheetState extends ConsumerState<_AddMemberSheet> {
                   borderRadius: BorderRadius.circular(16),
                   onTap: () => setState(() => _role = r.key),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
+                    duration: ReduceMotion.d(const Duration(milliseconds: 180)),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: _role == r.key ? r.color.withValues(alpha: 0.10) : Colors.white,

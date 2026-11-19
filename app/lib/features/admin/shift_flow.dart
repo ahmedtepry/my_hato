@@ -24,6 +24,7 @@ import 'cashier_assistant.dart';
 import 'face/face_repository.dart';
 import 'face/face_ui.dart';
 import 'pos_repository.dart';
+import '../../core/reduce_motion.dart';
 import 'shift_robot.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -951,7 +952,7 @@ class _ScanStrip extends StatelessWidget {
                   width: w,
                   child: Center(
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
+                      duration: ReduceMotion.d(const Duration(milliseconds: 250)),
                       width: w * .62,
                       height: 32,
                       alignment: Alignment.center,
@@ -985,10 +986,27 @@ class _Magnifier extends StatefulWidget {
 }
 
 class _MagnifierState extends State<_Magnifier> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900), value: .5);
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+    ReduceMotion.changes.addListener(_sync);
+  }
+
+  void _sync() {
+    if (ReduceMotion.on) {
+      _c.stop();
+      _c.value = .5; // fast mode: the magnifier stands still
+    } else if (!_c.isAnimating) {
+      _c.repeat(reverse: true);
+    }
+  }
 
   @override
   void dispose() {
+    ReduceMotion.changes.removeListener(_sync);
     _c.dispose();
     return super.dispose();
   }
@@ -997,7 +1015,7 @@ class _MagnifierState extends State<_Magnifier> with SingleTickerProviderStateMi
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 500),
+      duration: ReduceMotion.d(const Duration(milliseconds: 500)),
       curve: Curves.elasticOut,
       builder: (_, v, child) => Transform.scale(scale: v, child: child),
       child: AnimatedBuilder(
@@ -1037,7 +1055,7 @@ class _DrawerAnim extends StatelessWidget {
       child: Stack(alignment: Alignment.bottomCenter, children: [
         for (var i = 0; i < 3; i++)
           AnimatedPositioned(
-            duration: Duration(milliseconds: 500 + i * 160),
+            duration: ReduceMotion.d(Duration(milliseconds: 500 + i * 160)),
             curve: Curves.easeOutBack,
             bottom: open ? 34.0 + i * 12 : 14,
             child: Transform.rotate(
@@ -1052,7 +1070,7 @@ class _DrawerAnim extends StatelessWidget {
             ),
           ),
         AnimatedContainer(
-          duration: const Duration(milliseconds: 600),
+          duration: ReduceMotion.d(const Duration(milliseconds: 600)),
           curve: Curves.easeOutCubic,
           width: 100,
           height: 34,
@@ -1150,7 +1168,7 @@ class _DailyChallengeState extends ConsumerState<DailyChallenge> {
               Positioned.fill(
                 child: TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0, end: v),
-                  duration: const Duration(milliseconds: 700),
+                  duration: ReduceMotion.d(const Duration(milliseconds: 700)),
                   curve: Curves.easeOutCubic,
                   builder: (_, x, __) => CircularProgressIndicator(
                     value: x,
@@ -1187,7 +1205,7 @@ class _DailyChallengeState extends ConsumerState<DailyChallenge> {
               width: 70,
               child: TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0, end: v),
-                duration: const Duration(milliseconds: 600),
+                duration: ReduceMotion.d(const Duration(milliseconds: 600)),
                 curve: Curves.easeOutCubic,
                 builder: (_, x, __) => LinearProgressIndicator(value: x, minHeight: 6, borderRadius: BorderRadius.circular(3)),
               ),
@@ -1229,7 +1247,7 @@ class _ChallengeDialog extends ConsumerWidget {
           const SizedBox(height: 8),
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: (sold / daily).clamp(0.0, 1.0).toDouble()),
-            duration: const Duration(milliseconds: 600),
+            duration: ReduceMotion.d(const Duration(milliseconds: 600)),
             builder: (_, x, __) => LinearProgressIndicator(value: x, minHeight: 10, borderRadius: BorderRadius.circular(5)),
           ),
           const SizedBox(height: 6),
@@ -1335,6 +1353,7 @@ class _ChallengeDialog extends ConsumerWidget {
 /// Confetti over the whole screen for a couple of seconds.
 void showConfetti(BuildContext context) {
   final overlay = Overlay.of(context, rootOverlay: true);
+  if (ReduceMotion.on) return; // fast mode: no confetti
   late OverlayEntry e;
   e = OverlayEntry(builder: (_) => _Confetti(onDone: () => e.remove()));
   overlay.insert(e);

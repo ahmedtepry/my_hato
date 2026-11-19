@@ -74,14 +74,16 @@ class _WiggleState extends State<Wiggle> with SingleTickerProviderStateMixin {
   Timer? _timer;
 
   void _sync() {
-    if (widget.active && _timer == null) {
+    final active = widget.active && !ReduceMotion.on; // fast mode: no wiggle
+    if (active && _timer == null) {
       _c.forward(from: 0);
       _timer = Timer.periodic(const Duration(seconds: 5), (_) {
         if (mounted) _c.forward(from: 0);
       });
-    } else if (!widget.active && _timer != null) {
+    } else if (!active && _timer != null) {
       _timer!.cancel();
       _timer = null;
+      _c.value = 0;
     }
   }
 
@@ -89,6 +91,7 @@ class _WiggleState extends State<Wiggle> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     _sync();
+    ReduceMotion.changes.addListener(_sync);
   }
 
   @override
@@ -99,6 +102,7 @@ class _WiggleState extends State<Wiggle> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    ReduceMotion.changes.removeListener(_sync);
     _timer?.cancel();
     _c.dispose();
     super.dispose();
@@ -144,8 +148,8 @@ class SoftPageSwitch extends StatelessWidget {
   Widget build(BuildContext context) => ReduceMotion.on
       ? KeyedSubtree(key: ValueKey(index), child: children[index])
       : AnimatedSwitcher(
-        duration: const Duration(milliseconds: 280),
-        reverseDuration: const Duration(milliseconds: 110),
+        duration: ReduceMotion.d(const Duration(milliseconds: 280)),
+        reverseDuration: ReduceMotion.d(const Duration(milliseconds: 110)),
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeIn,
         layoutBuilder: (current, previous) => Stack(fit: StackFit.expand, children: [...previous, if (current != null) current]),
@@ -187,7 +191,7 @@ class CountUpText extends StatelessWidget {
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: target),
-      duration: duration,
+      duration: ReduceMotion.d(duration),
       curve: Curves.easeOutCubic,
       builder: (_, v, __) => Text('${text.substring(0, m.start)}${fmt(v)}${text.substring(m.end)}', style: style),
     );

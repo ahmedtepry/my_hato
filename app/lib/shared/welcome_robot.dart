@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../core/reduce_motion.dart';
 import 'package:flutter/material.dart';
 
 import '../core/appearance.dart';
@@ -26,7 +27,7 @@ class WelcomeRobot extends StatefulWidget {
 }
 
 class _WelcomeRobotState extends State<WelcomeRobot> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: WelcomeRobot.durationOf(widget.variant))..forward();
+  late final AnimationController _c = AnimationController(vsync: this, duration: WelcomeRobot.durationOf(widget.variant), value: ReduceMotion.on ? 1 : 0)..forward(); // fast mode: final pose at once
 
   @override
   void dispose() {

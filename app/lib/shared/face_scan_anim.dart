@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../core/reduce_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -54,8 +55,12 @@ class _FaceScanViewState extends State<FaceScanView> with TickerProviderStateMix
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    if (_reduce) _scan.stop();
+    _reduce = (MediaQuery.maybeDisableAnimationsOf(context) ?? false) || ReduceMotion.on;
+    if (_reduce) {
+      _scan.stop();
+    } else if (!widget.recognized && !_scan.isAnimating) {
+      _scan.repeat();
+    }
   }
 
   @override

@@ -2,6 +2,7 @@
 // Open both and they stack (messages on top, robot below); each closes on its own and goes back to just its icon in the left column.
 // After "Start the shift" the robot flies to the side, says it is around, and its panel opens. "Close the shift for me" lets the robot run
 // the closing on the employee's behalf (he still gives the count and his fingerprint/password: the robot never closes anything alone).
+import '../../core/reduce_motion.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -127,7 +128,7 @@ class RobotDock extends ConsumerStatefulWidget {
 }
 
 class _RobotDockState extends ConsumerState<RobotDock> with SingleTickerProviderStateMixin {
-  late final AnimationController _fly = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+  late final AnimationController _fly = AnimationController(vsync: this, duration: ReduceMotion.d(const Duration(milliseconds: 1100)));
   bool _welcome = false, _bubble = false;
 
   @override
@@ -876,6 +877,10 @@ void playOnlineWelcome(BuildContext context, {required VoidCallback onSettled}) 
     onSettled();
     return;
   }
+  if (ReduceMotion.on) {
+    onSettled(); // fast mode: no walking robot
+    return;
+  }
   final g = timeOfDayGreeting(context);
   late OverlayEntry entry;
   entry = OverlayEntry(builder: (_) => IgnorePointer(child: _WalkingRobot(greet: g.greet, icon: g.icon, color: g.color, onDone: () {
@@ -1081,6 +1086,11 @@ const _cheers = <(String, String)>[
 
 /// A short cheer: the robot hops in with a message (same cheap transform-only animation as the welcome).
 void playRobotCheer(BuildContext context, String text) {
+  if (ReduceMotion.on) {
+    // fast mode: just the message, no walking robot
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(text)));
+    return;
+  }
   final overlay = Overlay.maybeOf(context, rootOverlay: true);
   if (overlay == null) return;
   late OverlayEntry entry;

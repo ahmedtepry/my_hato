@@ -1342,11 +1342,11 @@ class _WelcomeToastState extends ConsumerState<_WelcomeToast> {
       right: 0,
       child: IgnorePointer(
         child: AnimatedSlide(
-          duration: const Duration(milliseconds: 350),
+          duration: ReduceMotion.d(const Duration(milliseconds: 350)),
           curve: Curves.easeOutCubic,
           offset: _show ? Offset.zero : const Offset(0, -2),
           child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 350),
+            duration: ReduceMotion.d(const Duration(milliseconds: 350)),
             opacity: _show ? 1 : 0,
             child: Center(
               child: Material(
@@ -2733,7 +2733,7 @@ class _StatusUpdateState extends State<_StatusUpdate> {
   String? get _message => _custom.text.trim().isNotEmpty ? _custom.text.trim() : _preset;
 
   Widget _radio(bool sel, {bool negative = false}) => AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
+        duration: ReduceMotion.d(const Duration(milliseconds: 180)),
         child: Icon(sel ? Icons.radio_button_checked : Icons.radio_button_unchecked,
             key: ValueKey(sel), color: sel ? (negative ? BrandColors.error : BrandColors.electric) : BrandColors.gray),
       );
@@ -3767,7 +3767,7 @@ class _StatTileState extends State<_StatTile> {
   @override
   Widget build(BuildContext context) => AnimatedScale(
         scale: _down ? 0.96 : 1,
-        duration: const Duration(milliseconds: 120),
+        duration: ReduceMotion.d(const Duration(milliseconds: 120)),
         child: Material(
           color: panelColor(context),
           borderRadius: BorderRadius.circular(16),

@@ -15,6 +15,7 @@ import '../../shared/motion.dart';
 import '../../shared/product_card.dart' show NetImage;
 import '../../shared/states.dart';
 import 'admin_repository.dart';
+import '../../core/reduce_motion.dart';
 import '../../shared/image_shrink.dart';
 
 String _t(BuildContext c, String ar, String en) => c.isAr ? ar : en;
@@ -493,7 +494,7 @@ class _SegCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: ReduceMotion.d(const Duration(milliseconds: 220)),
           width: 230,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(

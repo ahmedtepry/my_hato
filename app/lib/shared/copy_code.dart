@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/l10n.dart';
+import '../core/reduce_motion.dart';
 import '../core/theme.dart';
 
 /// Order / repair number with a copy button, so the customer can paste it when contacting us.
@@ -52,7 +53,7 @@ class _CopyCodeState extends State<CopyCode> {
             ),
             const SizedBox(width: 8),
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
+              duration: ReduceMotion.d(const Duration(milliseconds: 200)),
               transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
               child: Icon(
                 _copied ? Icons.check_circle_rounded : Icons.copy_rounded,
