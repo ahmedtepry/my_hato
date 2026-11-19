@@ -1,0 +1,141 @@
+Flutter 3.50.0 • channel stable • https://github.com/flutter/flutter.git
+Framework • revision ab2912035e (9 days ago) • 2026-11-09 08:50:21 -0800
+Engine • hash bf601093ad255aaf5c6d0fc5c4f9acfa60943b2a (revision 371f77202a) (9 days ago) • 2026-11-09 15:57:36.000Z
+Tools • Dart 3.14.0 • DevTools 2.61.0
+Setting "enable-windows-desktop" value to "true".
+
+You may need to restart any open editors for them to read new settings.
+Recreating project ....
+  .gitignore (created)
+  .idea\libraries\Dart_SDK.xml (created)
+  .idea\libraries\KotlinJavaRuntime.xml (created)
+  .idea\modules.xml (created)
+  .idea\runConfigurations\main_dart.xml (created)
+  .idea\workspace.xml (created)
+  myhato.iml (created)
+  README.md (created)
+  windows\.gitignore (created)
+  windows\CMakeLists.txt (created)
+  windows\flutter\CMakeLists.txt (created)
+  windows\runner\CMakeLists.txt (created)
+  windows\runner\flutter_window.cpp (created)
+  windows\runner\flutter_window.h (created)
+  windows\runner\main.cpp (created)
+  windows\runner\resource.h (created)
+  windows\runner\resources\app_icon.ico (created)
+  windows\runner\runner.exe.manifest (created)
+  windows\runner\Runner.rc (created)
+  windows\runner\utils.cpp (created)
+  windows\runner\utils.h (created)
+  windows\runner\win32_window.cpp (created)
+  windows\runner\win32_window.h (created)
+  test\widget_test.dart (created)
+Got dependencies.
+Upgrading analysis_options.yaml to exclude build and platform directories.
+Wrote 24 files.
+
+All done!
+You can find general documentation for Flutter at: https://docs.flutter.dev/
+Detailed API documentation is available at: https://api.flutter.dev/
+If you prefer video documentation, consider: https://www.youtube.com/c/flutterdev
+
+In order to run your application, type:
+
+  $ flutter run
+
+Your application code is in .\lib\main.dart.
+
+total 228
+drwxr-xr-x 1 runneradmin 197121      0 Nov 19 00:52 .
+drwxr-xr-x 1 runneradmin 197121      0 Nov 19 00:49 ..
+-rw-r--r-- 1 runneradmin 197121      0 Nov 19 00:49 .gitkeep
+-rw-r--r-- 1 runneradmin 197121 232589 Nov 19 00:52 face_detection_yunet_2023mar.onnx
+Resolving dependencies...
+Downloading packages...
+  archive 3.6.1 (4.7.1 available)
+  cached_network_image 3.4.1 (4.0.7 available)
+  cached_network_image_platform_interface 4.1.1 (5.0.4 available)
+  cached_network_image_web 1.3.1 (2.0.5 available)
+  camera_windows 0.2.6+5 (0.3.1 available)
+  cli_util 0.4.2 (0.6.0 available)
+  cross_file 0.3.5+5 (0.4.0 available)
+  dbus 0.7.15 (0.8.0 available)
+  equatable 2.1.0 (3.0.0 available)
+  file_picker 8.3.7 (13.4.0 available)
+  flutter_lints 4.0.0 (6.0.0 available)
+  flutter_local_notifications 18.0.1 (23.0.3 available)
+  flutter_local_notifications_linux 5.0.0 (9.0.0 available)
+  flutter_local_notifications_platform_interface 8.0.0 (13.0.0 available)
+  flutter_native_splash 2.4.4 (2.4.8 available)
+  flutter_riverpod 2.6.1 (3.5.0 available)
+  flutter_secure_storage 9.2.4 (11.2.0 available)
+  flutter_secure_storage_linux 1.2.3 (3.0.3 available)
+  flutter_secure_storage_macos 3.1.3 (4.0.0 available)
+  flutter_secure_storage_platform_interface 1.1.2 (2.1.1 available)
+  flutter_secure_storage_web 1.2.1 (2.1.1 available)
+  flutter_secure_storage_windows 3.1.2 (4.2.2 available)
+  geocoding 3.0.0 (5.0.1 available)
+  geocoding_android 3.3.1 (5.1.0 available)
+  geocoding_platform_interface 3.2.0 (5.0.0 available)
+  geolocator 13.0.4 (14.1.2 available)
+  geolocator_android 4.6.2 (5.2.1 available)
+  go_router 14.8.1 (18.1.4 available)
+  google_fonts 6.3.3 (9.0.0 available)
+  image 4.3.0 (4.13.1 available)
+  js 0.6.7 (0.7.2 available)
+  lints 4.0.0 (6.1.0 available)
+  local_auth 2.3.0 (3.0.2 available)
+  local_auth_android 1.0.56 (2.3.0 available)
+  local_auth_darwin 1.6.1 (2.0.5 available)
+  local_auth_windows 1.0.11 (2.0.2 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  pdf 3.12.0 (3.13.1 available)
+  permission_handler 11.4.0 (13.0.2 available)
+  permission_handler_android 12.1.0 (14.1.1 available)
+  printing 5.14.3 (5.15.1 available)
+  qr 3.0.3 (4.0.1 available)
+  record 6.2.1 (7.2.0 available)
+  record_android 1.5.2 (2.3.0 available)
+  record_ios 1.2.1 (2.1.1 available)
+  record_linux 1.3.1 (2.2.0 available)
+  record_macos 1.2.2 (2.1.1 available)
+  record_platform_interface 1.6.0 (2.2.0 available)
+  record_web 1.3.0 (2.2.0 available)
+  record_windows 1.0.7 (2.4.0 available)
+  riverpod 2.6.1 (3.5.0 available)
+  share_plus 10.1.4 (13.3.1 available)
+  share_plus_platform_interface 5.0.2 (7.2.0 available)
+  test_api 0.7.14 (0.7.15 available)
+  timezone 0.10.1 (0.11.2 available)
+  vector_math 2.4.3 (2.4.4 available)
+  win32 5.15.0 (6.4.0 available)
+  xml 6.6.1 (7.1.0 available)
+Got dependencies!
+58 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+            VALUE "CompanyName", "My Hato" "\0"
+            VALUE "FileDescription", "My Hato Team (staff and cashier app)" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 My Hato" "\0"
+            VALUE "ProductName", "My Hato Team" "\0"
+Building Windows application...                                   267.2s
+√ Built build\windows\x64\runner\Release\myhato.exe
+app_links_plugin.dll
+audioplayers_windows_plugin.dll
+camera_windows_plugin.dll
+dartjni.dll
+data
+file_selector_windows_plugin.dll
+flutter_secure_storage_windows_plugin.dll
+flutter_tts_plugin.dll
+flutter_windows.dll
+geolocator_windows_plugin.dll
+local_auth_windows_plugin.dll
+myhato.exe
+pdfium.dll
+permission_handler_windows_plugin.dll
+printing_plugin.dll
+record_windows_plugin.dll
+share_plus_plugin.dll
+url_launcher_windows_plugin.dll
+curl: (22) The requested URL returned error: 404
+WARN: onnxruntime.dll not added (Face ID off)
