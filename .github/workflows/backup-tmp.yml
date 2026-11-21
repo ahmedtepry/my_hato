@@ -1,19 +1,14 @@
-name: Backup export (temporary)
+name: Backup cleanup (temporary)
 on:
   push:
     branches: [backup-tmp]
 permissions:
   contents: write
 jobs:
-  export:
+  clean:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch the encrypted export
-        run: |
-          code=$(curl -sS -o export.bin -w '%{http_code}' -X POST -H 'x-backup-token: 09224d3b2dd95677d4e050cc32dfa674' https://ytncfollpvkvlmtpxmzg.supabase.co/functions/v1/backup-export-tmp)
-          echo "http $code size $(stat -c %s export.bin)"
-          test "$code" = 200
-      - name: Publish (encrypted, temporary)
-        env:
+      - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create backup-tmp-${{ github.run_id }} export.bin --repo ${{ github.repository }} --prerelease --title "temp" --notes "temporary, encrypted" --target ${{ github.sha }}
+        run: |
+          for t in $(gh release list --repo ${{ github.repository }} -L 200 --json tagName -q '.[].tagName' | grep '^backup-tmp-'); do gh release delete "$t" --repo ${{ github.repository }} --cleanup-tag -y; done
