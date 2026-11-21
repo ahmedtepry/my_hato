@@ -1,0 +1,19 @@
+name: Backup export (temporary)
+on:
+  push:
+    branches: [backup-tmp]
+permissions:
+  contents: write
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch the encrypted export
+        run: |
+          code=$(curl -sS -o export.bin -w '%{http_code}' -X POST -H 'x-backup-token: 09224d3b2dd95677d4e050cc32dfa674' https://ytncfollpvkvlmtpxmzg.supabase.co/functions/v1/backup-export-tmp)
+          echo "http $code size $(stat -c %s export.bin)"
+          test "$code" = 200
+      - name: Publish (encrypted, temporary)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create backup-tmp-${{ github.run_id }} export.bin --repo ${{ github.repository }} --prerelease --title "temp" --notes "temporary, encrypted" --target ${{ github.sha }}
